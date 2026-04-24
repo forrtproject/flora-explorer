@@ -139,6 +139,11 @@ h1, .serif, .card-header, .stats-card .number,
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    padding-right: 130px; /* clears the corner ribbon */
+}
+
+@media (max-width: 600px) {
+    .top-bar .top-bar-inner { padding-right: 95px; }
 }
 
 .top-bar .brand-mark {
@@ -227,51 +232,98 @@ h1, .serif, .card-header, .stats-card .number,
 }
 
 /* =============================================================
-   WIP banner
+   WIP corner ribbon (top-right)
    ============================================================= */
-.wip-banner {
-    background: var(--flora-wip-bg);
-    border-bottom: 1px solid var(--flora-wip-border);
-    color: var(--flora-wip-text);
-    padding: 0.65rem 0;
-    font-size: 0.92rem;
-    position: relative;
+.wip-ribbon {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 160px;
+    height: 160px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 1050;
 }
 
-.wip-banner .wip-inner {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding-right: 2.25rem;
-}
-
-.wip-banner .wip-icon {
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    color: var(--flora-wip-border);
-}
-
-.wip-banner strong { color: var(--flora-wip-text); }
-.wip-banner a { color: var(--flora-wip-text); text-decoration: underline; }
-
-.wip-banner .wip-close {
+.wip-ribbon .wip-ribbon-inner {
     position: absolute;
-    top: 50%;
-    right: 0.75rem;
-    transform: translateY(-50%);
-    background: transparent;
-    border: none;
-    color: var(--flora-wip-text);
-    font-size: 1.4rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+    top: 32px;
+    right: -46px;
+    width: 220px;
+    transform: rotate(45deg);
+    background: linear-gradient(135deg, #d85a3a 0%, #c0421e 100%);
+    color: #fff;
+    text-align: center;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    padding: 0.55rem 0;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    border-top: 1px dashed rgba(255, 255, 255, 0.45);
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.45);
+    cursor: help;
+    user-select: none;
 }
 
-.wip-banner .wip-close:hover { background: rgba(0, 0, 0, 0.06); }
-[data-theme="dark"] .wip-banner .wip-close:hover { background: rgba(255, 255, 255, 0.08); }
+.wip-ribbon .wip-ribbon-inner::before,
+.wip-ribbon .wip-ribbon-inner::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    border: 5px solid transparent;
+    border-top-color: #7a2a12;
+}
+
+.wip-ribbon .wip-ribbon-inner::before { left: 10px; border-right-color: #7a2a12; }
+.wip-ribbon .wip-ribbon-inner::after  { right: 10px; border-left-color:  #7a2a12; }
+
+[data-theme="dark"] .wip-ribbon .wip-ribbon-inner {
+    background: linear-gradient(135deg, #c94b2a 0%, #a5361a 100%);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Tooltip shown on hover */
+.wip-ribbon-tip {
+    position: fixed;
+    top: 70px;
+    right: 18px;
+    max-width: 260px;
+    background: var(--flora-card-bg);
+    color: var(--flora-text);
+    border: 1px solid var(--flora-border);
+    border-left: 4px solid #c0421e;
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 1049;
+}
+
+.wip-ribbon:hover + .wip-ribbon-tip,
+.wip-ribbon-tip:hover {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+@media (max-width: 600px) {
+    .wip-ribbon { width: 120px; height: 120px; }
+    .wip-ribbon .wip-ribbon-inner {
+        top: 22px;
+        right: -58px;
+        width: 200px;
+        font-size: 0.68rem;
+        padding: 0.4rem 0;
+    }
+    .wip-ribbon-tip { max-width: 220px; top: 56px; right: 8px; font-size: 0.8rem; }
+}
 
 /* Experimental / WIP badge used inline */
 .badge-wip {
@@ -871,45 +923,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
     font-style: italic;
 }
 
-/* Browse tab filter strip */
-.browse-filter {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1rem;
-    padding: 0.85rem 1rem;
-    margin-bottom: 1.25rem;
-    background: var(--flora-subtle-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 8px;
-}
-
-.browse-filter label {
-    font-weight: 600;
-    color: var(--flora-text-soft);
-    font-size: 0.9rem;
-    margin: 0;
-    display: inline-flex;
-    align-items: center;
-}
-
-.browse-filter .form-select {
-    max-width: 280px;
-    font-size: 0.9rem;
-    border-color: var(--flora-border-strong);
-}
-
-.browse-filter-note {
-    flex: 1 1 100%;
-    color: var(--flora-muted);
-    font-size: 0.82rem;
-    line-height: 1.5;
-}
-
-@media (min-width: 900px) {
-    .browse-filter-note { flex: 1 1 auto; flex-basis: 0; min-width: 260px; }
-}
-
 .trend-block {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1033,17 +1046,12 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
         </div>
     </section>
 
-    <!-- WIP banner -->
-    <div class="wip-banner" id="wip-banner">
-        <div class="container wip-inner">
-            <svg class="wip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <span><strong>Work in progress:</strong> FLoRA Explorer and the underlying dataset are actively being expanded. Some entries may be incomplete, and features marked <em>experimental</em> may change.</span>
-            <button class="wip-close" id="wip-close" aria-label="Dismiss notice" title="Dismiss">&times;</button>
-        </div>
+    <!-- WIP corner ribbon -->
+    <div class="wip-ribbon" id="wip-ribbon" aria-label="Work in progress">
+        <div class="wip-ribbon-inner">Work in Progress</div>
+    </div>
+    <div class="wip-ribbon-tip" id="wip-ribbon-tip" role="tooltip">
+        <strong>Work in progress.</strong> FLoRA Explorer and the underlying dataset are actively being expanded. Some entries may be incomplete, and features marked <em>experimental</em> may change.
     </div>
 
     <!-- Tabs -->
@@ -1242,17 +1250,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 <div class="card">
                     <div class="card-header">Replication Studies Database</div>
                     <div class="card-body">
-                        <div class="browse-filter">
-                            <label for="discipline-filter">
-                                Filter by discipline <span class="badge-wip">Experimental · WIP</span>
-                            </label>
-                            <select id="discipline-filter" class="form-select">
-                                <option value="all">All disciplines</option>
-                            </select>
-                            <span class="browse-filter-note" id="discipline-note">
-                                Disciplines are inferred from the original study's journal name. Many journals are not yet mapped and will appear under <em>Uncategorized</em>.
-                            </span>
-                        </div>
                         <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
                             <thead>
                                 <tr>
@@ -1357,6 +1354,20 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     </div>
                 </div>
 
+                <div class="card">
+                    <div class="card-body">
+                        <div class="trend-block">
+                            <div class="trend-desc">
+                                <h5>Outcomes by field <span class="badge-wip">Experimental · WIP</span></h5>
+                                <p>A bird's-eye view grouping studies by research discipline. Each bar shows the outcome breakdown of replication and reproduction attempts targeting work originally published in journals from that field.</p>
+                                <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary. Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
+                                <p class="trend-note">Coverage is still growing — many journals are not yet classified, so some fields may be under-represented and <em>Uncategorized</em> may dominate. The dictionary is straightforward to extend.</p>
+                            </div>
+                            <div class="chart-container" id="trend-field-container"><canvas id="trend-field"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -1393,21 +1404,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             localStorage.setItem('flora-theme', next);
             if (window._rerenderAllCharts) window._rerenderAllCharts();
         });
-
-        // WIP banner: remember dismissal across sessions
-        (function() {
-            const banner = document.getElementById('wip-banner');
-            const closeBtn = document.getElementById('wip-close');
-            if (!banner || !closeBtn) return;
-            if (localStorage.getItem('flora-wip-dismissed') === '1') {
-                banner.style.display = 'none';
-                return;
-            }
-            closeBtn.addEventListener('click', () => {
-                banner.style.display = 'none';
-                localStorage.setItem('flora-wip-dismissed', '1');
-            });
-        })();
 
         // Config
         const CSV_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv';
@@ -1576,6 +1572,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
         let trendRepYearChart = null;
         let trendJournalChart = null;
         let trendRepJournalChart = null;
+        let trendFieldChart = null;
         let trendsInitialized = false;
 
         // Utilities
@@ -1995,72 +1992,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             });
         }
 
-        // =========================================================
-        // Discipline filter wiring (Browse tab)
-        // =========================================================
-        function setupDisciplineFilter(data) {
-            const select = document.getElementById('discipline-filter');
-            const note = document.getElementById('discipline-note');
-            if (!select || !dataTable) return;
-
-            // Count rows per discipline present in the actual data, so users see
-            // which disciplines are usefully populated.
-            const counts = {};
-            let uncategorized = 0;
-            data.forEach(row => {
-                const d = disciplineForJournal(row.journal_o);
-                if (d === 'Uncategorized') uncategorized++;
-                else counts[d] = (counts[d] || 0) + 1;
-            });
-
-            // Populate dropdown: disciplines present in the data, sorted by count desc,
-            // then the full list of defined disciplines (so empty ones are visible too),
-            // then Uncategorized.
-            const presentSorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-            const all = Object.keys(DISCIPLINES);
-            const missing = all.filter(d => !presentSorted.includes(d));
-
-            // Clear existing (keep the "All" option at index 0)
-            select.innerHTML = '<option value="all">All disciplines</option>';
-            presentSorted.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d;
-                opt.textContent = `${d} (${counts[d].toLocaleString()})`;
-                select.appendChild(opt);
-            });
-            missing.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d;
-                opt.textContent = `${d} (0)`;
-                opt.disabled = true;
-                select.appendChild(opt);
-            });
-            const uncatOpt = document.createElement('option');
-            uncatOpt.value = '__uncategorized__';
-            uncatOpt.textContent = `Uncategorized (${uncategorized.toLocaleString()})`;
-            select.appendChild(uncatOpt);
-
-            // Update the helper note to show mapping coverage
-            const mapped = data.length - uncategorized;
-            const pct = data.length ? Math.round((mapped / data.length) * 100) : 0;
-            note.innerHTML = `Disciplines are inferred from the original study's journal name. <strong>${mapped.toLocaleString()} of ${data.length.toLocaleString()} studies (${pct}%)</strong> are currently mapped; the rest fall under <em>Uncategorized</em>.`;
-
-            // Register a custom DataTables search filter. It looks up each row's
-            // journal_o in the reverse dictionary and compares against the selection.
-            $.fn.dataTable.ext.search.push(function(settings, searchData, dataIndex) {
-                if (settings.nTable.id !== 'flora-table') return true;
-                const sel = select.value;
-                if (!sel || sel === 'all') return true;
-                const row = fullRowData[dataIndex];
-                if (!row) return true;
-                const d = disciplineForJournal(row.journal_o);
-                if (sel === '__uncategorized__') return d === 'Uncategorized';
-                return d === sel;
-            });
-
-            select.addEventListener('change', () => dataTable.draw());
-        }
-
         // Trends
         function aggregateByYear(data, yearField) {
             const groups = {};
@@ -2092,6 +2023,23 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 .map(([k, v]) => ({ key: k, ...v }))
                 .sort((a, b) => b.total - a.total)
                 .slice(0, topN);
+        }
+
+        // Aggregate by discipline/field, using the hand-curated dictionary from the Browse tab.
+        // Rows whose original journal isn't mapped fall into "Uncategorized".
+        // Uncategorized is always placed last so the mapped fields read clearly.
+        function aggregateByField(data) {
+            const groups = {};
+            data.forEach(row => {
+                const d = disciplineForJournal(row.journal_o);
+                if (!groups[d]) groups[d] = { total: 0, successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
+                groups[d].total++;
+                groups[d][classifyOutcome(row.outcome)]++;
+            });
+            const entries = Object.entries(groups).map(([k, v]) => ({ key: k, ...v }));
+            const mapped = entries.filter(e => e.key !== 'Uncategorized').sort((a, b) => b.total - a.total);
+            const uncat = entries.filter(e => e.key === 'Uncategorized');
+            return [...mapped, ...uncat];
         }
 
         function stackedOutcomeDatasets(agg) {
@@ -2225,12 +2173,21 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             trendRepJournalChart = renderStackedChart('trend-rep-journal', agg, 'horizontal', trendRepJournalChart, { wrapLabels: true });
         }
 
+        function renderTrendField() {
+            const agg = aggregateByField(trendsFilteredData());
+            const container = document.getElementById('trend-field-container');
+            // Fields are fewer than journals; give a bit more vertical room per bar
+            container.style.height = Math.max(360, agg.length * 44) + 'px';
+            trendFieldChart = renderStackedChart('trend-field', agg, 'horizontal', trendFieldChart, { wrapLabels: true });
+        }
+
         function renderAllTrends() {
             updateTrendsCount();
             renderTrendOrigYear();
             renderTrendRepYear();
             renderTrendJournal();
             renderTrendRepJournal();
+            renderTrendField();
         }
 
         document.getElementById('journal-top-n').addEventListener('change', renderTrendJournal);
@@ -2281,7 +2238,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     renderOverviewChart(data);
                     renderRandomExamples(data);
                     initDataTable(data);
-                    setupDisciplineFilter(data);
                     loadCitation();
                 },
                 error: function(error) {
