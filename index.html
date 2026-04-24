@@ -10,477 +10,52 @@
 
     <meta property="og:type" content="website">
     <meta property="og:title" content="FLoRA Dashboard — FORRT Library of Replication Attempts">
-    <meta property="og:description" content="Explore replication and reproduction studies across the sciences. Browse, filter, and analyze the FLoRA database.">
+    <meta property="og:description" content="Explore replication and reproduction studies across the sciences and humanities. Browse, filter, and analyze the FLoRA database.">
     <meta property="og:site_name" content="FLoRA Dashboard">
 
     <link rel="icon" type="image/svg+xml" href="logo.svg">
 
+    <!-- Vendor CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
     <link href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css" rel="stylesheet">
 
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
-    <style>
-        :root {
-            --flora-primary: #853953;
-            --flora-primary-dark: #6b2d43;
-            --flora-secondary: #4299e1;
-            --flora-success: #48bb78;
-            --flora-danger: #f56565;
-            --flora-warning: #ed8936;
-            --flora-info: #667eea;
-            --flora-muted: #718096;
-
-            --flora-bg: #f7f8fa;
-            --flora-card-bg: #ffffff;
-            --flora-border: #e2e8f0;
-            --flora-text: #2d3748;
-            --flora-text-soft: #4a5568;
-            --flora-subtle-bg: #f8fafc;
-            --flora-subtle-bg-2: #edf2f7;
-            --flora-tab-bg: #ffffff;
-            --flora-input-bg: #ffffff;
-            --flora-link: var(--flora-secondary);
-            --flora-grid: #edf2f7;
-            --flora-chart-tick: #4a5568;
-            --flora-shadow: rgba(0, 0, 0, 0.04);
-            --flora-shadow-hover: rgba(0, 0, 0, 0.08);
-            --flora-callout-bg: #fff8e5;
-            --flora-callout-accent: #9c4221;
-        }
-
-        [data-theme="dark"] {
-            --flora-bg: #13161c;
-            --flora-card-bg: #1c2029;
-            --flora-border: #2a2f3a;
-            --flora-text: #e8ecf1;
-            --flora-text-soft: #b8c0cc;
-            --flora-subtle-bg: #181c24;
-            --flora-subtle-bg-2: #23293a;
-            --flora-tab-bg: #1c2029;
-            --flora-input-bg: #23293a;
-            --flora-link: #7cb8ec;
-            --flora-muted: #9aa4b2;
-            --flora-grid: #2a2f3a;
-            --flora-chart-tick: #b8c0cc;
-            --flora-shadow: rgba(0, 0, 0, 0.3);
-            --flora-shadow-hover: rgba(0, 0, 0, 0.5);
-            --flora-callout-bg: #3a2e1a;
-            --flora-callout-accent: #f0c070;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: var(--flora-bg);
-            color: var(--flora-text);
-            margin: 0;
-            padding: 0;
-            transition: background-color 0.2s ease, color 0.2s ease;
-        }
-
-        .header {
-            background: linear-gradient(135deg, var(--flora-primary) 0%, var(--flora-primary-dark) 100%);
-            color: white;
-            padding: 2.5rem 0 2rem 0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            position: relative;
-        }
-
-        .header-flex { display: flex; align-items: center; gap: 1.25rem; }
-
-        .header-logo {
-            width: 72px;
-            height: 72px;
-            flex-shrink: 0;
-            background: rgba(255, 255, 255, 0.14);
-            border-radius: 16px;
-            padding: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.22);
-        }
-        .header-logo img { width: 100%; height: 100%; display: block; }
-
-        .header h1 { font-weight: 700; font-size: 2.5rem; margin: 0; letter-spacing: -0.02em; }
-        .header p { margin: 0.35rem 0 0 0; opacity: 0.92; font-size: 1.05rem; }
-
-        .theme-toggle {
-            position: absolute;
-            top: 1.25rem;
-            right: 1.25rem;
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s ease;
-            padding: 0;
-        }
-        .theme-toggle:hover { background: rgba(255, 255, 255, 0.25); }
-        .theme-toggle svg { width: 18px; height: 18px; }
-        .theme-toggle .icon-sun { display: none; }
-        [data-theme="dark"] .theme-toggle .icon-sun { display: block; }
-        [data-theme="dark"] .theme-toggle .icon-moon { display: none; }
-
-        .nav-tabs-wrapper {
-            background: var(--flora-tab-bg);
-            border-bottom: 1px solid var(--flora-border);
-            margin-bottom: 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 1px 3px var(--flora-shadow);
-        }
-
-        .nav-tabs { border-bottom: none; flex-wrap: wrap; overflow-x: visible; }
-
-        .nav-tabs .nav-link {
-            color: var(--flora-muted);
-            border: none;
-            border-bottom: 3px solid transparent;
-            padding: 1rem 1.5rem;
-            font-weight: 500;
-            font-size: 1rem;
-            white-space: nowrap;
-            transition: all 0.2s ease;
-            background: transparent;
-        }
-        .nav-tabs .nav-link:hover {
-            color: var(--flora-primary);
-            border-bottom-color: var(--flora-border);
-        }
-        [data-theme="dark"] .nav-tabs .nav-link:hover { color: #c78ba0; }
-        .nav-tabs .nav-link.active {
-            color: var(--flora-primary);
-            background: transparent;
-            border-bottom-color: var(--flora-primary);
-            font-weight: 600;
-        }
-        [data-theme="dark"] .nav-tabs .nav-link.active { color: #d89cb0; border-bottom-color: #d89cb0; }
-
-        .card {
-            background: var(--flora-card-bg);
-            border: 1px solid var(--flora-border);
-            border-radius: 12px;
-            box-shadow: 0 1px 3px var(--flora-shadow);
-            margin-bottom: 1.5rem;
-            color: var(--flora-text);
-        }
-
-        .card-header {
-            background: var(--flora-card-bg);
-            border-bottom: 1px solid var(--flora-border);
-            border-radius: 12px 12px 0 0 !important;
-            padding: 1rem 1.5rem;
-            font-weight: 600;
-            color: var(--flora-primary);
-        }
-        [data-theme="dark"] .card-header { color: #d89cb0; }
-        .card-body { padding: 1.5rem; color: var(--flora-text); }
-
-        .stats-card {
-            text-align: center;
-            padding: 1.25rem 1rem;
-            border-radius: 12px;
-            background: var(--flora-card-bg);
-            border: 1px solid var(--flora-border);
-            margin-bottom: 1rem;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .stats-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px var(--flora-shadow-hover); }
-        .stats-card .number { font-size: 2.25rem; font-weight: 700; color: var(--flora-primary); line-height: 1.1; }
-        [data-theme="dark"] .stats-card .number { color: #d89cb0; }
-        .stats-card .label {
-            color: var(--flora-muted);
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-top: 0.25rem;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
-
-        .badge { font-weight: 500; padding: 0.4em 0.7em; border-radius: 6px; font-size: 0.8rem; }
-        .badge-successful { background-color: var(--flora-success); color: white; }
-        .badge-failed { background-color: var(--flora-danger); color: white; }
-        .badge-mixed { background-color: var(--flora-warning); color: white; }
-        .badge-inconclusive, .badge-unknown { background-color: var(--flora-muted); color: white; }
-
-        .doi-link { color: var(--flora-link); text-decoration: none; }
-        .doi-link:hover { text-decoration: underline; color: var(--flora-link); }
-
-        .tool-tile {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.85rem;
-            padding: 0.85rem 1rem;
-            border: 1px solid var(--flora-border);
-            border-radius: 10px;
-            background: var(--flora-card-bg);
-            text-decoration: none;
-            color: var(--flora-text);
-            transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-            margin-bottom: 0.6rem;
-        }
-        .tool-tile:last-child { margin-bottom: 0; }
-        .tool-tile:hover {
-            border-color: var(--flora-primary);
-            transform: translateX(2px);
-            box-shadow: 0 2px 8px var(--flora-shadow-hover);
-            color: var(--flora-text);
-        }
-        .tool-tile .tool-icon {
-            flex-shrink: 0;
-            width: 36px;
-            height: 36px;
-            background: var(--flora-subtle-bg);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--flora-primary);
-        }
-        [data-theme="dark"] .tool-tile .tool-icon { color: #d89cb0; background: var(--flora-subtle-bg-2); }
-        .tool-tile .tool-icon svg { width: 18px; height: 18px; }
-        .tool-tile .tool-body { flex: 1; min-width: 0; }
-        .tool-tile .tool-title { font-weight: 600; font-size: 0.95rem; color: var(--flora-text); margin-bottom: 0.15rem; }
-        .tool-tile .tool-desc { color: var(--flora-muted); font-size: 0.82rem; line-height: 1.35; }
-
-        .intro-text { font-size: 1rem; line-height: 1.7; color: var(--flora-text); }
-        .intro-text h4 { color: var(--flora-primary); font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.75rem; font-size: 1.25rem; }
-        [data-theme="dark"] .intro-text h4 { color: #d89cb0; }
-        .intro-text h4:first-child { margin-top: 0; }
-        .intro-text ul { padding-left: 1.5rem; }
-        .intro-text li { margin-bottom: 0.35rem; }
-
-        .key-distinction {
-            background: var(--flora-callout-bg);
-            border-left: 4px solid var(--flora-warning);
-            padding: 0.85rem 1rem;
-            border-radius: 0 8px 8px 0;
-            margin: 1rem 0;
-            font-size: 0.95rem;
-        }
-        .key-distinction strong { color: var(--flora-callout-accent); }
-
-        .example-card {
-            background: var(--flora-card-bg);
-            border: 1px solid var(--flora-border);
-            border-radius: 10px;
-            padding: 1rem 1.15rem;
-            margin-bottom: 0.85rem;
-            border-left: 4px solid var(--flora-secondary);
-            transition: box-shadow 0.2s ease;
-        }
-        .example-card:hover { box-shadow: 0 2px 8px var(--flora-shadow-hover); }
-        .example-card.outcome-successful { border-left-color: var(--flora-success); }
-        .example-card.outcome-failed { border-left-color: var(--flora-danger); }
-        .example-card.outcome-mixed { border-left-color: var(--flora-warning); }
-        .example-card.outcome-unknown { border-left-color: var(--flora-muted); }
-        .example-card .ex-title { font-weight: 600; color: var(--flora-text); font-size: 0.95rem; line-height: 1.4; margin-bottom: 0.35rem; }
-        .example-card .ex-meta { font-size: 0.82rem; color: var(--flora-muted); margin-bottom: 0.5rem; }
-        .example-card .ex-outcome { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-
-        .citation-box {
-            background: var(--flora-subtle-bg);
-            border: 1px solid var(--flora-border);
-            border-radius: 8px;
-            padding: 1rem 1.25rem;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            font-family: Georgia, 'Times New Roman', serif;
-            position: relative;
-            color: var(--flora-text);
-        }
-        .citation-box .copy-btn {
-            position: absolute;
-            top: 0.5rem;
-            right: 0.5rem;
-            background: var(--flora-card-bg);
-            border: 1px solid var(--flora-border);
-            border-radius: 6px;
-            padding: 0.3rem 0.6rem;
-            font-size: 0.75rem;
-            cursor: pointer;
-            color: var(--flora-muted);
-            font-family: 'Inter', sans-serif;
-        }
-        .citation-box .copy-btn:hover {
-            background: var(--flora-primary);
-            color: white;
-            border-color: var(--flora-primary);
-        }
-
-        .loading-spinner { display: flex; justify-content: center; align-items: center; padding: 4rem; color: var(--flora-text-soft); }
-        .spinner-border { width: 3rem; height: 3rem; color: var(--flora-secondary); }
-
-        .dataTables_filter input {
-            border-radius: 20px;
-            padding: 0.5rem 1rem;
-            border: 2px solid var(--flora-border);
-            background: var(--flora-input-bg);
-            color: var(--flora-text);
-        }
-        .dataTables_filter input:focus {
-            border-color: var(--flora-secondary);
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
-        }
-
-        [data-theme="dark"] .dataTables_wrapper,
-        [data-theme="dark"] .dataTables_length,
-        [data-theme="dark"] .dataTables_filter,
-        [data-theme="dark"] .dataTables_info,
-        [data-theme="dark"] .dataTables_paginate { color: var(--flora-text) !important; }
-
-        [data-theme="dark"] .table {
-            --bs-table-bg: var(--flora-card-bg);
-            --bs-table-color: var(--flora-text);
-            --bs-table-striped-bg: var(--flora-subtle-bg);
-            --bs-table-striped-color: var(--flora-text);
-            --bs-table-hover-bg: var(--flora-subtle-bg-2);
-            --bs-table-hover-color: var(--flora-text);
-            --bs-table-border-color: var(--flora-border);
-            color: var(--flora-text);
-        }
-        [data-theme="dark"] .table thead th { color: var(--flora-text); border-bottom-color: var(--flora-border); }
-
-        [data-theme="dark"] .page-link {
-            background-color: var(--flora-card-bg);
-            border-color: var(--flora-border);
-            color: var(--flora-link);
-        }
-        [data-theme="dark"] .page-item.active .page-link {
-            background-color: var(--flora-primary);
-            border-color: var(--flora-primary);
-            color: #fff;
-        }
-        [data-theme="dark"] .page-item.disabled .page-link {
-            background-color: var(--flora-card-bg);
-            color: var(--flora-muted);
-        }
-        [data-theme="dark"] .dataTables_length select {
-            background-color: var(--flora-input-bg);
-            color: var(--flora-text);
-            border-color: var(--flora-border);
-        }
-        [data-theme="dark"] .form-select,
-        [data-theme="dark"] .form-control {
-            background-color: var(--flora-input-bg);
-            color: var(--flora-text);
-            border-color: var(--flora-border);
-        }
-
-        td.details-control { cursor: pointer; text-align: center; color: var(--flora-secondary); font-size: 0.9rem; }
-        td.details-control::before { content: "▶"; display: inline-block; transition: transform 0.2s ease; }
-        tr.shown td.details-control::before { transform: rotate(90deg); }
-        .detail-row { background-color: var(--flora-subtle-bg); padding: 1rem; }
-        .detail-row h6 {
-            color: var(--flora-primary);
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            border-bottom: 1px solid var(--flora-border);
-            padding-bottom: 0.25rem;
-        }
-        [data-theme="dark"] .detail-row h6 { color: #d89cb0; }
-        .detail-section { margin-bottom: 1rem; }
-        .detail-label { font-weight: 600; color: var(--flora-text-soft); display: inline-block; min-width: 120px; }
-        .detail-value { color: var(--flora-text); }
-        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
-        .detail-card {
-            background: var(--flora-card-bg);
-            border: 1px solid var(--flora-border);
-            border-radius: 8px;
-            padding: 1rem;
-            box-shadow: 0 1px 3px var(--flora-shadow);
-        }
-
-        .chart-container { position: relative; height: 400px; width: 100%; }
-
-        /* Trends tab: side-by-side description + plot on desktop */
-        .trend-block {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            align-items: start;
-        }
-        .trend-block .trend-desc { padding-top: 0.5rem; }
-        .trend-block .trend-desc h5 { color: var(--flora-primary); font-weight: 600; margin-bottom: 0.75rem; font-size: 1.1rem; }
-        [data-theme="dark"] .trend-block .trend-desc h5 { color: #d89cb0; }
-        .trend-block .trend-desc p { color: var(--flora-text-soft); font-size: 0.92rem; line-height: 1.6; margin-bottom: 0.75rem; }
-        .trend-block .trend-desc .trend-note { color: var(--flora-muted); font-size: 0.82rem; font-style: italic; margin-top: 0.5rem; }
-
-        @media (max-width: 900px) {
-            .trend-block { grid-template-columns: 1fr; gap: 1.25rem; }
-        }
-
-        .footer {
-            text-align: center;
-            padding: 2rem 1rem;
-            color: var(--flora-muted);
-            font-size: 0.88rem;
-            background: var(--flora-card-bg);
-            border-top: 1px solid var(--flora-border);
-            margin-top: 3rem;
-        }
-        .footer a { color: var(--flora-link); text-decoration: none; }
-        .footer a:hover { text-decoration: underline; }
-
-        .refresh-btn {
-            background: var(--flora-card-bg);
-            border: 1px solid var(--flora-border);
-            color: var(--flora-link);
-            border-radius: 6px;
-            padding: 0.35rem 0.75rem;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-        }
-        .refresh-btn:hover {
-            background: var(--flora-secondary);
-            color: white;
-            border-color: var(--flora-secondary);
-        }
-
-        @media (max-width: 768px) {
-            .header h1 { font-size: 1.85rem; }
-            .header p { font-size: 0.95rem; }
-            .header-logo { width: 56px; height: 56px; }
-            .nav-tabs .nav-link { padding: 0.75rem 1rem; font-size: 0.9rem; }
-            .table td, .table th { font-size: 0.85rem; }
-            .stats-card .number { font-size: 1.75rem; }
-            .card-body { padding: 1rem; }
-            .theme-toggle { top: 0.75rem; right: 0.75rem; }
-        }
-    </style>
+    <!-- App CSS -->
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="header">
-        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
-            <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-        </button>
-        <div class="container">
-            <div class="header-flex">
-                <div class="header-logo"><img src="logo.svg" alt="FLoRA logo"></div>
-                <div>
-                    <h1>FLoRA</h1>
-                    <p>FORRT Library of Replication Attempts — tracking replications and reproductions across the sciences</p>
-                </div>
-            </div>
+
+    <!-- Dark top bar (FORRT-style) -->
+    <div class="top-bar">
+        <div class="container top-bar-inner">
+            <a class="brand-mark" href="https://forrt.org/" target="_blank">
+                <span>FORRT Library of Replication Attempts</span>
+            </a>
+            <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+            </button>
         </div>
     </div>
 
+    <!-- Hero -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-inner">
+                <div class="hero-logo"><img src="logo.svg" alt="FLoRA logo"></div>
+                <h1>FLoRA</h1>
+                <hr class="hero-rule">
+                <p class="hero-subtitle">The FORRT Library of Replication Attempts — tracking replications and reproductions across the sciences and humanities.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tabs -->
     <div class="nav-tabs-wrapper">
         <div class="container">
             <ul class="nav nav-tabs" id="floraTabs" role="tablist">
@@ -520,7 +95,7 @@
                 <div class="card">
                     <div class="card-header">Outcome Distribution</div>
                     <div class="card-body">
-                        <div style="position:relative; height:300px;">
+                        <div class="chart-container-stack">
                             <canvas id="overview-outcome-chart"></canvas>
                         </div>
                     </div>
@@ -639,11 +214,6 @@
                             <button class="copy-btn" id="citation-copy-btn">Copy</button>
                             <div id="citation-text">Loading citation…</div>
                         </div>
-                        <p class="mt-2 mb-0" style="color: var(--flora-muted); font-size: 0.82rem;">
-                            Citation metadata is loaded live from the
-                            <a href="https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff" target="_blank" class="doi-link">CITATION.cff</a>
-                            file in the source repository.
-                        </p>
                     </div>
                 </div>
             </div>
@@ -768,19 +338,19 @@
         const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
 
         const OUTCOME_COLORS = {
-            successful: '#48bb78',
-            failed: '#f56565',
-            mixed: '#ed8936',
-            inconclusive: '#718096',
-            other: '#a0aec0'
+            successful:   '#48bb78',
+            failed:       '#e05d5d',
+            mixed:        '#e8a23a',
+            inconclusive: '#6f7686',
+            other:        '#a0a7b4'
         };
 
         function themeAxisColors() {
             const dark = currentTheme() === 'dark';
             return {
-                grid: dark ? '#2a2f3a' : '#edf2f7',
-                tick: dark ? '#b8c0cc' : '#4a5568',
-                legend: dark ? '#e8ecf1' : '#2d3748'
+                grid:   dark ? '#2a2e3a' : '#e4dbde',
+                tick:   dark ? '#b8c0cc' : '#4e4850',
+                legend: dark ? '#e8ecf1' : '#2a2328'
             };
         }
 
@@ -907,46 +477,56 @@
             document.getElementById('ov-mixed').textContent = mixed.toLocaleString();
         }
 
+        // Stacked horizontal bar (single row) showing outcome breakdown
         function renderOverviewChart(data) {
-            const counts = { successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
+            const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0, other: 0 };
             data.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
-            const labels = ['Successful', 'Mixed', 'Failed', 'Inconclusive', 'Other / Unknown'];
-            const values = [counts.successful, counts.mixed, counts.failed, counts.inconclusive, counts.other];
-            const colors = [OUTCOME_COLORS.successful, OUTCOME_COLORS.mixed, OUTCOME_COLORS.failed, OUTCOME_COLORS.inconclusive, OUTCOME_COLORS.other];
-            const total = values.reduce((a, b) => a + b, 0);
+            const datasets = [
+                { label: 'Successful',     data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
+                { label: 'Mixed',          data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
+                { label: 'Failed',         data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
+                { label: 'Inconclusive',   data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive },
+                { label: 'Other / Unknown',data: [counts.other],        backgroundColor: OUTCOME_COLORS.other }
+            ];
 
             const ctx = document.getElementById('overview-outcome-chart').getContext('2d');
             if (overviewChart) overviewChart.destroy();
             const ac = themeAxisColors();
+
             overviewChart = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: colors,
-                        borderRadius: 6,
-                        borderSkipped: false
-                    }]
-                },
+                data: { labels: ['All studies'], datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    indexAxis: 'y',
                     plugins: {
-                        legend: { display: false },
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: ac.legend, boxWidth: 14, padding: 14, font: { size: 12 } }
+                        },
                         tooltip: {
                             callbacks: {
                                 label: ctx => {
-                                    const pct = total ? ((ctx.parsed.y / total) * 100).toFixed(1) : 0;
-                                    return `${ctx.parsed.y.toLocaleString()} (${pct}%)`;
+                                    const v = ctx.parsed.x;
+                                    const pct = total ? ((v / total) * 100).toFixed(1) : 0;
+                                    return `${ctx.dataset.label}: ${v.toLocaleString()} (${pct}%)`;
                                 }
                             }
                         }
                     },
                     scales: {
-                        x: { grid: { display: false }, ticks: { color: ac.tick, font: { size: 13 } } },
-                        y: { beginAtZero: true, grid: { color: ac.grid }, ticks: { color: ac.tick } }
+                        x: {
+                            stacked: true,
+                            grid: { color: ac.grid },
+                            ticks: { color: ac.tick }
+                        },
+                        y: {
+                            stacked: true,
+                            display: false
+                        }
                     }
                 }
             });
@@ -977,7 +557,7 @@
             if (fullRowData.length) renderRandomExamples(fullRowData);
         });
 
-        // Citation — handles family-names/given-names (CFF spec)
+        // Citation — family-names / given-names (CFF spec)
         async function loadCitation() {
             const box = document.getElementById('citation-text');
             try {
@@ -1174,11 +754,11 @@
 
         function stackedOutcomeDatasets(agg) {
             return [
-                { label: 'Successful', data: agg.map(r => r.successful), backgroundColor: OUTCOME_COLORS.successful },
-                { label: 'Mixed', data: agg.map(r => r.mixed), backgroundColor: OUTCOME_COLORS.mixed },
-                { label: 'Failed', data: agg.map(r => r.failed), backgroundColor: OUTCOME_COLORS.failed },
-                { label: 'Inconclusive', data: agg.map(r => r.inconclusive), backgroundColor: OUTCOME_COLORS.inconclusive },
-                { label: 'Other / Unknown', data: agg.map(r => r.other), backgroundColor: OUTCOME_COLORS.other }
+                { label: 'Successful',      data: agg.map(r => r.successful),   backgroundColor: OUTCOME_COLORS.successful },
+                { label: 'Mixed',           data: agg.map(r => r.mixed),        backgroundColor: OUTCOME_COLORS.mixed },
+                { label: 'Failed',          data: agg.map(r => r.failed),       backgroundColor: OUTCOME_COLORS.failed },
+                { label: 'Inconclusive',    data: agg.map(r => r.inconclusive), backgroundColor: OUTCOME_COLORS.inconclusive },
+                { label: 'Other / Unknown', data: agg.map(r => r.other),        backgroundColor: OUTCOME_COLORS.other }
             ];
         }
 
