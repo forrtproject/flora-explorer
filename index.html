@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#853953">
+    <title>FLoRA Dashboard — FORRT Library of Replication Attempts</title>
+    <meta name="description" content="Explore the FORRT Library of Replication Attempts (FLoRA) — a comprehensive database tracking replication and reproduction studies across the sciences and humanities.">
+    <meta name="keywords" content="replication, reproduction, FLoRA, FORRT, open science, metascience, reproducibility">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="FLoRA Dashboard — FORRT Library of Replication Attempts">
+    <meta property="og:description" content="Explore replication and reproduction studies across the sciences. Browse, filter, and analyze the FLoRA database.">
+    <meta property="og:site_name" content="FLoRA Dashboard">
+
+    <!-- Bootstrap & DataTables -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css" rel="stylesheet">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --flora-primary: #853953;
+            --flora-primary-dark: #6b2d43;
+            --flora-secondary: #4299e1;
+            --flora-success: #48bb78;
+            --flora-danger: #f56565;
+            --flora-warning: #ed8936;
+            --flora-info: #667eea;
+            --flora-muted: #718096;
+            --flora-bg: #f7f8fa;
+            --flora-card-bg: #ffffff;
+            --flora-border: #e2e8f0;
+            --flora-text: #2d3748;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--flora-bg);
+            color: var(--flora-text);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--flora-primary) 0%, var(--flora-primary-dark) 100%);
+            color: white;
+            padding: 2.5rem 0 2rem 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-weight: 700;
+            font-size: 2.5rem;
+            margin: 0;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.92;
+            font-size: 1.05rem;
+        }
+
+        .header-links {
+            margin-top: 1.25rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .header-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header-link:hover {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+        }
+
+        .header-link svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Tabs */
+        .nav-tabs-wrapper {
+            background: white;
+            border-bottom: 1px solid var(--flora-border);
+            margin-bottom: 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .nav-tabs {
+            border-bottom: none;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--flora-muted);
+            border: none;
+            border-bottom: 3px solid transparent;
+            padding: 1rem 1.5rem;
+            font-weight: 500;
+            font-size: 1rem;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            background: transparent;
+        }
+
+        .nav-tabs .nav-link:hover {
+            color: var(--flora-primary);
+            border-bottom-color: var(--flora-border);
+        }
+
+        .nav-tabs .nav-link.active {
+            color: var(--flora-primary);
+            background: transparent;
+            border-bottom-color: var(--flora-primary);
+            font-weight: 600;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--flora-card-bg);
+            border: 1px solid var(--flora-border);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            background: white;
+            border-bottom: 1px solid var(--flora-border);
+            border-radius: 12px 12px 0 0 !important;
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            color: var(--flora-primary);
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        /* Stats cards */
+        .stats-card {
+            text-align: center;
+            padding: 1.25rem 1rem;
+            border-radius: 12px;
+            background: white;
+            border: 1px solid var(--flora-border);
+            margin-bottom: 1rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .stats-card .number {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--flora-primary);
+            line-height: 1.1;
+        }
+
+        .stats-card .label {
+            color: var(--flora-muted);
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-top: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        /* Badges */
+        .badge {
+            font-weight: 500;
+            padding: 0.4em 0.7em;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        .badge-successful { background-color: var(--flora-success); color: white; }
+        .badge-failed { background-color: var(--flora-danger); color: white; }
+        .badge-mixed { background-color: var(--flora-warning); color: white; }
+        .badge-inconclusive, .badge-unknown { background-color: var(--flora-muted); color: white; }
+        .badge-robust { background-color: #38b2ac; color: white; }
+        .badge-challenges { background-color: #d69e2e; color: white; }
+
+        /* Links */
+        .doi-link {
+            color: var(--flora-secondary);
+            text-decoration: none;
+        }
+
+        .doi-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Overview-specific */
+        .intro-text {
+            font-size: 1rem;
+            line-height: 1.7;
+            color: var(--flora-text);
+        }
+
+        .intro-text h4 {
+            color: var(--flora-primary);
+            font-weight: 600;
+            margin-top: 1.75rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.25rem;
+        }
+
+        .intro-text h4:first-child {
+            margin-top: 0;
+        }
+
+        .intro-text ul {
+            padding-left: 1.5rem;
+        }
+
+        .intro-text li {
+            margin-bottom: 0.35rem;
+        }
+
+        .key-distinction {
+            background: #fff8e5;
+            border-left: 4px solid var(--flora-warning);
+            padding: 0.85rem 1rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+            font-size: 0.95rem;
+        }
+
+        .key-distinction strong {
+            color: #9c4221;
+        }
+
+        /* Example cards */
+        .example-card {
+            background: white;
+            border: 1px solid var(--flora-border);
+            border-radius: 10px;
+            padding: 1rem 1.15rem;
+            margin-bottom: 0.85rem;
+            border-left: 4px solid var(--flora-secondary);
+            transition: box-shadow 0.2s ease;
+        }
+
+        .example-card:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .example-card.outcome-successful { border-left-color: var(--flora-success); }
+        .example-card.outcome-failed { border-left-color: var(--flora-danger); }
+        .example-card.outcome-mixed { border-left-color: var(--flora-warning); }
+        .example-card.outcome-unknown { border-left-color: var(--flora-muted); }
+
+        .example-card .ex-title {
+            font-weight: 600;
+            color: var(--flora-text);
+            font-size: 0.95rem;
+            line-height: 1.4;
+            margin-bottom: 0.35rem;
+        }
+
+        .example-card .ex-meta {
+            font-size: 0.82rem;
+            color: var(--flora-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .example-card .ex-outcome {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Citation box */
+        .citation-box {
+            background: #f7f8fa;
+            border: 1px solid var(--flora-border);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            font-family: Georgia, 'Times New Roman', serif;
+            position: relative;
+        }
+
+        .citation-box .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: white;
+            border: 1px solid var(--flora-border);
+            border-radius: 6px;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            color: var(--flora-muted);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .citation-box .copy-btn:hover {
+            background: var(--flora-primary);
+            color: white;
+            border-color: var(--flora-primary);
+        }
+
+        /* Loading spinner */
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 4rem;
+        }
+
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+            color: var(--flora-secondary);
+        }
+
+        /* DataTables customization */
+        .dataTables_filter input {
+            border-radius: 20px;
+            padding: 0.5rem 1rem;
+            border: 2px solid var(--flora-border);
+        }
+
+        .dataTables_filter input:focus {
+            border-color: var(--flora-secondary);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
+        }
+
+        /* Row expansion styles */
+        td.details-control {
+            cursor: pointer;
+            text-align: center;
+            color: var(--flora-secondary);
+            font-size: 0.9rem;
+        }
+
+        td.details-control::before {
+            content: "▶";
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+
+        tr.shown td.details-control::before {
+            transform: rotate(90deg);
+        }
+
+        .detail-row { background-color: #f8fafc; padding: 1rem; }
+        .detail-row h6 {
+            color: var(--flora-primary);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid var(--flora-border);
+            padding-bottom: 0.25rem;
+        }
+
+        .detail-section { margin-bottom: 1rem; }
+        .detail-label { font-weight: 600; color: #4a5568; display: inline-block; min-width: 120px; }
+        .detail-value { color: var(--flora-text); }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+        .detail-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Chart containers */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+
+        .chart-container-tall {
+            position: relative;
+            height: 600px;
+            width: 100%;
+        }
+
+        /* Filter controls */
+        .summary-controls {
+            background: white;
+            border: 1px solid var(--flora-border);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .summary-controls label {
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--flora-muted);
+            margin-right: 0.5rem;
+            margin-bottom: 0;
+        }
+
+        .summary-controls .form-select,
+        .summary-controls .form-control {
+            max-width: 220px;
+            border-color: var(--flora-border);
+            font-size: 0.9rem;
+        }
+
+        .summary-controls .form-select:focus,
+        .summary-controls .form-control:focus {
+            border-color: var(--flora-secondary);
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--flora-muted);
+            font-size: 0.88rem;
+            background: white;
+            border-top: 1px solid var(--flora-border);
+            margin-top: 3rem;
+        }
+
+        .footer a {
+            color: var(--flora-secondary);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Refresh button */
+        .refresh-btn {
+            background: white;
+            border: 1px solid var(--flora-border);
+            color: var(--flora-secondary);
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .refresh-btn:hover {
+            background: var(--flora-secondary);
+            color: white;
+            border-color: var(--flora-secondary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.85rem; }
+            .header p { font-size: 0.95rem; }
+            .nav-tabs .nav-link { padding: 0.75rem 1rem; font-size: 0.9rem; }
+            .table td, .table th { font-size: 0.85rem; }
+            .stats-card .number { font-size: 1.75rem; }
+            .card-body { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="container">
+            <h1>FLoRA</h1>
+            <p>FORRT Library of Replication Attempts — tracking replications and reproductions across the sciences</p>
+            <div class="header-links">
+                <a href="https://forrt.org/flora-replication-atlas/" target="_blank" class="header-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    Look up a study (Replication Atlas)
+                </a>
+                <a href="https://forrt.org/replication-hub/" target="_blank" class="header-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    FORRT Replication Hub
+                </a>
+                <a href="https://github.com/forrtproject/FReD-data" target="_blank" class="header-link">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57v-2c-3.34.72-4.04-1.6-4.04-1.6-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.5 1 .1-.78.42-1.3.76-1.6-2.67-.3-5.48-1.33-5.48-5.93 0-1.31.47-2.38 1.23-3.22-.12-.3-.53-1.52.12-3.17 0 0 1-.32 3.28 1.23a11.42 11.42 0 0 1 6 0c2.28-1.55 3.28-1.23 3.28-1.23.65 1.65.24 2.87.12 3.17.77.84 1.23 1.9 1.23 3.22 0 4.6-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .31.22.69.83.57A12 12 0 0 0 12 .3"/></svg>
+                    Data on GitHub
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="nav-tabs-wrapper">
+        <div class="container">
+            <ul class="nav nav-tabs" id="floraTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab">Browse Studies</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="summaries-tab" data-bs-toggle="tab" data-bs-target="#summaries" type="button" role="tab">Summaries</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Global loading state -->
+        <div id="global-loading" class="loading-spinner">
+            <div class="spinner-border" role="status"></div>
+            <span class="ms-3">Loading FLoRA data…</span>
+        </div>
+
+        <div id="global-error" class="alert alert-danger" style="display:none;"></div>
+
+        <div class="tab-content" id="floraTabsContent" style="display:none;">
+
+            <!-- ============ OVERVIEW TAB ============ -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+
+                <!-- Stats -->
+                <div class="row mb-3">
+                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-total">-</div><div class="label">Total Studies</div></div></div>
+                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-successful" style="color: var(--flora-success);">-</div><div class="label">Successful</div></div></div>
+                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-failed" style="color: var(--flora-danger);">-</div><div class="label">Failed</div></div></div>
+                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-mixed" style="color: var(--flora-warning);">-</div><div class="label">Mixed</div></div></div>
+                </div>
+
+                <div class="row">
+                    <!-- About FLoRA -->
+                    <div class="col-lg-7">
+                        <div class="card">
+                            <div class="card-header">About FLoRA</div>
+                            <div class="card-body intro-text">
+                                <p>FLoRA tracks attempts to repeatedly test published findings across the sciences and humanities. Unlike the <a href="https://forrt.org/FReD/" target="_blank" class="doi-link">FORRT Replication Database (FReD)</a>, FLoRA does not include statistical data — this lets it cover every field of research and remain maintainable with limited resources.</p>
+
+                                <h4>What is a replication?</h4>
+                                <p>Replications intentionally repeat prior research to test whether the original findings hold. To be included in FLoRA, a study must:</p>
+                                <ul>
+                                    <li>Self-identify as a replication <em>before</em> reporting results — replication must be an aim, not just a result</li>
+                                    <li>Identify a specific target study (or studies)</li>
+                                    <li>Replicate a study or experiment, not just a single association</li>
+                                </ul>
+                                <p>Replications range from <strong>close/direct</strong> (same methods, same population) to <strong>conceptual</strong> (same hypothesis, different methods). Outcomes are tagged <strong>Successful</strong>, <strong>Failed</strong>, or <strong>Mixed</strong> based on how the replication authors characterise their results.</p>
+
+                                <h4>What is a reproduction?</h4>
+                                <p>Reproductions verify whether reported results can be obtained from the original study's data and methods. They are coded on two dimensions:</p>
+                                <ul>
+                                    <li><strong>Computational success</strong> — were the original results obtained? (Computationally Successful vs Computational Issues)</li>
+                                    <li><strong>Robustness</strong> — do results hold under reasonable alternative specifications? (Robust, Robustness Challenges, or Robustness Not Checked)</li>
+                                </ul>
+
+                                <div class="key-distinction">
+                                    <strong>Key distinction:</strong> If new data are collected (e.g. an additional decade of observations), it's a <em>replication</em>. If the same data are re-analysed to verify the original results, it's a <em>reproduction</em>.
+                                </div>
+
+                                <h4>Structure of FLoRA</h4>
+                                <p>FLoRA links each repetition reference to its original, and assigns a standardized outcome based on the repetition report. This simple structure lets us track replication rates across time, disciplines, and journals — and powers tools like the FLoRA Annotator, which lists replication and reproduction attempts for any reference you provide.</p>
+
+                                <p>FLoRA is the product of years of work by a large community of volunteers. If you'd like to contribute or use the data for your own research, <a href="https://forrt.org/replication-hub/" target="_blank" class="doi-link">please reach out</a>.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right column: outcome chart + examples -->
+                    <div class="col-lg-5">
+                        <div class="card">
+                            <div class="card-header">Outcome Distribution</div>
+                            <div class="card-body">
+                                <div style="position:relative; height:280px;">
+                                    <canvas id="overview-outcome-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>Random Examples</span>
+                                <button id="reshuffle-btn" class="refresh-btn" title="Shuffle examples">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+                                    Shuffle
+                                </button>
+                            </div>
+                            <div class="card-body" id="random-examples"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Citation -->
+                <div class="card">
+                    <div class="card-header">Recommended Citation</div>
+                    <div class="card-body">
+                        <p class="mb-2" style="color: var(--flora-muted); font-size: 0.9rem;">If you use this dataset, please cite it as:</p>
+                        <div class="citation-box" id="citation-box">
+                            <button class="copy-btn" id="citation-copy-btn">Copy</button>
+                            <div id="citation-text">Loading citation…</div>
+                        </div>
+                        <p class="mt-2 mb-0" style="color: var(--flora-muted); font-size: 0.82rem;">
+                            Citation metadata is loaded live from the
+                            <a href="https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff" target="_blank" class="doi-link">CITATION.cff</a>
+                            file in the source repository.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ BROWSE TAB ============ -->
+            <div class="tab-pane fade" id="browse" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">Replication Studies Database</div>
+                    <div class="card-body">
+                        <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th>Original Study</th>
+                                    <th>Year</th>
+                                    <th>Replication Study</th>
+                                    <th>Year</th>
+                                    <th>Outcome</th>
+                                    <th>Type</th>
+                                    <th>Original DOI</th>
+                                    <th>Replication Report</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ SUMMARIES TAB ============ -->
+            <div class="tab-pane fade" id="summaries" role="tabpanel">
+
+                <div class="summary-controls">
+                    <div>
+                        <label for="summary-view">View:</label>
+                        <select id="summary-view" class="form-select d-inline-block">
+                            <option value="orig-year">By original study year</option>
+                            <option value="rep-year">By replication study year</option>
+                            <option value="journal">By original journal</option>
+                        </select>
+                    </div>
+                    <div id="journal-controls" style="display:none;">
+                        <label for="journal-top-n">Show top:</label>
+                        <select id="journal-top-n" class="form-select d-inline-block">
+                            <option value="10">10 journals</option>
+                            <option value="15" selected>15 journals</option>
+                            <option value="25">25 journals</option>
+                            <option value="50">50 journals</option>
+                        </select>
+                    </div>
+                    <div class="ms-auto" style="color: var(--flora-muted); font-size: 0.85rem;">
+                        <span id="summary-note"></span>
+                    </div>
+                </div>
+
+                <!-- Count chart -->
+                <div class="card">
+                    <div class="card-header" id="count-chart-title">Replications by original study year</div>
+                    <div class="card-body">
+                        <div class="chart-container" id="count-chart-container">
+                            <canvas id="summary-count-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success rate chart -->
+                <div class="card">
+                    <div class="card-header" id="rate-chart-title">Outcome breakdown</div>
+                    <div class="card-body">
+                        <p style="color: var(--flora-muted); font-size: 0.88rem; margin-bottom: 1rem;">
+                            Stacked bars show the number of Successful, Failed, Mixed, and other outcomes.
+                            Hover a bar for details.
+                        </p>
+                        <div class="chart-container" id="rate-chart-container">
+                            <canvas id="summary-rate-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="footer">
+            Data source: <a href="https://github.com/forrtproject/FReD-data" target="_blank">FORRT FReD Project</a> ·
+            <a href="https://forrt.org/" target="_blank">FORRT — Framework for Open and Reproducible Research Training</a>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+
+    <script>
+        // ============================================================
+        // Config
+        // ============================================================
+        const CSV_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv';
+        const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
+
+        const OUTCOME_COLORS = {
+            successful: '#48bb78',
+            failed: '#f56565',
+            mixed: '#ed8936',
+            inconclusive: '#718096',
+            other: '#a0aec0'
+        };
+
+        // ============================================================
+        // State
+        // ============================================================
+        let fullRowData = [];
+        let dataTable = null;
+        let overviewChart = null;
+        let summaryCountChart = null;
+        let summaryRateChart = null;
+        let summariesInitialized = false;
+
+        // ============================================================
+        // Utility functions (shared)
+        // ============================================================
+        function classifyOutcome(outcomeRaw) {
+            if (!outcomeRaw) return 'other';
+            const o = outcomeRaw.toLowerCase().trim();
+            if (o.includes('success') || o === 'replicated' || o.includes('robust') && !o.includes('challenge') && !o.includes('not')) return 'successful';
+            if (o.includes('fail') || o === 'not replicated' || o.includes('computational issue') || o.includes('robustness challenge')) return 'failed';
+            if (o.includes('mixed') || o.includes('partial')) return 'mixed';
+            if (o.includes('inconclusive')) return 'inconclusive';
+            return 'other';
+        }
+
+        function getOutcomeBadge(outcome) {
+            if (!outcome) return '<span class="badge badge-unknown">Unknown</span>';
+            const cls = classifyOutcome(outcome);
+            const map = {
+                successful: 'badge-successful',
+                failed: 'badge-failed',
+                mixed: 'badge-mixed',
+                inconclusive: 'badge-inconclusive',
+                other: 'badge-unknown'
+            };
+            return `<span class="badge ${map[cls]}">${escapeHtml(outcome)}</span>`;
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        function truncateText(text, maxLength = 60) {
+            if (!text) return '-';
+            return text.length > maxLength ? text.substring(0, maxLength) + '…' : text;
+        }
+
+        function formatDOI(doi, full = false) {
+            if (!doi) return '-';
+            const doiUrl = doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
+            const shortDoi = doi.replace('https://doi.org/', '').replace('http://doi.org/', '');
+            if (full) return `<a href="${doiUrl}" target="_blank" class="doi-link">${escapeHtml(shortDoi)}</a>`;
+            return `<a href="${doiUrl}" target="_blank" class="doi-link" title="${escapeHtml(shortDoi)}">${escapeHtml(shortDoi.substring(0, 25))}${shortDoi.length > 25 ? '…' : ''}</a>`;
+        }
+
+        function formatUrlOrDoi(url, doi) {
+            if (url) {
+                const displayUrl = url.length > 40 ? url.substring(0, 40) + '…' : url;
+                return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link">${escapeHtml(displayUrl)}</a>`;
+            }
+            if (doi) return formatDOI(doi, true);
+            return '-';
+        }
+
+        function formatUrlOrDoiShort(url, doi) {
+            if (url) {
+                const displayUrl = url.length > 25 ? url.substring(0, 25) + '…' : url;
+                return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(displayUrl)}</a>`;
+            }
+            if (doi) return formatDOI(doi, false);
+            return '-';
+        }
+
+        function formatAuthors(authorData) {
+            if (!authorData) return '-';
+            try {
+                const authors = JSON.parse(authorData);
+                if (Array.isArray(authors)) {
+                    const names = authors.map(a => {
+                        if (typeof a === 'string') return a;
+                        if (a.family && a.given) return `${a.given} ${a.family}`;
+                        if (a.name) return a.name;
+                        if (a.family) return a.family;
+                        return JSON.stringify(a);
+                    });
+                    return escapeHtml(names.join(', '));
+                }
+                return escapeHtml(authorData);
+            } catch (e) {
+                return escapeHtml(authorData);
+            }
+        }
+
+        function shortAuthors(authorData) {
+            if (!authorData) return '';
+            try {
+                const authors = JSON.parse(authorData);
+                if (Array.isArray(authors) && authors.length > 0) {
+                    const first = authors[0];
+                    const firstName = typeof first === 'string' ? first
+                        : (first.family || first.name || '');
+                    if (authors.length === 1) return firstName;
+                    if (authors.length === 2) {
+                        const second = authors[1];
+                        const secondName = typeof second === 'string' ? second
+                            : (second.family || second.name || '');
+                        return `${firstName} & ${secondName}`;
+                    }
+                    return `${firstName} et al.`;
+                }
+            } catch (e) {
+                const short = authorData.split(/[,;]/)[0].trim();
+                return short.length > 40 ? short.substring(0, 40) + '…' : short;
+            }
+            return '';
+        }
+
+        // ============================================================
+        // Overview: stats + examples + outcome chart
+        // ============================================================
+        function updateOverviewStats(data) {
+            const total = data.length;
+            let successful = 0, failed = 0, mixed = 0;
+            data.forEach(row => {
+                const c = classifyOutcome(row.outcome);
+                if (c === 'successful') successful++;
+                else if (c === 'failed') failed++;
+                else if (c === 'mixed') mixed++;
+            });
+            document.getElementById('ov-total').textContent = total.toLocaleString();
+            document.getElementById('ov-successful').textContent = successful.toLocaleString();
+            document.getElementById('ov-failed').textContent = failed.toLocaleString();
+            document.getElementById('ov-mixed').textContent = mixed.toLocaleString();
+        }
+
+        function renderOverviewChart(data) {
+            const counts = { successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
+            data.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
+
+            const labels = ['Successful', 'Failed', 'Mixed', 'Inconclusive', 'Other / Unknown'];
+            const values = [counts.successful, counts.failed, counts.mixed, counts.inconclusive, counts.other];
+            const colors = [OUTCOME_COLORS.successful, OUTCOME_COLORS.failed, OUTCOME_COLORS.mixed, OUTCOME_COLORS.inconclusive, OUTCOME_COLORS.other];
+
+            const ctx = document.getElementById('overview-outcome-chart').getContext('2d');
+            if (overviewChart) overviewChart.destroy();
+            overviewChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const total = values.reduce((a, b) => a + b, 0);
+                                    const pct = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                                    return `${ctx.label}: ${ctx.parsed.toLocaleString()} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRandomExamples(data) {
+            const container = document.getElementById('random-examples');
+            // Filter to rows with enough info to display
+            const usable = data.filter(r => (r.title_o || r.author_o) && r.outcome);
+            if (usable.length === 0) { container.innerHTML = '<p class="text-muted">No examples available.</p>'; return; }
+
+            // Shuffle and take 5
+            const shuffled = [...usable].sort(() => Math.random() - 0.5).slice(0, 5);
+
+            container.innerHTML = shuffled.map(r => {
+                const cls = classifyOutcome(r.outcome);
+                const origTitle = r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`;
+                const origMeta = [shortAuthors(r.author_o), r.year_o].filter(Boolean).join(' · ');
+                const repMeta = [shortAuthors(r.author_r), r.year_r].filter(Boolean).join(' · ');
+                return `
+                    <div class="example-card outcome-${cls}">
+                        <div class="ex-title">${escapeHtml(truncateText(origTitle, 100))}</div>
+                        <div class="ex-meta">Original: ${escapeHtml(origMeta) || '—'}${repMeta ? ' · Replication: ' + escapeHtml(repMeta) : ''}</div>
+                        <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge bg-light text-dark">' + escapeHtml(r.type) + '</span>' : ''}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        document.getElementById('reshuffle-btn').addEventListener('click', () => {
+            if (fullRowData.length) renderRandomExamples(fullRowData);
+        });
+
+        // ============================================================
+        // Citation loader
+        // ============================================================
+        async function loadCitation() {
+            const box = document.getElementById('citation-text');
+            try {
+                const res = await fetch(CITATION_URL);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const text = await res.text();
+                const cff = jsyaml.load(text);
+
+                const authors = (cff.authors || []).map(a => {
+                    if (a.family && a.given) {
+                        const initials = a.given.split(/\s+/).map(n => n[0] ? n[0] + '.' : '').join(' ');
+                        return `${a.family}, ${initials}`;
+                    }
+                    return a.name || a.family || '';
+                }).filter(Boolean);
+
+                let authorsStr;
+                if (authors.length <= 20) {
+                    authorsStr = authors.length > 1
+                        ? authors.slice(0, -1).join(', ') + ', & ' + authors[authors.length - 1]
+                        : authors[0] || '';
+                } else {
+                    // APA 7: list first 19, ellipsis, then last
+                    authorsStr = authors.slice(0, 19).join(', ') + ', … ' + authors[authors.length - 1];
+                }
+
+                const year = cff['date-released'] ? String(cff['date-released']).substring(0, 4) : '';
+                const title = cff.title || '';
+                const version = cff.version ? ` (Version ${cff.version})` : '';
+                const doi = cff.doi || '';
+                const doiLink = doi ? `<a href="https://doi.org/${doi}" target="_blank" class="doi-link">https://doi.org/${doi}</a>` : '';
+
+                box.innerHTML = `${escapeHtml(authorsStr)} (${escapeHtml(year)}). <em>${escapeHtml(title)}</em>${escapeHtml(version)} [Dataset]. ${doiLink}`;
+
+                // Plain text for copy
+                box.dataset.plain = `${authorsStr} (${year}). ${title}${version} [Dataset]. https://doi.org/${doi}`;
+            } catch (err) {
+                console.error('Citation load failed:', err);
+                box.innerHTML = `<span style="color: var(--flora-muted);">Could not load live citation. Please see the <a href="${CITATION_URL}" target="_blank" class="doi-link">CITATION.cff file</a>.</span>`;
+            }
+        }
+
+        document.getElementById('citation-copy-btn').addEventListener('click', () => {
+            const box = document.getElementById('citation-text');
+            const text = box.dataset.plain || box.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('citation-copy-btn');
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = orig; }, 1500);
+            });
+        });
+
+        // ============================================================
+        // Browse tab: DataTable
+        // ============================================================
+        function formatDetailRow(rowData) {
+            return `
+                <div class="detail-row">
+                    <div class="detail-grid">
+                        <div class="detail-card">
+                            <h6>Original Study</h6>
+                            <div class="detail-section">
+                                <div><span class="detail-label">Title:</span> <span class="detail-value">${escapeHtml(rowData.title_o) || '-'}</span></div>
+                                <div><span class="detail-label">Authors:</span> <span class="detail-value">${formatAuthors(rowData.author_o)}</span></div>
+                                <div><span class="detail-label">Year:</span> <span class="detail-value">${escapeHtml(rowData.year_o) || '-'}</span></div>
+                                <div><span class="detail-label">DOI:</span> <span class="detail-value">${formatDOI(rowData.doi_o, true)}</span></div>
+                                ${rowData.journal_o ? `<div><span class="detail-label">Journal:</span> <span class="detail-value">${escapeHtml(rowData.journal_o)}</span></div>` : ''}
+                            </div>
+                        </div>
+                        <div class="detail-card">
+                            <h6>Replication Study</h6>
+                            <div class="detail-section">
+                                <div><span class="detail-label">Title:</span> <span class="detail-value">${escapeHtml(rowData.title_r) || '-'}</span></div>
+                                <div><span class="detail-label">Authors:</span> <span class="detail-value">${formatAuthors(rowData.author_r)}</span></div>
+                                <div><span class="detail-label">Year:</span> <span class="detail-value">${escapeHtml(rowData.year_r) || '-'}</span></div>
+                                <div><span class="detail-label">Report:</span> <span class="detail-value">${formatUrlOrDoi(rowData.url_r, rowData.doi_r)}</span></div>
+                                ${rowData.journal_r ? `<div><span class="detail-label">Journal:</span> <span class="detail-value">${escapeHtml(rowData.journal_r)}</span></div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-card mt-3">
+                        <h6>Replication Details</h6>
+                        <div class="detail-section">
+                            <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
+                            ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome Quote:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div>` : ''}
+                            <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
+                            ${rowData.effect_o ? `<div><span class="detail-label">Original Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_o)}</span></div>` : ''}
+                            ${rowData.effect_r ? `<div><span class="detail-label">Replication Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_r)}</span></div>` : ''}
+                            ${rowData.n_o ? `<div><span class="detail-label">Original N:</span> <span class="detail-value">${escapeHtml(rowData.n_o)}</span></div>` : ''}
+                            ${rowData.n_r ? `<div><span class="detail-label">Replication N:</span> <span class="detail-value">${escapeHtml(rowData.n_r)}</span></div>` : ''}
+                            ${rowData.description ? `<div><span class="detail-label">Description:</span> <span class="detail-value">${escapeHtml(rowData.description)}</span></div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function initDataTable(data) {
+            const tableData = data.map((row, index) => [
+                null,
+                { display: truncateText(row.title_o || row.author_o, 50), search: `${row.title_o || ''} ${row.author_o || ''} ${row.journal_o || ''}` },
+                row.year_o || '-',
+                { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${row.author_r || ''} ${row.journal_r || ''}` },
+                row.year_r || '-',
+                { display: getOutcomeBadge(row.outcome), search: `${row.outcome || ''} ${row.outcome_quote || ''}` },
+                truncateText(row.type, 15) || '-',
+                { display: formatDOI(row.doi_o), search: row.doi_o || '' },
+                { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: `${row.url_r || ''} ${row.doi_r || ''}` }
+            ]);
+
+            dataTable = $('#flora-table').DataTable({
+                data: tableData,
+                responsive: false,
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
+                order: [[4, 'desc']],
+                language: {
+                    search: "Search:",
+                    searchPlaceholder: "Filter studies (searches full references)..."
+                },
+                columnDefs: [
+                    { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '', width: '30px' },
+                    { targets: [1, 3], width: '20%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
+                    { targets: [2, 4], width: '5%' },
+                    { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
+                    { targets: 6, width: '6%' },
+                    { targets: [7, 8], width: '12%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
+                ],
+                createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); }
+            });
+
+            $('#flora-table tbody').on('click', 'td.details-control', function() {
+                const tr = $(this).closest('tr');
+                const row = dataTable.row(tr);
+                const dataIndex = tr.attr('data-index');
+                if (row.child.isShown()) { row.child.hide(); tr.removeClass('shown'); }
+                else { row.child(formatDetailRow(fullRowData[dataIndex])).show(); tr.addClass('shown'); }
+            });
+        }
+
+        // ============================================================
+        // Summaries tab
+        // ============================================================
+        function aggregateByYear(data, yearField) {
+            const groups = {};
+            data.forEach(row => {
+                const yRaw = row[yearField];
+                if (!yRaw) return;
+                const y = parseInt(String(yRaw).match(/\d{4}/)?.[0], 10);
+                if (!y || y < 1800 || y > 2100) return;
+                if (!groups[y]) groups[y] = { total: 0, successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
+                groups[y].total++;
+                groups[y][classifyOutcome(row.outcome)]++;
+            });
+            const years = Object.keys(groups).map(Number).sort((a, b) => a - b);
+            return years.map(y => ({ key: String(y), ...groups[y] }));
+        }
+
+        function aggregateByJournal(data, topN) {
+            const groups = {};
+            data.forEach(row => {
+                const j = (row.journal_o || '').trim();
+                if (!j) return;
+                if (!groups[j]) groups[j] = { total: 0, successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
+                groups[j].total++;
+                groups[j][classifyOutcome(row.outcome)]++;
+            });
+            const sorted = Object.entries(groups)
+                .map(([k, v]) => ({ key: k, ...v }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, topN);
+            return sorted;
+        }
+
+        function renderCountChart(agg, labelAxis, titleText) {
+            document.getElementById('count-chart-title').textContent = titleText;
+            const labels = agg.map(r => r.key);
+            const counts = agg.map(r => r.total);
+            const ctx = document.getElementById('summary-count-chart').getContext('2d');
+            if (summaryCountChart) summaryCountChart.destroy();
+
+            const isHorizontal = labelAxis === 'journal';
+            document.getElementById('count-chart-container').style.height = isHorizontal ? Math.max(400, agg.length * 28) + 'px' : '400px';
+
+            summaryCountChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Number of replications/reproductions',
+                        data: counts,
+                        backgroundColor: '#853953',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: isHorizontal ? 'y' : 'x',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { title: items => items[0].label } }
+                    },
+                    scales: {
+                        x: { grid: { color: '#edf2f7' } },
+                        y: { grid: { display: !isHorizontal }, ticks: { autoSkip: false } }
+                    }
+                }
+            });
+        }
+
+        function renderRateChart(agg, labelAxis, titleText) {
+            document.getElementById('rate-chart-title').textContent = titleText;
+            const labels = agg.map(r => r.key);
+            const ctx = document.getElementById('summary-rate-chart').getContext('2d');
+            if (summaryRateChart) summaryRateChart.destroy();
+
+            const isHorizontal = labelAxis === 'journal';
+            document.getElementById('rate-chart-container').style.height = isHorizontal ? Math.max(400, agg.length * 28) + 'px' : '400px';
+
+            const datasets = [
+                { label: 'Successful', data: agg.map(r => r.successful), backgroundColor: OUTCOME_COLORS.successful },
+                { label: 'Mixed', data: agg.map(r => r.mixed), backgroundColor: OUTCOME_COLORS.mixed },
+                { label: 'Failed', data: agg.map(r => r.failed), backgroundColor: OUTCOME_COLORS.failed },
+                { label: 'Inconclusive', data: agg.map(r => r.inconclusive), backgroundColor: OUTCOME_COLORS.inconclusive },
+                { label: 'Other / Unknown', data: agg.map(r => r.other), backgroundColor: OUTCOME_COLORS.other }
+            ];
+
+            summaryRateChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: isHorizontal ? 'y' : 'x',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: ctx => {
+                                    const row = agg[ctx.dataIndex];
+                                    const pct = row.total ? ((ctx.parsed[isHorizontal ? 'x' : 'y'] / row.total) * 100).toFixed(1) : 0;
+                                    return `(${pct}% of ${row.total})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { color: '#edf2f7' } },
+                        y: { stacked: true, grid: { display: !isHorizontal }, ticks: { autoSkip: false } }
+                    }
+                }
+            });
+        }
+
+        function updateSummaries() {
+            const view = document.getElementById('summary-view').value;
+            const journalControls = document.getElementById('journal-controls');
+            const note = document.getElementById('summary-note');
+
+            if (view === 'orig-year') {
+                journalControls.style.display = 'none';
+                const agg = aggregateByYear(fullRowData, 'year_o');
+                note.textContent = `${agg.length} years represented`;
+                renderCountChart(agg, 'year', 'Replications by original study year');
+                renderRateChart(agg, 'year', 'Outcomes by original study year');
+            } else if (view === 'rep-year') {
+                journalControls.style.display = 'none';
+                const agg = aggregateByYear(fullRowData, 'year_r');
+                note.textContent = `${agg.length} years represented`;
+                renderCountChart(agg, 'year', 'Replications by replication study year');
+                renderRateChart(agg, 'year', 'Outcomes by replication study year');
+            } else if (view === 'journal') {
+                journalControls.style.display = 'block';
+                const topN = parseInt(document.getElementById('journal-top-n').value, 10);
+                const agg = aggregateByJournal(fullRowData, topN);
+                note.textContent = `Showing top ${agg.length} journals by count`;
+                renderCountChart(agg, 'journal', `Top ${agg.length} original journals by number of replications`);
+                renderRateChart(agg, 'journal', `Outcome breakdown for top ${agg.length} original journals`);
+            }
+        }
+
+        document.getElementById('summary-view').addEventListener('change', updateSummaries);
+        document.getElementById('journal-top-n').addEventListener('change', updateSummaries);
+
+        // Initialize summaries lazily when tab is first shown
+        document.getElementById('summaries-tab').addEventListener('shown.bs.tab', () => {
+            if (!summariesInitialized && fullRowData.length) {
+                summariesInitialized = true;
+                updateSummaries();
+            }
+        });
+
+        // ============================================================
+        // Main data load
+        // ============================================================
+        function loadData() {
+            Papa.parse(CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) console.warn('CSV parsing warnings:', results.errors);
+
+                    // Normalize "NA" -> ""
+                    const data = results.data.map(row => {
+                        Object.keys(row).forEach(key => { if (row[key] === 'NA') row[key] = ''; });
+                        return row;
+                    });
+                    fullRowData = data;
+
+                    document.getElementById('global-loading').style.display = 'none';
+                    document.getElementById('floraTabsContent').style.display = 'block';
+
+                    // Overview
+                    updateOverviewStats(data);
+                    renderOverviewChart(data);
+                    renderRandomExamples(data);
+
+                    // Browse
+                    initDataTable(data);
+
+                    // Citation (async)
+                    loadCitation();
+                },
+                error: function(error) {
+                    document.getElementById('global-loading').style.display = 'none';
+                    const err = document.getElementById('global-error');
+                    err.style.display = 'block';
+                    err.textContent = 'Error loading data: ' + error.message + '. Please try refreshing the page.';
+                }
+            });
+        }
+
+        $(document).ready(loadData);
+    </script>
+</body>
+</html>
