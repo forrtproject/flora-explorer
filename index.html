@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#853953">
+    <meta name="theme-color" content="#6b4582">
     <title>FLoRA Explorer — FORRT Library of Replication Attempts</title>
     <meta name="description" content="Explore the FORRT Library of Replication Attempts (FLoRA) — a comprehensive database tracking replication and reproduction studies across the sciences and humanities.">
     <meta name="keywords" content="replication, reproduction, FLoRA, FORRT, open science, metascience, reproducibility">
@@ -14,6 +14,8 @@
     <meta property="og:site_name" content="FLoRA Explorer">
 
     <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="alternate icon" href="logo.svg">
+    <link rel="apple-touch-icon" href="logo.svg">
 
     <!-- Vendor CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -34,10 +36,11 @@
    ============================================================= */
 
 :root {
-    /* Brand */
-    --flora-primary: #853953;
-    --flora-primary-dark: #6b2d43;
-    --flora-primary-soft: #a85878;
+    /* Brand — plum-purple, chosen to work in both light and dark modes */
+    --flora-primary: #6b4582;
+    --flora-primary-dark: #553568;
+    --flora-primary-soft: #8f6aa8;
+    --flora-primary-dark-accent: #c9a8de;   /* used for headings in dark mode */
     --flora-secondary: #4299e1;
     --flora-success: #48bb78;
     --flora-danger: #e05d5d;
@@ -46,24 +49,27 @@
     --flora-muted: #6f7686;
 
     /* Surface / neutrals — light mode */
-    --flora-bg: #f0eaed;          /* soft mauve page tint, like Replication Atlas */
+    --flora-bg: #efecf2;          /* soft lavender-grey page tint */
     --flora-card-bg: #ffffff;
-    --flora-border: #e4dbde;
-    --flora-border-strong: #d6c8cd;
-    --flora-text: #2a2328;
-    --flora-text-soft: #4e4850;
-    --flora-subtle-bg: #f9f5f6;
-    --flora-subtle-bg-2: #f0eaed;
-    --flora-header-bg: #2b2328;   /* near-black like Hub top bar */
+    --flora-border: #dfd8e5;
+    --flora-border-strong: #c9bfd4;
+    --flora-text: #2a2330;
+    --flora-text-soft: #4e4858;
+    --flora-subtle-bg: #f7f4fa;
+    --flora-subtle-bg-2: #efecf2;
+    --flora-header-bg: #2a2330;   /* near-black with a purple undertone */
     --flora-hero-bg: #ffffff;
     --flora-input-bg: #ffffff;
     --flora-link: var(--flora-secondary);
-    --flora-grid: #e4dbde;
-    --flora-chart-tick: #4e4850;
-    --flora-shadow: rgba(49, 30, 38, 0.06);
-    --flora-shadow-hover: rgba(49, 30, 38, 0.12);
+    --flora-grid: #dfd8e5;
+    --flora-chart-tick: #4e4858;
+    --flora-shadow: rgba(42, 35, 48, 0.06);
+    --flora-shadow-hover: rgba(42, 35, 48, 0.12);
     --flora-callout-bg: #fdf6e4;
     --flora-callout-accent: #9c4221;
+    --flora-wip-bg: #fff4d6;
+    --flora-wip-border: #e8a23a;
+    --flora-wip-text: #6b4e1f;
 
     /* Type */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -71,25 +77,28 @@
 }
 
 [data-theme="dark"] {
-    --flora-bg: #12141a;
-    --flora-card-bg: #1b1d25;
-    --flora-border: #2a2e3a;
-    --flora-border-strong: #3a3f4d;
-    --flora-text: #e8ecf1;
-    --flora-text-soft: #b8c0cc;
-    --flora-subtle-bg: #171921;
-    --flora-subtle-bg-2: #23293a;
-    --flora-header-bg: #0d0f14;
-    --flora-hero-bg: #1b1d25;
-    --flora-input-bg: #23293a;
-    --flora-link: #7cb8ec;
-    --flora-muted: #9aa4b2;
-    --flora-grid: #2a2e3a;
-    --flora-chart-tick: #b8c0cc;
-    --flora-shadow: rgba(0, 0, 0, 0.3);
-    --flora-shadow-hover: rgba(0, 0, 0, 0.5);
+    --flora-bg: #13141b;
+    --flora-card-bg: #1d1e29;
+    --flora-border: #2d2e3d;
+    --flora-border-strong: #3d3e50;
+    --flora-text: #e8e6ee;
+    --flora-text-soft: #b8b5c4;
+    --flora-subtle-bg: #181922;
+    --flora-subtle-bg-2: #252638;
+    --flora-header-bg: #0e0f16;
+    --flora-hero-bg: #1d1e29;
+    --flora-input-bg: #252638;
+    --flora-link: #9cb8ec;
+    --flora-muted: #9793a4;
+    --flora-grid: #2d2e3d;
+    --flora-chart-tick: #b8b5c4;
+    --flora-shadow: rgba(0, 0, 0, 0.35);
+    --flora-shadow-hover: rgba(0, 0, 0, 0.55);
     --flora-callout-bg: #3a2e1a;
     --flora-callout-accent: #f0c070;
+    --flora-wip-bg: #3a2e1a;
+    --flora-wip-border: #e8a23a;
+    --flora-wip-text: #f0d68f;
 }
 
 * { box-sizing: border-box; }
@@ -199,7 +208,7 @@ h1, .serif, .card-header, .stats-card .number,
     line-height: 1.1;
 }
 
-[data-theme="dark"] .hero h1 { color: #e6a8bc; }
+[data-theme="dark"] .hero h1 { color: var(--flora-primary-dark-accent); }
 
 .hero .hero-subtitle {
     color: var(--flora-text-soft);
@@ -215,6 +224,69 @@ h1, .serif, .card-header, .stats-card .number,
     background: var(--flora-border-strong);
     margin: 0.25rem 0 0 0;
     border: 0;
+}
+
+/* =============================================================
+   WIP banner
+   ============================================================= */
+.wip-banner {
+    background: var(--flora-wip-bg);
+    border-bottom: 1px solid var(--flora-wip-border);
+    color: var(--flora-wip-text);
+    padding: 0.65rem 0;
+    font-size: 0.92rem;
+    position: relative;
+}
+
+.wip-banner .wip-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-right: 2.25rem;
+}
+
+.wip-banner .wip-icon {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    color: var(--flora-wip-border);
+}
+
+.wip-banner strong { color: var(--flora-wip-text); }
+.wip-banner a { color: var(--flora-wip-text); text-decoration: underline; }
+
+.wip-banner .wip-close {
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--flora-wip-text);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.wip-banner .wip-close:hover { background: rgba(0, 0, 0, 0.06); }
+[data-theme="dark"] .wip-banner .wip-close:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* Experimental / WIP badge used inline */
+.badge-wip {
+    display: inline-block;
+    background: var(--flora-wip-bg);
+    border: 1px solid var(--flora-wip-border);
+    color: var(--flora-wip-text);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 0.5rem;
 }
 
 /* =============================================================
@@ -255,7 +327,7 @@ h1, .serif, .card-header, .stats-card .number,
     border-bottom-color: var(--flora-border-strong);
 }
 
-[data-theme="dark"] .nav-tabs .nav-link:hover { color: #c78ba0; }
+[data-theme="dark"] .nav-tabs .nav-link:hover { color: var(--flora-primary-dark-accent); }
 
 .nav-tabs .nav-link.active {
     color: var(--flora-primary);
@@ -265,8 +337,8 @@ h1, .serif, .card-header, .stats-card .number,
 }
 
 [data-theme="dark"] .nav-tabs .nav-link.active {
-    color: #d89cb0;
-    border-bottom-color: #d89cb0;
+    color: var(--flora-primary-dark-accent);
+    border-bottom-color: var(--flora-primary-dark-accent);
 }
 
 /* =============================================================
@@ -292,7 +364,7 @@ h1, .serif, .card-header, .stats-card .number,
     color: var(--flora-primary);
 }
 
-[data-theme="dark"] .card-header { color: #d89cb0; }
+[data-theme="dark"] .card-header { color: var(--flora-primary-dark-accent); }
 
 .card-body { padding: 1.5rem; color: var(--flora-text); }
 
@@ -322,7 +394,7 @@ h1, .serif, .card-header, .stats-card .number,
     line-height: 1.1;
 }
 
-[data-theme="dark"] .stats-card .number { color: #d89cb0; }
+[data-theme="dark"] .stats-card .number { color: var(--flora-primary-dark-accent); }
 
 .stats-card .label {
     color: var(--flora-muted);
@@ -396,7 +468,7 @@ h1, .serif, .card-header, .stats-card .number,
 }
 
 [data-theme="dark"] .tool-tile .tool-icon {
-    color: #d89cb0;
+    color: var(--flora-primary-dark-accent);
     background: var(--flora-subtle-bg-2);
 }
 
@@ -430,7 +502,7 @@ h1, .serif, .card-header, .stats-card .number,
     font-size: 1.3rem;
 }
 
-[data-theme="dark"] .intro-text h4 { color: #d89cb0; }
+[data-theme="dark"] .intro-text h4 { color: var(--flora-primary-dark-accent); }
 
 .intro-text h4:first-child { margin-top: 0; }
 .intro-text ul { padding-left: 1.5rem; }
@@ -462,7 +534,6 @@ h1, .serif, .card-header, .stats-card .number,
 
 .example-card:hover {
     box-shadow: 0 2px 8px var(--flora-shadow-hover);
-    transform: translateX(2px);
 }
 
 .example-card.outcome-successful { border-left-color: var(--flora-success); }
@@ -490,6 +561,63 @@ h1, .serif, .card-header, .stats-card .number,
     gap: 0.5rem;
     align-items: center;
     flex-wrap: wrap;
+    margin-top: 0.6rem;
+}
+
+/* Clickable Original / Replication rows inside an example card */
+.example-card .ex-link {
+    display: block;
+    padding: 0.45rem 0.6rem;
+    margin: 0 -0.6rem 0.35rem -0.6rem;
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--flora-text);
+    transition: background 0.15s ease;
+}
+
+.example-card .ex-link:hover {
+    background: var(--flora-subtle-bg-2);
+    color: var(--flora-text);
+    text-decoration: none;
+}
+
+.example-card .ex-link.ex-link-disabled {
+    cursor: default;
+}
+
+.example-card .ex-link.ex-link-disabled:hover {
+    background: transparent;
+}
+
+.example-card .ex-line-label {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--flora-primary);
+    margin-right: 0.5rem;
+    vertical-align: 1px;
+}
+
+[data-theme="dark"] .example-card .ex-link-disabled .ex-line-label,
+[data-theme="dark"] .example-card .ex-line-label {
+    color: var(--flora-primary-dark-accent);
+}
+
+.example-card .ex-line-title {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--flora-text);
+    line-height: 1.35;
+}
+
+.example-card .ex-line-meta {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--flora-muted);
+    margin-top: 0.15rem;
 }
 
 /* =============================================================
@@ -558,7 +686,7 @@ h1, .serif, .card-header, .stats-card .number,
 .dataTables_filter input:focus {
     border-color: var(--flora-primary);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(133, 57, 83, 0.15);
+    box-shadow: 0 0 0 3px rgba(107, 69, 130, 0.18);
 }
 
 [data-theme="dark"] .dataTables_wrapper,
@@ -645,7 +773,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
     padding-bottom: 0.25rem;
 }
 
-[data-theme="dark"] .detail-row h6 { color: #d89cb0; }
+[data-theme="dark"] .detail-row h6 { color: var(--flora-primary-dark-accent); }
 
 .detail-section { margin-bottom: 1rem; }
 
@@ -673,14 +801,115 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 }
 
 /* =============================================================
-   Charts
+   Charts & trends
    ============================================================= */
 .chart-container { position: relative; height: 400px; width: 100%; }
-
-/* Overview stacked bar: smaller, since it's just one row */
 .chart-container-stack { position: relative; height: 150px; width: 100%; }
 
-/* Trends: description left, plot right */
+/* Trends filter bar */
+.trend-filter {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    background: var(--flora-card-bg);
+    border: 1px solid var(--flora-border);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px var(--flora-shadow);
+}
+
+.trend-filter-label {
+    font-weight: 600;
+    color: var(--flora-muted);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: 0.25rem;
+}
+
+.trend-filter-btn {
+    background: transparent;
+    border: 1px solid var(--flora-border);
+    color: var(--flora-text);
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: var(--font-sans);
+}
+
+.trend-filter-btn:hover {
+    border-color: var(--flora-primary);
+    color: var(--flora-primary);
+}
+
+[data-theme="dark"] .trend-filter-btn:hover {
+    color: var(--flora-primary-dark-accent);
+    border-color: var(--flora-primary-dark-accent);
+}
+
+.trend-filter-btn.active {
+    background: var(--flora-primary);
+    border-color: var(--flora-primary);
+    color: #fff;
+}
+
+.trend-filter-btn.active:hover {
+    background: var(--flora-primary-dark);
+    border-color: var(--flora-primary-dark);
+    color: #fff;
+}
+
+.trend-filter-count {
+    margin-left: auto;
+    color: var(--flora-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+/* Browse tab filter strip */
+.browse-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1.25rem;
+    background: var(--flora-subtle-bg);
+    border: 1px solid var(--flora-border);
+    border-radius: 8px;
+}
+
+.browse-filter label {
+    font-weight: 600;
+    color: var(--flora-text-soft);
+    font-size: 0.9rem;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+}
+
+.browse-filter .form-select {
+    max-width: 280px;
+    font-size: 0.9rem;
+    border-color: var(--flora-border-strong);
+}
+
+.browse-filter-note {
+    flex: 1 1 100%;
+    color: var(--flora-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+@media (min-width: 900px) {
+    .browse-filter-note { flex: 1 1 auto; flex-basis: 0; min-width: 260px; }
+}
+
 .trend-block {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -697,7 +926,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
     font-size: 1.3rem;
 }
 
-[data-theme="dark"] .trend-block .trend-desc h5 { color: #d89cb0; }
+[data-theme="dark"] .trend-block .trend-desc h5 { color: var(--flora-primary-dark-accent); }
 
 .trend-block .trend-desc p {
     color: var(--flora-text-soft);
@@ -804,6 +1033,19 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
         </div>
     </section>
 
+    <!-- WIP banner -->
+    <div class="wip-banner" id="wip-banner">
+        <div class="container wip-inner">
+            <svg class="wip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span><strong>Work in progress:</strong> FLoRA Explorer and the underlying dataset are actively being expanded. Some entries may be incomplete, and features marked <em>experimental</em> may change.</span>
+            <button class="wip-close" id="wip-close" aria-label="Dismiss notice" title="Dismiss">&times;</button>
+        </div>
+    </div>
+
     <!-- Tabs -->
     <div class="nav-tabs-wrapper">
         <div class="container">
@@ -855,14 +1097,14 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                         <div class="card">
                             <div class="card-header">About FLoRA</div>
                             <div class="card-body intro-text">
-                                <p>FLoRA tracks attempts to repeatedly test published findings across the sciences and humanities. Unlike the <a href="https://forrt.org/FReD/" target="_blank" class="doi-link">FORRT Replication Database (FReD)</a>, FLoRA does not include statistical data — this lets it cover every field of research and remain maintainable with limited resources.</p>
+                                <p>FLoRA tracks attempts to repeatedly test published findings across the sciences and humanities. Unlike the <a href="https://forrt.org/FReD/" target="_blank" class="doi-link">FORRT Replication Database (FReD)</a>, FLoRA does not include statistical data — this lets it cover every field of research and allows much faster expansion.</p>
 
                                 <h4>What is a replication?</h4>
                                 <p>Replications intentionally repeat prior research to test whether the original findings hold. To be included in FLoRA, a study must:</p>
                                 <ul>
                                     <li>Self-identify as a replication <em>before</em> reporting results — replication must be an aim, not just a result</li>
                                     <li>Identify a specific target study (or studies)</li>
-                                    <li>Replicate a study or experiment, not just a single association</li>
+                                    <li>Replicate a study or experiment — a central claim, not just any empirical pattern</li>
                                 </ul>
                                 <p>Replications range from <strong>close/direct</strong> (same methods, same population) to <strong>conceptual</strong> (same hypothesis, different methods). Outcomes are tagged <strong>Successful</strong>, <strong>Failed</strong>, or <strong>Mixed</strong> based on how the replication authors characterise their results.</p>
 
@@ -887,7 +1129,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 
                     <div class="col-lg-5">
                         <div class="card">
-                            <div class="card-header">Replication Tools</div>
+                            <div class="card-header">More Replication Tools</div>
                             <div class="card-body">
                                 <a class="tool-tile" href="https://forrt.org/flora-replication-atlas/" target="_blank">
                                     <div class="tool-icon">
@@ -978,10 +1220,18 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 <div class="card">
                     <div class="card-header">Recommended Citation</div>
                     <div class="card-body">
-                        <p class="mb-2" style="color: var(--flora-muted); font-size: 0.9rem;">If you use this dataset, please cite it as:</p>
+                        <p class="mb-2" style="color: var(--flora-muted); font-size: 0.9rem;">If you use the underlying dataset, please cite it as:</p>
                         <div class="citation-box" id="citation-box">
                             <button class="copy-btn" id="citation-copy-btn">Copy</button>
                             <div id="citation-text">Loading citation…</div>
+                        </div>
+
+                        <p class="mt-4 mb-2" style="color: var(--flora-muted); font-size: 0.9rem;">If you report results based on this website, please cite it as:</p>
+                        <div class="citation-box" id="website-citation-box">
+                            <button class="copy-btn" id="website-citation-copy-btn">Copy</button>
+                            <div id="website-citation-text">
+                                Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" class="doi-link">https://forrt.org/flora-explorer/</a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -992,6 +1242,17 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 <div class="card">
                     <div class="card-header">Replication Studies Database</div>
                     <div class="card-body">
+                        <div class="browse-filter">
+                            <label for="discipline-filter">
+                                Filter by discipline <span class="badge-wip">Experimental · WIP</span>
+                            </label>
+                            <select id="discipline-filter" class="form-select">
+                                <option value="all">All disciplines</option>
+                            </select>
+                            <span class="browse-filter-note" id="discipline-note">
+                                Disciplines are inferred from the original study's journal name. Many journals are not yet mapped and will appear under <em>Uncategorized</em>.
+                            </span>
+                        </div>
                         <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
                             <thead>
                                 <tr>
@@ -1014,6 +1275,14 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 
             <!-- TRENDS -->
             <div class="tab-pane fade" id="trends" role="tabpanel">
+
+                <div class="trend-filter" role="group" aria-label="Filter by study kind">
+                    <span class="trend-filter-label">Show:</span>
+                    <button type="button" class="trend-filter-btn active" data-kind="all">All studies</button>
+                    <button type="button" class="trend-filter-btn" data-kind="replication">Replications only</button>
+                    <button type="button" class="trend-filter-btn" data-kind="reproduction">Reproductions only</button>
+                    <span class="trend-filter-count" id="trend-filter-count"></span>
+                </div>
 
                 <div class="card">
                     <div class="card-body">
@@ -1065,6 +1334,29 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     </div>
                 </div>
 
+                <div class="card">
+                    <div class="card-body">
+                        <div class="trend-block">
+                            <div class="trend-desc">
+                                <h5>Outcomes by replication journal</h5>
+                                <p>Where replication studies are themselves being published. Each bar shows the outcome breakdown of replications appearing in a given journal.</p>
+                                <p>This view highlights the venues that publish replication research most actively — including journals dedicated to replications and registered reports.</p>
+                                <p class="trend-note">Annotation of replication-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
+                                <div class="mt-3">
+                                    <label for="rep-journal-top-n" style="font-weight:500; font-size:0.9rem; color: var(--flora-muted); margin-right: 0.5rem;">Show top:</label>
+                                    <select id="rep-journal-top-n" class="form-select d-inline-block" style="max-width: 160px; font-size: 0.9rem;">
+                                        <option value="10">10 journals</option>
+                                        <option value="15" selected>15 journals</option>
+                                        <option value="25">25 journals</option>
+                                        <option value="50">50 journals</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="chart-container" id="trend-rep-journal-container"><canvas id="trend-rep-journal"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -1102,6 +1394,21 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             if (window._rerenderAllCharts) window._rerenderAllCharts();
         });
 
+        // WIP banner: remember dismissal across sessions
+        (function() {
+            const banner = document.getElementById('wip-banner');
+            const closeBtn = document.getElementById('wip-close');
+            if (!banner || !closeBtn) return;
+            if (localStorage.getItem('flora-wip-dismissed') === '1') {
+                banner.style.display = 'none';
+                return;
+            }
+            closeBtn.addEventListener('click', () => {
+                banner.style.display = 'none';
+                localStorage.setItem('flora-wip-dismissed', '1');
+            });
+        })();
+
         // Config
         const CSV_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv';
         const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
@@ -1114,12 +1421,150 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             other:        '#a0a7b4'
         };
 
+        // =========================================================
+        // Discipline dictionary — hard-coded mapping from (lowercased,
+        // trimmed) journal name → discipline. Extend freely.
+        // Journals not listed here fall into "Uncategorized".
+        // =========================================================
+        const DISCIPLINES = {
+            "Psychology": [
+                "psychological science",
+                "journal of personality and social psychology",
+                "journal of experimental psychology: general",
+                "journal of experimental psychology: learning, memory, and cognition",
+                "journal of experimental social psychology",
+                "psychological review",
+                "psychological bulletin",
+                "personality and social psychology bulletin",
+                "psychonomic bulletin & review",
+                "cognition",
+                "cognitive psychology",
+                "memory & cognition",
+                "behavior research methods",
+                "social psychological and personality science",
+                "british journal of social psychology",
+                "european journal of social psychology",
+                "european journal of personality",
+                "developmental psychology",
+                "child development",
+                "journal of abnormal psychology",
+                "clinical psychological science",
+                "emotion",
+                "psychology of addictive behaviors",
+                "comprehensive results in social psychology",
+                "frontiers in psychology",
+                "collabra: psychology",
+                "meta-psychology"
+            ],
+            "Economics": [
+                "american economic review",
+                "quarterly journal of economics",
+                "journal of political economy",
+                "econometrica",
+                "review of economic studies",
+                "journal of economic perspectives",
+                "journal of finance",
+                "journal of financial economics",
+                "experimental economics",
+                "journal of the european economic association"
+            ],
+            "Medicine & Health": [
+                "new england journal of medicine",
+                "the lancet",
+                "jama",
+                "bmj",
+                "plos medicine",
+                "annals of internal medicine",
+                "journal of clinical oncology",
+                "circulation",
+                "pediatrics",
+                "health psychology"
+            ],
+            "Biology & Life Sciences": [
+                "nature",
+                "science",
+                "cell",
+                "plos biology",
+                "elife",
+                "proceedings of the national academy of sciences",
+                "proceedings of the royal society b: biological sciences",
+                "current biology",
+                "journal of experimental biology",
+                "ecology",
+                "evolution",
+                "animal behaviour",
+                "behavioral ecology"
+            ],
+            "Neuroscience": [
+                "neuron",
+                "nature neuroscience",
+                "journal of neuroscience",
+                "neuroimage",
+                "cerebral cortex",
+                "cognitive neuroscience",
+                "social cognitive and affective neuroscience",
+                "biological psychiatry"
+            ],
+            "Education": [
+                "journal of educational psychology",
+                "review of educational research",
+                "american educational research journal",
+                "educational researcher",
+                "learning and instruction",
+                "computers & education"
+            ],
+            "Political Science & Sociology": [
+                "american political science review",
+                "american journal of political science",
+                "journal of politics",
+                "american sociological review",
+                "american journal of sociology",
+                "social forces",
+                "public opinion quarterly",
+                "political analysis",
+                "political behavior"
+            ],
+            "Management & Organizational Behavior": [
+                "academy of management journal",
+                "academy of management review",
+                "administrative science quarterly",
+                "journal of applied psychology",
+                "organizational behavior and human decision processes",
+                "journal of marketing",
+                "journal of marketing research",
+                "journal of consumer research",
+                "marketing science",
+                "strategic management journal"
+            ],
+            "Linguistics & Humanities": [
+                "journal of memory and language",
+                "language",
+                "language, cognition and neuroscience",
+                "applied linguistics",
+                "cognitive linguistics"
+            ]
+        };
+
+        // Reverse lookup: { "journal name lowercased" → "Discipline" }
+        const JOURNAL_TO_DISCIPLINE = (() => {
+            const out = {};
+            for (const [disc, journals] of Object.entries(DISCIPLINES)) {
+                for (const j of journals) out[j.toLowerCase().trim()] = disc;
+            }
+            return out;
+        })();
+
+        function disciplineForJournal(journalName) {
+            if (!journalName) return 'Uncategorized';
+            return JOURNAL_TO_DISCIPLINE[journalName.toLowerCase().trim()] || 'Uncategorized';
+        }
+
         function themeAxisColors() {
             const dark = currentTheme() === 'dark';
             return {
-                grid:   dark ? '#2a2e3a' : '#e4dbde',
-                tick:   dark ? '#b8c0cc' : '#4e4850',
-                legend: dark ? '#e8ecf1' : '#2a2328'
+                grid:   dark ? '#2d2e3d' : '#dfd8e5',
+                tick:   dark ? '#b8b5c4' : '#4e4858',
+                legend: dark ? '#e8e6ee' : '#2a2330'
             };
         }
 
@@ -1130,6 +1575,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
         let trendOrigYearChart = null;
         let trendRepYearChart = null;
         let trendJournalChart = null;
+        let trendRepJournalChart = null;
         let trendsInitialized = false;
 
         // Utilities
@@ -1141,6 +1587,25 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             if (o.includes('mixed') || o.includes('partial')) return 'mixed';
             if (o.includes('inconclusive')) return 'inconclusive';
             return 'other';
+        }
+
+        // Classify a row as replication vs reproduction. Prefers the 'type' column,
+        // falls back to outcome keywords that are reproduction-specific (computational, robustness).
+        function classifyKind(row) {
+            const t = (row.type || '').toLowerCase();
+            if (t.includes('reproduc')) return 'reproduction';
+            if (t.includes('replic')) return 'replication';
+            // Fallback: outcome wording that only appears for reproductions
+            const o = (row.outcome || '').toLowerCase();
+            if (o.includes('computational') || o.includes('robust')) return 'reproduction';
+            if (o) return 'replication';
+            return 'unknown';
+        }
+
+        // Filter rows by kind ('all' | 'replication' | 'reproduction')
+        function filterByKind(data, kind) {
+            if (!kind || kind === 'all') return data;
+            return data.filter(r => classifyKind(r) === kind);
         }
 
         function getOutcomeBadge(outcome) {
@@ -1303,6 +1768,21 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             });
         }
 
+        // Build a clickable link (DOI preferred, URL fallback) wrapping the inner HTML.
+        // If neither is available, returns a non-link span styled the same way.
+        function studyLink(doi, url, innerHtml, extraClass = '') {
+            let href = '';
+            if (doi) {
+                href = doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
+            } else if (url) {
+                href = url;
+            }
+            if (href) {
+                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener" class="ex-link ${extraClass}" title="Open ${escapeHtml(href)}">${innerHtml}</a>`;
+            }
+            return `<span class="ex-link ex-link-disabled ${extraClass}">${innerHtml}</span>`;
+        }
+
         function renderRandomExamples(data) {
             const container = document.getElementById('random-examples');
             const usable = data.filter(r => (r.title_o || r.author_o) && r.outcome);
@@ -1313,11 +1793,26 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 const cls = classifyOutcome(r.outcome);
                 const origTitle = r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`;
                 const origMeta = [shortAuthors(r.author_o), r.year_o].filter(Boolean).join(' · ');
+                const repTitle = r.title_r || `${shortAuthors(r.author_r)} (${r.year_r || 'n.d.'})`;
                 const repMeta = [shortAuthors(r.author_r), r.year_r].filter(Boolean).join(' · ');
+
+                const origInner = `
+                    <span class="ex-line-label">Original</span>
+                    <span class="ex-line-title">${escapeHtml(truncateText(origTitle, 110))}</span>
+                    ${origMeta ? `<span class="ex-line-meta">${escapeHtml(origMeta)}</span>` : ''}
+                `;
+                const repInner = `
+                    <span class="ex-line-label">Replication</span>
+                    <span class="ex-line-title">${escapeHtml(truncateText(repTitle, 110))}</span>
+                    ${repMeta ? `<span class="ex-line-meta">${escapeHtml(repMeta)}</span>` : ''}
+                `;
+
+                const hasRep = !!(r.title_r || r.author_r || r.doi_r || r.url_r);
+
                 return `
                     <div class="example-card outcome-${cls}">
-                        <div class="ex-title">${escapeHtml(truncateText(origTitle, 100))}</div>
-                        <div class="ex-meta">Original: ${escapeHtml(origMeta) || '—'}${repMeta ? ' · Replication: ' + escapeHtml(repMeta) : ''}</div>
+                        ${studyLink(r.doi_o, null, origInner)}
+                        ${hasRep ? studyLink(r.doi_r, r.url_r, repInner) : ''}
                         <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge bg-light text-dark">' + escapeHtml(r.type) + '</span>' : ''}</div>
                     </div>
                 `;
@@ -1407,6 +1902,16 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             });
         });
 
+        document.getElementById('website-citation-copy-btn').addEventListener('click', () => {
+            const text = 'Wallrich, L., & Röseler, L. (2026). FLoRA Explorer [Website]. https://forrt.org/flora-explorer/';
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('website-citation-copy-btn');
+                const orig = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = orig; }, 1500);
+            });
+        });
+
         // Browse
         function formatDetailRow(rowData) {
             return `
@@ -1490,6 +1995,72 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             });
         }
 
+        // =========================================================
+        // Discipline filter wiring (Browse tab)
+        // =========================================================
+        function setupDisciplineFilter(data) {
+            const select = document.getElementById('discipline-filter');
+            const note = document.getElementById('discipline-note');
+            if (!select || !dataTable) return;
+
+            // Count rows per discipline present in the actual data, so users see
+            // which disciplines are usefully populated.
+            const counts = {};
+            let uncategorized = 0;
+            data.forEach(row => {
+                const d = disciplineForJournal(row.journal_o);
+                if (d === 'Uncategorized') uncategorized++;
+                else counts[d] = (counts[d] || 0) + 1;
+            });
+
+            // Populate dropdown: disciplines present in the data, sorted by count desc,
+            // then the full list of defined disciplines (so empty ones are visible too),
+            // then Uncategorized.
+            const presentSorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+            const all = Object.keys(DISCIPLINES);
+            const missing = all.filter(d => !presentSorted.includes(d));
+
+            // Clear existing (keep the "All" option at index 0)
+            select.innerHTML = '<option value="all">All disciplines</option>';
+            presentSorted.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = `${d} (${counts[d].toLocaleString()})`;
+                select.appendChild(opt);
+            });
+            missing.forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = `${d} (0)`;
+                opt.disabled = true;
+                select.appendChild(opt);
+            });
+            const uncatOpt = document.createElement('option');
+            uncatOpt.value = '__uncategorized__';
+            uncatOpt.textContent = `Uncategorized (${uncategorized.toLocaleString()})`;
+            select.appendChild(uncatOpt);
+
+            // Update the helper note to show mapping coverage
+            const mapped = data.length - uncategorized;
+            const pct = data.length ? Math.round((mapped / data.length) * 100) : 0;
+            note.innerHTML = `Disciplines are inferred from the original study's journal name. <strong>${mapped.toLocaleString()} of ${data.length.toLocaleString()} studies (${pct}%)</strong> are currently mapped; the rest fall under <em>Uncategorized</em>.`;
+
+            // Register a custom DataTables search filter. It looks up each row's
+            // journal_o in the reverse dictionary and compares against the selection.
+            $.fn.dataTable.ext.search.push(function(settings, searchData, dataIndex) {
+                if (settings.nTable.id !== 'flora-table') return true;
+                const sel = select.value;
+                if (!sel || sel === 'all') return true;
+                const row = fullRowData[dataIndex];
+                if (!row) return true;
+                const d = disciplineForJournal(row.journal_o);
+                if (sel === '__uncategorized__') return d === 'Uncategorized';
+                return d === sel;
+            });
+
+            select.addEventListener('change', () => dataTable.draw());
+        }
+
         // Trends
         function aggregateByYear(data, yearField) {
             const groups = {};
@@ -1508,10 +2079,10 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             return years.map(y => ({ key: String(y), ...groups[y] }));
         }
 
-        function aggregateByJournal(data, topN) {
+        function aggregateByJournal(data, field, topN) {
             const groups = {};
             data.forEach(row => {
-                const j = (row.journal_o || '').trim();
+                const j = (row[field] || '').trim();
                 if (!j) return;
                 if (!groups[j]) groups[j] = { total: 0, successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
                 groups[j].total++;
@@ -1533,14 +2104,41 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             ];
         }
 
-        function renderStackedChart(canvasId, agg, orientation, existing) {
+        // Wrap a long string into an array of lines, breaking on whitespace, each line <= maxChars.
+        // Chart.js accepts an array-of-strings tick label and renders each as a separate line.
+        function wrapLabel(str, maxChars = 36) {
+            if (!str) return '';
+            if (str.length <= maxChars) return str;
+            const words = String(str).split(/\s+/);
+            const lines = [];
+            let line = '';
+            for (const w of words) {
+                if (!line) { line = w; continue; }
+                if ((line + ' ' + w).length <= maxChars) line += ' ' + w;
+                else { lines.push(line); line = w; }
+            }
+            if (line) lines.push(line);
+            // Cap at 3 lines with ellipsis to keep things tidy
+            if (lines.length > 3) {
+                const trimmed = lines.slice(0, 3);
+                const last = trimmed[2];
+                trimmed[2] = (last.length > maxChars - 1 ? last.slice(0, maxChars - 1) : last) + '…';
+                return trimmed;
+            }
+            return lines;
+        }
+
+        function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
             if (existing) existing.destroy();
             const ctx = document.getElementById(canvasId).getContext('2d');
             const isHorizontal = orientation === 'horizontal';
             const ac = themeAxisColors();
+            // Journal-style labels get wrapped; year labels stay as-is
+            const wrapLabels = !!opts.wrapLabels;
+            const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, 38) : r.key);
             return new Chart(ctx, {
                 type: 'bar',
-                data: { labels: agg.map(r => r.key), datasets: stackedOutcomeDatasets(agg) },
+                data: { labels, datasets: stackedOutcomeDatasets(agg) },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -1549,6 +2147,12 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                         legend: { position: 'bottom', labels: { padding: 10, color: ac.legend, boxWidth: 12, font: { size: 11 } } },
                         tooltip: {
                             callbacks: {
+                                // Re-join multi-line labels for the tooltip so the full name reads cleanly
+                                title: items => {
+                                    const label = items[0].label;
+                                    if (Array.isArray(label)) return label.join(' ');
+                                    return label;
+                                },
                                 afterLabel: ctx => {
                                     const row = agg[ctx.dataIndex];
                                     const val = ctx.parsed[isHorizontal ? 'x' : 'y'];
@@ -1560,37 +2164,87 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     },
                     scales: {
                         x: { stacked: true, grid: { color: ac.grid }, ticks: { color: ac.tick, autoSkip: !isHorizontal } },
-                        y: { stacked: true, grid: { color: ac.grid, display: !isHorizontal }, ticks: { color: ac.tick, autoSkip: false, font: { size: isHorizontal ? 11 : 12 } } }
-                    }
+                        y: {
+                            stacked: true,
+                            grid: { color: ac.grid, display: !isHorizontal },
+                            ticks: {
+                                color: ac.tick,
+                                autoSkip: false,
+                                font: { size: isHorizontal ? 11 : 12 },
+                                // Chart.js renders arrays as multi-line ticks natively
+                            }
+                        }
+                    },
+                    layout: isHorizontal ? { padding: { left: 6 } } : {}
                 }
             });
         }
 
+        // Active kind filter for Trends tab
+        let trendsKind = 'all';
+
+        function trendsFilteredData() {
+            return filterByKind(fullRowData, trendsKind);
+        }
+
+        function updateTrendsCount() {
+            const el = document.getElementById('trend-filter-count');
+            if (!el) return;
+            const n = trendsFilteredData().length;
+            const total = fullRowData.length;
+            if (trendsKind === 'all') {
+                el.textContent = `${n.toLocaleString()} studies`;
+            } else {
+                el.textContent = `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
+            }
+        }
+
         function renderTrendOrigYear() {
-            const agg = aggregateByYear(fullRowData, 'year_o');
+            const agg = aggregateByYear(trendsFilteredData(), 'year_o');
             trendOrigYearChart = renderStackedChart('trend-orig-year', agg, 'vertical', trendOrigYearChart);
         }
 
         function renderTrendRepYear() {
-            const agg = aggregateByYear(fullRowData, 'year_r');
+            const agg = aggregateByYear(trendsFilteredData(), 'year_r');
             trendRepYearChart = renderStackedChart('trend-rep-year', agg, 'vertical', trendRepYearChart);
         }
 
         function renderTrendJournal() {
             const topN = parseInt(document.getElementById('journal-top-n').value, 10) || 15;
-            const agg = aggregateByJournal(fullRowData, topN);
+            const agg = aggregateByJournal(trendsFilteredData(), 'journal_o', topN);
             const container = document.getElementById('trend-journal-container');
-            container.style.height = Math.max(400, agg.length * 28) + 'px';
-            trendJournalChart = renderStackedChart('trend-journal', agg, 'horizontal', trendJournalChart);
+            container.style.height = Math.max(400, agg.length * 36) + 'px';
+            trendJournalChart = renderStackedChart('trend-journal', agg, 'horizontal', trendJournalChart, { wrapLabels: true });
+        }
+
+        function renderTrendRepJournal() {
+            const topN = parseInt(document.getElementById('rep-journal-top-n').value, 10) || 15;
+            const agg = aggregateByJournal(trendsFilteredData(), 'journal_r', topN);
+            const container = document.getElementById('trend-rep-journal-container');
+            container.style.height = Math.max(400, agg.length * 36) + 'px';
+            trendRepJournalChart = renderStackedChart('trend-rep-journal', agg, 'horizontal', trendRepJournalChart, { wrapLabels: true });
         }
 
         function renderAllTrends() {
+            updateTrendsCount();
             renderTrendOrigYear();
             renderTrendRepYear();
             renderTrendJournal();
+            renderTrendRepJournal();
         }
 
         document.getElementById('journal-top-n').addEventListener('change', renderTrendJournal);
+        document.getElementById('rep-journal-top-n').addEventListener('change', renderTrendRepJournal);
+
+        // Kind-filter buttons (All / Replications / Reproductions)
+        document.querySelectorAll('.trend-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.trend-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                trendsKind = btn.dataset.kind || 'all';
+                if (trendsInitialized && fullRowData.length) renderAllTrends();
+            });
+        });
 
         document.getElementById('trends-tab').addEventListener('shown.bs.tab', () => {
             if (!trendsInitialized && fullRowData.length) {
@@ -1627,6 +2281,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     renderOverviewChart(data);
                     renderRandomExamples(data);
                     initDataTable(data);
+                    setupDisciplineFilter(data);
                     loadCitation();
                 },
                 error: function(error) {
