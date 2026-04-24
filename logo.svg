@@ -2,20 +2,19 @@
   <title>FLoRA</title>
   <defs>
     <linearGradient id="flora-grad-1" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a04867"/>
-      <stop offset="100%" stop-color="#6b2d43"/>
+      <stop offset="0%" stop-color="#8a60a6"/>
+      <stop offset="100%" stop-color="#553568"/>
     </linearGradient>
     <linearGradient id="flora-grad-2" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#c16a87"/>
-      <stop offset="100%" stop-color="#853953"/>
+      <stop offset="0%" stop-color="#b490c9"/>
+      <stop offset="100%" stop-color="#6b4582"/>
     </linearGradient>
   </defs>
 
   <!-- Outer ring -->
-  <circle cx="60" cy="60" r="56" fill="#ffffff" stroke="#853953" stroke-width="2"/>
+  <circle cx="60" cy="60" r="56" fill="#ffffff" stroke="#6b4582" stroke-width="2"/>
 
-  <!-- Four petals arranged radially (replication = repeated form).
-       Each petal is an ellipse rotated 0/90/180/270 around the center. -->
+  <!-- Four petals arranged radially -->
   <g transform="translate(60 60)">
     <!-- back layer (lighter, slightly rotated) -->
     <g opacity="0.55">
@@ -33,6 +32,6 @@
 
     <!-- Center seed/dot -->
     <circle cx="0" cy="0" r="8" fill="#ffffff"/>
-    <circle cx="0" cy="0" r="5" fill="#853953"/>
+    <circle cx="0" cy="0" r="5" fill="#6b4582"/>
   </g>
 </svg>
