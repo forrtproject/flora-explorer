@@ -1003,6 +1003,147 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 }
 
 /* =============================================================
+   Browse — mobile card list
+   ============================================================= */
+.browse-desktop { display: block; }
+.browse-mobile  { display: none; }
+
+.browse-mobile-search { margin-bottom: 1rem; }
+.browse-mobile-search input {
+    border: 2px solid var(--flora-border-strong);
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    font-size: 0.95rem;
+    background: var(--flora-input-bg);
+    color: var(--flora-text);
+    width: 100%;
+}
+.browse-mobile-search input:focus {
+    outline: none;
+    border-color: var(--flora-primary);
+    box-shadow: 0 0 0 3px rgba(107, 69, 130, 0.18);
+}
+
+.browse-mobile-meta {
+    color: var(--flora-muted);
+    font-size: 0.82rem;
+    margin-bottom: 0.75rem;
+}
+
+.browse-mobile-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.bm-card {
+    background: var(--flora-card-bg);
+    border: 1px solid var(--flora-border);
+    border-radius: 10px;
+    padding: 0.85rem 0.95rem;
+    box-shadow: 0 1px 2px var(--flora-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.bm-row { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.bm-row-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--flora-muted);
+}
+
+.bm-row-title {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 0.97rem;
+    line-height: 1.35;
+    color: var(--flora-text);
+    word-break: break-word;
+}
+
+.bm-row-title a {
+    color: var(--flora-text);
+    text-decoration: none;
+}
+.bm-row-title a:hover { color: var(--flora-primary); text-decoration: underline; }
+[data-theme="dark"] .bm-row-title a:hover { color: var(--flora-primary-dark-accent); }
+
+.bm-row-meta {
+    font-size: 0.83rem;
+    color: var(--flora-muted);
+    line-height: 1.4;
+}
+
+.bm-divider {
+    height: 1px;
+    background: var(--flora-border);
+    margin: 0.1rem 0;
+}
+
+.bm-tags {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    align-items: center;
+    padding-top: 0.15rem;
+}
+
+.bm-tag-type {
+    background: var(--flora-subtle-bg);
+    color: var(--flora-text-soft);
+    border: 1px solid var(--flora-border);
+    border-radius: 4px;
+    padding: 0.15em 0.55em;
+    font-size: 0.74rem;
+    font-weight: 500;
+}
+
+.bm-empty {
+    text-align: center;
+    color: var(--flora-muted);
+    padding: 2rem 1rem;
+    font-style: italic;
+}
+
+.browse-mobile-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+    gap: 0.5rem;
+}
+
+.bm-page-btn {
+    background: var(--flora-card-bg);
+    border: 1px solid var(--flora-border-strong);
+    color: var(--flora-text);
+    padding: 0.5rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: var(--font-sans);
+    min-width: 80px;
+}
+.bm-page-btn:hover:not(:disabled) {
+    border-color: var(--flora-primary);
+    color: var(--flora-primary);
+}
+.bm-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.bm-page-info {
+    font-size: 0.85rem;
+    color: var(--flora-muted);
+    text-align: center;
+    flex: 1;
+}
+
+/* =============================================================
    Responsive
    ============================================================= */
 @media (max-width: 768px) {
@@ -1015,6 +1156,10 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
     .stats-card .number { font-size: 1.85rem; }
     .card-body { padding: 1rem; }
     .card-header { font-size: 1.05rem; }
+
+    /* Swap table for card list on mobile */
+    .browse-desktop { display: none; }
+    .browse-mobile  { display: block; }
 }
 
     </style>
@@ -1250,22 +1395,39 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 <div class="card">
                     <div class="card-header">Replication Studies Database</div>
                     <div class="card-body">
-                        <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
-                            <thead>
-                                <tr>
-                                    <th></th>
-                                    <th>Original Study</th>
-                                    <th>Year</th>
-                                    <th>Replication Study</th>
-                                    <th>Year</th>
-                                    <th>Outcome</th>
-                                    <th>Type</th>
-                                    <th>Original DOI</th>
-                                    <th>Replication Report</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                        <!-- Desktop / tablet: full DataTable -->
+                        <div class="browse-desktop">
+                            <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th>Original Study</th>
+                                        <th>Year</th>
+                                        <th>Replication Study</th>
+                                        <th>Year</th>
+                                        <th>Outcome</th>
+                                        <th>Type</th>
+                                        <th>Original DOI</th>
+                                        <th>Replication Report</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile: vertical card list -->
+                        <div class="browse-mobile">
+                            <div class="browse-mobile-search">
+                                <input type="search" id="browse-mobile-input" class="form-control" placeholder="Search studies (title, author, journal, DOI)…" autocomplete="off">
+                            </div>
+                            <div id="browse-mobile-meta" class="browse-mobile-meta"></div>
+                            <div id="browse-mobile-list" class="browse-mobile-list"></div>
+                            <div class="browse-mobile-pager" id="browse-mobile-pager">
+                                <button class="bm-page-btn" id="bm-prev" type="button" aria-label="Previous page">‹ Prev</button>
+                                <span class="bm-page-info" id="bm-page-info"></span>
+                                <button class="bm-page-btn" id="bm-next" type="button" aria-label="Next page">Next ›</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1992,6 +2154,156 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             });
         }
 
+        // =========================================================
+        // Browse — mobile card list
+        // Re-implements search + pagination over fullRowData so the
+        // small-screen experience doesn't depend on the wide table.
+        // =========================================================
+        const BM_PAGE_SIZE = 20;
+        let bmFiltered = [];
+        let bmPage = 0;
+        let bmInitialized = false;
+
+        // Build a single haystack string per row, lowercased, used for substring search.
+        function bmSearchableText(row) {
+            return [
+                row.title_o, row.author_o, row.journal_o, row.year_o, row.doi_o,
+                row.title_r, row.author_r, row.journal_r, row.year_r, row.doi_r, row.url_r,
+                row.outcome, row.outcome_quote, row.type, row.description
+            ].filter(Boolean).join(' | ').toLowerCase();
+        }
+
+        // Returns "" if neither doi nor url is available
+        function bmHref(doi, url) {
+            if (doi) return doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
+            if (url) return url;
+            return '';
+        }
+
+        // Combine author + year into a short header line: "Smith et al. (2018)"
+        function bmAuthorYear(authorData, year) {
+            const a = shortAuthors(authorData);
+            const y = year ? `(${year})` : '';
+            return [a, y].filter(Boolean).join(' ');
+        }
+
+        function bmRenderTitleLine(title, fallback, doi, url) {
+            const text = escapeHtml(title || fallback || '—');
+            const href = bmHref(doi, url);
+            if (href) {
+                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${text}</a>`;
+            }
+            return text;
+        }
+
+        function bmCardHtml(row) {
+            const oTitle = bmRenderTitleLine(row.title_o, shortAuthors(row.author_o), row.doi_o, null);
+            const oMeta = [bmAuthorYear(row.author_o, row.year_o), row.journal_o]
+                .filter(Boolean).map(escapeHtml).join(' · ');
+
+            const rTitle = bmRenderTitleLine(row.title_r, shortAuthors(row.author_r), row.doi_r, row.url_r);
+            const rMeta = [bmAuthorYear(row.author_r, row.year_r), row.journal_r]
+                .filter(Boolean).map(escapeHtml).join(' · ');
+
+            const tagsParts = [getOutcomeBadge(row.outcome)];
+            if (row.type) tagsParts.push(`<span class="bm-tag-type">${escapeHtml(row.type)}</span>`);
+
+            return `
+                <div class="bm-card">
+                    <div class="bm-row">
+                        <div class="bm-row-label">Original</div>
+                        <div class="bm-row-title">${oTitle}</div>
+                        ${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}
+                    </div>
+                    <div class="bm-divider"></div>
+                    <div class="bm-row">
+                        <div class="bm-row-label">Replication</div>
+                        <div class="bm-row-title">${rTitle}</div>
+                        ${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}
+                    </div>
+                    <div class="bm-tags">${tagsParts.join('')}</div>
+                </div>
+            `;
+        }
+
+        function bmApplySearch(query) {
+            const q = (query || '').trim().toLowerCase();
+            if (!q) {
+                bmFiltered = fullRowData.slice();
+            } else {
+                // Sort newest replication year first (matches desktop default)
+                bmFiltered = fullRowData.filter(r => bmSearchableText(r).includes(q));
+            }
+            // Newest replication year first — same default as the DataTable
+            bmFiltered.sort((a, b) => {
+                const ay = parseInt(a.year_r, 10) || 0;
+                const by = parseInt(b.year_r, 10) || 0;
+                return by - ay;
+            });
+            bmPage = 0;
+            bmRender();
+        }
+
+        function bmRender() {
+            const list = document.getElementById('browse-mobile-list');
+            const meta = document.getElementById('browse-mobile-meta');
+            const info = document.getElementById('bm-page-info');
+            const prev = document.getElementById('bm-prev');
+            const next = document.getElementById('bm-next');
+            const pager = document.getElementById('browse-mobile-pager');
+            if (!list) return;
+
+            const total = bmFiltered.length;
+            if (total === 0) {
+                list.innerHTML = '<div class="bm-empty">No studies match your search.</div>';
+                meta.textContent = '0 studies';
+                pager.style.display = 'none';
+                return;
+            }
+
+            const totalPages = Math.max(1, Math.ceil(total / BM_PAGE_SIZE));
+            if (bmPage >= totalPages) bmPage = totalPages - 1;
+            const start = bmPage * BM_PAGE_SIZE;
+            const end = Math.min(total, start + BM_PAGE_SIZE);
+
+            const pageRows = bmFiltered.slice(start, end);
+            list.innerHTML = pageRows.map(bmCardHtml).join('');
+
+            meta.innerHTML = `Showing <strong>${start + 1}–${end}</strong> of <strong>${total.toLocaleString()}</strong> studies`;
+            info.textContent = `Page ${bmPage + 1} of ${totalPages}`;
+            prev.disabled = bmPage === 0;
+            next.disabled = bmPage >= totalPages - 1;
+            pager.style.display = totalPages > 1 ? 'flex' : 'none';
+        }
+
+        function setupBrowseMobile(data) {
+            if (bmInitialized) return;
+            bmInitialized = true;
+
+            const input = document.getElementById('browse-mobile-input');
+            const prev = document.getElementById('bm-prev');
+            const next = document.getElementById('bm-next');
+
+            // Debounce input to keep typing snappy on phones
+            let debounceTimer;
+            input.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => bmApplySearch(input.value), 150);
+            });
+
+            prev.addEventListener('click', () => {
+                if (bmPage > 0) { bmPage--; bmRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+            });
+            next.addEventListener('click', () => {
+                bmPage++;
+                bmRender();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            // Initial render with empty query
+            bmApplySearch('');
+        }
+
         // Trends
         function aggregateByYear(data, yearField) {
             const groups = {};
@@ -2238,6 +2550,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     renderOverviewChart(data);
                     renderRandomExamples(data);
                     initDataTable(data);
+                    setupBrowseMobile(data);
                     loadCitation();
                 },
                 error: function(error) {
