@@ -341,6 +341,55 @@ h1, .serif, .card-header, .stats-card .number,
     margin-left: 0.5rem;
 }
 
+/* Info icon — shows tooltip on hover/focus */
+.info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--flora-muted);
+    cursor: help;
+    position: relative;
+    vertical-align: middle;
+}
+
+.info-icon svg { width: 16px; height: 16px; }
+.info-icon:hover, .info-icon:focus { color: var(--flora-primary); outline: none; }
+[data-theme="dark"] .info-icon:hover,
+[data-theme="dark"] .info-icon:focus { color: var(--flora-primary-dark-accent); }
+
+.info-icon .info-tip {
+    position: absolute;
+    top: 130%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--flora-card-bg);
+    color: var(--flora-text);
+    border: 1px solid var(--flora-border);
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 400;
+    line-height: 1.5;
+    width: 280px;
+    box-shadow: 0 6px 20px var(--flora-shadow-hover);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 50;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: var(--font-sans);
+}
+
+.info-icon:hover .info-tip,
+.info-icon:focus .info-tip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
 /* =============================================================
    Tabs
    ============================================================= */
@@ -706,6 +755,71 @@ h1, .serif, .card-header, .stats-card .number,
     color: white;
     border-color: var(--flora-primary);
 }
+
+/* =============================================================
+   FAQ
+   ============================================================= */
+.faq-item {
+    border-bottom: 1px solid var(--flora-border);
+}
+.faq-item:last-child { border-bottom: none; }
+
+.faq-question {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: 0.85rem 0;
+    color: var(--flora-text);
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    line-height: 1.4;
+    transition: color 0.15s ease;
+}
+
+.faq-question:hover { color: var(--flora-primary); }
+[data-theme="dark"] .faq-question:hover { color: var(--flora-primary-dark-accent); }
+
+.faq-question .faq-chevron {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-top: 4px;
+    color: var(--flora-muted);
+    transition: transform 0.2s ease;
+}
+
+.faq-item.open .faq-chevron { transform: rotate(90deg); }
+.faq-item.open .faq-question { color: var(--flora-primary); }
+[data-theme="dark"] .faq-item.open .faq-question { color: var(--flora-primary-dark-accent); }
+
+.faq-answer {
+    display: none;
+    padding: 0 0 1rem 1.6rem;
+    color: var(--flora-text-soft);
+    font-size: 0.95rem;
+    line-height: 1.65;
+}
+
+.faq-item.open .faq-answer { display: block; }
+
+.faq-answer p { margin: 0 0 0.7rem 0; }
+.faq-answer p:last-child { margin-bottom: 0; }
+.faq-answer a { color: var(--flora-link); }
+.faq-answer code {
+    background: var(--flora-subtle-bg);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    font-size: 0.88em;
+}
+.faq-answer ul, .faq-answer ol { padding-left: 1.4rem; margin: 0.4rem 0 0.7rem 0; }
+.faq-answer li { margin-bottom: 0.3rem; }
+.faq-answer strong { color: var(--flora-text); }
 
 /* =============================================================
    Loading
@@ -1237,7 +1351,13 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 </div>
 
                 <div class="card">
-                    <div class="card-header">Outcome Distribution</div>
+                    <div class="card-header d-flex align-items-center" style="gap: 0.5rem;">
+                        <span>Outcome Distribution</span>
+                        <span class="info-icon" tabindex="0" aria-label="Info about outcome distribution">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                            <span class="info-tip">Currently, this distribution covers <strong>replications only</strong>. Reproductions (computational and robustness checks) are coded along different dimensions and will be added in a future update.</span>
+                        </span>
+                    </div>
                     <div class="card-body">
                         <div class="chart-container-stack">
                             <canvas id="overview-outcome-chart"></canvas>
@@ -1276,6 +1396,24 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                                 <p>FLoRA links each repetition reference to its original, and assigns a standardized outcome based on the repetition report. This simple structure lets us track replication rates across time, disciplines, and journals — and powers tools like the FLoRA Annotator, which lists replication and reproduction attempts for any reference you provide.</p>
 
                                 <p>FLoRA is the product of years of work by a large community of volunteers. If you'd like to contribute or use the data for your own research, <a href="https://forrt.org/replication-hub/" target="_blank" class="doi-link">please reach out</a>.</p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">FAQs</div>
+                            <div class="card-body">
+                                <p style="color: var(--flora-text-soft); margin-bottom: 1rem;">
+                                    If anything is unclear, here is where we collect frequently asked questions.
+                                    The list is loaded live from the
+                                    <a href="https://github.com/forrtproject/fred-data/blob/main/output/flora_faq.md" target="_blank" class="doi-link">FLoRA FAQ document</a>
+                                    and grows as new questions come in.
+                                </p>
+                                <div id="faq-loading" style="color: var(--flora-muted); font-size: 0.9rem;">Loading FAQs…</div>
+                                <div id="faq-content" style="display: none;"></div>
+                                <div id="faq-error" style="display: none; color: var(--flora-muted); font-size: 0.9rem;">
+                                    Could not load FAQs at the moment. You can read them directly on
+                                    <a href="https://github.com/forrtproject/fred-data/blob/main/output/flora_faq.md" target="_blank" class="doi-link">GitHub</a>.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1392,6 +1530,29 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 
             <!-- BROWSE -->
             <div class="tab-pane fade" id="browse" role="tabpanel">
+                <div class="trend-filter" role="group" aria-label="Filter by study kind">
+                    <span class="trend-filter-label">Show:</span>
+                    <button type="button" class="trend-filter-btn browse-kind-btn active" data-kind="all">All studies</button>
+                    <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="replication">Replications only</button>
+                    <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction">Reproductions only</button>
+                    <span class="trend-filter-count" id="browse-kind-count"></span>
+                </div>
+
+                <div class="card">
+                    <div class="card-header d-flex align-items-center" style="gap: 0.5rem;">
+                        <span>Outcome Summary</span>
+                        <span class="info-icon" tabindex="0" aria-label="Info about outcome summary">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                            <span class="info-tip">Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are coded along different dimensions and will be added in a future update.</span>
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container-stack">
+                            <canvas id="browse-outcome-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="card-header">Replication Studies Database</div>
                     <div class="card-body">
@@ -1439,7 +1600,8 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     <span class="trend-filter-label">Show:</span>
                     <button type="button" class="trend-filter-btn active" data-kind="all">All studies</button>
                     <button type="button" class="trend-filter-btn" data-kind="replication">Replications only</button>
-                    <button type="button" class="trend-filter-btn" data-kind="reproduction">Reproductions only</button>
+                    <button type="button" class="trend-filter-btn" data-kind="reproduction-numerical">Numerical Reproductions</button>
+                    <button type="button" class="trend-filter-btn" data-kind="reproduction-robustness">Robustness Reproductions</button>
                     <span class="trend-filter-count" id="trend-filter-count"></span>
                 </div>
 
@@ -1461,7 +1623,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     <div class="card-body">
                         <div class="trend-block">
                             <div class="trend-desc">
-                                <h5>Outcomes by replication study year</h5>
+                                <h5>Outcomes by replication study year <span class="badge-wip">Experimental · WIP</span></h5>
                                 <p>Grouped by the year of the <strong>replication</strong> itself, this view shows the growth of FLoRA's coverage and how outcome profiles have shifted over time as replication practice has matured.</p>
                                 <p>The rightmost years may reflect ongoing data entry rather than a genuine decline in activity.</p>
                                 <p class="trend-note">Replications without a recorded year are excluded.</p>
@@ -1497,7 +1659,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     <div class="card-body">
                         <div class="trend-block">
                             <div class="trend-desc">
-                                <h5>Outcomes by replication journal</h5>
+                                <h5>Outcomes by replication journal <span class="badge-wip">Experimental · WIP</span></h5>
                                 <p>Where replication studies are themselves being published. Each bar shows the outcome breakdown of replications appearing in a given journal.</p>
                                 <p>This view highlights the venues that publish replication research most actively — including journals dedicated to replications and registered reports.</p>
                                 <p class="trend-note">Annotation of replication-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
@@ -2409,6 +2571,13 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             return 'other';
         }
 
+        // True if the row has a recognised outcome (Successful / Failed / Mixed / Inconclusive).
+        // Used to exclude unparseable rows from the headline outcome breakdown.
+        function hasMatchedOutcome(row) {
+            const c = classifyOutcome(row.outcome);
+            return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive';
+        }
+
         // Classify a row as replication vs reproduction. Prefers the 'type' column,
         // falls back to outcome keywords that are reproduction-specific (computational, robustness).
         function classifyKind(row) {
@@ -2422,10 +2591,34 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             return 'unknown';
         }
 
-        // Filter rows by kind ('all' | 'replication' | 'reproduction')
+        // Within reproductions, distinguish numerical (computational) vs robustness checks.
+        // Uses keywords in the type and outcome fields.
+        function classifyReproductionSubkind(row) {
+            const t = (row.type || '').toLowerCase();
+            const o = (row.outcome || '').toLowerCase();
+            const blob = `${t} ${o}`;
+            if (blob.includes('robust')) return 'robustness';
+            if (blob.includes('computational') || blob.includes('numerical')) return 'numerical';
+            return 'unknown';
+        }
+
+        // Filter rows by kind:
+        //   'all'                       → everything
+        //   'replication'               → replications only
+        //   'reproduction'              → all reproductions
+        //   'reproduction-numerical'    → numerical (computational) reproductions
+        //   'reproduction-robustness'   → robustness reproductions
         function filterByKind(data, kind) {
             if (!kind || kind === 'all') return data;
-            return data.filter(r => classifyKind(r) === kind);
+            if (kind === 'replication') return data.filter(r => classifyKind(r) === 'replication');
+            if (kind === 'reproduction') return data.filter(r => classifyKind(r) === 'reproduction');
+            if (kind === 'reproduction-numerical') {
+                return data.filter(r => classifyKind(r) === 'reproduction' && classifyReproductionSubkind(r) === 'numerical');
+            }
+            if (kind === 'reproduction-robustness') {
+                return data.filter(r => classifyKind(r) === 'reproduction' && classifyReproductionSubkind(r) === 'robustness');
+            }
+            return data;
         }
 
         function getOutcomeBadge(outcome) {
@@ -2518,8 +2711,11 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
         // Overview
         function updateOverviewStats(data) {
             const total = data.length;
+            // Outcome breakdown currently covers replications only. Restrict to
+            // rows with a recognised outcome so the headline counts match the chart.
+            const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
             let successful = 0, failed = 0, mixed = 0;
-            data.forEach(row => {
+            eligible.forEach(row => {
                 const c = classifyOutcome(row.outcome);
                 if (c === 'successful') successful++;
                 else if (c === 'failed') failed++;
@@ -2532,17 +2728,18 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
         }
 
         // Stacked horizontal bar (single row) showing outcome breakdown
+        // Currently restricted to replications with matched outcomes — reproductions are WIP.
         function renderOverviewChart(data) {
-            const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0, other: 0 };
-            data.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
+            const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
+            const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
+            eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
             const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
             const datasets = [
-                { label: 'Successful',     data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
-                { label: 'Mixed',          data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
-                { label: 'Failed',         data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
-                { label: 'Inconclusive',   data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive },
-                { label: 'Other / Unknown',data: [counts.other],        backgroundColor: OUTCOME_COLORS.other }
+                { label: 'Successful',   data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
+                { label: 'Mixed',        data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
+                { label: 'Failed',       data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
+                { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
             ];
 
             const ctx = document.getElementById('overview-outcome-chart').getContext('2d');
@@ -2551,7 +2748,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 
             overviewChart = new Chart(ctx, {
                 type: 'bar',
-                data: { labels: ['All studies'], datasets },
+                data: { labels: ['Replications'], datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -2579,10 +2776,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                             grid: { color: ac.grid },
                             ticks: { color: ac.tick }
                         },
-                        y: {
-                            stacked: true,
-                            display: false
-                        }
+                        y: { stacked: true, display: false }
                     }
                 }
             });
@@ -2731,6 +2925,136 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 setTimeout(() => { btn.textContent = orig; }, 1500);
             });
         });
+
+        // =========================================================
+        // FAQ — fetch markdown, parse into Q/A pairs, render as accordion
+        // =========================================================
+        const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
+
+        // Minimal inline markdown -> HTML for FAQ answers.
+        // Handles paragraphs, links, bold, italics, inline code, and lists.
+        function renderInlineMd(text) {
+            // Escape first
+            let s = escapeHtml(text);
+            // Code spans
+            s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
+            // Links: [text](url)
+            s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => {
+                return `<a href="${u}" target="_blank" rel="noopener">${t}</a>`;
+            });
+            // Bold (**text**)
+            s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            // Italic (*text*) — careful not to clobber bold (already replaced)
+            s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+            return s;
+        }
+
+        function renderFaqAnswer(lines) {
+            // Convert grouped lines into paragraphs / lists
+            const out = [];
+            let i = 0;
+            while (i < lines.length) {
+                const ln = lines[i];
+                // Bullet list
+                if (/^\s*[-*]\s+/.test(ln)) {
+                    const items = [];
+                    while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+                        items.push(lines[i].replace(/^\s*[-*]\s+/, ''));
+                        i++;
+                    }
+                    out.push('<ul>' + items.map(it => `<li>${renderInlineMd(it)}</li>`).join('') + '</ul>');
+                    continue;
+                }
+                // Numbered list
+                if (/^\s*\d+\.\s+/.test(ln)) {
+                    const items = [];
+                    while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+                        items.push(lines[i].replace(/^\s*\d+\.\s+/, ''));
+                        i++;
+                    }
+                    out.push('<ol>' + items.map(it => `<li>${renderInlineMd(it)}</li>`).join('') + '</ol>');
+                    continue;
+                }
+                // Paragraph: gather consecutive non-blank, non-list lines
+                if (ln.trim() === '') { i++; continue; }
+                const para = [];
+                while (i < lines.length && lines[i].trim() !== ''
+                       && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i])) {
+                    para.push(lines[i]);
+                    i++;
+                }
+                out.push('<p>' + renderInlineMd(para.join(' ')) + '</p>');
+            }
+            return out.join('');
+        }
+
+        // Parse markdown that uses headings (## or ###) for questions and the
+        // following lines (until the next heading) as the answer.
+        function parseFaqMarkdown(md) {
+            const lines = md.replace(/\r\n/g, '\n').split('\n');
+            const items = [];
+            let current = null;
+            const isQ = ln => /^#{2,4}\s+/.test(ln);
+
+            for (const ln of lines) {
+                if (isQ(ln)) {
+                    if (current) items.push(current);
+                    current = { question: ln.replace(/^#{2,4}\s+/, '').trim(), body: [] };
+                } else if (current) {
+                    current.body.push(ln);
+                }
+            }
+            if (current) items.push(current);
+
+            // If no headings were found, fall back to splitting on blank lines into Q/A pairs
+            if (items.length === 0) {
+                const blocks = md.split(/\n\s*\n/).filter(b => b.trim());
+                for (const b of blocks) {
+                    const [first, ...rest] = b.split('\n');
+                    items.push({ question: first.replace(/^[#*\s]+/, ''), body: rest });
+                }
+            }
+            return items;
+        }
+
+        async function loadFaqs() {
+            const loadingEl = document.getElementById('faq-loading');
+            const contentEl = document.getElementById('faq-content');
+            const errorEl = document.getElementById('faq-error');
+            try {
+                const res = await fetch(FAQ_URL);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const md = await res.text();
+                const items = parseFaqMarkdown(md);
+                if (items.length === 0) throw new Error('No FAQ items found');
+
+                contentEl.innerHTML = items.map((it, idx) => `
+                    <div class="faq-item" data-idx="${idx}">
+                        <button type="button" class="faq-question" aria-expanded="false">
+                            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+                            <span>${escapeHtml(it.question)}</span>
+                        </button>
+                        <div class="faq-answer">${renderFaqAnswer(it.body)}</div>
+                    </div>
+                `).join('');
+
+                // Click to toggle
+                contentEl.querySelectorAll('.faq-question').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const item = btn.closest('.faq-item');
+                        const open = item.classList.toggle('open');
+                        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    });
+                });
+
+                loadingEl.style.display = 'none';
+                contentEl.style.display = 'block';
+            } catch (err) {
+                console.error('FAQ load failed:', err);
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+            }
+        }
 
         // Browse
         function formatDetailRow(rowData) {
@@ -2889,11 +3213,11 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 
         function bmApplySearch(query) {
             const q = (query || '').trim().toLowerCase();
+            const source = bmDataSource();
             if (!q) {
-                bmFiltered = fullRowData.slice();
+                bmFiltered = source.slice();
             } else {
-                // Sort newest replication year first (matches desktop default)
-                bmFiltered = fullRowData.filter(r => bmSearchableText(r).includes(q));
+                bmFiltered = source.filter(r => bmSearchableText(r).includes(q));
             }
             // Newest replication year first — same default as the DataTable
             bmFiltered.sort((a, b) => {
@@ -2965,64 +3289,219 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             bmApplySearch('');
         }
 
-        // Trends
-        function aggregateByYear(data, yearField) {
-            const groups = {};
-            data.forEach(row => {
-                const yRaw = row[yearField];
-                if (!yRaw) return;
-                const match = String(yRaw).match(/\d{4}/);
-                if (!match) return;
-                const y = parseInt(match[0], 10);
-                if (!y || y < 1800 || y > 2100) return;
-                if (!groups[y]) groups[y] = { total: 0, successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
-                groups[y].total++;
-                groups[y][classifyOutcome(row.outcome)]++;
+        // =========================================================
+        // Browse — kind filter (All / Replications / Reproductions)
+        // Filters both the desktop DataTable and the mobile list,
+        // and drives the small outcome-summary chart at the top.
+        // =========================================================
+        let browseKind = 'all';
+        let browseOutcomeChart = null;
+
+        function browseFilteredData() {
+            return filterByKind(fullRowData, browseKind);
+        }
+
+        function bmDataSource() {
+            // Mobile list pulls from the kind-filtered subset, then text-search filters further.
+            return browseFilteredData();
+        }
+
+        function renderBrowseOutcomeChart() {
+            const data = browseFilteredData();
+            // Outcome summary covers replications with matched outcomes
+            const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
+            const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
+            eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
+            const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
+            const datasets = [
+                { label: 'Successful',   data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
+                { label: 'Mixed',        data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
+                { label: 'Failed',       data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
+                { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
+            ];
+
+            const canvas = document.getElementById('browse-outcome-chart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (browseOutcomeChart) browseOutcomeChart.destroy();
+            const ac = themeAxisColors();
+
+            browseOutcomeChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: ['Replications'], datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: ac.legend, boxWidth: 14, padding: 14, font: { size: 12 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const v = ctx.parsed.x;
+                                    const pct = total ? ((v / total) * 100).toFixed(1) : 0;
+                                    return `${ctx.dataset.label}: ${v.toLocaleString()} (${pct}%)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, min: 0, max: Math.max(total, 1), grid: { color: ac.grid }, ticks: { color: ac.tick } },
+                        y: { stacked: true, display: false }
+                    }
+                }
             });
-            const years = Object.keys(groups).map(Number).sort((a, b) => a - b);
-            return years.map(y => ({ key: String(y), ...groups[y] }));
+        }
+
+        function updateBrowseKindCount() {
+            const el = document.getElementById('browse-kind-count');
+            if (!el) return;
+            const n = browseFilteredData().length;
+            const total = fullRowData.length;
+            if (browseKind === 'all') el.textContent = `${n.toLocaleString()} studies`;
+            else el.textContent = `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
+        }
+
+        function applyBrowseKind() {
+            updateBrowseKindCount();
+            renderBrowseOutcomeChart();
+            // Refresh DataTable's custom-search filter
+            if (dataTable) dataTable.draw();
+            // Refresh mobile list (re-runs the current query against the new kind subset)
+            if (bmInitialized) {
+                const input = document.getElementById('browse-mobile-input');
+                bmApplySearch(input ? input.value : '');
+            }
+        }
+
+        function setupBrowseKindFilter() {
+            // Wire buttons
+            document.querySelectorAll('.browse-kind-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.browse-kind-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    browseKind = btn.dataset.kind || 'all';
+                    applyBrowseKind();
+                });
+            });
+
+            // Register DataTables custom search filter — only applies to flora-table
+            $.fn.dataTable.ext.search.push(function(settings, searchData, dataIndex) {
+                if (settings.nTable.id !== 'flora-table') return true;
+                if (browseKind === 'all') return true;
+                const row = fullRowData[dataIndex];
+                if (!row) return true;
+                return classifyKind(row) === browseKind;
+            });
+
+            // Initial population of count + chart
+            applyBrowseKind();
+        }
+
+        // Trends
+
+        // Determine which outcome label to use for a given row based on the current
+        // trends kind. Returns null if the row should not contribute to the breakdown.
+        function trendsOutcomeLabel(row) {
+            if (trendsKind === 'all') return '__all__'; // single bucket: count only
+            // For replications, use the canonical four-bucket scheme
+            if (trendsKind === 'replication') {
+                if (!hasMatchedOutcome(row)) return null;
+                const c = classifyOutcome(row.outcome);
+                if (c === 'successful') return 'Successful';
+                if (c === 'mixed') return 'Mixed';
+                if (c === 'failed') return 'Failed';
+                if (c === 'inconclusive') return 'Inconclusive';
+                return null;
+            }
+            // For reproductions (either subkind), use the raw outcome string from the data
+            const raw = (row.outcome || '').trim();
+            return raw || null;
+        }
+
+        // Generic aggregator that groups rows by a key function and counts each
+        // unique outcome label. Returns array of { key, total, byLabel: {...} }.
+        function aggregateGeneric(data, keyFn) {
+            const groups = new Map();
+            data.forEach(row => {
+                const k = keyFn(row);
+                if (k === null || k === undefined || k === '') return;
+                const label = trendsOutcomeLabel(row);
+                if (label === null) return; // skip rows that don't match the kind
+                if (!groups.has(k)) groups.set(k, { key: k, total: 0, byLabel: {} });
+                const g = groups.get(k);
+                g.total++;
+                g.byLabel[label] = (g.byLabel[label] || 0) + 1;
+            });
+            return Array.from(groups.values());
+        }
+
+        function aggregateByYear(data, yearField) {
+            const yearKey = row => {
+                const yRaw = row[yearField];
+                if (!yRaw) return null;
+                const match = String(yRaw).match(/\d{4}/);
+                if (!match) return null;
+                const y = parseInt(match[0], 10);
+                if (!y || y < 1800 || y > 2100) return null;
+                return String(y);
+            };
+            const out = aggregateGeneric(data, yearKey);
+            out.sort((a, b) => parseInt(a.key, 10) - parseInt(b.key, 10));
+            return out;
         }
 
         function aggregateByJournal(data, field, topN) {
-            const groups = {};
-            data.forEach(row => {
-                const j = (row[field] || '').trim();
-                if (!j) return;
-                if (!groups[j]) groups[j] = { total: 0, successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
-                groups[j].total++;
-                groups[j][classifyOutcome(row.outcome)]++;
-            });
-            return Object.entries(groups)
-                .map(([k, v]) => ({ key: k, ...v }))
-                .sort((a, b) => b.total - a.total)
-                .slice(0, topN);
+            const out = aggregateGeneric(data, row => (row[field] || '').trim() || null);
+            out.sort((a, b) => b.total - a.total);
+            return out.slice(0, topN);
         }
 
-        // Aggregate by discipline/field, using the hand-curated dictionary from the Browse tab.
-        // Rows whose original journal isn't mapped fall into "Uncategorized".
-        // Uncategorized is always placed last so the mapped fields read clearly.
+        // Aggregate by discipline/field. Uncategorized is pinned to the bottom.
         function aggregateByField(data) {
-            const groups = {};
-            data.forEach(row => {
-                const d = disciplineForJournal(row.journal_o);
-                if (!groups[d]) groups[d] = { total: 0, successful: 0, failed: 0, mixed: 0, inconclusive: 0, other: 0 };
-                groups[d].total++;
-                groups[d][classifyOutcome(row.outcome)]++;
-            });
-            const entries = Object.entries(groups).map(([k, v]) => ({ key: k, ...v }));
-            const mapped = entries.filter(e => e.key !== 'Uncategorized').sort((a, b) => b.total - a.total);
-            const uncat = entries.filter(e => e.key === 'Uncategorized');
+            const out = aggregateGeneric(data, row => disciplineForJournal(row.journal_o));
+            const mapped = out.filter(e => e.key !== 'Uncategorized').sort((a, b) => b.total - a.total);
+            const uncat = out.filter(e => e.key === 'Uncategorized');
             return [...mapped, ...uncat];
         }
 
-        function stackedOutcomeDatasets(agg) {
-            return [
-                { label: 'Successful',      data: agg.map(r => r.successful),   backgroundColor: OUTCOME_COLORS.successful },
-                { label: 'Mixed',           data: agg.map(r => r.mixed),        backgroundColor: OUTCOME_COLORS.mixed },
-                { label: 'Failed',          data: agg.map(r => r.failed),       backgroundColor: OUTCOME_COLORS.failed },
-                { label: 'Inconclusive',    data: agg.map(r => r.inconclusive), backgroundColor: OUTCOME_COLORS.inconclusive },
-                { label: 'Other / Unknown', data: agg.map(r => r.other),        backgroundColor: OUTCOME_COLORS.other }
-            ];
+        // Build datasets for the current kind. In "all" mode, a single grey series
+        // gives just the count. Otherwise, one series per outcome label discovered.
+        function trendsDatasets(agg) {
+            if (trendsKind === 'all') {
+                return [{
+                    label: 'Studies',
+                    data: agg.map(r => r.byLabel['__all__'] || 0),
+                    backgroundColor: 'var(--flora-primary)' === '' ? '#6b4582' : '#6b4582'
+                }];
+            }
+            if (trendsKind === 'replication') {
+                // Fixed order + colours
+                const order = ['Successful', 'Mixed', 'Failed', 'Inconclusive'];
+                const colors = {
+                    'Successful':   OUTCOME_COLORS.successful,
+                    'Mixed':        OUTCOME_COLORS.mixed,
+                    'Failed':       OUTCOME_COLORS.failed,
+                    'Inconclusive': OUTCOME_COLORS.inconclusive
+                };
+                return order.map(label => ({
+                    label,
+                    data: agg.map(r => r.byLabel[label] || 0),
+                    backgroundColor: colors[label]
+                }));
+            }
+            // Reproduction modes: collect labels actually present, sort alphabetically,
+            // assign deterministic colours from a palette.
+            const labelSet = new Set();
+            agg.forEach(r => Object.keys(r.byLabel).forEach(l => labelSet.add(l)));
+            const labels = Array.from(labelSet).sort();
+            const palette = ['#48bb78', '#38b2ac', '#4299e1', '#e8a23a', '#e05d5d', '#9f7aea', '#6f7686', '#a0a7b4'];
+            return labels.map((label, i) => ({
+                label,
+                data: agg.map(r => r.byLabel[label] || 0),
+                backgroundColor: palette[i % palette.length]
+            }));
         }
 
         // Wrap a long string into an array of lines, breaking on whitespace, each line <= maxChars.
@@ -3057,24 +3536,30 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
             // Journal-style labels get wrapped; year labels stay as-is
             const wrapLabels = !!opts.wrapLabels;
             const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, 38) : r.key);
+            const datasets = trendsDatasets(agg);
+            const isStacked = trendsKind !== 'all'; // single series → no need to stack
+            const showLegend = trendsKind !== 'all';
+
             return new Chart(ctx, {
                 type: 'bar',
-                data: { labels, datasets: stackedOutcomeDatasets(agg) },
+                data: { labels, datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     indexAxis: isHorizontal ? 'y' : 'x',
                     plugins: {
-                        legend: { position: 'bottom', labels: { padding: 10, color: ac.legend, boxWidth: 12, font: { size: 11 } } },
+                        legend: showLegend
+                            ? { position: 'bottom', labels: { padding: 10, color: ac.legend, boxWidth: 12, font: { size: 11 } } }
+                            : { display: false },
                         tooltip: {
                             callbacks: {
-                                // Re-join multi-line labels for the tooltip so the full name reads cleanly
                                 title: items => {
                                     const label = items[0].label;
                                     if (Array.isArray(label)) return label.join(' ');
                                     return label;
                                 },
                                 afterLabel: ctx => {
+                                    if (trendsKind === 'all') return '';
                                     const row = agg[ctx.dataIndex];
                                     const val = ctx.parsed[isHorizontal ? 'x' : 'y'];
                                     const pct = row.total ? ((val / row.total) * 100).toFixed(1) : 0;
@@ -3084,15 +3569,14 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                         }
                     },
                     scales: {
-                        x: { stacked: true, grid: { color: ac.grid }, ticks: { color: ac.tick, autoSkip: !isHorizontal } },
+                        x: { stacked: isStacked, grid: { color: ac.grid }, ticks: { color: ac.tick, autoSkip: !isHorizontal } },
                         y: {
-                            stacked: true,
+                            stacked: isStacked,
                             grid: { color: ac.grid, display: !isHorizontal },
                             ticks: {
                                 color: ac.tick,
                                 autoSkip: false,
-                                font: { size: isHorizontal ? 11 : 12 },
-                                // Chart.js renders arrays as multi-line ticks natively
+                                font: { size: isHorizontal ? 11 : 12 }
                             }
                         }
                     },
@@ -3212,7 +3696,9 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     renderRandomExamples(data);
                     initDataTable(data);
                     setupBrowseMobile(data);
+                    setupBrowseKindFilter();
                     loadCitation();
+                    loadFaqs();
                 },
                 error: function(error) {
                     document.getElementById('global-loading').style.display = 'none';
