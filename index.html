@@ -13,9 +13,9 @@
     <meta property="og:description" content="Explore replication and reproduction studies across the sciences and humanities. Browse, filter, and analyze the FLoRA database.">
     <meta property="og:site_name" content="FLoRA Explorer">
 
-    <link rel="icon" type="image/svg+xml" href="logo.svg">
-    <link rel="alternate icon" href="logo.svg">
-    <link rel="apple-touch-icon" href="logo.svg">
+    <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+    <link rel="alternate icon" href="assets/logo.svg">
+    <link rel="apple-touch-icon" href="assets/logo.svg">
 
     <!-- Vendor CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -27,1297 +27,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
-    <!-- App CSS (inlined) -->
-    <style>
-/* =============================================================
-   FLoRA Dashboard — stylesheet
-   Aesthetic inspired by the FORRT Replication Hub & Atlas:
-   dark header bar, serif headings, soft mauve page tint, maroon accent.
-   ============================================================= */
-
-:root {
-    /* Brand — plum-purple, chosen to work in both light and dark modes */
-    --flora-primary: #6b4582;
-    --flora-primary-dark: #553568;
-    --flora-primary-soft: #8f6aa8;
-    --flora-primary-dark-accent: #c9a8de;   /* used for headings in dark mode */
-    --flora-secondary: #4299e1;
-    --flora-success: #48bb78;
-    --flora-danger: #e05d5d;
-    --flora-warning: #e8a23a;
-    --flora-info: #667eea;
-    --flora-muted: #6f7686;
-
-    /* Surface / neutrals — light mode */
-    --flora-bg: #efecf2;          /* soft lavender-grey page tint */
-    --flora-card-bg: #ffffff;
-    --flora-border: #dfd8e5;
-    --flora-border-strong: #c9bfd4;
-    --flora-text: #2a2330;
-    --flora-text-soft: #4e4858;
-    --flora-subtle-bg: #f7f4fa;
-    --flora-subtle-bg-2: #efecf2;
-    --flora-header-bg: #2a2330;   /* near-black with a purple undertone */
-    --flora-hero-bg: #ffffff;
-    --flora-input-bg: #ffffff;
-    --flora-link: var(--flora-secondary);
-    --flora-grid: #dfd8e5;
-    --flora-chart-tick: #4e4858;
-    --flora-shadow: rgba(42, 35, 48, 0.06);
-    --flora-shadow-hover: rgba(42, 35, 48, 0.12);
-    --flora-callout-bg: #fdf6e4;
-    --flora-callout-accent: #9c4221;
-    --flora-wip-bg: #fff4d6;
-    --flora-wip-border: #e8a23a;
-    --flora-wip-text: #6b4e1f;
-
-    /* Type */
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-serif: 'Source Serif 4', 'Source Serif Pro', 'Georgia', serif;
-}
-
-[data-theme="dark"] {
-    --flora-bg: #13141b;
-    --flora-card-bg: #1d1e29;
-    --flora-border: #2d2e3d;
-    --flora-border-strong: #3d3e50;
-    --flora-text: #e8e6ee;
-    --flora-text-soft: #b8b5c4;
-    --flora-subtle-bg: #181922;
-    --flora-subtle-bg-2: #252638;
-    --flora-header-bg: #0e0f16;
-    --flora-hero-bg: #1d1e29;
-    --flora-input-bg: #252638;
-    --flora-link: #9cb8ec;
-    --flora-muted: #9793a4;
-    --flora-grid: #2d2e3d;
-    --flora-chart-tick: #b8b5c4;
-    --flora-shadow: rgba(0, 0, 0, 0.35);
-    --flora-shadow-hover: rgba(0, 0, 0, 0.55);
-    --flora-callout-bg: #3a2e1a;
-    --flora-callout-accent: #f0c070;
-    --flora-wip-bg: #3a2e1a;
-    --flora-wip-border: #e8a23a;
-    --flora-wip-text: #f0d68f;
-}
-
-* { box-sizing: border-box; }
-
-body {
-    font-family: var(--font-sans);
-    background-color: var(--flora-bg);
-    color: var(--flora-text);
-    margin: 0;
-    padding: 0;
-    transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-/* Serif typography for display headings */
-h1, .serif, .card-header, .stats-card .number,
-.intro-text h4, .trend-desc h5, .detail-row h6 {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    letter-spacing: -0.005em;
-}
-
-/* =============================================================
-   Top bar (dark FORRT-style band)
-   ============================================================= */
-.top-bar {
-    background: var(--flora-header-bg);
-    color: #f3e9ec;
-    padding: 0.6rem 0;
-    font-family: var(--font-serif);
-    font-weight: 600;
-    font-size: 0.95rem;
-    letter-spacing: 0.01em;
-    position: relative;
-}
-
-.top-bar .top-bar-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding-right: 130px; /* clears the corner ribbon */
-}
-
-@media (max-width: 600px) {
-    .top-bar .top-bar-inner { padding-right: 95px; }
-}
-
-.top-bar .brand-mark {
-    color: #f3e9ec;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.top-bar .brand-mark:hover { color: #fff; text-decoration: none; }
-
-.theme-toggle {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #f3e9ec;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s ease;
-    padding: 0;
-}
-
-.theme-toggle:hover { background: rgba(255, 255, 255, 0.18); }
-.theme-toggle svg { width: 16px; height: 16px; }
-.theme-toggle .icon-sun { display: none; }
-[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
-[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
-
-/* =============================================================
-   Hero
-   ============================================================= */
-.hero {
-    background: var(--flora-hero-bg);
-    padding: 3.25rem 0 2.75rem 0;
-    border-bottom: 1px solid var(--flora-border);
-    text-align: center;
-    position: relative;
-}
-
-.hero-inner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.1rem;
-}
-
-.hero-logo {
-    width: 92px;
-    height: 92px;
-    display: block;
-}
-
-.hero-logo img { width: 100%; height: 100%; display: block; }
-
-.hero h1 {
-    font-family: var(--font-serif);
-    font-weight: 700;
-    font-size: 3rem;
-    margin: 0;
-    letter-spacing: -0.015em;
-    color: var(--flora-primary);
-    line-height: 1.1;
-}
-
-[data-theme="dark"] .hero h1 { color: var(--flora-primary-dark-accent); }
-
-.hero .hero-subtitle {
-    color: var(--flora-text-soft);
-    font-size: 1.05rem;
-    max-width: 640px;
-    margin: 0;
-    line-height: 1.5;
-}
-
-.hero-rule {
-    width: 72px;
-    height: 1px;
-    background: var(--flora-border-strong);
-    margin: 0.25rem 0 0 0;
-    border: 0;
-}
-
-/* =============================================================
-   WIP corner ribbon (top-right)
-   ============================================================= */
-.wip-ribbon {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 160px;
-    height: 160px;
-    overflow: hidden;
-    pointer-events: none;
-    z-index: 1050;
-}
-
-.wip-ribbon .wip-ribbon-inner {
-    position: absolute;
-    top: 32px;
-    right: -46px;
-    width: 220px;
-    transform: rotate(45deg);
-    background: linear-gradient(135deg, #d85a3a 0%, #c0421e 100%);
-    color: #fff;
-    text-align: center;
-    font-family: var(--font-sans);
-    font-weight: 700;
-    font-size: 0.78rem;
-    letter-spacing: 0.18em;
-    padding: 0.55rem 0;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
-    pointer-events: auto;
-    border-top: 1px dashed rgba(255, 255, 255, 0.45);
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.45);
-    cursor: help;
-    user-select: none;
-}
-
-.wip-ribbon .wip-ribbon-inner::before,
-.wip-ribbon .wip-ribbon-inner::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    border: 5px solid transparent;
-    border-top-color: #7a2a12;
-}
-
-.wip-ribbon .wip-ribbon-inner::before { left: 10px; border-right-color: #7a2a12; }
-.wip-ribbon .wip-ribbon-inner::after  { right: 10px; border-left-color:  #7a2a12; }
-
-[data-theme="dark"] .wip-ribbon .wip-ribbon-inner {
-    background: linear-gradient(135deg, #c94b2a 0%, #a5361a 100%);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
-}
-
-/* Tooltip shown on hover */
-.wip-ribbon-tip {
-    position: fixed;
-    top: 70px;
-    right: 18px;
-    max-width: 260px;
-    background: var(--flora-card-bg);
-    color: var(--flora-text);
-    border: 1px solid var(--flora-border);
-    border-left: 4px solid #c0421e;
-    border-radius: 8px;
-    padding: 0.75rem 0.9rem;
-    font-size: 0.85rem;
-    line-height: 1.5;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-    opacity: 0;
-    transform: translateY(-4px);
-    pointer-events: none;
-    transition: opacity 0.15s ease, transform 0.15s ease;
-    z-index: 1049;
-}
-
-.wip-ribbon:hover + .wip-ribbon-tip,
-.wip-ribbon-tip:hover {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-}
-
-@media (max-width: 600px) {
-    .wip-ribbon { width: 120px; height: 120px; }
-    .wip-ribbon .wip-ribbon-inner {
-        top: 22px;
-        right: -58px;
-        width: 200px;
-        font-size: 0.68rem;
-        padding: 0.4rem 0;
-    }
-    .wip-ribbon-tip { max-width: 220px; top: 56px; right: 8px; font-size: 0.8rem; }
-}
-
-/* Experimental / WIP badge used inline */
-.badge-wip {
-    display: inline-block;
-    background: var(--flora-wip-bg);
-    border: 1px solid var(--flora-wip-border);
-    color: var(--flora-wip-text);
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 0.15em 0.5em;
-    border-radius: 4px;
-    vertical-align: middle;
-    margin-left: 0.5rem;
-}
-
-/* Info icon — shows tooltip on hover/focus */
-.info-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    color: var(--flora-muted);
-    cursor: help;
-    position: relative;
-    vertical-align: middle;
-}
-
-.info-icon svg { width: 16px; height: 16px; }
-.info-icon:hover, .info-icon:focus { color: var(--flora-primary); outline: none; }
-[data-theme="dark"] .info-icon:hover,
-[data-theme="dark"] .info-icon:focus { color: var(--flora-primary-dark-accent); }
-
-.info-icon .info-tip {
-    position: absolute;
-    top: 130%;
-    left: 50%;
-    transform: translateX(-50%) translateY(-4px);
-    background: var(--flora-card-bg);
-    color: var(--flora-text);
-    border: 1px solid var(--flora-border);
-    border-radius: 8px;
-    padding: 0.65rem 0.85rem;
-    font-size: 0.82rem;
-    font-weight: 400;
-    line-height: 1.5;
-    width: 280px;
-    box-shadow: 0 6px 20px var(--flora-shadow-hover);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease, transform 0.15s ease;
-    z-index: 50;
-    text-align: left;
-    text-transform: none;
-    letter-spacing: 0;
-    font-family: var(--font-sans);
-}
-
-.info-icon:hover .info-tip,
-.info-icon:focus .info-tip {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
-
-/* =============================================================
-   Tabs
-   ============================================================= */
-.nav-tabs-wrapper {
-    background: var(--flora-card-bg);
-    border-bottom: 1px solid var(--flora-border);
-    margin-bottom: 2rem;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 1px 3px var(--flora-shadow);
-}
-
-.nav-tabs {
-    border-bottom: none;
-    flex-wrap: wrap;
-    overflow-x: visible;
-}
-
-.nav-tabs .nav-link {
-    color: var(--flora-muted);
-    border: none;
-    border-bottom: 3px solid transparent;
-    padding: 0.95rem 1.4rem;
-    font-weight: 500;
-    font-size: 1rem;
-    white-space: nowrap;
-    transition: all 0.2s ease;
-    background: transparent;
-    font-family: var(--font-serif);
-    letter-spacing: 0.005em;
-}
-
-.nav-tabs .nav-link:hover {
-    color: var(--flora-primary);
-    border-bottom-color: var(--flora-border-strong);
-}
-
-[data-theme="dark"] .nav-tabs .nav-link:hover { color: var(--flora-primary-dark-accent); }
-
-.nav-tabs .nav-link.active {
-    color: var(--flora-primary);
-    background: transparent;
-    border-bottom-color: var(--flora-primary);
-    font-weight: 600;
-}
-
-[data-theme="dark"] .nav-tabs .nav-link.active {
-    color: var(--flora-primary-dark-accent);
-    border-bottom-color: var(--flora-primary-dark-accent);
-}
-
-/* =============================================================
-   Cards
-   ============================================================= */
-.card {
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 10px;
-    box-shadow: 0 1px 2px var(--flora-shadow);
-    margin-bottom: 1.5rem;
-    color: var(--flora-text);
-}
-
-.card-header {
-    background: var(--flora-card-bg);
-    border-bottom: 1px solid var(--flora-border);
-    border-radius: 10px 10px 0 0 !important;
-    padding: 1rem 1.5rem;
-    font-family: var(--font-serif);
-    font-weight: 600;
-    font-size: 1.15rem;
-    color: var(--flora-primary);
-}
-
-[data-theme="dark"] .card-header { color: var(--flora-primary-dark-accent); }
-
-.card-body { padding: 1.5rem; color: var(--flora-text); }
-
-/* =============================================================
-   Stats cards
-   ============================================================= */
-.stats-card {
-    text-align: center;
-    padding: 1.35rem 1rem 1.1rem;
-    border-radius: 10px;
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    margin-bottom: 1rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.stats-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px var(--flora-shadow-hover);
-    border-color: var(--flora-border-strong);
-}
-
-.stats-card .number {
-    font-size: 2.35rem;
-    font-weight: 700;
-    color: var(--flora-primary);
-    line-height: 1.1;
-}
-
-[data-theme="dark"] .stats-card .number { color: var(--flora-primary-dark-accent); }
-
-.stats-card .label {
-    color: var(--flora-muted);
-    font-size: 0.78rem;
-    font-weight: 600;
-    margin-top: 0.35rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-family: var(--font-sans);
-}
-
-/* =============================================================
-   Badges
-   ============================================================= */
-.badge {
-    font-weight: 500;
-    padding: 0.4em 0.7em;
-    border-radius: 4px;
-    font-size: 0.78rem;
-    letter-spacing: 0.02em;
-}
-.badge-successful { background-color: var(--flora-success); color: white; }
-.badge-failed     { background-color: var(--flora-danger); color: white; }
-.badge-mixed      { background-color: var(--flora-warning); color: white; }
-.badge-inconclusive,
-.badge-unknown    { background-color: var(--flora-muted); color: white; }
-
-/* =============================================================
-   Links
-   ============================================================= */
-.doi-link { color: var(--flora-link); text-decoration: none; }
-.doi-link:hover { text-decoration: underline; color: var(--flora-link); }
-
-/* =============================================================
-   Tool tiles (More FLoRA Tools)
-   ============================================================= */
-.tool-tile {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.85rem;
-    padding: 0.9rem 1rem;
-    border: 1px solid var(--flora-border);
-    border-radius: 8px;
-    background: var(--flora-card-bg);
-    text-decoration: none;
-    color: var(--flora-text);
-    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-    margin-bottom: 0.6rem;
-}
-
-.tool-tile:last-child { margin-bottom: 0; }
-
-.tool-tile:hover {
-    border-color: var(--flora-primary);
-    background: var(--flora-subtle-bg);
-    box-shadow: 0 2px 8px var(--flora-shadow-hover);
-    color: var(--flora-text);
-}
-
-.tool-tile .tool-icon {
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    background: var(--flora-subtle-bg);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--flora-primary);
-    border: 1px solid var(--flora-border);
-}
-
-[data-theme="dark"] .tool-tile .tool-icon {
-    color: var(--flora-primary-dark-accent);
-    background: var(--flora-subtle-bg-2);
-}
-
-.tool-tile .tool-icon svg { width: 18px; height: 18px; }
-.tool-tile .tool-body { flex: 1; min-width: 0; }
-
-.tool-tile .tool-title {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    font-size: 1rem;
-    color: var(--flora-text);
-    margin-bottom: 0.15rem;
-}
-
-.tool-tile .tool-desc {
-    color: var(--flora-muted);
-    font-size: 0.85rem;
-    line-height: 1.4;
-}
-
-/* =============================================================
-   Overview intro
-   ============================================================= */
-.intro-text { font-size: 1rem; line-height: 1.7; color: var(--flora-text); }
-
-.intro-text h4 {
-    color: var(--flora-primary);
-    font-weight: 600;
-    margin-top: 1.75rem;
-    margin-bottom: 0.75rem;
-    font-size: 1.3rem;
-}
-
-[data-theme="dark"] .intro-text h4 { color: var(--flora-primary-dark-accent); }
-
-.intro-text h4:first-child { margin-top: 0; }
-.intro-text ul { padding-left: 1.5rem; }
-.intro-text li { margin-bottom: 0.35rem; }
-
-.key-distinction {
-    background: var(--flora-callout-bg);
-    border-left: 4px solid var(--flora-warning);
-    padding: 0.9rem 1.1rem;
-    border-radius: 0 8px 8px 0;
-    margin: 1.25rem 0;
-    font-size: 0.95rem;
-}
-
-.key-distinction strong { color: var(--flora-callout-accent); }
-
-/* =============================================================
-   Example cards
-   ============================================================= */
-.example-card {
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 8px;
-    padding: 1rem 1.15rem;
-    margin-bottom: 0.85rem;
-    border-left: 4px solid var(--flora-secondary);
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.example-card:hover {
-    box-shadow: 0 2px 8px var(--flora-shadow-hover);
-}
-
-.example-card.outcome-successful { border-left-color: var(--flora-success); }
-.example-card.outcome-failed     { border-left-color: var(--flora-danger); }
-.example-card.outcome-mixed      { border-left-color: var(--flora-warning); }
-.example-card.outcome-unknown    { border-left-color: var(--flora-muted); }
-
-.example-card .ex-title {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    color: var(--flora-text);
-    font-size: 1rem;
-    line-height: 1.4;
-    margin-bottom: 0.35rem;
-}
-
-.example-card .ex-meta {
-    font-size: 0.82rem;
-    color: var(--flora-muted);
-    margin-bottom: 0.5rem;
-}
-
-.example-card .ex-outcome {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-top: 0.6rem;
-}
-
-/* Clickable Original / Replication rows inside an example card */
-.example-card .ex-link {
-    display: block;
-    padding: 0.45rem 0.6rem;
-    margin: 0 -0.6rem 0.35rem -0.6rem;
-    border-radius: 6px;
-    text-decoration: none;
-    color: var(--flora-text);
-    transition: background 0.15s ease;
-}
-
-.example-card .ex-link:hover {
-    background: var(--flora-subtle-bg-2);
-    color: var(--flora-text);
-    text-decoration: none;
-}
-
-.example-card .ex-link.ex-link-disabled {
-    cursor: default;
-}
-
-.example-card .ex-link.ex-link-disabled:hover {
-    background: transparent;
-}
-
-.example-card .ex-line-label {
-    display: inline-block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--flora-primary);
-    margin-right: 0.5rem;
-    vertical-align: 1px;
-}
-
-[data-theme="dark"] .example-card .ex-link-disabled .ex-line-label,
-[data-theme="dark"] .example-card .ex-line-label {
-    color: var(--flora-primary-dark-accent);
-}
-
-.example-card .ex-line-title {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--flora-text);
-    line-height: 1.35;
-}
-
-.example-card .ex-line-meta {
-    display: block;
-    font-size: 0.78rem;
-    color: var(--flora-muted);
-    margin-top: 0.15rem;
-}
-
-/* =============================================================
-   Citation
-   ============================================================= */
-.citation-box {
-    background: var(--flora-subtle-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-    font-size: 0.95rem;
-    line-height: 1.65;
-    font-family: var(--font-serif);
-    position: relative;
-    color: var(--flora-text);
-}
-
-.citation-box .copy-btn {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 6px;
-    padding: 0.3rem 0.6rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-    color: var(--flora-muted);
-    font-family: var(--font-sans);
-}
-
-.citation-box .copy-btn:hover {
-    background: var(--flora-primary);
-    color: white;
-    border-color: var(--flora-primary);
-}
-
-/* =============================================================
-   FAQ
-   ============================================================= */
-.faq-section {
-    margin: 1.5rem 0 0.5rem 0;
-    padding-bottom: 0.4rem;
-    border-bottom: 2px solid var(--flora-primary);
-}
-
-.faq-section:first-child { margin-top: 0; }
-
-.faq-section-title {
-    font-family: var(--font-serif);
-    font-weight: 700;
-    font-size: 1.15rem;
-    color: var(--flora-primary);
-    margin: 0;
-    letter-spacing: -0.005em;
-}
-
-[data-theme="dark"] .faq-section-title { color: var(--flora-primary-dark-accent); }
-[data-theme="dark"] .faq-section { border-bottom-color: var(--flora-primary-dark-accent); }
-
-.faq-section-intro {
-    margin-top: 0.6rem;
-    color: var(--flora-text-soft);
-    font-size: 0.95rem;
-    line-height: 1.65;
-}
-
-.faq-section-intro p { margin: 0 0 0.5rem 0; }
-.faq-section-intro p:last-child { margin-bottom: 0; }
-
-.faq-item {
-    border-bottom: 1px solid var(--flora-border);
-}
-.faq-item:last-child { border-bottom: none; }
-
-.faq-question {
-    width: 100%;
-    text-align: left;
-    background: transparent;
-    border: none;
-    padding: 0.85rem 0;
-    color: var(--flora-text);
-    font-family: var(--font-serif);
-    font-weight: 600;
-    font-size: 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-    line-height: 1.4;
-    transition: color 0.15s ease;
-}
-
-.faq-question:hover { color: var(--flora-primary); }
-[data-theme="dark"] .faq-question:hover { color: var(--flora-primary-dark-accent); }
-
-.faq-question .faq-chevron {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-    margin-top: 4px;
-    color: var(--flora-muted);
-    transition: transform 0.2s ease;
-}
-
-.faq-item.open .faq-chevron { transform: rotate(90deg); }
-.faq-item.open .faq-question { color: var(--flora-primary); }
-[data-theme="dark"] .faq-item.open .faq-question { color: var(--flora-primary-dark-accent); }
-
-.faq-answer {
-    display: none;
-    padding: 0 0 1rem 1.6rem;
-    color: var(--flora-text-soft);
-    font-size: 0.95rem;
-    line-height: 1.65;
-}
-
-.faq-item.open .faq-answer { display: block; }
-
-.faq-answer p { margin: 0 0 0.7rem 0; }
-.faq-answer p:last-child { margin-bottom: 0; }
-.faq-answer a { color: var(--flora-link); }
-.faq-answer code {
-    background: var(--flora-subtle-bg);
-    padding: 0.1em 0.3em;
-    border-radius: 3px;
-    font-size: 0.88em;
-}
-.faq-answer ul, .faq-answer ol { padding-left: 1.4rem; margin: 0.4rem 0 0.7rem 0; }
-.faq-answer li { margin-bottom: 0.3rem; }
-.faq-answer strong { color: var(--flora-text); }
-
-/* =============================================================
-   Loading
-   ============================================================= */
-.loading-spinner {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 4rem;
-    color: var(--flora-text-soft);
-}
-
-.spinner-border {
-    width: 3rem;
-    height: 3rem;
-    color: var(--flora-primary);
-}
-
-/* =============================================================
-   DataTables + dark-mode overrides
-   ============================================================= */
-.dataTables_filter input {
-    border-radius: 20px;
-    padding: 0.5rem 1rem;
-    border: 1.5px solid var(--flora-border-strong);
-    background: var(--flora-input-bg);
-    color: var(--flora-text);
-}
-
-.dataTables_filter input:focus {
-    border-color: var(--flora-primary);
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(107, 69, 130, 0.18);
-}
-
-[data-theme="dark"] .dataTables_wrapper,
-[data-theme="dark"] .dataTables_length,
-[data-theme="dark"] .dataTables_filter,
-[data-theme="dark"] .dataTables_info,
-[data-theme="dark"] .dataTables_paginate {
-    color: var(--flora-text) !important;
-}
-
-[data-theme="dark"] .table {
-    --bs-table-bg: var(--flora-card-bg);
-    --bs-table-color: var(--flora-text);
-    --bs-table-striped-bg: var(--flora-subtle-bg);
-    --bs-table-striped-color: var(--flora-text);
-    --bs-table-hover-bg: var(--flora-subtle-bg-2);
-    --bs-table-hover-color: var(--flora-text);
-    --bs-table-border-color: var(--flora-border);
-    color: var(--flora-text);
-}
-
-[data-theme="dark"] .table thead th {
-    color: var(--flora-text);
-    border-bottom-color: var(--flora-border);
-}
-
-[data-theme="dark"] .page-link {
-    background-color: var(--flora-card-bg);
-    border-color: var(--flora-border);
-    color: var(--flora-link);
-}
-
-[data-theme="dark"] .page-item.active .page-link {
-    background-color: var(--flora-primary);
-    border-color: var(--flora-primary);
-    color: #fff;
-}
-
-[data-theme="dark"] .page-item.disabled .page-link {
-    background-color: var(--flora-card-bg);
-    color: var(--flora-muted);
-}
-
-[data-theme="dark"] .dataTables_length select {
-    background-color: var(--flora-input-bg);
-    color: var(--flora-text);
-    border-color: var(--flora-border);
-}
-
-[data-theme="dark"] .form-select,
-[data-theme="dark"] .form-control {
-    background-color: var(--flora-input-bg);
-    color: var(--flora-text);
-    border-color: var(--flora-border);
-}
-
-/* Row expansion */
-td.details-control {
-    cursor: pointer;
-    text-align: center;
-    color: var(--flora-primary);
-    font-size: 0.9rem;
-}
-
-td.details-control::before {
-    content: "▶";
-    display: inline-block;
-    transition: transform 0.2s ease;
-}
-
-tr.shown td.details-control::before { transform: rotate(90deg); }
-
-.detail-row {
-    background-color: var(--flora-subtle-bg);
-    padding: 1rem;
-}
-
-.detail-row h6 {
-    color: var(--flora-primary);
-    font-weight: 600;
-    font-size: 1.05rem;
-    margin-bottom: 0.5rem;
-    border-bottom: 1px solid var(--flora-border);
-    padding-bottom: 0.25rem;
-}
-
-[data-theme="dark"] .detail-row h6 { color: var(--flora-primary-dark-accent); }
-
-.detail-section { margin-bottom: 1rem; }
-
-.detail-label {
-    font-weight: 600;
-    color: var(--flora-text-soft);
-    display: inline-block;
-    min-width: 120px;
-}
-
-.detail-value { color: var(--flora-text); }
-
-.detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
-}
-
-.detail-card {
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 1px 3px var(--flora-shadow);
-}
-
-/* =============================================================
-   Charts & trends
-   ============================================================= */
-.chart-container { position: relative; height: 400px; width: 100%; }
-.chart-container-stack { position: relative; height: 150px; width: 100%; }
-
-/* Trends filter bar */
-.trend-filter {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1.5rem;
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 10px;
-    box-shadow: 0 1px 2px var(--flora-shadow);
-}
-
-.trend-filter-label {
-    font-weight: 600;
-    color: var(--flora-muted);
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-right: 0.25rem;
-}
-
-.trend-filter-btn {
-    background: transparent;
-    border: 1px solid var(--flora-border);
-    color: var(--flora-text);
-    padding: 0.4rem 0.85rem;
-    border-radius: 6px;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    font-family: var(--font-sans);
-}
-
-.trend-filter-btn:hover {
-    border-color: var(--flora-primary);
-    color: var(--flora-primary);
-}
-
-[data-theme="dark"] .trend-filter-btn:hover {
-    color: var(--flora-primary-dark-accent);
-    border-color: var(--flora-primary-dark-accent);
-}
-
-.trend-filter-btn.active {
-    background: var(--flora-primary);
-    border-color: var(--flora-primary);
-    color: #fff;
-}
-
-.trend-filter-btn.active:hover {
-    background: var(--flora-primary-dark);
-    border-color: var(--flora-primary-dark);
-    color: #fff;
-}
-
-.trend-filter-count {
-    margin-left: auto;
-    color: var(--flora-muted);
-    font-size: 0.85rem;
-    font-style: italic;
-}
-
-.trend-block {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    align-items: start;
-}
-
-.trend-block .trend-desc { padding-top: 0.35rem; }
-
-.trend-block .trend-desc h5 {
-    color: var(--flora-primary);
-    font-weight: 600;
-    margin-bottom: 0.85rem;
-    font-size: 1.3rem;
-}
-
-[data-theme="dark"] .trend-block .trend-desc h5 { color: var(--flora-primary-dark-accent); }
-
-.trend-block .trend-desc p {
-    color: var(--flora-text-soft);
-    font-size: 0.95rem;
-    line-height: 1.65;
-    margin-bottom: 0.8rem;
-}
-
-.trend-block .trend-desc .trend-note {
-    color: var(--flora-muted);
-    font-size: 0.82rem;
-    font-style: italic;
-    margin-top: 0.5rem;
-}
-
-@media (max-width: 900px) {
-    .trend-block {
-        grid-template-columns: 1fr;
-        gap: 1.25rem;
-    }
-}
-
-/* =============================================================
-   Footer
-   ============================================================= */
-.footer {
-    text-align: center;
-    padding: 2rem 1rem;
-    color: var(--flora-muted);
-    font-size: 0.88rem;
-    background: var(--flora-card-bg);
-    border-top: 1px solid var(--flora-border);
-    margin-top: 3rem;
-}
-
-.footer a { color: var(--flora-link); text-decoration: none; }
-.footer a:hover { text-decoration: underline; }
-
-/* =============================================================
-   Refresh button
-   ============================================================= */
-.refresh-btn {
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    color: var(--flora-link);
-    border-radius: 6px;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-family: var(--font-sans);
-}
-
-.refresh-btn:hover {
-    background: var(--flora-primary);
-    color: white;
-    border-color: var(--flora-primary);
-}
-
-/* =============================================================
-   Browse — mobile card list
-   ============================================================= */
-.browse-desktop { display: block; overflow-x: auto; }
-.browse-desktop #flora-table { table-layout: fixed; }
-.browse-desktop #flora-table td,
-.browse-desktop #flora-table th { word-wrap: break-word; overflow-wrap: anywhere; }
-.browse-desktop #flora-table .badge {
-    display: inline-block;
-    max-width: 100%;
-    white-space: normal;
-    word-break: break-word;
-    text-align: left;
-    line-height: 1.3;
-}
-.browse-mobile  { display: none; }
-
-.browse-mobile-search { margin-bottom: 1rem; }
-.browse-mobile-search input {
-    border: 2px solid var(--flora-border-strong);
-    border-radius: 999px;
-    padding: 0.55rem 1rem;
-    font-size: 0.95rem;
-    background: var(--flora-input-bg);
-    color: var(--flora-text);
-    width: 100%;
-}
-.browse-mobile-search input:focus {
-    outline: none;
-    border-color: var(--flora-primary);
-    box-shadow: 0 0 0 3px rgba(107, 69, 130, 0.18);
-}
-
-.browse-mobile-meta {
-    color: var(--flora-muted);
-    font-size: 0.82rem;
-    margin-bottom: 0.75rem;
-}
-
-.browse-mobile-list { display: flex; flex-direction: column; gap: 0.75rem; }
-
-.bm-card {
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border);
-    border-radius: 10px;
-    padding: 0.85rem 0.95rem;
-    box-shadow: 0 1px 2px var(--flora-shadow);
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-}
-
-.bm-row { display: flex; flex-direction: column; gap: 0.15rem; }
-
-.bm-row-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--flora-muted);
-}
-
-.bm-row-title {
-    font-family: var(--font-serif);
-    font-weight: 600;
-    font-size: 0.97rem;
-    line-height: 1.35;
-    color: var(--flora-text);
-    word-break: break-word;
-}
-
-.bm-row-title a {
-    color: var(--flora-text);
-    text-decoration: none;
-}
-.bm-row-title a:hover { color: var(--flora-primary); text-decoration: underline; }
-[data-theme="dark"] .bm-row-title a:hover { color: var(--flora-primary-dark-accent); }
-
-.bm-row-meta {
-    font-size: 0.83rem;
-    color: var(--flora-muted);
-    line-height: 1.4;
-}
-
-.bm-divider {
-    height: 1px;
-    background: var(--flora-border);
-    margin: 0.1rem 0;
-}
-
-.bm-tags {
-    display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-    align-items: center;
-    padding-top: 0.15rem;
-}
-
-.bm-tag-type {
-    background: var(--flora-subtle-bg);
-    color: var(--flora-text-soft);
-    border: 1px solid var(--flora-border);
-    border-radius: 4px;
-    padding: 0.15em 0.55em;
-    font-size: 0.74rem;
-    font-weight: 500;
-}
-
-.bm-empty {
-    text-align: center;
-    color: var(--flora-muted);
-    padding: 2rem 1rem;
-    font-style: italic;
-}
-
-.browse-mobile-pager {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 1rem;
-    gap: 0.5rem;
-}
-
-.bm-page-btn {
-    background: var(--flora-card-bg);
-    border: 1px solid var(--flora-border-strong);
-    color: var(--flora-text);
-    padding: 0.5rem 0.9rem;
-    border-radius: 6px;
-    font-size: 0.88rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    font-family: var(--font-sans);
-    min-width: 80px;
-}
-.bm-page-btn:hover:not(:disabled) {
-    border-color: var(--flora-primary);
-    color: var(--flora-primary);
-}
-.bm-page-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.bm-page-info {
-    font-size: 0.85rem;
-    color: var(--flora-muted);
-    text-align: center;
-    flex: 1;
-}
-
-/* =============================================================
-   Responsive
-   ============================================================= */
-@media (max-width: 768px) {
-    .hero { padding: 2rem 0 1.75rem 0; }
-    .hero h1 { font-size: 2.15rem; }
-    .hero-logo { width: 68px; height: 68px; }
-    .hero .hero-subtitle { font-size: 0.95rem; padding: 0 1rem; }
-    .nav-tabs .nav-link { padding: 0.75rem 1rem; font-size: 0.9rem; }
-    .table td, .table th { font-size: 0.85rem; }
-    .stats-card .number { font-size: 1.85rem; }
-    .card-body { padding: 1rem; }
-    .card-header { font-size: 1.05rem; }
-
-    /* Swap table for card list on mobile */
-    .browse-desktop { display: none; }
-    .browse-mobile  { display: block; }
-}
-
-    </style>
+    <!-- App CSS -->
+    <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
 
@@ -1338,7 +49,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
     <section class="hero">
         <div class="container">
             <div class="hero-inner">
-                <div class="hero-logo"><img src="logo.svg" alt="FLoRA logo"></div>
+                <div class="hero-logo"><img src="assets/logo.svg" alt="FLoRA logo"></div>
                 <h1>FLoRA Explorer</h1>
                 <hr class="hero-rule">
                 <p class="hero-subtitle">Tracking reproductions and replications across the sciences and humanities.</p>
@@ -1365,7 +76,16 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab">Browse Studies</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="trends-tab" data-bs-toggle="tab" data-bs-target="#trends" type="button" role="tab">Trends &amp; Patterns</button>
+                    <button class="nav-link" id="trends-tab" data-bs-toggle="tab" data-bs-target="#trends" type="button" role="tab">Years &amp; Disciplines</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="citation-tab" data-bs-toggle="tab" data-bs-target="#citation-impact" type="button" role="tab">Citation Impact</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="mc-tab" data-bs-toggle="tab" data-bs-target="#mean-citedness" type="button" role="tab">Mean Citedness</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="overlap-tab" data-bs-toggle="tab" data-bs-target="#authorship-overlap" type="button" role="tab">Authorship Overlap</button>
                 </li>
             </ul>
         </div>
@@ -1381,14 +101,23 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 
         <div class="tab-content" id="floraTabsContent" style="display:none;">
 
-            <!-- OVERVIEW -->
+            <!-- ============================ OVERVIEW ============================ -->
             <div class="tab-pane fade show active" id="overview" role="tabpanel">
+
+                <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <div class="row mb-3">
                     <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-total">-</div><div class="label">Total Studies</div></div></div>
                     <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-successful" style="color: var(--flora-success);">-</div><div class="label">Successful</div></div></div>
                     <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-failed" style="color: var(--flora-danger);">-</div><div class="label">Failed</div></div></div>
                     <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-mixed" style="color: var(--flora-warning);">-</div><div class="label">Mixed</div></div></div>
+                </div>
+
+                <div class="tab-cite-block">
+                    <div class="tab-cite-block-label">How to cite &amp; re-use guidelines</div>
+                    <p class="reuse-text">The projects embedded in this website are the work of over two hundred paid and volunteer researchers over more than four years. Please cite the respective works when (re-)using them. If you expect to profit from this work — for example, through a grant application based on these data — please consider reaching out to us to involve members of the community.</p>
+                    <div class="cite-ref" id="citation-text-top">Loading citation…</div>
+                    <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" class="doi-link">https://forrt.org/flora-explorer/</a></div>
                 </div>
 
                 <div class="card">
@@ -1544,7 +273,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                                         <div class="tool-desc">Can you predict replication outcomes? Play the game and find out.</div>
                                     </div>
                                 </a>
-                                <!-- Add more tool tiles here as needed -->
                             </div>
                         </div>
 
@@ -1581,8 +309,10 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 </div>
             </div>
 
-            <!-- BROWSE -->
+            <!-- ============================ BROWSE ============================ -->
             <div class="tab-pane fade" id="browse" role="tabpanel">
+                <div class="data-stamp" data-stamp-source="flora"></div>
+
                 <div class="trend-filter" role="group" aria-label="Filter by study kind">
                     <span class="trend-filter-label">Show:</span>
                     <button type="button" class="trend-filter-btn browse-kind-btn active" data-kind="all">All studies</button>
@@ -1590,6 +320,13 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-numerical">Numerical Reproductions</button>
                     <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-robustness">Robustness Reproductions</button>
                     <span class="trend-filter-count" id="browse-kind-count"></span>
+                </div>
+
+                <div class="tab-cite-block">
+                    <div class="tab-cite-block-label">How to cite &amp; re-use guidelines</div>
+                    <p class="reuse-text">The projects embedded in this website are the work of over two hundred paid and volunteer researchers over more than four years. Please cite the respective works when (re-)using them. If you expect to profit from this work — for example, through a grant application based on these data — please consider reaching out to us to involve members of the community.</p>
+                    <div class="cite-ref" id="citation-text-browse">Loading citation…</div>
+                    <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" class="doi-link">https://forrt.org/flora-explorer/</a></div>
                 </div>
 
                 <div class="card">
@@ -1610,7 +347,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 <div class="card">
                     <div class="card-header">Replication Studies Database</div>
                     <div class="card-body">
-                        <!-- Desktop / tablet: full DataTable -->
                         <div class="browse-desktop">
                             <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
                                 <thead>
@@ -1630,7 +366,6 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                             </table>
                         </div>
 
-                        <!-- Mobile: vertical card list -->
                         <div class="browse-mobile">
                             <div class="browse-mobile-search">
                                 <input type="search" id="browse-mobile-input" class="form-control" placeholder="Search studies (title, author, journal, DOI)…" autocomplete="off">
@@ -1647,8 +382,14 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                 </div>
             </div>
 
-            <!-- TRENDS -->
+            <!-- ============================ TRENDS ============================ -->
             <div class="tab-pane fade" id="trends" role="tabpanel">
+                <div class="data-stamp" data-stamp-source="flora"></div>
+
+                <div class="tab-cite-block">
+                    <div class="tab-cite-block-label">How to cite</div>
+                    <div class="cite-ref">Röseler, L. (in preparation). <em>The FORRT Library of Reproduction and Replication Attempts: Documenting the Reproducibility and Replicability of the Sciences and Humanities.</em></div>
+                </div>
 
                 <div class="trend-filter" role="group" aria-label="Filter by study kind">
                     <span class="trend-filter-label">Show:</span>
@@ -1659,99 +400,296 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
                     <span class="trend-filter-count" id="trend-filter-count"></span>
                 </div>
 
-                <div class="card">
-                    <div class="card-body">
-                        <div class="trend-block">
-                            <div class="trend-desc">
-                                <h5>Outcomes by original study year</h5>
-                                <p>How have the findings of studies from different eras fared when scientists have tried to replicate them? Each bar groups replication and reproduction attempts by the year the <strong>original</strong> study was published, split into Successful, Mixed, Failed, and other outcomes.</p>
-                                <p>Use this to see how findings from different historical periods have held up in subsequent replication efforts.</p>
-                                <p class="trend-note">Studies without a recorded original publication year are excluded.</p>
-                            </div>
-                            <div class="chart-container"><canvas id="trend-orig-year"></canvas></div>
-                        </div>
+                <div class="card"><div class="card-body"><div class="trend-block">
+                    <div class="trend-desc">
+                        <h5>Outcomes by original study year</h5>
+                        <p>How have the findings of studies from different eras fared when scientists have tried to replicate them? Each bar groups replication and reproduction attempts by the year the <strong>original</strong> study was published, split into Successful, Mixed, Failed, and other outcomes.</p>
+                        <p>Use this to see how findings from different historical periods have held up in subsequent replication efforts.</p>
+                        <p class="trend-note">Studies without a recorded original publication year are excluded.</p>
                     </div>
-                </div>
+                    <div class="chart-container"><canvas id="trend-orig-year"></canvas></div>
+                </div></div></div>
 
-                <div class="card">
-                    <div class="card-body">
-                        <div class="trend-block">
-                            <div class="trend-desc">
-                                <h5>Outcomes by replication study year <span class="badge-wip">Experimental · WIP</span></h5>
-                                <p>Grouped by the year of the <strong>replication</strong> itself, this view shows the growth of FLoRA's coverage and how outcome profiles have shifted over time as replication practice has matured.</p>
-                                <p>The rightmost years may reflect ongoing data entry rather than a genuine decline in activity.</p>
-                                <p class="trend-note">Replications without a recorded year are excluded.</p>
-                            </div>
-                            <div class="chart-container"><canvas id="trend-rep-year"></canvas></div>
-                        </div>
+                <div class="card"><div class="card-body"><div class="trend-block">
+                    <div class="trend-desc">
+                        <h5>Outcomes by replication study year <span class="badge-wip">Experimental · WIP</span></h5>
+                        <p>Grouped by the year of the <strong>replication</strong> itself, this view shows the growth of FLoRA's coverage and how outcome profiles have shifted over time as replication practice has matured.</p>
+                        <p>The rightmost years may reflect ongoing data entry rather than a genuine decline in activity.</p>
+                        <p class="trend-note">Replications without a recorded year are excluded.</p>
                     </div>
-                </div>
+                    <div class="chart-container"><canvas id="trend-rep-year"></canvas></div>
+                </div></div></div>
 
-                <div class="card">
-                    <div class="card-body">
-                        <div class="trend-block">
-                            <div class="trend-desc">
-                                <h5>Outcomes by original journal</h5>
-                                <p>The journals whose articles have most frequently been the target of replication attempts. For each journal, the bar shows the outcome breakdown of those attempts.</p>
-                                <p>Frequency here reflects where replication attention has been focused — not necessarily a journal's overall replicability.</p>
-                                <div class="mt-3">
-                                    <label for="journal-top-n" style="font-weight:500; font-size:0.9rem; color: var(--flora-muted); margin-right: 0.5rem;">Show top:</label>
-                                    <select id="journal-top-n" class="form-select d-inline-block" style="max-width: 160px; font-size: 0.9rem;">
-                                        <option value="10">10 journals</option>
-                                        <option value="15" selected>15 journals</option>
-                                        <option value="25">25 journals</option>
-                                        <option value="50">50 journals</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="chart-container" id="trend-journal-container"><canvas id="trend-journal"></canvas></div>
+                <div class="card"><div class="card-body"><div class="trend-block">
+                    <div class="trend-desc">
+                        <h5>Outcomes by original journal</h5>
+                        <p>The journals whose articles have most frequently been the target of replication attempts. For each journal, the bar shows the outcome breakdown of those attempts.</p>
+                        <p>Frequency here reflects where replication attention has been focused — not necessarily a journal's overall replicability.</p>
+                        <div class="mt-3">
+                            <label for="journal-top-n" style="font-weight:500; font-size:0.9rem; color: var(--flora-muted); margin-right: 0.5rem;">Show top:</label>
+                            <select id="journal-top-n" class="form-select d-inline-block" style="max-width: 160px; font-size: 0.9rem;">
+                                <option value="10">10 journals</option>
+                                <option value="15" selected>15 journals</option>
+                                <option value="25">25 journals</option>
+                                <option value="50">50 journals</option>
+                            </select>
                         </div>
                     </div>
-                </div>
+                    <div class="chart-container" id="trend-journal-container"><canvas id="trend-journal"></canvas></div>
+                </div></div></div>
 
-                <div class="card">
-                    <div class="card-body">
-                        <div class="trend-block">
-                            <div class="trend-desc">
-                                <h5>Outcomes by replication journal <span class="badge-wip">Experimental · WIP</span></h5>
-                                <p>Where replication studies are themselves being published. Each bar shows the outcome breakdown of replications appearing in a given journal.</p>
-                                <p>This view highlights the venues that publish replication research most actively — including journals dedicated to replications and registered reports.</p>
-                                <p class="trend-note">Annotation of replication-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
-                                <div class="mt-3">
-                                    <label for="rep-journal-top-n" style="font-weight:500; font-size:0.9rem; color: var(--flora-muted); margin-right: 0.5rem;">Show top:</label>
-                                    <select id="rep-journal-top-n" class="form-select d-inline-block" style="max-width: 160px; font-size: 0.9rem;">
-                                        <option value="10">10 journals</option>
-                                        <option value="15" selected>15 journals</option>
-                                        <option value="25">25 journals</option>
-                                        <option value="50">50 journals</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="chart-container" id="trend-rep-journal-container"><canvas id="trend-rep-journal"></canvas></div>
+                <div class="card"><div class="card-body"><div class="trend-block">
+                    <div class="trend-desc">
+                        <h5>Outcomes by replication journal <span class="badge-wip">Experimental · WIP</span></h5>
+                        <p>Where replication studies are themselves being published. Each bar shows the outcome breakdown of replications appearing in a given journal.</p>
+                        <p>This view highlights the venues that publish replication research most actively — including journals dedicated to replications and registered reports.</p>
+                        <p class="trend-note">Annotation of replication-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
+                        <div class="mt-3">
+                            <label for="rep-journal-top-n" style="font-weight:500; font-size:0.9rem; color: var(--flora-muted); margin-right: 0.5rem;">Show top:</label>
+                            <select id="rep-journal-top-n" class="form-select d-inline-block" style="max-width: 160px; font-size: 0.9rem;">
+                                <option value="10">10 journals</option>
+                                <option value="15" selected>15 journals</option>
+                                <option value="25">25 journals</option>
+                                <option value="50">50 journals</option>
+                            </select>
                         </div>
                     </div>
-                </div>
+                    <div class="chart-container" id="trend-rep-journal-container"><canvas id="trend-rep-journal"></canvas></div>
+                </div></div></div>
 
-                <div class="card">
-                    <div class="card-body">
-                        <div class="trend-block">
-                            <div class="trend-desc">
-                                <h5>Outcomes by field <span class="badge-wip">Experimental · WIP</span></h5>
-                                <p>A bird's-eye view grouping studies by research discipline. Each bar shows the outcome breakdown of replication and reproduction attempts targeting work originally published in journals from that field.</p>
-                                <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary. Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
-                                <p class="trend-note">Coverage is still growing — many journals are not yet classified, so some fields may be under-represented and <em>Uncategorized</em> may dominate. The dictionary is straightforward to extend.</p>
-                            </div>
-                            <div class="chart-container" id="trend-field-container"><canvas id="trend-field"></canvas></div>
-                        </div>
+                <div class="card"><div class="card-body"><div class="trend-block">
+                    <div class="trend-desc">
+                        <h5>Outcomes by field <span class="badge-wip">Experimental · WIP</span></h5>
+                        <p>A bird's-eye view grouping studies by research discipline. Each bar shows the outcome breakdown of replication and reproduction attempts targeting work originally published in journals from that field.</p>
+                        <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" class="doi-link">data/disciplines.json</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
+                        <p class="trend-note">Coverage is still growing — many journals are not yet classified, so some fields may be under-represented and <em>Uncategorized</em> may dominate. The dictionary is straightforward to extend.</p>
                     </div>
-                </div>
+                    <div class="chart-container" id="trend-field-container"><canvas id="trend-field"></canvas></div>
+                </div></div></div>
 
             </div>
+
+            <!-- ============================ CITATION IMPACT ============================ -->
+            <div class="tab-pane fade" id="citation-impact" role="tabpanel">
+                <div class="data-stamp" data-stamp-source="citations"></div>
+
+                <div class="tab-cite-block">
+                    <div class="tab-cite-block-label">How to cite</div>
+                    <div class="cite-ref">Weinerova, J., Wallrich, L., Röseler, L., Feuerriegel, S., &amp; Azevedo, F. (2026, April 30). (When) Do Replications Influence the Impact of Original Claims? A Bibliometric Investigation. <a href="https://doi.org/10.17605/OSF.IO/WJGM3" target="_blank" class="doi-link">https://doi.org/10.17605/OSF.IO/WJGM3</a></div>
+                </div>
+
+                <div class="ci-intro">
+                    <h2 class="ci-h2">How do replications change citation behaviour?</h2>
+                    <span class="scope-note">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z"/></svg>
+                        Replications only — reproductions are not included in this analysis
+                    </span>
+                    <p class="ci-lede">
+                        This tab combines the FLoRA dataset with citation data from
+                        <a href="https://opencitations.net" target="_blank">OpenCitations</a> to
+                        explore how the publication of a replication affects subsequent citations to the original study —
+                        and how often the original and the replication are co-cited.
+                    </p>
+                    <div class="kpi-row" id="kpis"></div>
+                </div>
+
+                <div class="card ci-card">
+                    <div class="card-header">Aggregate impact of replications</div>
+                    <div class="card-body">
+                        <p class="muted">
+                            Event-study estimates: each original is aligned at <em>t = 0</em>, the year of its first
+                            published replication. Bands show 95% CIs from a Poisson model with study and year fixed
+                            effects (a TWFE analogue of the preregistered FECT model).
+                        </p>
+
+                        <div class="filters">
+                            <span class="filter-label">Replication outcome</span>
+                            <div class="chip-group" id="outcome-chips">
+                                <button class="chip active" data-value="all">All</button>
+                                <button class="chip" data-value="failed">Failed</button>
+                                <button class="chip" data-value="successful">Successful</button>
+                                <button class="chip" data-value="mixed">Mixed</button>
+                            </div>
+                        </div>
+
+                        <div class="att-callout" id="att-callout"></div>
+                    </div>
+                </div>
+
+                <div class="plot-grid">
+                    <div class="plot-card">
+                        <h3>Citations to the original</h3>
+                        <div id="plot-cit" class="plot"></div>
+                    </div>
+                    <div class="plot-card">
+                        <h3>Co-citations (original ⊕ replication)</h3>
+                        <div id="plot-cocit" class="plot"></div>
+                    </div>
+                </div>
+
+                <div class="card ci-card">
+                    <div class="card-header">Browse all originals</div>
+                    <div class="card-body">
+                        <p class="muted">Click any row to see its citation timeline with replication events marked.</p>
+
+                        <div class="search-row">
+                            <input id="search-input" type="search" placeholder="Search title, author, or DOI…" />
+                            <select id="filter-outcome">
+                                <option value="">All outcomes</option>
+                                <option value="failed">Has failed replication</option>
+                                <option value="successful">Has successful replication</option>
+                                <option value="mixed">Has mixed replication</option>
+                            </select>
+                        </div>
+
+                        <div class="table-wrap">
+                            <table id="originals-table">
+                                <thead>
+                                    <tr>
+                                        <th>Original</th>
+                                        <th class="sortable" data-sort="year">Year</th>
+                                        <th class="sortable" data-sort="n_replications">Replications</th>
+                                        <th class="sortable" data-sort="n_citations">Citations</th>
+                                        <th class="sortable" data-sort="n_cocitations">Co-citations</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="pagination" id="pagination"></div>
+                    </div>
+                </div>
+
+                <div class="card ci-card">
+                    <div class="card-header">About this analysis</div>
+                    <div class="card-body">
+                        <p>
+                            Data are refreshed weekly. The pipeline filters FLoRA to
+                            <strong>conceptual and direct replications</strong> with outcomes labelled
+                            <em>successful</em>, <em>failed</em>, or <em>mixed</em> (reproductions are excluded).
+                            For each included original and replication, we retrieve all citing works from
+                            OpenCitations COCI. A "co-citation" is any work that cites both the original and at
+                            least one of its replications.
+                        </p>
+                        <p>
+                            The aggregate plots show event-study estimates from a Poisson two-way fixed-effects
+                            model — a transparent analogue of the FECT specification used in the
+                            preregistered analysis. See the
+                            <a href="https://github.com/forrtproject/FReD-data" target="_blank">FReD-data repository</a>
+                            for the underlying FLoRA dataset.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================ MEAN CITEDNESS ============================ -->
+            <div class="tab-pane fade" id="mean-citedness" role="tabpanel">
+                <div class="data-stamp" data-stamp-source="impact_factor"></div>
+
+                <div class="tab-cite-block">
+                    <div class="tab-cite-block-label">How to cite</div>
+                    <div class="cite-ref">Röseler, J., &amp; Röseler, L. (in preparation). <em>Guess the replication: How Journal Prestige affects Predicted and Actual Replication Success.</em></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Journal-Level Citation Metrics and Replicability</div>
+                    <div class="card-body">
+                        <p class="muted" style="margin-bottom: 0.75rem;">
+                            This tab presents a statistical analysis of whether the
+                            <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal
+                            predicts replication success. OMC is a proxy for the Journal Impact Factor.
+                            The analysis is rendered weekly by an R pipeline (GAM).
+                        </p>
+                        <span class="scope-note">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z"/></svg>
+                            Replications only — reproductions are not included in this analysis
+                        </span>
+                        <div id="mc-loading" style="color: var(--flora-muted); font-size: 0.9rem; padding: 1rem 0;">Loading analysis…</div>
+                        <div id="mc-overview" class="mc-overview-grid" style="display:none;"></div>
+                        <div id="mc-dist-card" class="mc-chart-card" style="display:none;">
+                            <div class="mc-chart-title">Distribution of studies by journal Mean Citedness</div>
+                            <div class="mc-chart-wrap"><div id="mc-dist-chart"></div></div>
+                        </div>
+                        <div id="mc-gam-card" class="mc-chart-card" style="display:none;">
+                            <div class="mc-chart-title">P(successful replication) vs Mean Citedness — logistic smooth</div>
+                            <p id="mc-gam-stats" class="mc-model-note"></p>
+                            <div class="mc-chart-wrap"><div id="mc-gam-chart"></div></div>
+                            <p class="mc-model-note" style="margin-top:0.6rem;">Only studies with successful or failed replication outcomes were included in the smooth model. Mixed and inconclusive outcomes were excluded.</p>
+                        </div>
+                        <div id="mc-error" style="display:none; color: var(--flora-muted); font-size: 0.9rem;">
+                            Failed to load analysis data.
+                            <code id="mc-error-detail" style="display:block;margin-top:0.4rem;font-size:0.8rem;color:var(--flora-text);word-break:break-all;"></code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== AUTHORSHIP OVERLAP ==================== -->
+            <div class="tab-pane fade" id="authorship-overlap" role="tabpanel">
+                <div class="data-stamp" data-stamp-source="author_overlap"></div>
+
+                <div class="tab-cite-block">
+                    <div class="tab-cite-block-label">How to cite</div>
+                    <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" class="doi-link">https://forrt.org/flora-explorer/</a></div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Authorship Overlap and Outcomes</div>
+                    <div class="card-body">
+                        <p style="margin-bottom:0.75rem;">
+                            This analysis checks whether any author of the <strong>original study</strong>
+                            also appears as an author of the <strong>replication study</strong> — a pattern
+                            sometimes called a <em>same-author replication</em> or <em>self-replication</em>.
+                            Author names are matched by family name (normalised: lowercase, diacritics removed).
+                            This may produce <strong>false positives</strong> for common family names when two
+                            unrelated researchers share a surname.
+                        </p>
+                        <span class="scope-note" style="margin-bottom:1rem;display:inline-flex;">
+                            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z"/></svg>
+                            Replications only — reproductions are not included in this analysis
+                        </span>
+
+                        <div id="ao-loading" style="color:var(--flora-muted);font-size:0.9rem;padding:1rem 0;">Loading analysis…</div>
+
+                        <div id="ao-overview" class="mc-overview-grid" style="display:none;"></div>
+
+                        <div id="ao-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
+                            <div class="mc-chart-title">Replication outcomes by authorship overlap</div>
+                            <div class="mc-chart-wrap"><div id="ao-chart"></div></div>
+                        </div>
+
+                        <div id="ao-caveat" style="display:none;margin-top:1rem;">
+                            <div class="key-distinction">
+                                <strong>Interpretation caveat:</strong> Authors replicating their own work may
+                                bring unique methodological knowledge and access to original materials, which
+                                could improve replication success. At the same time, they may have a conflict of
+                                interest in publicly reporting inconsistent results. Both effects can operate
+                                simultaneously, making the direction of bias difficult to predict.
+                            </div>
+                        </div>
+
+                        <div id="ao-error" style="display:none;color:var(--flora-muted);font-size:0.9rem;">
+                            Failed to load authorship overlap data.
+                            <code id="ao-error-detail" style="display:block;margin-top:0.4rem;font-size:0.8rem;color:var(--flora-text);word-break:break-all;"></code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <div class="footer">
             Data source: <a href="https://github.com/forrtproject/FReD-data" target="_blank">FORRT FReD Project</a> ·
             <a href="https://forrt.org/" target="_blank">FORRT — Framework for Open and Reproducible Research Training</a>
+        </div>
+    </div>
+
+    <!-- Per-study modal (Citation Impact) -->
+    <div class="modal-backdrop" id="ci-modal" hidden>
+        <div class="modal-card">
+            <button class="modal-close" id="ci-modal-close">×</button>
+            <div id="ci-modal-body"></div>
         </div>
     </div>
 
@@ -1764,2075 +702,9 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 
-    <script>
-        // Theme (light/dark)
-        (function() {
-            const stored = localStorage.getItem('flora-theme');
-            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const theme = stored || (prefersDark ? 'dark' : 'light');
-            document.documentElement.setAttribute('data-theme', theme);
-        })();
-
-        function currentTheme() { return document.documentElement.getAttribute('data-theme') || 'light'; }
-
-        document.getElementById('theme-toggle').addEventListener('click', () => {
-            const next = currentTheme() === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
-            localStorage.setItem('flora-theme', next);
-            if (window._rerenderAllCharts) window._rerenderAllCharts();
-        });
-
-        // Config
-        const CSV_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv';
-        const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
-
-        const OUTCOME_COLORS = {
-            successful:   '#48bb78',
-            failed:       '#e05d5d',
-            mixed:        '#e8a23a',
-            inconclusive: '#6f7686',
-            other:        '#a0a7b4'
-        };
-
-        // =========================================================
-        // Discipline dictionary — hard-coded mapping from (lowercased,
-        // trimmed) journal name → discipline. Extend freely.
-        // Journals not listed here fall into "Uncategorized".
-        // =========================================================
-        const DISCIPLINES = {
-            "Psychology": [
-                // Generalist & flagship
-                "psychological science",
-                "perspectives on psychological science",
-                "current psychology",
-                "frontiers in psychology",
-                "behavioral and brain sciences",
-                "psychological review",
-                "psychological reports",
-                "psychological monographs: general and applied",
-                "the american journal of psychology",
-                "the japanese journal of psychology",
-                "中華心理學刊",
-                "canadian journal of psychology / revue canadienne de psychologie",
-                "psicothema",
-                "psicologia: reflexão e crítica",
-                "diagnostica",
-                "experimental psychology",
-                "journal of cognition",
-                "psychological assessment",
-                "assessment",
-                "american psychologist",
-                "psychological medicine",
-                "british journal of psychology",
-                // Personality, social, individual differences
-                "journal of personality",
-                "journal of personality and social psychology",
-                "personality and social psychology bulletin",
-                "social psychological and personality science",
-                "social psychology",
-                "the journal of social psychology",
-                "british journal of social psychology",
-                "european journal of social psychology",
-                "european journal of personality",
-                "personality and individual differences",
-                "journal of research in personality",
-                "personality disorders: theory, research, and treatment",
-                "social cognition",
-                "social justice research",
-                "journal of language and social psychology",
-                "basic and applied social psychology",
-                "journal of applied social psychology",
-                "journal of social and personal relationships",
-                "the journal of abnormal and social psychology",
-                "evolutionary behavioral sciences",
-                "human nature",
-                "evolution and human behavior",
-                "advances in experimental moral psychology",
-                "journal of experimental social psychology",
-                "archives of sexual behavior",
-                "adoption & fostering",
-                // Cognitive
-                "cognition",
-                "cognitive psychology",
-                "cognitive science",
-                "memory & cognition",
-                "memory and cognition",
-                "perception",
-                "perception & psychophysics",
-                "perception and psychophysics",
-                "attention, perception, & psychophysics",
-                "attention, perception, and psychophysics",
-                "consciousness and cognition",
-                "perceptual and motor skills",
-                "psychonomic bulletin & review",
-                "psychonomic bulletin and review",
-                "applied cognitive psychology",
-                "quarterly journal of experimental psychology",
-                "vision research",
-                "acta psychologica",
-                "intelligence",
-                "journal of applied research in memory and cognition",
-                "journal of experimental psychology",
-                "journal of experimental psychology: general",
-                "journal of experimental psychology: human perception and performance",
-                "journal of experimental psychology: learning, memory, and cognition",
-                "journal of experimental psychology: human learning and memory",
-                "language and cognitive processes",
-                "journal of cognition and culture",
-                "cognition and categorization",
-                // Emotion, motivation
-                "emotion",
-                "emotion review",
-                "cognition and emotion",
-                "cognition & emotion",
-                "motivation science",
-                "affective science",
-                "anxiety, stress, & coping",
-                "stress",
-                // Developmental
-                "developmental psychology",
-                "child development",
-                "developmental science",
-                "cognitive development",
-                "developmental cognitive neuroscience",
-                "developmental psychobiology",
-                "british journal of developmental psychology",
-                "early childhood research quarterly",
-                "infant mental health journal",
-                "journal of experimental child psychology",
-                "the journal of early adolescence",
-                "international journal of behavioral development",
-                "journal of adolescence",
-                "monographs of the society for research in child development",
-                "early child development and care",
-                "early human development",
-                "research on child and adolescent psychopathology",
-                "child and adolescent mental health",
-                "development and psychopathology",
-                "journal of autism and developmental disorders",
-                "journal of child language",
-                "language learning and development",
-                // Clinical, abnormal, psychiatry-adjacent
-                "journal of abnormal psychology",
-                "clinical psychological science",
-                "clinical psychology review",
-                "journal of clinical psychology",
-                "behaviour research and therapy",
-                "behavior therapy",
-                "behaviour change",
-                "behavioral interventions",
-                "journal of behavior therapy and experimental psychiatry",
-                "journal of consulting and clinical psychology",
-                "journal of counseling psychology",
-                "the counseling psychologist",
-                "journal of cognitive psychotherapy",
-                "psychotherapy",
-                "psychotherapy research",
-                "international journal of group psychotherapy",
-                "journal of marital and family therapy",
-                "journal of sex & marital therapy",
-                "journal of systemic therapies",
-                "journal of obsessive-compulsive and related disorders",
-                "journal of anxiety disorders",
-                "journal of affective disorders",
-                "psychology of addictive behaviors",
-                "psychology of violence",
-                "aggressive behavior",
-                "psychological trauma: theory, research, practice, and policy",
-                "european journal of psychotraumatology",
-                "behavior analysis: research and practice",
-                "behavior analysis in practice",
-                "behavior and social issues",
-                "behavioral development bulletin",
-                "the psychological record",
-                "journal of the experimental analysis of behavior",
-                "journal of applied behavior analysis",
-                "journal of behavioral education",
-                "journal of community psychology",
-                "families in society: the journal of contemporary social services",
-                "the journal of nervous and mental disease",
-                "journal of personality disorders",
-                "journal of investigative psychology and offender profiling",
-                "law and human behavior",
-                "art therapy",
-                "child maltreatment",
-                "child abuse & neglect",
-                "research in developmental disabilities",
-                "applied neuropsychology",
-                "applied neuropsychology: adult",
-                "neuropsychological rehabilitation",
-                "psychiatric annals",
-                "journal of theoretical and philosophical psychology",
-                "journal of financial therapy",
-                "psycextra dataset",
-                "psyctests dataset",
-                "los angeles, ca: western psychological corporation",
-                // Health psychology
-                "health psychology",
-                "british journal of health psychology",
-                "journal of occupational health psychology",
-                // Cultural / minority
-                "cultural diversity & ethnic minority psychology",
-                // Aesthetics, music, religion (psychology of)
-                "psychology of aesthetics, creativity, and the arts",
-                "psychology of music",
-                "creativity research journal",
-                "review of religious research",
-                "journal for the scientific study of religion",
-                "journal of pentecostal and charismatic christianity",
-                // Methods, computing
-                "behavior research methods",
-                // Aging
-                "the journals of gerontology: series b",
-                "work, aging and retirement",
-                // Decision-making, judgment
-                "judgment and decision making",
-                "journal of behavioral decision making",
-                "journal of risk and uncertainty",
-                // Sport psych (psych focus)
-                "psychology of sport and exercise",
-                "journal of sport and exercise psychology",
-                "journal of motor learning and development",
-                // Misc
-                "human-animal interaction bulletin",
-                "professional and practice-based learning,human fallibility"
-            ],
-
-            "Neuroscience": [
-                "neuron",
-                "nature neuroscience",
-                "the journal of neuroscience",
-                "journal of cognitive neuroscience",
-                "neuroimage",
-                "neuroimage: clinical",
-                "frontiers in human neuroscience",
-                "frontiers in aging neuroscience",
-                "neuropsychologia",
-                "neurobiology of learning and memory",
-                "european journal of neuroscience",
-                "experimental brain research",
-                "behavioral neuroscience",
-                "cognitive brain research",
-                "cortex",
-                "brain",
-                "brain research",
-                "brain sciences",
-                "brain stimulation",
-                "neuroscience letters",
-                "neuroscience and behavioral physiology",
-                "neuroscience of consciousness",
-                "neuroreport",
-                "human brain mapping",
-                "hippocampus",
-                "psychophysiology",
-                "biological psychology",
-                "biological psychiatry",
-                "social cognitive and affective neuroscience",
-                "social neuroscience",
-                "developmental brain research",
-                "psychoneuroendocrinology",
-                "neuroethics",
-                "annals of neurology"
-            ],
-
-            "Psychiatry & Mental Health": [
-                "jama psychiatry",
-                "the lancet psychiatry",
-                "american journal of psychiatry",
-                "british journal of psychiatry",
-                "molecular psychiatry",
-                "translational psychiatry",
-                "schizophrenia bulletin",
-                "schizophrenia research",
-                "archives of general psychiatry",
-                "australian & new zealand journal of psychiatry",
-                "frontiers in psychiatry",
-                "international journal of geriatric psychiatry",
-                "psychiatry research",
-                "psychiatry research: neuroimaging",
-                "the world journal of biological psychiatry",
-                "neurology bulletin",
-                "social psychiatry and psychiatric epidemiology",
-                "neuropsychopharmacology",
-                "neuropsychopharmacology reports",
-                "psychopharmacology",
-                "psychosomatic medicine",
-                "psycho-oncology",
-                "journal of psychiatric research",
-                "journal of the american academy of child & adolescent psychiatry",
-                "journal of child psychology and psychiatry",
-                "journal of neurology, neurosurgery & psychiatry",
-                "addiction",
-                "drug and alcohol dependence",
-                "journal of studies on alcohol",
-                "alcoholism: clinical and experimental research",
-                "journal of substance use",
-                "journal of gambling studies",
-                "gaming law review and economics",
-                "molecular autism",
-                "molecular therapy nucleic acids",
-                "jmir mental health"
-            ],
-
-            "Medicine & Health": [
-                "new england journal of medicine",
-                "jama",
-                "jama network open",
-                "the lancet diabetes & endocrinology",
-                "the lancet child & adolescent health",
-                "science translational medicine",
-                "ebiomedicine",
-                "nature medicine",
-                "journal of general internal medicine",
-                "academic medicine",
-                "medical care",
-                "medical teacher",
-                "medical image analysis",
-                "military medicine",
-                "physical therapy",
-                "journal of physiotherapy",
-                "neurorehabilitation and neural repair",
-                "journal of rehabilitation research and development",
-                "journal of occupational rehabilitation",
-                "pediatric rehabilitation",
-                "frontiers in pediatrics",
-                "journal of developmental & behavioral pediatrics",
-                "pediatrics",
-                "circulation",
-                "circulation research",
-                "spine",
-                "pain",
-                "european journal of pain",
-                "complementary therapies in medicine",
-                "planta medica",
-                "biological and pharmaceutical bulletin",
-                "ear and hearing",
-                "hearing research",
-                "dysphagia",
-                "investigative ophthalmology & visual science",
-                "investigative opthalmology & visual science",
-                "neuro-ophthalmology",
-                "ophthalmic genetics",
-                "geburtshilfe und frauenheilkunde",
-                "international journal of gynecology & obstetrics",
-                "obesity research",
-                "diabetes",
-                "diabetes therapy",
-                "the journal of clinical endocrinology & metabolism",
-                "inflammatory bowel diseases",
-                "gastroenterology",
-                "gut",
-                "neurogastroenterology & motility",
-                "annals of the rheumatic diseases",
-                "arthritis & rheumatology",
-                "arthritis & rheumatism",
-                "arthritis research & therapy",
-                "osteoarthritis and cartilage",
-                "journal of bone and mineral research",
-                "the journal of nutrition",
-                "appetite",
-                "psychiatry annals",
-                "psychiatric annals",
-                "alzheimer's disease",
-                "journal of alzheimer's disease",
-                "age and ageing",
-                "the journals of gerontology",
-                "journal of the american geriatrics society",
-                "bmc geriatrics",
-                "bmc health services research",
-                "implementation science",
-                "health expectations",
-                "injury prevention",
-                "prevention science",
-                "public health in practice",
-                "health education research",
-                "health education journal",
-                "journal of health communication",
-                "journal of medical internet research",
-                "jmir research protocols",
-                "jmir public health and surveillance",
-                "journal of the american medical informatics association",
-                "journal of advanced nursing",
-                "nursing ethics",
-                "nursing administration quarterly",
-                "journal of interprofessional care",
-                "journal of marital and family therapy",
-                "violence and victims",
-                "complementary therapies in medicine",
-                "biomedicines",
-                "journal of proteome research",
-                "experimental physiology",
-                "journal of applied physiology",
-                "the faseb journal",
-                "stress",
-                "virulence",
-                "carcinogenesis",
-                "cancer cell",
-                "ergonomics",
-                "clinical oral investigations",
-                "the journal of the acoustical society of america",
-                "remote sensing of environment",
-                "international journal of epidemiology",
-                "journal of occupational & environmental medicine",
-                "plos one",
-                "palgrave communications"
-            ],
-
-            "Genetics & Molecular Biology": [
-                "nature genetics",
-                "nature cell biology",
-                "the american journal of human genetics",
-                "human molecular genetics",
-                "human genetics",
-                "journal of medical genetics",
-                "american journal of medical genetics part b: neuropsychiatric genetics",
-                "journal of genetics",
-                "plos genetics",
-                "g3 genes|genomes|genetics",
-                "genome research",
-                "twin research and human genetics",
-                "genes, brain and behavior",
-                "pharmacogenetics and genomics",
-                "clinical epigenetics",
-                "journal of virology"
-            ],
-
-            "Biology & Life Sciences": [
-                "nature",
-                "nature communications",
-                "nature human behaviour",
-                "nature climate change",
-                "nature geoscience",
-                "science",
-                "scientific reports",
-                "cell",
-                "elife",
-                "current biology",
-                "proceedings of the national academy of sciences",
-                "proceedings of the royal society b: biological sciences",
-                "royal society open science",
-                "philosophical transactions of the royal society a: mathematical, physical and engineering sciences",
-                "ibis",
-                "marine biology",
-                "journal of mammalogy",
-                "applied animal behaviour science",
-                "behavioural processes",
-                "animal cognition",
-                "behavioral ecology and sociobiology",
-                "american journal of human biology",
-                "developmental psychobiology",
-                "learning & memory",
-                "learning & behavior",
-                "acs central science",
-                "climate"
-            ],
-
-            "Economics": [
-                "american economic review",
-                "american economic journal: applied economics",
-                "the quarterly journal of economics",
-                "journal of political economy",
-                "econometrica",
-                "the review of economic studies",
-                "review of economic studies",
-                "the economic journal",
-                "review of economics and statistics",
-                "review of economics of the household",
-                "european economic review",
-                "southern economic journal",
-                "economic inquiry",
-                "economics letters",
-                "labour economics",
-                "journal of labor economics",
-                "journal of monetary economics",
-                "journal of economic theory",
-                "journal of economic behavior & organization",
-                "journal of business & economic statistics",
-                "journal of applied econometrics",
-                "games and economic behavior",
-                "experimental economics",
-                "review of finance",
-                "review of financial studies",
-                "the review of financial studies",
-                "the journal of finance",
-                "journal of financial economics",
-                "journal of financial markets",
-                "the journal of human resources",
-                "journal of urban economics",
-                "demography",
-                "demographic research",
-                "european review of agricultural economics",
-                "american journal of agricultural economics",
-                "resource and energy economics",
-                "world development",
-                "economics of education review",
-                "journal of policy analysis and management"
-            ],
-
-            "Management, Marketing & Organizational Behavior": [
-                "academy of management journal",
-                "administrative science quarterly",
-                "strategic management journal",
-                "management science",
-                "management international review",
-                "organization science",
-                "organizational behavior and human decision processes",
-                "organizational behavior and human performance",
-                "journal of management",
-                "journal of management studies",
-                "journal of organizational behavior",
-                "journal of applied psychology",
-                "the leadership quarterly",
-                "human resource management",
-                "the international journal of human resource management",
-                "international studies of management & organization",
-                "journal of business venturing",
-                "journal of business research",
-                "journal of family business strategy",
-                "journal of small business management",
-                "journal of international business studies",
-                "journal of operations management",
-                "journal of management information systems",
-                "mis quarterly",
-                "journal of the association for information systems",
-                "international journal of information management",
-                "international journal of electronic commerce",
-                "journal of marketing",
-                "journal of marketing research",
-                "journal of consumer research",
-                "journal of consumer psychology",
-                "journal of the association for consumer research",
-                "marketing letters",
-                "marketing science",
-                "international journal of research in marketing",
-                "journal of advertising",
-                "journal of advertising research",
-                "journal of interactive marketing",
-                "journal of public policy & marketing",
-                "journal of personal selling & sales management",
-                "journal of retailing",
-                "journal of retailing and consumer services",
-                "journal of product & brand management",
-                "journal of the academy of marketing science",
-                "tourism management",
-                "sport marketing quarterly",
-                "the accounting review",
-                "accounting horizons",
-                "accounting, organizations and society",
-                "financial accountability & management",
-                "ssrn electronic journal"
-            ],
-
-            "Public Administration & Policy": [
-                "public administration review",
-                "public management review",
-                "journal of public administration research and theory",
-                "international journal of public sector management"
-            ],
-
-            "Political Science": [
-                "american political science review",
-                "american journal of political science",
-                "the journal of politics",
-                "british journal of political science",
-                "canadian journal of political science",
-                "political analysis",
-                "political behavior",
-                "political research quarterly",
-                "comparative political studies",
-                "journal of conflict resolution",
-                "journal of experimental political science",
-                "world politics",
-                "civil wars",
-                "representation",
-                "political science in history: research programs and political traditions",
-                "the tie that binds: identity and political attitudes in the post-civil rights generation",
-                "icpsr data holdings"
-            ],
-
-            "Sociology & Social Sciences": [
-                "american sociological review",
-                "american journal of sociology",
-                "european sociological review",
-                "social forces",
-                "social science & medicine",
-                "social science quarterly",
-                "sociometry",
-                "journal of marriage and family",
-                "sex roles",
-                "deviant behavior",
-                "research on social work practice",
-                "single case in the social sciences",
-                "society & natural resources",
-                "journal of environmental psychology",
-                "international journal of environment and waste management",
-                "evaluation and program planning",
-                "qmss2 seminar, bolzano, italy",
-                "nations and households in economic growth"
-            ],
-
-            "Criminology & Law": [
-                "criminology",
-                "journal of quantitative criminology",
-                "crime & delinquency",
-                "crime science",
-                "police quarterly",
-                "international journal of police science & management"
-            ],
-
-            "Communication & Media": [
-                "communication research",
-                "communication research reports",
-                "communication education",
-                "journal of communication",
-                "journal of communication technology",
-                "annals of the international communication association",
-                "journal of computer-mediated communication",
-                "journal of broadcasting & electronic media",
-                "political communication",
-                "public opinion quarterly",
-                "public understanding of science",
-                "harvard kennedy school misinformation review",
-                "cyberpsychology, behavior, and social networking",
-                "computers in human behavior",
-                "survey practice"
-            ],
-
-            "Education": [
-                "journal of educational psychology",
-                "british journal of educational psychology",
-                "educational psychologist",
-                "review of educational research",
-                "american educational research journal",
-                "educational researcher",
-                "educational evaluation and policy analysis",
-                "british educational research journal",
-                "learning and instruction",
-                "instructional science",
-                "contemporary educational psychology",
-                "computers & education",
-                "international journal of educational technology in higher education",
-                "journal of teacher education",
-                "teaching and teacher education",
-                "research in higher education",
-                "journal of school psychology",
-                "school psychology quarterly",
-                "school psychology review",
-                "psychology in the schools",
-                "social psychology of education",
-                "research in the teaching of english",
-                "teaching of psychology",
-                "journal of the learning sciences",
-                "journal of the scholarship of teaching and learning",
-                "journal of research in science teaching",
-                "journal of science education and technology",
-                "chemistry education research and practice",
-                "physical review physics education research",
-                "cbe—life sciences education",
-                "educational studies in mathematics",
-                "zdm",
-                "ipn - leibniz-institut für die pädagogik der naturwissenschaften und mathematik : kiel",
-                "zeitschrift für pädagogische psychologie",
-                "comparative education review",
-                "professional school counseling",
-                "the elementary school journal",
-                "exceptional children",
-                "remedial and special education",
-                "education and treatment of children",
-                "education + training",
-                "education and training in developmental disabilities",
-                "education and training in mental retardation and developmental disabilities",
-                "intellectual and developmental disabilities",
-                "focus on autism and other developmental disabilities",
-                "journal of behavioral education",
-                "journal of early intervention",
-                "journal of learning disabilities",
-                "journal of positive behavior interventions",
-                "journal of psychoeducational assessment",
-                "journal of special education technology",
-                "the journal of special education",
-                "preventing school failure: alternative education for children and youth",
-                "teacher education and special education: the journal of the teacher education division of the council for exceptional children",
-                "vocational guidance quarterly",
-                "scientific studies of reading",
-                "reading and writing",
-                "journal of research in reading",
-                "american annals of the deaf",
-                "journal of deaf studies and deaf education",
-                "creativity research journal",
-                "art therapy",
-                "modelling and assessing vocabulary knowledge",
-                "multilevel analysis of educational data",
-                "journal of educational administration",
-                "learning and individual differences"
-            ],
-
-            "Linguistics & Language Sciences": [
-                "language",
-                "linguistics",
-                "linguistics vanguard",
-                "language in society",
-                "language testing",
-                "language teaching research",
-                "language learning",
-                "applied linguistics",
-                "applied psycholinguistics",
-                "second language research",
-                "studies in second language acquisition",
-                "studies in bilingualism,second language acquisition in a study abroad context",
-                "journal of second language pronunciation",
-                "journal of second language writing",
-                "journal of second language studies",
-                "language learning and development",
-                "tesol quarterly",
-                "the modern language journal",
-                "the canadian modern language review",
-                "foreign language annals",
-                "evaluating second language education",
-                "vocabulary learning and instruction",
-                "reading in a foreign language",
-                "system",
-                "recall",
-                "international journal of bilingualism",
-                "bilingualism: language and cognition",
-                "language, cognition and neuroscience",
-                "annual review of cognitive linguistics",
-                "journal of memory and language",
-                "journal of speech, language, and hearing research",
-                "relay journal",
-                "language in mind",
-                "revista española de lingüística aplicada/spanish journal of applied linguistics",
-                "journal of semantics",
-                "proceedings of sinn und bedeutung",
-                "proceedings of the 54th annual meeting of the association for computational linguistics (volume 2: short papers)",
-                "findings of the association for computational linguistics: emnlp 2020"
-            ],
-
-            "Philosophy & Humanities": [
-                "philosophical studies",
-                "philosophical topics",
-                "philosophical psychology",
-                "philosophical explorations",
-                "philosophy and phenomenological research",
-                "philosophical transactions of the royal society a: mathematical, physical and engineering sciences",
-                "journal of philosophy",
-                "review of philosophy and psychology",
-                "experimental philosophy",
-                "midwest studies in philosophy",
-                "noûs",
-                "analysis",
-                "episteme",
-                "mind & language",
-                "the british journal of aesthetics",
-                "journal of consciousness studies",
-                "arguing about science",
-                "the science of giving",
-                "poetics",
-                "oxford handbooks online",
-                "eastern illinois university"
-            ],
-
-            "Sport & Exercise Science": [
-                "journal of sports sciences",
-                "journal of sport and social issues",
-                "european journal of sport science",
-                "international journal of sports physiology and performance",
-                "journal of strength and conditioning research",
-                "journal of strength & conditioning research",
-                "research quarterly for exercise and sport",
-                "scandinavian journal of medicine & science in sports",
-                "medicine & science in sports & exercise",
-                "journal of science and medicine in sport",
-                "medicina sportiva",
-                "ricyde. revista internacional de ciencias del deporte"
-            ],
-
-            "Computer Science & HCI": [
-                "ieee transactions on software engineering",
-                "ieee transactions on visualization and computer graphics",
-                "acm transactions on information and system security",
-                "software testing, verification and reliability",
-                "journal of software: evolution and process",
-                "arxiv",
-                "2023 ieee visualization and visual analytics (vis)",
-                "29th international conference on software engineering (icse'07)",
-                "proceedings of the 30th international conference on software engineering",
-                "proceedings of the 40th international conference on software engineering",
-                "proceedings of the 17th international conference on mining software repositories",
-                "proceedings of the 19th acm sigsoft symposium and the 13th european conference on foundations of software engineering",
-                "proceedings of the 22nd acm internet measurement conference",
-                "proceedings of the 33rd annual acm conference on human factors in computing systems",
-                "proceedings of the 21st annual acm symposium on user interface software and technology",
-                "proceedings of the sigchi conference on human factors in computing systems",
-                "proceedings of the 2017 acm conference on international computing education research",
-                "proceedings of the 2018 chi conference on human factors in computing systems",
-                "proceedings of the 2019 chi conference on human factors in computing systems",
-                "proceedings of the fourth international workshop on computing education research",
-                "proceedings of the 51st acm technical symposium on computer science education",
-                "proceedings of the 4th annual acm web science conference",
-                "proceedings of the 41st annual meeting of the cognitive science society",
-                "proceedings of the human factors society annual meeting",
-                "lecture notes in business information processing,agile processes in software engineering and extreme programming",
-                "gesellschaft für informatik e.v.",
-                "international journal of social robotics",
-                "generative adversarial networks for image-to-image translation"
-            ]
-        };
-
-        // Reverse lookup: { "journal name lowercased" → "Discipline" }
-        const JOURNAL_TO_DISCIPLINE = (() => {
-            const out = {};
-            for (const [disc, journals] of Object.entries(DISCIPLINES)) {
-                for (const j of journals) out[j.toLowerCase().trim()] = disc;
-            }
-            return out;
-        })();
-
-        function disciplineForJournal(journalName) {
-            if (!journalName) return 'Uncategorized';
-            return JOURNAL_TO_DISCIPLINE[journalName.toLowerCase().trim()] || 'Uncategorized';
-        }
-
-        function themeAxisColors() {
-            const dark = currentTheme() === 'dark';
-            return {
-                grid:   dark ? '#2d2e3d' : '#dfd8e5',
-                tick:   dark ? '#b8b5c4' : '#4e4858',
-                legend: dark ? '#e8e6ee' : '#2a2330'
-            };
-        }
-
-        // State
-        let fullRowData = [];
-        let dataTable = null;
-        let overviewChart = null;
-        let trendOrigYearChart = null;
-        let trendRepYearChart = null;
-        let trendJournalChart = null;
-        let trendRepJournalChart = null;
-        let trendFieldChart = null;
-        let trendsInitialized = false;
-
-        // Utilities
-        function classifyOutcome(outcomeRaw) {
-            if (!outcomeRaw) return 'other';
-            const o = outcomeRaw.toLowerCase().trim();
-            if (o.includes('success') || o === 'replicated' || (o.includes('robust') && !o.includes('challenge') && !o.includes('not'))) return 'successful';
-            if (o.includes('fail') || o === 'not replicated' || o.includes('computational issue') || o.includes('robustness challenge')) return 'failed';
-            if (o.includes('mixed') || o.includes('partial')) return 'mixed';
-            if (o.includes('inconclusive')) return 'inconclusive';
-            return 'other';
-        }
-
-        // True if the row has a recognised outcome (Successful / Failed / Mixed / Inconclusive).
-        // Used to exclude unparseable rows from the headline outcome breakdown.
-        function hasMatchedOutcome(row) {
-            const c = classifyOutcome(row.outcome);
-            return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive';
-        }
-
-        // Classify a row as replication vs reproduction. Prefers the 'type' column,
-        // falls back to outcome keywords that are reproduction-specific (computational, robustness).
-        function classifyKind(row) {
-            const t = (row.type || '').toLowerCase();
-            if (t.includes('reproduc')) return 'reproduction';
-            if (t.includes('replic')) return 'replication';
-            // Fallback: outcome wording that only appears for reproductions
-            const o = (row.outcome || '').toLowerCase();
-            if (o.includes('computational') || o.includes('robust')) return 'reproduction';
-            if (o) return 'replication';
-            return 'unknown';
-        }
-
-        // Within reproductions, distinguish numerical (computational) vs robustness checks.
-        // Uses keywords in the type and outcome fields.
-        function classifyReproductionSubkind(row) {
-            const t = (row.type || '').toLowerCase();
-            const o = (row.outcome || '').toLowerCase();
-            const blob = `${t} ${o}`;
-            if (blob.includes('robust')) return 'robustness';
-            if (blob.includes('computational') || blob.includes('numerical')) return 'numerical';
-            return 'unknown';
-        }
-
-        // Filter rows by kind:
-        //   'all'                       → everything
-        //   'replication'               → replications only
-        //   'reproduction'              → all reproductions
-        //   'reproduction-numerical'    → numerical (computational) reproductions
-        //   'reproduction-robustness'   → robustness reproductions
-        function filterByKind(data, kind) {
-            if (!kind || kind === 'all') return data;
-            if (kind === 'replication') return data.filter(r => classifyKind(r) === 'replication');
-            if (kind === 'reproduction') return data.filter(r => classifyKind(r) === 'reproduction');
-            if (kind === 'reproduction-numerical') {
-                return data.filter(r => classifyKind(r) === 'reproduction' && classifyReproductionSubkind(r) === 'numerical');
-            }
-            if (kind === 'reproduction-robustness') {
-                return data.filter(r => classifyKind(r) === 'reproduction' && classifyReproductionSubkind(r) === 'robustness');
-            }
-            return data;
-        }
-
-        function getOutcomeBadge(outcome) {
-            if (!outcome) return '<span class="badge badge-unknown">Unknown</span>';
-            const cls = classifyOutcome(outcome);
-            const map = { successful: 'badge-successful', failed: 'badge-failed', mixed: 'badge-mixed', inconclusive: 'badge-inconclusive', other: 'badge-unknown' };
-            return `<span class="badge ${map[cls]}">${escapeHtml(outcome)}</span>`;
-        }
-
-        // Compact badge for narrow table cells. Long reproduction outcomes
-        // (e.g., "computationally successful, robustness challenges") get mapped to
-        // short canonical labels; the original text stays in the title tooltip and
-        // is still visible in the expanded detail row.
-        function getOutcomeBadgeShort(outcome) {
-            if (!outcome) return '<span class="badge badge-unknown">Unknown</span>';
-            const o = outcome.toLowerCase().trim();
-            const cls = classifyOutcome(outcome);
-            const colorMap = { successful: 'badge-successful', failed: 'badge-failed', mixed: 'badge-mixed', inconclusive: 'badge-inconclusive', other: 'badge-unknown' };
-            // Choose a short display label
-            let short;
-            const hasComp = o.includes('computational');
-            const hasRob = o.includes('robust');
-            const compState = o.includes('computationally successful') ? 'CS' :
-                              o.includes('computational issue') ? 'CI' : null;
-            const robState = o.includes('robustness challenge') ? 'RC' :
-                             o.includes('robustness not checked') ? 'RNC' :
-                             (o.includes('robust') && !o.includes('not') && !o.includes('challenge')) ? 'R' : null;
-            if (compState && robState) {
-                short = `${compState} · ${robState}`;
-            } else if (compState) {
-                short = compState === 'CS' ? 'Comp. Successful' : 'Comp. Issues';
-            } else if (robState) {
-                short = robState === 'R' ? 'Robust' :
-                        robState === 'RC' ? 'Robustness Issues' : 'Robustness N/C';
-            } else if (cls === 'successful') short = 'Successful';
-            else if (cls === 'failed') short = 'Failed';
-            else if (cls === 'mixed') short = 'Mixed';
-            else if (cls === 'inconclusive') short = 'Inconclusive';
-            else short = outcome.length > 20 ? outcome.slice(0, 18) + '…' : outcome;
-
-            return `<span class="badge ${colorMap[cls]}" title="${escapeHtml(outcome)}">${escapeHtml(short)}</span>`;
-        }
-
-        function escapeHtml(text) {
-            if (text === null || text === undefined) return '';
-            const div = document.createElement('div');
-            div.textContent = String(text);
-            return div.innerHTML;
-        }
-
-        function truncateText(text, maxLength = 60) {
-            if (!text) return '-';
-            return text.length > maxLength ? text.substring(0, maxLength) + '…' : text;
-        }
-
-        function formatDOI(doi, full = false) {
-            if (!doi) return '-';
-            const doiUrl = doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
-            const shortDoi = doi.replace('https://doi.org/', '').replace('http://doi.org/', '');
-            if (full) return `<a href="${doiUrl}" target="_blank" class="doi-link">${escapeHtml(shortDoi)}</a>`;
-            return `<a href="${doiUrl}" target="_blank" class="doi-link" title="${escapeHtml(shortDoi)}">${escapeHtml(shortDoi.substring(0, 25))}${shortDoi.length > 25 ? '…' : ''}</a>`;
-        }
-
-        function formatUrlOrDoi(url, doi) {
-            if (url) {
-                const displayUrl = url.length > 40 ? url.substring(0, 40) + '…' : url;
-                return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link">${escapeHtml(displayUrl)}</a>`;
-            }
-            if (doi) return formatDOI(doi, true);
-            return '-';
-        }
-
-        function formatUrlOrDoiShort(url, doi) {
-            if (url) {
-                const displayUrl = url.length > 25 ? url.substring(0, 25) + '…' : url;
-                return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(displayUrl)}</a>`;
-            }
-            if (doi) return formatDOI(doi, false);
-            return '-';
-        }
-
-        function formatAuthors(authorData) {
-            if (!authorData) return '-';
-            try {
-                const authors = JSON.parse(authorData);
-                if (Array.isArray(authors)) {
-                    const names = authors.map(a => {
-                        if (typeof a === 'string') return a;
-                        if (a.family && a.given) return `${a.given} ${a.family}`;
-                        if (a.name) return a.name;
-                        if (a.family) return a.family;
-                        return JSON.stringify(a);
-                    });
-                    return escapeHtml(names.join(', '));
-                }
-                return escapeHtml(authorData);
-            } catch (e) {
-                return escapeHtml(authorData);
-            }
-        }
-
-        function shortAuthors(authorData) {
-            if (!authorData) return '';
-            try {
-                const authors = JSON.parse(authorData);
-                if (Array.isArray(authors) && authors.length > 0) {
-                    const first = authors[0];
-                    const firstName = typeof first === 'string' ? first : (first.family || first.name || '');
-                    if (authors.length === 1) return firstName;
-                    if (authors.length === 2) {
-                        const second = authors[1];
-                        const secondName = typeof second === 'string' ? second : (second.family || second.name || '');
-                        return `${firstName} & ${secondName}`;
-                    }
-                    return `${firstName} et al.`;
-                }
-            } catch (e) {
-                const short = authorData.split(/[,;]/)[0].trim();
-                return short.length > 40 ? short.substring(0, 40) + '…' : short;
-            }
-            return '';
-        }
-
-        // Overview
-        function updateOverviewStats(data) {
-            const total = data.length;
-            // Outcome breakdown currently covers replications only. Restrict to
-            // rows with a recognised outcome so the headline counts match the chart.
-            const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
-            let successful = 0, failed = 0, mixed = 0;
-            eligible.forEach(row => {
-                const c = classifyOutcome(row.outcome);
-                if (c === 'successful') successful++;
-                else if (c === 'failed') failed++;
-                else if (c === 'mixed') mixed++;
-            });
-            document.getElementById('ov-total').textContent = total.toLocaleString();
-            document.getElementById('ov-successful').textContent = successful.toLocaleString();
-            document.getElementById('ov-failed').textContent = failed.toLocaleString();
-            document.getElementById('ov-mixed').textContent = mixed.toLocaleString();
-        }
-
-        // Stacked horizontal bar (single row) showing outcome breakdown
-        // Currently restricted to replications with matched outcomes — reproductions are WIP.
-        function renderOverviewChart(data) {
-            const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
-            const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
-            eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
-            const total = Object.values(counts).reduce((a, b) => a + b, 0);
-
-            const datasets = [
-                { label: 'Successful',   data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
-                { label: 'Mixed',        data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
-                { label: 'Failed',       data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
-                { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
-            ];
-
-            const ctx = document.getElementById('overview-outcome-chart').getContext('2d');
-            if (overviewChart) overviewChart.destroy();
-            const ac = themeAxisColors();
-
-            overviewChart = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: ['Replications'], datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: 'y',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: ac.legend, boxWidth: 14, padding: 14, font: { size: 12 } }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: ctx => {
-                                    const v = ctx.parsed.x;
-                                    const pct = total ? ((v / total) * 100).toFixed(1) : 0;
-                                    return `${ctx.dataset.label}: ${v.toLocaleString()} (${pct}%)`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            stacked: true,
-                            min: 0,
-                            max: total,
-                            grid: { color: ac.grid },
-                            ticks: { color: ac.tick }
-                        },
-                        y: { stacked: true, display: false }
-                    }
-                }
-            });
-        }
-
-        // Build a clickable link (DOI preferred, URL fallback) wrapping the inner HTML.
-        // If neither is available, returns a non-link span styled the same way.
-        function studyLink(doi, url, innerHtml, extraClass = '') {
-            let href = '';
-            if (doi) {
-                href = doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
-            } else if (url) {
-                href = url;
-            }
-            if (href) {
-                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener" class="ex-link ${extraClass}" title="Open ${escapeHtml(href)}">${innerHtml}</a>`;
-            }
-            return `<span class="ex-link ex-link-disabled ${extraClass}">${innerHtml}</span>`;
-        }
-
-        function renderRandomExamples(data) {
-            const container = document.getElementById('random-examples');
-            const usable = data.filter(r => (r.title_o || r.author_o) && r.outcome);
-            if (usable.length === 0) { container.innerHTML = '<p class="text-muted">No examples available.</p>'; return; }
-            const shuffled = [...usable].sort(() => Math.random() - 0.5).slice(0, 4);
-
-            container.innerHTML = shuffled.map(r => {
-                const cls = classifyOutcome(r.outcome);
-                const origTitle = r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`;
-                const origMeta = [shortAuthors(r.author_o), r.year_o].filter(Boolean).join(' · ');
-                const repTitle = r.title_r || `${shortAuthors(r.author_r)} (${r.year_r || 'n.d.'})`;
-                const repMeta = [shortAuthors(r.author_r), r.year_r].filter(Boolean).join(' · ');
-
-                const origInner = `
-                    <span class="ex-line-label">Original</span>
-                    <span class="ex-line-title">${escapeHtml(truncateText(origTitle, 110))}</span>
-                    ${origMeta ? `<span class="ex-line-meta">${escapeHtml(origMeta)}</span>` : ''}
-                `;
-                const repInner = `
-                    <span class="ex-line-label">Replication</span>
-                    <span class="ex-line-title">${escapeHtml(truncateText(repTitle, 110))}</span>
-                    ${repMeta ? `<span class="ex-line-meta">${escapeHtml(repMeta)}</span>` : ''}
-                `;
-
-                const hasRep = !!(r.title_r || r.author_r || r.doi_r || r.url_r);
-
-                return `
-                    <div class="example-card outcome-${cls}">
-                        ${studyLink(r.doi_o, null, origInner)}
-                        ${hasRep ? studyLink(r.doi_r, r.url_r, repInner) : ''}
-                        <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge bg-light text-dark">' + escapeHtml(r.type) + '</span>' : ''}</div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        document.getElementById('reshuffle-btn').addEventListener('click', () => {
-            if (fullRowData.length) renderRandomExamples(fullRowData);
-        });
-
-        // Citation — family-names / given-names (CFF spec)
-        async function loadCitation() {
-            const box = document.getElementById('citation-text');
-            try {
-                const res = await fetch(CITATION_URL);
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const text = await res.text();
-                const cff = jsyaml.load(text);
-
-                if (!cff || !Array.isArray(cff.authors)) {
-                    throw new Error('Could not parse authors from CITATION.cff');
-                }
-
-                const authors = cff.authors.map(a => {
-                    const family = a['family-names'] || a.family || '';
-                    const given = a['given-names'] || a.given || '';
-                    const nameOnly = a.name || '';
-
-                    if (family) {
-                        if (given) {
-                            const initials = given
-                                .split(/[\s\-]+/)
-                                .filter(Boolean)
-                                .map(part => {
-                                    const m = part.match(/\p{L}/u);
-                                    return m ? m[0].toUpperCase() + '.' : '';
-                                })
-                                .filter(Boolean)
-                                .join(' ');
-                            return initials ? `${family}, ${initials}` : family;
-                        }
-                        return family;
-                    }
-                    return nameOnly;
-                }).filter(Boolean);
-
-                let authorsStr;
-                if (authors.length === 0) authorsStr = '';
-                else if (authors.length === 1) authorsStr = authors[0];
-                else if (authors.length === 2) authorsStr = `${authors[0]}, & ${authors[1]}`;
-                else if (authors.length <= 20) authorsStr = authors.slice(0, -1).join(', ') + ', & ' + authors[authors.length - 1];
-                else authorsStr = authors.slice(0, 19).join(', ') + ', … ' + authors[authors.length - 1];
-
-                const year = cff['date-released'] ? String(cff['date-released']).substring(0, 4) : '';
-                const title = cff.title || '';
-                const version = cff.version ? ` (Version ${cff.version})` : '';
-                const doi = cff.doi || '';
-                const doiLink = doi ? `<a href="https://doi.org/${doi}" target="_blank" class="doi-link">https://doi.org/${doi}</a>` : '';
-
-                const htmlParts = [];
-                if (authorsStr) htmlParts.push(escapeHtml(authorsStr));
-                htmlParts.push(`(${escapeHtml(year)}).`);
-                htmlParts.push(`<em>${escapeHtml(title)}</em>${escapeHtml(version)} [Dataset].`);
-                if (doiLink) htmlParts.push(doiLink);
-                box.innerHTML = htmlParts.join(' ');
-
-                const plainParts = [];
-                if (authorsStr) plainParts.push(authorsStr);
-                plainParts.push(`(${year}).`);
-                plainParts.push(`${title}${version} [Dataset].`);
-                if (doi) plainParts.push(`https://doi.org/${doi}`);
-                box.dataset.plain = plainParts.join(' ');
-            } catch (err) {
-                console.error('Citation load failed:', err);
-                box.innerHTML = `<span style="color: var(--flora-muted);">Could not load live citation. Please see the <a href="${CITATION_URL}" target="_blank" class="doi-link">CITATION.cff file</a>.</span>`;
-            }
-        }
-
-        document.getElementById('citation-copy-btn').addEventListener('click', () => {
-            const box = document.getElementById('citation-text');
-            const text = box.dataset.plain || box.textContent;
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = document.getElementById('citation-copy-btn');
-                const orig = btn.textContent;
-                btn.textContent = 'Copied!';
-                setTimeout(() => { btn.textContent = orig; }, 1500);
-            });
-        });
-
-        document.getElementById('website-citation-copy-btn').addEventListener('click', () => {
-            const text = 'Wallrich, L., & Röseler, L. (2026). FLoRA Explorer [Website]. https://forrt.org/flora-explorer/';
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = document.getElementById('website-citation-copy-btn');
-                const orig = btn.textContent;
-                btn.textContent = 'Copied!';
-                setTimeout(() => { btn.textContent = orig; }, 1500);
-            });
-        });
-
-        // =========================================================
-        // FAQ — fetch markdown, parse into Q/A pairs, render as accordion
-        // =========================================================
-        const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
-
-        // Minimal inline markdown -> HTML for FAQ answers.
-        // Handles paragraphs, links, bold, italics, inline code, and lists.
-        function renderInlineMd(text) {
-            // Escape first
-            let s = escapeHtml(text);
-            // Code spans
-            s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
-            // Links: [text](url)
-            s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => {
-                return `<a href="${u}" target="_blank" rel="noopener">${t}</a>`;
-            });
-            // Bold (**text**)
-            s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            // Italic (*text*) — careful not to clobber bold (already replaced)
-            s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-            return s;
-        }
-
-        function renderFaqAnswer(lines) {
-            // Convert grouped lines into paragraphs / lists
-            const out = [];
-            let i = 0;
-            while (i < lines.length) {
-                const ln = lines[i];
-                // Bullet list
-                if (/^\s*[-*]\s+/.test(ln)) {
-                    const items = [];
-                    while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
-                        items.push(lines[i].replace(/^\s*[-*]\s+/, ''));
-                        i++;
-                    }
-                    out.push('<ul>' + items.map(it => `<li>${renderInlineMd(it)}</li>`).join('') + '</ul>');
-                    continue;
-                }
-                // Numbered list
-                if (/^\s*\d+\.\s+/.test(ln)) {
-                    const items = [];
-                    while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-                        items.push(lines[i].replace(/^\s*\d+\.\s+/, ''));
-                        i++;
-                    }
-                    out.push('<ol>' + items.map(it => `<li>${renderInlineMd(it)}</li>`).join('') + '</ol>');
-                    continue;
-                }
-                // Paragraph: gather consecutive non-blank, non-list lines
-                if (ln.trim() === '') { i++; continue; }
-                const para = [];
-                while (i < lines.length && lines[i].trim() !== ''
-                       && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i])) {
-                    para.push(lines[i]);
-                    i++;
-                }
-                out.push('<p>' + renderInlineMd(para.join(' ')) + '</p>');
-            }
-            return out.join('');
-        }
-
-        // Parse markdown into a flat sequence of items:
-        //   { type: 'section', text }   — comes from ## headings (display prominently, not collapsible)
-        //   { type: 'qa', question, body } — comes from ### headings (collapsible Q&A)
-        // Anything between an H2 and the next H3 is treated as section intro text and bundled
-        // onto the section item so it can be rendered alongside the heading.
-        function parseFaqMarkdown(md) {
-            const lines = md.replace(/\r\n/g, '\n').split('\n');
-            const items = [];
-            let currentQA = null;
-            let currentSection = null;
-
-            const flushQA = () => {
-                if (currentQA) { items.push(currentQA); currentQA = null; }
-            };
-            const flushSection = () => {
-                if (currentSection) { items.push(currentSection); currentSection = null; }
-            };
-
-            for (const ln of lines) {
-                // H1 — treat as section too, in case a doc only uses one level
-                const h1 = /^#\s+(.+)$/.exec(ln);
-                const h2 = /^##\s+(.+)$/.exec(ln);
-                const h3 = /^#{3,4}\s+(.+)$/.exec(ln);
-
-                if (h2 || h1) {
-                    flushQA();
-                    flushSection();
-                    currentSection = { type: 'section', text: (h2 || h1)[1].trim(), body: [] };
-                    continue;
-                }
-                if (h3) {
-                    flushQA();
-                    // Section, if any, gets emitted before its first Q (it stays at the top of its group)
-                    flushSection();
-                    currentQA = { type: 'qa', question: h3[1].trim(), body: [] };
-                    continue;
-                }
-                if (currentQA) {
-                    currentQA.body.push(ln);
-                } else if (currentSection) {
-                    currentSection.body.push(ln);
-                }
-                // Lines before any heading are dropped — they would be page-level text, not FAQ content
-            }
-            flushQA();
-            flushSection();
-
-            return items;
-        }
-
-        async function loadFaqs() {
-            const loadingEl = document.getElementById('faq-loading');
-            const contentEl = document.getElementById('faq-content');
-            const errorEl = document.getElementById('faq-error');
-            try {
-                const res = await fetch(FAQ_URL);
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const md = await res.text();
-                const items = parseFaqMarkdown(md);
-                if (items.length === 0) throw new Error('No FAQ items found');
-
-                contentEl.innerHTML = items.map(it => {
-                    if (it.type === 'section') {
-                        const intro = (it.body && it.body.some(l => l.trim()))
-                            ? `<div class="faq-section-intro">${renderFaqAnswer(it.body)}</div>`
-                            : '';
-                        return `
-                            <div class="faq-section">
-                                <h4 class="faq-section-title">${escapeHtml(it.text)}</h4>
-                                ${intro}
-                            </div>
-                        `;
-                    }
-                    // Q&A
-                    return `
-                        <div class="faq-item">
-                            <button type="button" class="faq-question" aria-expanded="false">
-                                <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-                                <span>${escapeHtml(it.question)}</span>
-                            </button>
-                            <div class="faq-answer">${renderFaqAnswer(it.body)}</div>
-                        </div>
-                    `;
-                }).join('');
-
-                // Click to toggle Q&A items
-                contentEl.querySelectorAll('.faq-question').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const item = btn.closest('.faq-item');
-                        const open = item.classList.toggle('open');
-                        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-                    });
-                });
-
-                loadingEl.style.display = 'none';
-                contentEl.style.display = 'block';
-            } catch (err) {
-                console.error('FAQ load failed:', err);
-                loadingEl.style.display = 'none';
-                errorEl.style.display = 'block';
-            }
-        }
-
-        // Browse
-        function formatDetailRow(rowData) {
-            return `
-                <div class="detail-row">
-                    <div class="detail-grid">
-                        <div class="detail-card">
-                            <h6>Original Study</h6>
-                            <div class="detail-section">
-                                <div><span class="detail-label">Title:</span> <span class="detail-value">${escapeHtml(rowData.title_o) || '-'}</span></div>
-                                <div><span class="detail-label">Authors:</span> <span class="detail-value">${formatAuthors(rowData.author_o)}</span></div>
-                                <div><span class="detail-label">Year:</span> <span class="detail-value">${escapeHtml(rowData.year_o) || '-'}</span></div>
-                                <div><span class="detail-label">DOI:</span> <span class="detail-value">${formatDOI(rowData.doi_o, true)}</span></div>
-                                ${rowData.journal_o ? `<div><span class="detail-label">Journal:</span> <span class="detail-value">${escapeHtml(rowData.journal_o)}</span></div>` : ''}
-                            </div>
-                        </div>
-                        <div class="detail-card">
-                            <h6>Replication Study</h6>
-                            <div class="detail-section">
-                                <div><span class="detail-label">Title:</span> <span class="detail-value">${escapeHtml(rowData.title_r) || '-'}</span></div>
-                                <div><span class="detail-label">Authors:</span> <span class="detail-value">${formatAuthors(rowData.author_r)}</span></div>
-                                <div><span class="detail-label">Year:</span> <span class="detail-value">${escapeHtml(rowData.year_r) || '-'}</span></div>
-                                <div><span class="detail-label">Report:</span> <span class="detail-value">${formatUrlOrDoi(rowData.url_r, rowData.doi_r)}</span></div>
-                                ${rowData.journal_r ? `<div><span class="detail-label">Journal:</span> <span class="detail-value">${escapeHtml(rowData.journal_r)}</span></div>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="detail-card mt-3">
-                        <h6>Replication Details</h6>
-                        <div class="detail-section">
-                            <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
-                            ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome Quote:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div>` : ''}
-                            <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
-                            ${rowData.effect_o ? `<div><span class="detail-label">Original Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_o)}</span></div>` : ''}
-                            ${rowData.effect_r ? `<div><span class="detail-label">Replication Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_r)}</span></div>` : ''}
-                            ${rowData.n_o ? `<div><span class="detail-label">Original N:</span> <span class="detail-value">${escapeHtml(rowData.n_o)}</span></div>` : ''}
-                            ${rowData.n_r ? `<div><span class="detail-label">Replication N:</span> <span class="detail-value">${escapeHtml(rowData.n_r)}</span></div>` : ''}
-                            ${rowData.description ? `<div><span class="detail-label">Description:</span> <span class="detail-value">${escapeHtml(rowData.description)}</span></div>` : ''}
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function initDataTable(data) {
-            const tableData = data.map((row) => [
-                null,
-                { display: truncateText(row.title_o || row.author_o, 50), search: `${row.title_o || ''} ${row.author_o || ''} ${row.journal_o || ''}` },
-                row.year_o || '-',
-                { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${row.author_r || ''} ${row.journal_r || ''}` },
-                row.year_r || '-',
-                { display: getOutcomeBadgeShort(row.outcome), search: `${row.outcome || ''} ${row.outcome_quote || ''}` },
-                truncateText(row.type, 15) || '-',
-                { display: formatDOI(row.doi_o), search: row.doi_o || '' },
-                { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: `${row.url_r || ''} ${row.doi_r || ''}` }
-            ]);
-
-            dataTable = $('#flora-table').DataTable({
-                data: tableData,
-                responsive: false,
-                pageLength: 25,
-                lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
-                order: [[4, 'desc']],
-                language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)..." },
-                columnDefs: [
-                    { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '', width: '30px' },
-                    { targets: [1, 3], width: '20%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
-                    { targets: [2, 4], width: '5%' },
-                    { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
-                    { targets: 6, width: '6%' },
-                    { targets: [7, 8], width: '12%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
-                ],
-                createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); }
-            });
-
-            $('#flora-table tbody').on('click', 'td.details-control', function() {
-                const tr = $(this).closest('tr');
-                const row = dataTable.row(tr);
-                const dataIndex = tr.attr('data-index');
-                if (row.child.isShown()) { row.child.hide(); tr.removeClass('shown'); }
-                else { row.child(formatDetailRow(fullRowData[dataIndex])).show(); tr.addClass('shown'); }
-            });
-        }
-
-        // =========================================================
-        // Browse — mobile card list
-        // Re-implements search + pagination over fullRowData so the
-        // small-screen experience doesn't depend on the wide table.
-        // =========================================================
-        const BM_PAGE_SIZE = 20;
-        let bmFiltered = [];
-        let bmPage = 0;
-        let bmInitialized = false;
-
-        // Build a single haystack string per row, lowercased, used for substring search.
-        function bmSearchableText(row) {
-            return [
-                row.title_o, row.author_o, row.journal_o, row.year_o, row.doi_o,
-                row.title_r, row.author_r, row.journal_r, row.year_r, row.doi_r, row.url_r,
-                row.outcome, row.outcome_quote, row.type, row.description
-            ].filter(Boolean).join(' | ').toLowerCase();
-        }
-
-        // Returns "" if neither doi nor url is available
-        function bmHref(doi, url) {
-            if (doi) return doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
-            if (url) return url;
-            return '';
-        }
-
-        // Combine author + year into a short header line: "Smith et al. (2018)"
-        function bmAuthorYear(authorData, year) {
-            const a = shortAuthors(authorData);
-            const y = year ? `(${year})` : '';
-            return [a, y].filter(Boolean).join(' ');
-        }
-
-        function bmRenderTitleLine(title, fallback, doi, url) {
-            const text = escapeHtml(title || fallback || '—');
-            const href = bmHref(doi, url);
-            if (href) {
-                return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${text}</a>`;
-            }
-            return text;
-        }
-
-        function bmCardHtml(row) {
-            const oTitle = bmRenderTitleLine(row.title_o, shortAuthors(row.author_o), row.doi_o, null);
-            const oMeta = [bmAuthorYear(row.author_o, row.year_o), row.journal_o]
-                .filter(Boolean).map(escapeHtml).join(' · ');
-
-            const rTitle = bmRenderTitleLine(row.title_r, shortAuthors(row.author_r), row.doi_r, row.url_r);
-            const rMeta = [bmAuthorYear(row.author_r, row.year_r), row.journal_r]
-                .filter(Boolean).map(escapeHtml).join(' · ');
-
-            const tagsParts = [getOutcomeBadge(row.outcome)];
-            if (row.type) tagsParts.push(`<span class="bm-tag-type">${escapeHtml(row.type)}</span>`);
-
-            return `
-                <div class="bm-card">
-                    <div class="bm-row">
-                        <div class="bm-row-label">Original</div>
-                        <div class="bm-row-title">${oTitle}</div>
-                        ${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}
-                    </div>
-                    <div class="bm-divider"></div>
-                    <div class="bm-row">
-                        <div class="bm-row-label">Replication</div>
-                        <div class="bm-row-title">${rTitle}</div>
-                        ${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}
-                    </div>
-                    <div class="bm-tags">${tagsParts.join('')}</div>
-                </div>
-            `;
-        }
-
-        function bmApplySearch(query) {
-            const q = (query || '').trim().toLowerCase();
-            const source = bmDataSource();
-            if (!q) {
-                bmFiltered = source.slice();
-            } else {
-                bmFiltered = source.filter(r => bmSearchableText(r).includes(q));
-            }
-            // Newest replication year first — same default as the DataTable
-            bmFiltered.sort((a, b) => {
-                const ay = parseInt(a.year_r, 10) || 0;
-                const by = parseInt(b.year_r, 10) || 0;
-                return by - ay;
-            });
-            bmPage = 0;
-            bmRender();
-        }
-
-        function bmRender() {
-            const list = document.getElementById('browse-mobile-list');
-            const meta = document.getElementById('browse-mobile-meta');
-            const info = document.getElementById('bm-page-info');
-            const prev = document.getElementById('bm-prev');
-            const next = document.getElementById('bm-next');
-            const pager = document.getElementById('browse-mobile-pager');
-            if (!list) return;
-
-            const total = bmFiltered.length;
-            if (total === 0) {
-                list.innerHTML = '<div class="bm-empty">No studies match your search.</div>';
-                meta.textContent = '0 studies';
-                pager.style.display = 'none';
-                return;
-            }
-
-            const totalPages = Math.max(1, Math.ceil(total / BM_PAGE_SIZE));
-            if (bmPage >= totalPages) bmPage = totalPages - 1;
-            const start = bmPage * BM_PAGE_SIZE;
-            const end = Math.min(total, start + BM_PAGE_SIZE);
-
-            const pageRows = bmFiltered.slice(start, end);
-            list.innerHTML = pageRows.map(bmCardHtml).join('');
-
-            meta.innerHTML = `Showing <strong>${start + 1}–${end}</strong> of <strong>${total.toLocaleString()}</strong> studies`;
-            info.textContent = `Page ${bmPage + 1} of ${totalPages}`;
-            prev.disabled = bmPage === 0;
-            next.disabled = bmPage >= totalPages - 1;
-            pager.style.display = totalPages > 1 ? 'flex' : 'none';
-        }
-
-        function setupBrowseMobile(data) {
-            if (bmInitialized) return;
-            bmInitialized = true;
-
-            const input = document.getElementById('browse-mobile-input');
-            const prev = document.getElementById('bm-prev');
-            const next = document.getElementById('bm-next');
-
-            // Debounce input to keep typing snappy on phones
-            let debounceTimer;
-            input.addEventListener('input', () => {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => bmApplySearch(input.value), 150);
-            });
-
-            prev.addEventListener('click', () => {
-                if (bmPage > 0) { bmPage--; bmRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-            });
-            next.addEventListener('click', () => {
-                bmPage++;
-                bmRender();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            });
-
-            // Initial render with empty query
-            bmApplySearch('');
-        }
-
-        // =========================================================
-        // Browse — kind filter (All / Replications / Reproductions)
-        // Filters both the desktop DataTable and the mobile list,
-        // and drives the small outcome-summary chart at the top.
-        // =========================================================
-        let browseKind = 'all';
-        let browseOutcomeChart = null;
-
-        function browseFilteredData() {
-            return filterByKind(fullRowData, browseKind);
-        }
-
-        function bmDataSource() {
-            // Mobile list pulls from the kind-filtered subset, then text-search filters further.
-            return browseFilteredData();
-        }
-
-        function renderBrowseOutcomeChart() {
-            const data = browseFilteredData();
-            // Outcome summary covers replications with matched outcomes
-            const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
-            const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
-            eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
-            const total = Object.values(counts).reduce((a, b) => a + b, 0);
-
-            const datasets = [
-                { label: 'Successful',   data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
-                { label: 'Mixed',        data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
-                { label: 'Failed',       data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
-                { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
-            ];
-
-            const canvas = document.getElementById('browse-outcome-chart');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            if (browseOutcomeChart) browseOutcomeChart.destroy();
-            const ac = themeAxisColors();
-
-            browseOutcomeChart = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: ['Replications'], datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: 'y',
-                    plugins: {
-                        legend: { position: 'bottom', labels: { color: ac.legend, boxWidth: 14, padding: 14, font: { size: 12 } } },
-                        tooltip: {
-                            callbacks: {
-                                label: ctx => {
-                                    const v = ctx.parsed.x;
-                                    const pct = total ? ((v / total) * 100).toFixed(1) : 0;
-                                    return `${ctx.dataset.label}: ${v.toLocaleString()} (${pct}%)`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { stacked: true, min: 0, max: Math.max(total, 1), grid: { color: ac.grid }, ticks: { color: ac.tick } },
-                        y: { stacked: true, display: false }
-                    }
-                }
-            });
-        }
-
-        function updateBrowseKindCount() {
-            const el = document.getElementById('browse-kind-count');
-            if (!el) return;
-            const n = browseFilteredData().length;
-            const total = fullRowData.length;
-            if (browseKind === 'all') el.textContent = `${n.toLocaleString()} studies`;
-            else el.textContent = `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
-        }
-
-        function applyBrowseKind() {
-            updateBrowseKindCount();
-            renderBrowseOutcomeChart();
-            // Refresh DataTable's custom-search filter
-            if (dataTable) dataTable.draw();
-            // Refresh mobile list (re-runs the current query against the new kind subset)
-            if (bmInitialized) {
-                const input = document.getElementById('browse-mobile-input');
-                bmApplySearch(input ? input.value : '');
-            }
-        }
-
-        function setupBrowseKindFilter() {
-            // Wire buttons
-            document.querySelectorAll('.browse-kind-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.browse-kind-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    browseKind = btn.dataset.kind || 'all';
-                    applyBrowseKind();
-                });
-            });
-
-            // Register DataTables custom search filter — only applies to flora-table
-            $.fn.dataTable.ext.search.push(function(settings, searchData, dataIndex) {
-                if (settings.nTable.id !== 'flora-table') return true;
-                if (browseKind === 'all') return true;
-                const row = fullRowData[dataIndex];
-                if (!row) return true;
-                return classifyKind(row) === browseKind;
-            });
-
-            // Initial population of count + chart
-            applyBrowseKind();
-        }
-
-        // Trends
-
-        // Determine which outcome label to use for a given row based on the current
-        // trends kind. Returns null if the row should not contribute to the breakdown.
-        function trendsOutcomeLabel(row) {
-            if (trendsKind === 'all') return '__all__'; // single bucket: count only
-            // For replications, use the canonical four-bucket scheme
-            if (trendsKind === 'replication') {
-                if (!hasMatchedOutcome(row)) return null;
-                const c = classifyOutcome(row.outcome);
-                if (c === 'successful') return 'Successful';
-                if (c === 'mixed') return 'Mixed';
-                if (c === 'failed') return 'Failed';
-                if (c === 'inconclusive') return 'Inconclusive';
-                return null;
-            }
-            // For reproductions (either subkind), use the raw outcome string from the data
-            const raw = (row.outcome || '').trim();
-            return raw || null;
-        }
-
-        // Generic aggregator that groups rows by a key function and counts each
-        // unique outcome label. Returns array of { key, total, byLabel: {...} }.
-        function aggregateGeneric(data, keyFn) {
-            const groups = new Map();
-            data.forEach(row => {
-                const k = keyFn(row);
-                if (k === null || k === undefined || k === '') return;
-                const label = trendsOutcomeLabel(row);
-                if (label === null) return; // skip rows that don't match the kind
-                if (!groups.has(k)) groups.set(k, { key: k, total: 0, byLabel: {} });
-                const g = groups.get(k);
-                g.total++;
-                g.byLabel[label] = (g.byLabel[label] || 0) + 1;
-            });
-            return Array.from(groups.values());
-        }
-
-        function aggregateByYear(data, yearField) {
-            const yearKey = row => {
-                const yRaw = row[yearField];
-                if (!yRaw) return null;
-                const match = String(yRaw).match(/\d{4}/);
-                if (!match) return null;
-                const y = parseInt(match[0], 10);
-                if (!y || y < 1800 || y > 2100) return null;
-                return String(y);
-            };
-            const out = aggregateGeneric(data, yearKey);
-            out.sort((a, b) => parseInt(a.key, 10) - parseInt(b.key, 10));
-            return out;
-        }
-
-        function aggregateByJournal(data, field, topN) {
-            const out = aggregateGeneric(data, row => (row[field] || '').trim() || null);
-            out.sort((a, b) => b.total - a.total);
-            return out.slice(0, topN);
-        }
-
-        // Aggregate by discipline/field. Uncategorized is pinned to the bottom.
-        function aggregateByField(data) {
-            const out = aggregateGeneric(data, row => disciplineForJournal(row.journal_o));
-            const mapped = out.filter(e => e.key !== 'Uncategorized').sort((a, b) => b.total - a.total);
-            const uncat = out.filter(e => e.key === 'Uncategorized');
-            return [...mapped, ...uncat];
-        }
-
-        // Build datasets for the current kind. In "all" mode, a single grey series
-        // gives just the count. Otherwise, one series per outcome label discovered.
-        function trendsDatasets(agg) {
-            if (trendsKind === 'all') {
-                return [{
-                    label: 'Studies',
-                    data: agg.map(r => r.byLabel['__all__'] || 0),
-                    backgroundColor: 'var(--flora-primary)' === '' ? '#6b4582' : '#6b4582'
-                }];
-            }
-            if (trendsKind === 'replication') {
-                // Fixed order + colours
-                const order = ['Successful', 'Mixed', 'Failed', 'Inconclusive'];
-                const colors = {
-                    'Successful':   OUTCOME_COLORS.successful,
-                    'Mixed':        OUTCOME_COLORS.mixed,
-                    'Failed':       OUTCOME_COLORS.failed,
-                    'Inconclusive': OUTCOME_COLORS.inconclusive
-                };
-                return order.map(label => ({
-                    label,
-                    data: agg.map(r => r.byLabel[label] || 0),
-                    backgroundColor: colors[label]
-                }));
-            }
-            // Reproduction modes: collect labels actually present, sort alphabetically,
-            // assign deterministic colours from a palette.
-            const labelSet = new Set();
-            agg.forEach(r => Object.keys(r.byLabel).forEach(l => labelSet.add(l)));
-            const labels = Array.from(labelSet).sort();
-            const palette = ['#48bb78', '#38b2ac', '#4299e1', '#e8a23a', '#e05d5d', '#9f7aea', '#6f7686', '#a0a7b4'];
-            return labels.map((label, i) => ({
-                label,
-                data: agg.map(r => r.byLabel[label] || 0),
-                backgroundColor: palette[i % palette.length]
-            }));
-        }
-
-        // Wrap a long string into an array of lines, breaking on whitespace, each line <= maxChars.
-        // Chart.js accepts an array-of-strings tick label and renders each as a separate line.
-        function wrapLabel(str, maxChars = 36) {
-            if (!str) return '';
-            if (str.length <= maxChars) return str;
-            const words = String(str).split(/\s+/);
-            const lines = [];
-            let line = '';
-            for (const w of words) {
-                if (!line) { line = w; continue; }
-                if ((line + ' ' + w).length <= maxChars) line += ' ' + w;
-                else { lines.push(line); line = w; }
-            }
-            if (line) lines.push(line);
-            // Cap at 3 lines with ellipsis to keep things tidy
-            if (lines.length > 3) {
-                const trimmed = lines.slice(0, 3);
-                const last = trimmed[2];
-                trimmed[2] = (last.length > maxChars - 1 ? last.slice(0, maxChars - 1) : last) + '…';
-                return trimmed;
-            }
-            return lines;
-        }
-
-        function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
-            if (existing) existing.destroy();
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            const isHorizontal = orientation === 'horizontal';
-            const ac = themeAxisColors();
-            // Journal-style labels get wrapped; year labels stay as-is
-            const wrapLabels = !!opts.wrapLabels;
-            const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, 38) : r.key);
-            const datasets = trendsDatasets(agg);
-            const isStacked = trendsKind !== 'all'; // single series → no need to stack
-            const showLegend = trendsKind !== 'all';
-
-            return new Chart(ctx, {
-                type: 'bar',
-                data: { labels, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: isHorizontal ? 'y' : 'x',
-                    plugins: {
-                        legend: showLegend
-                            ? { position: 'bottom', labels: { padding: 10, color: ac.legend, boxWidth: 12, font: { size: 11 } } }
-                            : { display: false },
-                        tooltip: {
-                            callbacks: {
-                                title: items => {
-                                    const label = items[0].label;
-                                    if (Array.isArray(label)) return label.join(' ');
-                                    return label;
-                                },
-                                afterLabel: ctx => {
-                                    if (trendsKind === 'all') return '';
-                                    const row = agg[ctx.dataIndex];
-                                    const val = ctx.parsed[isHorizontal ? 'x' : 'y'];
-                                    const pct = row.total ? ((val / row.total) * 100).toFixed(1) : 0;
-                                    return `(${pct}% of ${row.total})`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { stacked: isStacked, grid: { color: ac.grid }, ticks: { color: ac.tick, autoSkip: !isHorizontal } },
-                        y: {
-                            stacked: isStacked,
-                            grid: { color: ac.grid, display: !isHorizontal },
-                            ticks: {
-                                color: ac.tick,
-                                autoSkip: false,
-                                font: { size: isHorizontal ? 11 : 12 }
-                            }
-                        }
-                    },
-                    layout: isHorizontal ? { padding: { left: 6 } } : {}
-                }
-            });
-        }
-
-        // Active kind filter for Trends tab
-        let trendsKind = 'all';
-
-        function trendsFilteredData() {
-            return filterByKind(fullRowData, trendsKind);
-        }
-
-        function updateTrendsCount() {
-            const el = document.getElementById('trend-filter-count');
-            if (!el) return;
-            const n = trendsFilteredData().length;
-            const total = fullRowData.length;
-            if (trendsKind === 'all') {
-                el.textContent = `${n.toLocaleString()} studies`;
-            } else {
-                el.textContent = `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
-            }
-        }
-
-        function renderTrendOrigYear() {
-            const agg = aggregateByYear(trendsFilteredData(), 'year_o');
-            trendOrigYearChart = renderStackedChart('trend-orig-year', agg, 'vertical', trendOrigYearChart);
-        }
-
-        function renderTrendRepYear() {
-            const agg = aggregateByYear(trendsFilteredData(), 'year_r');
-            trendRepYearChart = renderStackedChart('trend-rep-year', agg, 'vertical', trendRepYearChart);
-        }
-
-        function renderTrendJournal() {
-            const topN = parseInt(document.getElementById('journal-top-n').value, 10) || 15;
-            const agg = aggregateByJournal(trendsFilteredData(), 'journal_o', topN);
-            const container = document.getElementById('trend-journal-container');
-            container.style.height = Math.max(400, agg.length * 36) + 'px';
-            trendJournalChart = renderStackedChart('trend-journal', agg, 'horizontal', trendJournalChart, { wrapLabels: true });
-        }
-
-        function renderTrendRepJournal() {
-            const topN = parseInt(document.getElementById('rep-journal-top-n').value, 10) || 15;
-            const agg = aggregateByJournal(trendsFilteredData(), 'journal_r', topN);
-            const container = document.getElementById('trend-rep-journal-container');
-            container.style.height = Math.max(400, agg.length * 36) + 'px';
-            trendRepJournalChart = renderStackedChart('trend-rep-journal', agg, 'horizontal', trendRepJournalChart, { wrapLabels: true });
-        }
-
-        function renderTrendField() {
-            const agg = aggregateByField(trendsFilteredData());
-            const container = document.getElementById('trend-field-container');
-            // Fields are fewer than journals; give a bit more vertical room per bar
-            container.style.height = Math.max(360, agg.length * 44) + 'px';
-            trendFieldChart = renderStackedChart('trend-field', agg, 'horizontal', trendFieldChart, { wrapLabels: true });
-        }
-
-        function renderAllTrends() {
-            updateTrendsCount();
-            renderTrendOrigYear();
-            renderTrendRepYear();
-            renderTrendJournal();
-            renderTrendRepJournal();
-            renderTrendField();
-        }
-
-        document.getElementById('journal-top-n').addEventListener('change', renderTrendJournal);
-        document.getElementById('rep-journal-top-n').addEventListener('change', renderTrendRepJournal);
-
-        // Kind-filter buttons (All / Replications / Reproductions)
-        document.querySelectorAll('.trend-filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.trend-filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                trendsKind = btn.dataset.kind || 'all';
-                if (trendsInitialized && fullRowData.length) renderAllTrends();
-            });
-        });
-
-        document.getElementById('trends-tab').addEventListener('shown.bs.tab', () => {
-            if (!trendsInitialized && fullRowData.length) {
-                trendsInitialized = true;
-                renderAllTrends();
-            }
-        });
-
-        window._rerenderAllCharts = function() {
-            if (fullRowData.length) {
-                renderOverviewChart(fullRowData);
-                if (trendsInitialized) renderAllTrends();
-            }
-        };
-
-        // Main load
-        function loadData() {
-            Papa.parse(CSV_URL, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.errors.length > 0) console.warn('CSV parsing warnings:', results.errors);
-                    const data = results.data.map(row => {
-                        Object.keys(row).forEach(key => { if (row[key] === 'NA') row[key] = ''; });
-                        return row;
-                    });
-                    fullRowData = data;
-
-                    document.getElementById('global-loading').style.display = 'none';
-                    document.getElementById('floraTabsContent').style.display = 'block';
-
-                    updateOverviewStats(data);
-                    renderOverviewChart(data);
-                    renderRandomExamples(data);
-                    initDataTable(data);
-                    setupBrowseMobile(data);
-                    setupBrowseKindFilter();
-                    loadCitation();
-                    loadFaqs();
-                },
-                error: function(error) {
-                    document.getElementById('global-loading').style.display = 'none';
-                    const err = document.getElementById('global-error');
-                    err.style.display = 'block';
-                    err.textContent = 'Error loading data: ' + error.message + '. Please try refreshing the page.';
-                }
-            });
-        }
-
-        $(document).ready(loadData);
-    </script>
+    <script src="assets/app.js"></script>
+    <script src="assets/citation-impact.js"></script>
 </body>
 </html>
