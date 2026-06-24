@@ -344,6 +344,7 @@
                     <a href="https://doi.org/${s.doi}" target="_blank">${s.doi}</a></p>
                 <button type="button" class="ci-share-btn" data-doi="${escapeHtml(s.doi)}">🔗 Copy link to this chart</button>
                 <h3 style="margin-top:18px">Citation timeline</h3>
+                ${s.cocit_conflated ? `<p class="cocit-warning">⚠️ Co-citation can't be measured for ${s.cocit_conflated > 1 ? 'some replications of ' : ''}this study: OpenCitations groups the original and ${s.cocit_conflated > 1 ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p>` : ''}
                 <div id="study-plot" style="width:100%;height:380px"></div>
                 <h3 style="margin-top:18px">Replications (${s.n_replications})</h3>
                 <ul class="rep-list">${reps}</ul>
