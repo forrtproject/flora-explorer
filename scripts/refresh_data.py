@@ -31,6 +31,7 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 FLORA_URL = "https://raw.githubusercontent.com/forrtproject/FReD-data/main/output/flora.csv"
 OC_BASE = "https://opencitations.net/index/api/v2"
+OC_META = "https://opencitations.net/meta/api/v1"
 OC_KEY = os.environ.get("OC_API_KEY", "").strip()
 EMAIL = os.environ.get("MY_EMAIL", "").strip()
 
@@ -270,6 +271,35 @@ def fetch_oc_citations(doi: str) -> list[dict] | None:
     return None
 
 
+def oc_entity_ids(doi: str) -> set[str]:
+    """All identifiers OpenCitations groups under this DOI's bibliographic
+    resource (its OMID). When an original and its replication share an OMID,
+    OpenCitations returns the same citation list for both, so co-citation of the
+    replication cannot be told apart from plain citation of the original. We use
+    this to detect and drop such conflated replications."""
+    cp = cache_path("oc_meta", doi)
+    if cache_fresh(cp):
+        try:
+            return set(json.loads(cp.read_text()))
+        except Exception:
+            pass
+
+    cp.parent.mkdir(exist_ok=True)
+    url = f"{OC_META}/metadata/doi:{doi}"
+    ids: set[str] = set()
+    try:
+        r = session.get(url, timeout=45)
+        if r.status_code == 200:
+            for rec in r.json():
+                ids.update(rec.get("id", "").split())
+    except (requests.exceptions.RequestException, ValueError):
+        return ids  # transient: don't cache, retry next run
+
+    cp.write_text(json.dumps(sorted(ids)))
+    time.sleep(BASE_DELAY)
+    return ids
+
+
 # ------------------------------------------------------------------ build per-study panel
 def build_study_data(flora: pd.DataFrame) -> dict:
     studies = {}
@@ -286,6 +316,7 @@ def build_study_data(flora: pd.DataFrame) -> dict:
     )
 
     n_skipped = 0
+    conflated = []  # (doi_o, doi_r, kind) for replications OC can't tell from the original
 
     for doi_o in tqdm(originals):
         if should_stop():
@@ -302,8 +333,12 @@ def build_study_data(flora: pd.DataFrame) -> dict:
             ["doi_r", "outcome", "title_r", "author_r", "year_r"]
         ].drop_duplicates(subset=["doi_r"])
 
+        co = {c["citing"] for c in cites_o}
+
         rep_info = []
         rep_citings_by_outcome = {"successful": set(), "failed": set(), "mixed": set()}
+        entity_o = None  # original's OMID identifier set, fetched only when needed
+        n_conflated = 0
 
         for _, row in reps_df.iterrows():
             if should_stop():
@@ -320,8 +355,26 @@ def build_study_data(flora: pd.DataFrame) -> dict:
                 "title": str(row["title_r"])[:300] if pd.notna(row["title_r"]) else "",
                 "author": parse_flora_authors(row["author_r"]),
             })
-            for c in cites_r:
-                rep_citings_by_outcome[row["outcome"]].add(c["citing"])
+
+            # Skip replications OpenCitations cannot distinguish from the
+            # original — same DOI in FLoRA, or merged under one OMID. Their
+            # citing set is identical to the original's, so counting them would
+            # mark every citation of the original as a co-citation. The cheap
+            # set-equality test is a necessary condition; the OMID lookup (only
+            # run for those rare candidates) confirms it and spares genuine
+            # coincidences where a few papers happen to cite both works.
+            cr = {c["citing"] for c in cites_r}
+            if doi_r == doi_o:
+                conflated.append((doi_o, doi_r, "same-doi")); n_conflated += 1
+                continue
+            if cr and cr == co:
+                if entity_o is None:
+                    entity_o = oc_entity_ids(doi_o)
+                if f"doi:{doi_r}" in entity_o:
+                    conflated.append((doi_o, doi_r, "omid-merge")); n_conflated += 1
+                    continue
+
+            rep_citings_by_outcome[row["outcome"]].update(cr)
 
         per_year = {}
         for c in cites_o:
@@ -372,9 +425,21 @@ def build_study_data(flora: pd.DataFrame) -> dict:
             "first_replication_outcome": first_outcome,
             "timeline": timeline,
         }
+        if n_conflated:
+            studies[doi_o]["cocit_conflated"] = n_conflated
 
     if n_skipped:
         print(f"  ({n_skipped} originals skipped due to API issues; will retry next run)")
+    if conflated:
+        same_doi = [c for c in conflated if c[2] == "same-doi"]
+        merges = [c for c in conflated if c[2] == "omid-merge"]
+        print(f"  ({len(conflated)} replications dropped as indistinguishable from "
+              f"their original: {len(merges)} OMID merges, {len(same_doi)} same-DOI "
+              f"FLoRA entries)")
+        for o, r, kind in same_doi:
+            print(f"    same-DOI in FReD-data (fix upstream): original == replication {r}")
+        for o, r, kind in merges:
+            print(f"    OpenCitations OMID merge: {o} <-> {r}")
     return studies
 
 
