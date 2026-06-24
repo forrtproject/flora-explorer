@@ -750,7 +750,10 @@ function updateTrendsCount() {
 }
 
 function trendsOutcomeLabel(row) {
-    if (trendsKind === 'all') return '__all__';
+    if (trendsKind === 'all') {
+        const c = classifyOutcome(row.outcome);
+        return c.charAt(0).toUpperCase() + c.slice(1);  // Successful, Mixed, Failed, Inconclusive, Other
+    }
     if (trendsKind === 'replication') {
         if (!hasMatchedOutcome(row)) return null;
         const c = classifyOutcome(row.outcome);
@@ -803,7 +806,11 @@ function aggregateByField(data) {
 }
 
 function trendsDatasets(agg) {
-    if (trendsKind === 'all') return [{ label: 'Studies', data: agg.map(r => r.byLabel['__all__'] || 0), backgroundColor: '#8b1a4a' }];
+    if (trendsKind === 'all') {
+        const order = ['Successful', 'Mixed', 'Failed', 'Inconclusive', 'Other'];
+        const colors = { 'Successful': OUTCOME_COLORS.successful, 'Mixed': OUTCOME_COLORS.mixed, 'Failed': OUTCOME_COLORS.failed, 'Inconclusive': OUTCOME_COLORS.inconclusive, 'Other': OUTCOME_COLORS.other };
+        return order.map(label => ({ label, data: agg.map(r => r.byLabel[label] || 0), backgroundColor: colors[label] }));
+    }
     if (trendsKind === 'replication') {
         const order = ['Successful', 'Mixed', 'Failed', 'Inconclusive'];
         const colors = { 'Successful': OUTCOME_COLORS.successful, 'Mixed': OUTCOME_COLORS.mixed, 'Failed': OUTCOME_COLORS.failed, 'Inconclusive': OUTCOME_COLORS.inconclusive };
@@ -843,8 +850,8 @@ function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
     const wrapLabels = !!opts.wrapLabels;
     const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, 38) : r.key);
     const datasets = trendsDatasets(agg);
-    const isStacked = trendsKind !== 'all';
-    const showLegend = trendsKind !== 'all';
+    const isStacked = true;
+    const showLegend = true;
 
     return new Chart(ctx, {
         type: 'bar', data: { labels, datasets },
@@ -855,7 +862,6 @@ function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
                 tooltip: { callbacks: {
                     title: items => { const label = items[0].label; return Array.isArray(label) ? label.join(' ') : label; },
                     afterLabel: ctx => {
-                        if (trendsKind === 'all') return '';
                         const row = agg[ctx.dataIndex];
                         const val = ctx.parsed[isHorizontal ? 'x' : 'y'];
                         const pct = row.total ? ((val / row.total) * 100).toFixed(1) : 0;
