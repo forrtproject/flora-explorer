@@ -16,6 +16,9 @@ Five tabs:
 Every tab shows a "Last updated" stamp pulled from the relevant
 `*_meta.json` next to the data.
 
+Contributions of new dashboards/tabs are welcome — see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Layout
 
 ```
