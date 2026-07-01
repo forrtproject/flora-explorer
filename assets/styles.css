@@ -512,7 +512,7 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 .att-callout strong { color: var(--flora-primary); }
 [data-theme="dark"] .att-callout strong { color: var(--flora-primary-dark-accent); }
 
-.plot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 0.75rem; }
+.plot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1rem; }
 @media (max-width: 900px) { .plot-grid { grid-template-columns: 1fr; } }
 .plot-card {
     background: var(--flora-card-bg); border: 1px solid var(--flora-border);
@@ -554,6 +554,16 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 .cocit-sort-btn.sort-asc, .cocit-sort-btn.sort-desc { opacity: 1; color: var(--flora-primary); font-weight: 700; }
 .cocit-sort-btn.sort-asc::after { content: ' ▲'; }
 .cocit-sort-btn.sort-desc::after { content: ' ▼'; }
+
+.cocit-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; margin-top: 0.75rem; }
+.cocit-breakdown-table h4 { margin: 0 0 0.5rem; font-size: 0.88rem; color: var(--flora-primary); font-family: var(--font-serif); font-weight: 600; }
+[data-theme="dark"] .cocit-breakdown-table h4 { color: var(--flora-primary-dark-accent); }
+.cocit-breakdown-table table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.cocit-breakdown-table th, .cocit-breakdown-table td { padding: 0.5rem 0.6rem; text-align: left; border-bottom: 1px solid var(--flora-border); }
+.cocit-breakdown-table th:not(:first-child), .cocit-breakdown-table td:not(:first-child) { text-align: right; }
+.cocit-breakdown-table thead { background: var(--flora-subtle-bg); }
+.cocit-breakdown-table tbody tr:last-child td { border-bottom: none; }
+.cocit-breakdown-note { font-size: 0.78rem; color: var(--flora-muted); margin: 0.5rem 0 0; line-height: 1.4; }
 
 .rep-bar-wrap { display: flex; align-items: center; gap: 0.45rem; }
 .rep-bar { display: flex; height: 10px; border-radius: 4px; overflow: hidden; min-width: 80px; flex: 1; background: var(--flora-border); }
