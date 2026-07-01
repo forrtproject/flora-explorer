@@ -1037,11 +1037,13 @@ function renderMcCharts(d) {
     const pNote = (st.p_val !== null && st.p_val !== undefined)
         ? (st.p_val < 0.001 ? 'p < .001' : 'p = ' + st.p_val.toFixed(3))
         : '';
+    const glossEdf = '<span class="gloss" tabindex="0">edf<span class="gloss-tip">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</span></span>';
+    const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It isn’t directly comparable to an OLS R² — values around 0.2–0.4 already indicate a good fit.</span></span>';
     document.getElementById('mc-gam-stats').innerHTML =
-        'Logistic smooth: edf = ' + st.edf +
+        'Logistic smooth: ' + glossEdf + ' = ' + st.edf +
         ', χ² = ' + st.chi_sq +
         (pNote ? ', ' + pNote : '') +
-        '; McFadden R² = ' + st.r2 +
+        '; ' + glossR2 + ' = ' + st.r2 +
         '; N = ' + st.n_model + ' (successful vs. failed)';
 }
 
