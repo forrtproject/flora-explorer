@@ -1265,7 +1265,9 @@ function parseCsvFromUrl(url) {
 }
 
 async function loadData() {
-    await loadDisciplines();
+    // Disciplines and the CSV are independent - fetch them concurrently rather than
+    // waiting on the (small) disciplines request before starting the (large) CSV one.
+    const disciplinesPromise = loadDisciplines();
 
     let results;
     try {
@@ -1283,6 +1285,7 @@ async function loadData() {
             return;
         }
     }
+    await disciplinesPromise;
 
     if (results.errors && results.errors.length > 0) console.warn('CSV parsing warnings:', results.errors);
     const data = results.data.map(row => {
@@ -1348,4 +1351,8 @@ Object.keys(TAB_ID_TO_PARAM).forEach(id => {
     if (btn) btn.addEventListener('shown.bs.tab', () => syncTabToUrl(id));
 });
 
-$(document).ready(loadData);
+// Called directly (not via $(document).ready) so the CSV fetch starts as soon as this
+// script runs, rather than waiting for the whole document - including later, lazily-used
+// libraries like Plotly - to finish loading. Safe because this tag sits at the end of
+// <body>, so every element loadData() touches already exists in the DOM.
+loadData();
