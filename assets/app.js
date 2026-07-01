@@ -1,4 +1,4 @@
-﻿/* FLoRA Explorer — main application logic
+﻿/* FLoRA Explorer: main application logic
    Overview · Browse Studies · Years & Disciplines tabs */
 
 // ----- Theme (light/dark) -----
@@ -1038,11 +1038,11 @@ function renderMcCharts(d) {
         ? (st.p_val < 0.001 ? 'p < .001' : 'p = ' + st.p_val.toFixed(3))
         : '';
     document.getElementById('mc-gam-stats').innerHTML =
-        'Logistic smooth — edf = ' + st.edf +
+        'Logistic smooth: edf = ' + st.edf +
         ', χ² = ' + st.chi_sq +
         (pNote ? ', ' + pNote : '') +
-        ' — McFadden R² = ' + st.r2 +
-        ' — N = ' + st.n_model + ' (successful vs. failed)';
+        '; McFadden R² = ' + st.r2 +
+        '; N = ' + st.n_model + ' (successful vs. failed)';
 }
 
 async function loadMeanCitedness() {

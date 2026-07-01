@@ -1,4 +1,4 @@
-/* FLoRA Explorer — Citation Impact tab
+/* FLoRA Explorer: Citation Impact tab
    Loads weekly-refreshed OpenCitations data and renders KPIs, event-study
    plots, and a browsable per-original table. Adapted from flora-citations. */
 
@@ -116,7 +116,7 @@
             if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--flora-muted)">No data yet</div>';
         });
         const tbody = document.querySelector('#originals-table tbody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--flora-muted)">No data yet — first refresh in progress.</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--flora-muted)">No data yet. First refresh in progress.</td></tr>';
     }
 
     function renderKPIs() {
@@ -188,7 +188,7 @@
             }
         }
 
-        // ETWFE overlay (optional — only shown when fect_results.json exists)
+        // ETWFE overlay (optional, only shown when fect_results.json exists)
         const fectKey = modelField === 'citations_model' ? 'citations' : 'cocitations';
         const fect = CI.fect && CI.fect[outcome] && CI.fect[outcome][fectKey];
         if (fect && fect.event_time && fect.event_time.length > 0) {
