@@ -345,7 +345,7 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-header">Replication Studies Database</div>
+                    <div class="card-header">Studies Database</div>
                     <div class="card-body">
                         <div class="browse-desktop">
                             <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
@@ -489,7 +489,7 @@
                         This tab combines the FLoRA dataset with citation data from
                         <a href="https://opencitations.net" target="_blank">OpenCitations</a> to
                         explore how the publication of a replication affects subsequent citations to the original study,
-                        and how often the original and the replication are co-cited.
+                        and how often the two are "co-cited" (cited together by the same later work).
                     </p>
                     <div class="kpi-row" id="kpis"></div>
                 </div>
@@ -499,8 +499,9 @@
                     <div class="card-body">
                         <p class="muted">
                             Event-study estimates: each original is aligned at <em>t = 0</em>, the year of its first
-                            published replication. Bands show 95% CIs from a Poisson model with study and year fixed
-                            effects (a TWFE analogue of the preregistered FECT model).
+                            published replication. Bands show 95% CIs from an OLS model on log(1 + citations) with
+                            study and year fixed effects (a two-way fixed-effects, or TWFE, analogue of the
+                            preregistered FECT model).
                         </p>
 
                         <div class="filters">
@@ -576,7 +577,7 @@
                             least one of its replications.
                         </p>
                         <p>
-                            The aggregate plots show event-study estimates from a Poisson two-way fixed-effects
+                            The aggregate plots show event-study estimates from an OLS two-way fixed-effects
                             model, a transparent analogue of the FECT specification used in the
                             preregistered analysis. See the
                             <a href="https://github.com/forrtproject/FReD-data" target="_blank">FReD-data repository</a>
