@@ -138,12 +138,19 @@
         let html;
         const hasModel = model.att != null && Number.isFinite(model.att);
         if (hasModel) {
-            const pct = ((Math.exp(model.att) - 1) * 100).toFixed(1);
+            const pctNum = (Math.exp(model.att) - 1) * 100;
             const ci = (model.att_ci || []).filter(v => v != null && Number.isFinite(v));
-            const ciL = ci.length === 2 ? ((Math.exp(ci[0]) - 1) * 100).toFixed(1) : '?';
-            const ciH = ci.length === 2 ? ((Math.exp(ci[1]) - 1) * 100).toFixed(1) : '?';
-            html = `<strong>Average post-replication effect on citations:</strong>
-                ${pct}% (95% CI: ${ciL}%, ${ciH}%) · <span class="muted">based on ${model.n_units} originals</span>`;
+            const ciLNum = ci.length === 2 ? (Math.exp(ci[0]) - 1) * 100 : null;
+            const ciHNum = ci.length === 2 ? (Math.exp(ci[1]) - 1) * 100 : null;
+            const ciL = ciLNum !== null ? ciLNum.toFixed(1) : '?';
+            const ciH = ciHNum !== null ? ciHNum.toFixed(1) : '?';
+            const notSig = ciLNum !== null && ciHNum !== null && ciLNum < 0 && ciHNum > 0;
+            const direction = pctNum >= 0 ? 'higher' : 'lower';
+            const gloss = '<span class="gloss" tabindex="0">Average post-replication effect on citations<span class="gloss-tip">Compares citation counts in the years after the first replication to the year just before it (t = -1), controlling for study and year fixed effects.</span></span>';
+            html = `<strong>${gloss}:</strong>
+                citations were an estimated <strong>${Math.abs(pctNum).toFixed(1)}% ${direction}</strong> after the first replication than in the year before it
+                (95% CI: ${ciL}%, ${ciH}%)${notSig ? ' — <span class="muted">not statistically distinguishable from no change</span>' : ''}
+                · <span class="muted">based on ${model.n_units} originals</span>`;
         } else if (desc.n_units && desc.n_units.length) {
             const maxN = Math.max(...desc.n_units);
             html = `<strong>Descriptive trajectory shown.</strong>
