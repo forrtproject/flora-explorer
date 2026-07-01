@@ -191,6 +191,7 @@ def load_flora() -> pd.DataFrame:
     col_title_r = find_col(["title_r", "ref_r"], required=False)
     col_auth_r  = find_col(["author_r"], required=False)
     col_year_r  = find_col(["year_r"], required=False)
+    col_journal_r = find_col(["journal_r"], required=False)
 
     out = pd.DataFrame({
         "doi_o":     df[col_doi_o].map(doi_clean),
@@ -204,6 +205,7 @@ def load_flora() -> pd.DataFrame:
         "title_r":   df[col_title_r] if col_title_r else "",
         "author_r":  df[col_auth_r] if col_auth_r else "",
         "year_r":    df[col_year_r] if col_year_r else None,
+        "journal_r": df[col_journal_r] if col_journal_r else "",
     })
 
     n0 = len(out)
@@ -211,6 +213,19 @@ def load_flora() -> pd.DataFrame:
               & ~out["type"].str.contains("reproduc", na=False)]
     out = out[out["outcome"].isin(OUTCOMES_KEEP)]
     out = out.dropna(subset=["doi_o", "doi_r"]).drop_duplicates(subset=["doi_o", "doi_r"])
+    out["journal_r"] = out["journal_r"].replace("", np.nan)
+
+    # Publication status of the replication: "unpublished" (no journal_r —
+    # in practice a preprint or repository entry, since a doi_r is required
+    # to reach this point), "individual" or "large_project" depending on how
+    # many distinct originals share the same replication article (doi_r).
+    n_originals_per_doi_r = out.groupby("doi_r")["doi_o"].nunique()
+    out["n_originals_in_rep"] = out["doi_r"].map(n_originals_per_doi_r)
+    out["pub_status"] = np.where(
+        out["journal_r"].isna(), "unpublished",
+        np.where(out["n_originals_in_rep"] > 3, "large_project", "individual")
+    )
+
     print(f"  Filtered: {n0} → {len(out)} (replications with known outcomes)")
     return out.reset_index(drop=True)
 
@@ -330,13 +345,16 @@ def build_study_data(flora: pd.DataFrame) -> dict:
             continue
 
         reps_df = flora[flora["doi_o"] == doi_o][
-            ["doi_r", "outcome", "title_r", "author_r", "year_r"]
+            ["doi_r", "outcome", "title_r", "author_r", "year_r", "pub_status"]
         ].drop_duplicates(subset=["doi_r"])
 
         co = {c["citing"] for c in cites_o}
 
         rep_info = []
         rep_citings_by_outcome = {"successful": set(), "failed": set(), "mixed": set()}
+        rep_citings_by_pubstatus = {"individual": set(), "large_project": set(), "unpublished": set()}
+        outcome_min_year: dict = {}
+        pubstatus_min_year: dict = {}
         entity_o = None  # original's OMID identifier set, fetched only when needed
         n_conflated = 0
 
@@ -352,6 +370,7 @@ def build_study_data(flora: pd.DataFrame) -> dict:
                 "doi": doi_r,
                 "year": year_r,
                 "outcome": row["outcome"],
+                "pub_status": row["pub_status"],
                 "title": str(row["title_r"])[:300] if pd.notna(row["title_r"]) else "",
                 "author": parse_flora_authors(row["author_r"]),
             })
@@ -375,6 +394,10 @@ def build_study_data(flora: pd.DataFrame) -> dict:
                     continue
 
             rep_citings_by_outcome[row["outcome"]].update(cr)
+            rep_citings_by_pubstatus[row["pub_status"]].update(cr)
+            if year_r is not None:
+                outcome_min_year[row["outcome"]] = min(outcome_min_year.get(row["outcome"], year_r), year_r)
+                pubstatus_min_year[row["pub_status"]] = min(pubstatus_min_year.get(row["pub_status"], year_r), year_r)
 
         per_year = {}
         for c in cites_o:
@@ -393,8 +416,36 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         timeline = sorted([{"year": y, **v} for y, v in per_year.items()],
                           key=lambda x: x["year"])
 
+        # A citing work can only be a co-citation once a replication exists to
+        # be co-cited, so the fair denominator for a co-citation *rate* is not
+        # the original's lifetime citation count but only the citations that
+        # occurred on/after the earliest replication in that bucket. Otherwise
+        # an original with a long pre-replication citation history (e.g. a
+        # decades-old classic paired with a brand-new replication) gets an
+        # artificially deflated rate purely from citation-years in which
+        # co-citation was structurally impossible.
+        def n_citations_since(min_year):
+            return sum(1 for c in cites_o if c["year"] >= min_year) if min_year is not None else None
+
+        cocit_by_outcome = {k: sum(1 for c in co if c in s)
+                            for k, s in rep_citings_by_outcome.items()}
+        cocit_by_pubstatus = {k: sum(1 for c in co if c in s)
+                              for k, s in rep_citings_by_pubstatus.items()}
+        # Distinct co-citing works, not summed across outcome buckets — a work
+        # co-citing both a failed and a successful replication must only count
+        # once towards the original's overall co-citation count.
+        any_rep_citing = set().union(*rep_citings_by_outcome.values())
+        n_cocitations = sum(1 for c in co if c in any_rep_citing)
+        n_citations_post_by_outcome = {k: n_citations_since(outcome_min_year.get(k))
+                                       for k in rep_citings_by_outcome}
+        n_citations_post_by_pubstatus = {k: n_citations_since(pubstatus_min_year.get(k))
+                                         for k in rep_citings_by_pubstatus}
+        pubstatus_mix = dict(reps_df["pub_status"].value_counts())
+        pubstatus_mix = {k: int(v) for k, v in pubstatus_mix.items()}
+
         rep_years = [r["year"] for r in rep_info if r["year"]]
         treat_year = min(rep_years) if rep_years else None
+        n_citations_post_first_rep = n_citations_since(treat_year)
 
         first_outcome = None
         if rep_info:
@@ -418,9 +469,16 @@ def build_study_data(flora: pd.DataFrame) -> dict:
             "year": year_o,
             "venue": venue,
             "n_citations": len(cites_o),
+            "n_citations_post_first_rep": n_citations_post_first_rep,
+            "n_cocitations": n_cocitations,
             "replications": rep_info,
             "n_replications": len(rep_info),
             "outcome_mix": outcome_mix,
+            "pubstatus_mix": pubstatus_mix,
+            "cocit_by_outcome": cocit_by_outcome,
+            "cocit_by_pubstatus": cocit_by_pubstatus,
+            "n_citations_post_by_outcome": n_citations_post_by_outcome,
+            "n_citations_post_by_pubstatus": n_citations_post_by_pubstatus,
             "first_replication_year": treat_year,
             "first_replication_outcome": first_outcome,
             "timeline": timeline,
@@ -576,6 +634,50 @@ def descriptive_trajectory(panel: pd.DataFrame, outcomes: list[str]) -> dict:
     }
 
 
+PUBSTATUS_LABELS = ["individual", "large_project", "unpublished"]
+OUTCOME_LABELS = ["successful", "failed", "mixed"]
+
+
+def compute_cocit_breakdown(studies: dict) -> dict:
+    """Co-citation rate of each original, broken down by a property of its
+    replication(s) (publication status, or outcome). An original with e.g.
+    both a failed and a successful replication contributes its rate to both
+    the "failed" and "successful" rows — the rate is per original, not per
+    replication, since co-citation can only be measured against the pooled
+    set of citations to the original. The denominator is citations to the
+    original since the earliest replication in that bucket was published
+    (see n_citations_since in build_study_data) — not lifetime citations —
+    since co-citation is structurally impossible before a replication exists.
+    """
+    def summarize(dim_key: str, denom_key: str, labels: list[str]) -> dict:
+        out = {}
+        for label in labels:
+            rates, n_cocit_sum, n_cit_sum = [], 0, 0
+            for s in studies.values():
+                mix_key = "outcome_mix" if dim_key == "cocit_by_outcome" else "pubstatus_mix"
+                if not s.get(mix_key, {}).get(label):
+                    continue
+                n_cit = s[denom_key].get(label)
+                if not n_cit:
+                    continue
+                n_cocit = s[dim_key].get(label, 0)
+                rates.append(n_cocit / n_cit)
+                n_cocit_sum += n_cocit
+                n_cit_sum += n_cit
+            out[label] = {
+                "n_originals": len(rates),
+                "mean_rate": round(float(np.mean(rates)), 4) if rates else None,
+                "median_rate": round(float(np.median(rates)), 4) if rates else None,
+                "grand_mean_rate": round(n_cocit_sum / n_cit_sum, 4) if n_cit_sum else None,
+            }
+        return out
+
+    return {
+        "pub_status": summarize("cocit_by_pubstatus", "n_citations_post_by_pubstatus", PUBSTATUS_LABELS),
+        "outcome": summarize("cocit_by_outcome", "n_citations_post_by_outcome", OUTCOME_LABELS),
+    }
+
+
 def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     panel = build_panel(studies)
     aggregate = {}
@@ -597,8 +699,10 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
             "doi": doi,
             "title": s["title"], "author": s["author"], "year": s["year"],
             "venue": s["venue"],
-            "n_citations": s["n_citations"], "n_replications": s["n_replications"],
+            "n_citations": s["n_citations"], "n_citations_post_first_rep": s["n_citations_post_first_rep"],
+            "n_cocitations": s["n_cocitations"], "n_replications": s["n_replications"],
             "outcome_mix": s["outcome_mix"],
+            "pubstatus_mix": s["pubstatus_mix"],
             "first_replication_year": s["first_replication_year"],
             "first_replication_outcome": s["first_replication_outcome"],
         })
@@ -608,6 +712,7 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
         "n_originals": len(studies),
         "n_replications": int(flora.shape[0]),
         "outcome_counts": {k: int(v) for k, v in flora["outcome"].value_counts().items()},
+        "pub_status_counts": {k: int(v) for k, v in flora["pub_status"].value_counts().items()},
         "partial_run": partial,
     }
     (DATA_DIR / "meta.json").write_text(
@@ -617,6 +722,8 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
                    allow_nan=False))
     (DATA_DIR / "aggregate.json").write_text(
         json.dumps(clean_for_json(aggregate), indent=2, allow_nan=False))
+    (DATA_DIR / "cocit_breakdown.json").write_text(
+        json.dumps(clean_for_json(compute_cocit_breakdown(studies)), indent=2, allow_nan=False))
     print(f"✔ wrote {len(studies)} studies "
           f"({'partial' if partial else 'complete'} run)")
 

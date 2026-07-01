@@ -515,17 +515,34 @@
                         </div>
 
                         <div class="att-callout" id="att-callout"></div>
+
+                        <div class="plot-grid">
+                            <div class="plot-card">
+                                <h3>Citations to the original</h3>
+                                <div id="plot-cit" class="plot"></div>
+                            </div>
+                            <div class="plot-card">
+                                <h3>Co-citations (original ⊕ replication)</h3>
+                                <div id="plot-cocit" class="plot"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="plot-grid">
-                    <div class="plot-card">
-                        <h3>Citations to the original</h3>
-                        <div id="plot-cit" class="plot"></div>
-                    </div>
-                    <div class="plot-card">
-                        <h3>Co-citations (original ⊕ replication)</h3>
-                        <div id="plot-cocit" class="plot"></div>
+                <div class="card ci-card">
+                    <div class="card-header">Co-citation rate by replication publication status &amp; outcome</div>
+                    <div class="card-body">
+                        <p class="muted">
+                            The co-citation rate is the share of an original's citations that also cite one of its
+                            replications, counted from the year of its first replication. Originals with multiple
+                            replications appear in every row that applies. Rates vary widely across originals, so three
+                            summaries are shown:
+                            <strong>per-paper mean</strong> (each original weighted equally),
+                            <strong>median</strong> (robust to outliers), and
+                            <strong>weighted mean</strong> (pooled co-citations ÷ pooled citations, effectively weighted
+                            by citation volume).
+                        </p>
+                        <div class="cocit-breakdown-grid" id="cocit-breakdown"></div>
                     </div>
                 </div>
 

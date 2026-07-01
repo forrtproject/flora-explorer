@@ -4,7 +4,7 @@
 
 (function() {
     const CI = {
-        meta: null, agg: null, studies: null, index: null, fect: null,
+        meta: null, agg: null, studies: null, index: null, fect: null, cocitBreakdown: null,
         outcome: 'all', page: 1, perPage: 20,
         sortCol: 'n_citations', sortDir: 'desc',
         loaded: false, loading: false
@@ -76,13 +76,11 @@
             const originals = await origRes.json();
             CI.studies = originals.studies;
             CI.index = originals.index.map(s => {
-                const study = CI.studies[s.doi];
-                const n_cocitations = study
-                    ? (study.timeline || []).reduce((sum, t) =>
-                        sum + (t.with_successful || 0) + (t.with_failed || 0) + (t.with_mixed || 0), 0)
-                    : 0;
-                const cocit_prop = s.n_citations > 0 ? n_cocitations / s.n_citations : 0;
-                return { ...s, n_cocitations, cocit_prop };
+                // Denominator is citations since the first replication, not lifetime
+                // citations — citing works published before any replication existed
+                // could never have co-cited one.
+                const cocit_prop = s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0;
+                return { ...s, cocit_prop };
             });
 
             // Optional: ETWFE results (may not exist on first run)
@@ -91,7 +89,13 @@
                 if (fectRes.ok) CI.fect = await fectRes.json();
             } catch (_) {}
 
-            renderKPIs(); renderAggregate(); renderTable(); bindEvents();
+            // Optional: co-citation breakdown by pub status / outcome (may not exist on first run)
+            try {
+                const breakdownRes = await fetch('data/cocit_breakdown.json');
+                if (breakdownRes.ok) CI.cocitBreakdown = await breakdownRes.json();
+            } catch (_) {}
+
+            renderKPIs(); renderAggregate(); renderTable(); renderCocitBreakdown(); bindEvents();
             CI.loaded = true;
         } catch (e) {
             console.error('Citation Impact load failed:', e);
@@ -269,10 +273,51 @@
         </div>`;
     }
 
+    const PUBSTATUS_LABELS = {
+        individual: 'Individual', large_project: 'Large project (>3 originals)', unpublished: 'Preprint only'
+    };
+    const BREAKDOWN_OUTCOME_LABELS = { successful: 'Successful', failed: 'Failed', mixed: 'Mixed' };
+
+    function renderBreakdownTable(title, dim, labels, note) {
+        const rows = Object.keys(labels).map(key => {
+            const d = dim[key] || {};
+            const fmt = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+            return `<tr>
+                <td>${labels[key]}</td>
+                <td>${d.n_originals != null ? d.n_originals.toLocaleString() : '—'}</td>
+                <td>${fmt(d.mean_rate)}</td>
+                <td>${fmt(d.median_rate)}</td>
+                <td>${fmt(d.grand_mean_rate)}</td>
+            </tr>`;
+        }).join('');
+        return `<div class="cocit-breakdown-table">
+            <h4>${title}</h4>
+            <table>
+                <thead><tr><th>Group</th><th>N originals</th><th>Per-paper mean</th><th>Median</th><th>Weighted mean</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+            ${note ? `<p class="cocit-breakdown-note">${note}</p>` : ''}
+        </div>`;
+    }
+
+    function renderCocitBreakdown() {
+        const el = document.getElementById('cocit-breakdown');
+        if (!el) return;
+        const bd = CI.cocitBreakdown;
+        if (!bd) { el.innerHTML = '<p class="muted">Not available yet — this analysis is included from the next scheduled data refresh.</p>'; return; }
+        el.innerHTML =
+            renderBreakdownTable('By publication status of the replication', bd.pub_status || {}, PUBSTATUS_LABELS) +
+            renderBreakdownTable('By outcome of the replication', bd.outcome || {}, BREAKDOWN_OUTCOME_LABELS);
+    }
+
     function renderCocitCell(s) {
         if (!s.n_cocitations && s.n_cocitations !== 0) return '—';
-        const pct = s.n_citations > 0 ? (s.cocit_prop * 100).toFixed(1) + '%' : '—';
-        return `<span title="${s.n_cocitations.toLocaleString()} co-citations">${s.n_cocitations.toLocaleString()}<span class="cocit-pct"> (${pct})</span></span>`;
+        const denom = s.n_citations_post_first_rep;
+        const pct = denom > 0 ? (s.cocit_prop * 100).toFixed(1) + '%' : '—';
+        const tooltip = denom
+            ? `${s.n_cocitations.toLocaleString()} of ${denom.toLocaleString()} citations since the first replication (${s.first_replication_year}) also cite a replication`
+            : `${s.n_cocitations.toLocaleString()} co-citations`;
+        return `<span title="${escapeHtml(tooltip)}">${s.n_cocitations.toLocaleString()}<span class="cocit-pct"> (${pct})</span></span>`;
     }
 
     function renderTable() {
