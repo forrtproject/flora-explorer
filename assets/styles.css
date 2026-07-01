@@ -190,6 +190,28 @@ h1, .serif, .card-header, .stats-card .number,
 }
 .info-icon:hover .info-tip, .info-icon:focus .info-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* Inline glossary term (subtle dotted underline, hover/focus reveals definition) */
+.gloss {
+    border-bottom: 1px dotted var(--flora-muted); cursor: help; position: relative;
+}
+.gloss .gloss-tip {
+    position: absolute; top: 135%; left: 50%; transform: translateX(-50%) translateY(-4px);
+    background: var(--flora-card-bg); color: var(--flora-text-soft); border: 1px solid var(--flora-border);
+    border-radius: 8px; padding: 0.55rem 0.75rem; font-size: 0.78rem; font-weight: 400;
+    line-height: 1.45; width: 230px; box-shadow: 0 6px 18px var(--flora-shadow-hover);
+    opacity: 0; pointer-events: none; transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 60; text-align: left; white-space: normal; font-family: var(--font-sans);
+}
+.gloss .gloss-tip::after {
+    content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent; border-bottom-color: var(--flora-border);
+}
+.gloss .gloss-tip::before {
+    content: ''; position: absolute; bottom: calc(100% - 1px); left: 50%; transform: translateX(-50%);
+    border: 5px solid transparent; border-bottom-color: var(--flora-card-bg); z-index: 1;
+}
+.gloss:hover .gloss-tip, .gloss:focus .gloss-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* Tabs */
 .nav-tabs-wrapper {
     background: var(--flora-card-bg); border-bottom: 1px solid var(--flora-border);
