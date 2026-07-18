@@ -15,6 +15,7 @@ import os
 import re
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import numpy as np
@@ -140,13 +141,24 @@ def citing_key(citing: str) -> str:
     return str(citing).strip().lower()
 
 
-def retry_after_seconds(resp, default: float) -> float:
-    """Honor a Retry-After header (delta-seconds form) when present."""
+def retry_after_seconds(resp, default: float, max_wait: float = 120.0) -> float:
+    """Honor a Retry-After header, which may be either delta-seconds or an
+    HTTP-date. Clamp to a sane maximum and fall back to `default` otherwise."""
     ra = resp.headers.get("Retry-After")
     if ra:
+        ra = ra.strip()
         try:
-            return max(float(ra), 0.0)
+            return min(max(float(ra), 0.0), max_wait)
         except ValueError:
+            pass
+        try:
+            when = parsedate_to_datetime(ra)
+            if when is not None:
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                delta = (when - datetime.now(timezone.utc)).total_seconds()
+                return min(max(delta, 0.0), max_wait)
+        except (TypeError, ValueError):
             pass
     return default
 
@@ -333,8 +345,12 @@ def fetch_oc_citations(doi: str) -> list[dict] | None:
         try:
             r = session.get(url, timeout=45)
         except requests.exceptions.RequestException as e:
-            print(f"  ! network error {doi[:40]}: {e}")
-            return None
+            # Network blips are transient — back off and retry like a 429.
+            if attempt == MAX_429_ATTEMPTS:
+                print(f"  ! network error {doi[:40]} (persistent): {e}")
+                return None
+            time.sleep(BASE_DELAY * (2 ** attempt))
+            continue
 
         if r.status_code == 200:
             try:
@@ -362,14 +378,17 @@ def fetch_oc_citations(doi: str) -> list[dict] | None:
             time.sleep(BASE_DELAY)
             return []
 
-        if r.status_code == 429:
+        if r.status_code == 429 or r.status_code >= 500:
+            # Rate limiting and server-side (5xx) errors are transient — back
+            # off and retry within the same attempt budget.
             if attempt == MAX_429_ATTEMPTS:
-                print(f"  · skip {doi[:40]} (persistent 429)")
+                print(f"  · skip {doi[:40]} (persistent HTTP {r.status_code})")
                 return None
             wait = retry_after_seconds(r, BASE_DELAY * (2 ** attempt))
             time.sleep(wait)
             continue
 
+        # Other 4xx: not retryable.
         print(f"  ! HTTP {r.status_code} for {doi[:40]}")
         return None
 
@@ -455,9 +474,16 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         entity_o = None  # original's OMID identifier set, fetched only when needed
         n_conflated = 0
         rep_fetch_failed = False
+        budget_exhausted = False
 
         for _, row in reps_df.iterrows():
             if should_stop():
+                # Budget ran out partway through this original's replications.
+                # Publishing it now would under-count its co-citations exactly
+                # like a fetch failure, so treat it the same: mark incomplete,
+                # skip it this run, and stop the outer loop so it retries next run.
+                rep_fetch_failed = True
+                budget_exhausted = True
                 break
             doi_r = row["doi_r"]
             cites_r = fetch_oc_citations(doi_r)
@@ -505,6 +531,10 @@ def build_study_data(flora: pd.DataFrame) -> dict:
 
         if rep_fetch_failed:
             RUN_STATS["originals_errored"] += 1
+            if budget_exhausted:
+                print(f"⏰ Time budget exhausted mid-study; stopping at "
+                      f"{len(studies)} originals (current original deferred).")
+                break  # stop the outer loop; this original retries next run
             continue  # don't publish under-counted co-citations; retry next run
 
         per_year = {}
@@ -624,9 +654,16 @@ def build_panel(studies: dict) -> pd.DataFrame:
         if s["year"] is None:
             continue
         y_min = s["year"]; y_max = CURRENT_YEAR
-        cite_by_year = {t["year"]: sum(t[k] for k in
-                                       ("only","with_successful","with_failed","with_mixed"))
-                        for t in s["timeline"]}
+        # Distinct citing works per year. "only" and "with_any" are disjoint
+        # (a work either co-cites no replication or is counted once in with_any),
+        # so only+with_any avoids double-counting a work that co-cites
+        # replications of two outcomes. Legacy fallback for timeline rows written
+        # before with_any existed sums the (potentially overlapping) buckets.
+        cite_by_year = {
+            t["year"]: (t["only"] + t["with_any"]) if "with_any" in t
+            else sum(t[k] for k in ("only", "with_successful", "with_failed", "with_mixed"))
+            for t in s["timeline"]
+        }
         # Use the deduped per-year count so a citing work co-citing replications
         # of two outcomes is not double-counted (matches study-level
         # n_cocitations). Fall back to the summed buckets for any older timeline
