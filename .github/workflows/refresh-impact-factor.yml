@@ -2,8 +2,12 @@ name: Refresh Mean Citedness analysis (weekly)
 
 on:
   schedule:
-    # Monday 05:00 UTC, after the citation refresh
-    - cron: '0 5 * * 1'
+    # Monday 11:00 UTC. Deliberately several hours after refresh-data.yml
+    # (Monday 04:00 UTC, timeout 350 min = up to ~10:00 UTC) so that the
+    # long citation refresh has finished pushing to main before this job
+    # commits. Overlapping runs race their pushes to main and a rejected
+    # non-fast-forward push discards a whole run's output.
+    - cron: '0 11 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -24,11 +28,14 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r scripts/requirements.txt
 
-      - name: Refresh FLoRA snapshot
-        run: python scripts/refresh_flora.py
+      # The daily refresh-flora.yml keeps data/flora.csv fresh, so this job
+      # consumes the committed snapshot rather than re-downloading it here.
 
       - name: Enrich with OpenAlex Mean Citedness
-        continue-on-error: true
+        # No continue-on-error: if enrichment fails, flora_with_omc.csv is
+        # stale or missing, and the R render below would otherwise produce a
+        # "fresh" impact-factor analysis (new timestamp) from old data. Fail
+        # fast so nothing misleading gets committed.
         env:
           MY_EMAIL: ${{ secrets.MY_EMAIL }}
         run: python scripts/compute_omc.py
@@ -46,13 +53,13 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/flora.csv data/flora_meta.json \
-                  data/flora_with_omc.csv data/flora_with_omc_meta.json \
+          git add data/flora_with_omc.csv data/flora_with_omc_meta.json \
                   data/impact_factor_data.json data/impact_factor_meta.json \
                   cache/openalex_venues.json || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
             git commit -m "Mean Citedness refresh: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git pull --rebase origin main
             git push
           fi
