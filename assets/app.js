@@ -951,8 +951,11 @@ function renderMcCharts(d) {
 
     // ── Overview grid ─────────────────────────────────────────────────────
     const ov = d.overview;
-    const pctS = ov.n_total ? Math.round(100 * ov.n_success / ov.n_total) : 0;
-    const pctF = ov.n_total ? Math.round(100 * ov.n_failed  / ov.n_total) : 0;
+    // Percentages are of classified studies (successful/failed/mixed), not the
+    // full set shown — the latter includes uninformative/descriptive rows.
+    const denom = ov.n_classified || 0;
+    const pctS = denom ? Math.round(100 * ov.n_success / denom) : 0;
+    const pctF = denom ? Math.round(100 * ov.n_failed  / denom) : 0;
     document.getElementById('mc-overview').innerHTML = `
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Studies with OMC</span></div>
         <div class="mc-stat"><span class="mc-stat-value" style="color:#2f8f4f">${ov.n_success.toLocaleString()}</span><span class="mc-stat-label">Successful (${pctS}%)</span></div>
@@ -969,7 +972,6 @@ function renderMcCharts(d) {
         { x: xMids, y: bins.map(b => b.successful),   name: 'Successful',   type: 'bar', marker: { color: OUTCOME_COLORS.successful },   hovertemplate: hTpl },
         { x: xMids, y: bins.map(b => b.failed),       name: 'Failed',       type: 'bar', marker: { color: OUTCOME_COLORS.failed },       hovertemplate: hTpl },
         { x: xMids, y: bins.map(b => b.mixed),        name: 'Mixed',        type: 'bar', marker: { color: OUTCOME_COLORS.mixed },        hovertemplate: hTpl },
-        { x: xMids, y: bins.map(b => b.inconclusive), name: 'Inconclusive', type: 'bar', marker: { color: OUTCOME_COLORS.inconclusive }, hovertemplate: hTpl },
     ], {
         barmode: 'stack', bargap: 0.05,
         margin: { t: 10, r: 10, b: 50, l: 55 },
@@ -993,11 +995,16 @@ function renderMcCharts(d) {
         gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--flora-muted);font-size:0.9rem;text-align:center;padding:2rem">Not enough data to fit a smooth model<br>(requires ≥30 studies with successful or failed outcomes that have OMC data)</div>';
         return;
     }
-    const jitter2 = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
-        x: pt.omc + (Math.random() - 0.5) * 0.15,
-        y: pt.outcome + (Math.random() - 0.5) * 0.06,
-        lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
-    }));
+    // Jitter is computed once per data load and cached so scatter points stay
+    // put across re-renders (theme toggles, etc.) instead of jumping.
+    if (!window._mcJitter) {
+        window._mcJitter = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
+            x: pt.omc + (Math.random() - 0.5) * 0.15,
+            y: pt.outcome + (Math.random() - 0.5) * 0.06,
+            lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
+        }));
+    }
+    const jitter2 = window._mcJitter;
     const gamTraces = [
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
@@ -1048,6 +1055,11 @@ function renderMcCharts(d) {
 }
 
 async function loadMeanCitedness() {
+    // Fetch + render once. On later tab visits the charts are already in the
+    // DOM (theme toggles re-render via _rerenderAllCharts), so just return;
+    // the in-flight flag stops duplicate fetches from rapid tab switching.
+    if (window._mcData || window._mcLoading) return;
+    window._mcLoading = true;
     const loadingEl  = document.getElementById('mc-loading');
     const overviewEl = document.getElementById('mc-overview');
     const distCard   = document.getElementById('mc-dist-card');
@@ -1057,6 +1069,8 @@ async function loadMeanCitedness() {
         const res = await fetch(IMPACT_DATA_URL, { cache: 'no-cache' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
+        window._mcJitter = null;  // fresh data → fresh jitter
+        window._mcData = data;
         loadingEl.style.display  = 'none';
         overviewEl.style.display = '';
         distCard.style.display   = '';
@@ -1068,6 +1082,8 @@ async function loadMeanCitedness() {
         errorEl.style.display   = 'block';
         const det = document.getElementById('mc-error-detail');
         if (det) det.textContent = String(err);
+    } finally {
+        window._mcLoading = false;
     }
 }
 document.getElementById('mc-tab').addEventListener('shown.bs.tab', loadMeanCitedness);
