@@ -236,11 +236,20 @@ function shortAuthors(authorData) {
 // failure. After load, a missing library really is a failed CDN.
 function chartLibUnavailable(elId, lib, retry) {
     if (document.readyState !== 'complete') {
-        window.addEventListener('load', retry, { once: true });
+        // Dedupe by retry-function identity so several guards sharing one
+        // retry (the five trend charts all retry via renderAllTrends) queue
+        // it only once.
+        const q = (chartLibUnavailable._queued ||= new Set());
+        if (!q.has(retry)) {
+            q.add(retry);
+            window.addEventListener('load', retry, { once: true });
+        }
         return;
     }
     chartLibMissing(elId, lib);
 }
+
+const retryAllTrends = () => { if (trendsInitialized) renderAllTrends(); };
 
 function chartLibMissing(elId, lib) {
     const el = document.getElementById(elId);
@@ -881,7 +890,7 @@ function wrapLabel(str, maxChars = 36) {
 
 function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
     if (existing) existing.destroy();
-    if (typeof Chart === 'undefined') { chartLibUnavailable(canvasId, 'Chart.js', () => { if (trendsInitialized) renderAllTrends(); }); return null; }
+    if (typeof Chart === 'undefined') { chartLibUnavailable(canvasId, 'Chart.js', retryAllTrends); return null; }
     const ctx = document.getElementById(canvasId).getContext('2d');
     const isHorizontal = orientation === 'horizontal';
     const ac = themeAxisColors();
