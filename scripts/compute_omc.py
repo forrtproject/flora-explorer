@@ -21,6 +21,7 @@ import csv
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -190,6 +191,7 @@ def main():
           f"(cache has {len(cache)} entries)")
 
     new_lookups = 0
+    transient_errors = 0
     for i, j in enumerate(unique_journals, 1):
         if normalize_name(j) in cache:
             continue
@@ -198,6 +200,10 @@ def main():
                   f"writing CSV with venues resolved so far.")
             break
         lookup_venue(j, cache)
+        # A lookup that neither cached a hit nor a genuine miss was a
+        # transient failure (network / 429 / 5xx / parse).
+        if normalize_name(j) not in cache:
+            transient_errors += 1
         new_lookups += 1
         if new_lookups % 50 == 0:
             save_cache(cache)
@@ -205,6 +211,13 @@ def main():
 
     save_cache(cache)
     print(f"✔ {new_lookups} new venues looked up; cache size now {len(cache)}")
+
+    # A widespread OpenAlex outage would otherwise yield an incompletely
+    # enriched CSV with a fresh timestamp. Exit nonzero (cache already saved,
+    # CSV unwritten) so the workflow fails instead of committing it as fresh.
+    if new_lookups >= 10 and transient_errors / new_lookups > 0.5:
+        sys.exit(f"✗ {transient_errors}/{new_lookups} venue lookups failed "
+                 f"transiently - OpenAlex looks unhealthy, aborting run")
 
     enriched = 0
     for row in rows:
