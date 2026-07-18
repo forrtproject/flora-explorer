@@ -27,7 +27,7 @@ Contributions of new dashboards/tabs are welcome — see
 ├── index.html
 ├── assets/
 │   ├── styles.css
-│   ├── app.js                 # Overview / Browse / Years & Disciplines / Mean Citedness loader
+│   ├── app.js                 # Loader for all tabs except Citation Impact
 │   ├── citation-impact.js     # Citation Impact tab (lazy-loaded)
 │   └── logo.svg
 ├── data/                      # All written by GitHub Actions, except disciplines.json
