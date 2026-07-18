@@ -6,6 +6,12 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+# All data workflows share one concurrency group so their pushes to main are
+# serialized (queued, not cancelled) instead of racing.
+concurrency:
+  group: flora-data-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -39,5 +45,6 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "Daily FLoRA snapshot: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git pull --rebase origin main
             git push
           fi
