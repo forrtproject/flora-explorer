@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -36,11 +37,28 @@ KEEP_COLUMNS = [
 ]
 
 
+def fetch_text(url: str, attempts: int = 3, timeout: int = 120) -> str:
+    """GET with a timeout and exponential backoff so a one-off network blip
+    doesn't fail the daily job."""
+    last_err = None
+    for attempt in range(1, attempts + 1):
+        try:
+            r = requests.get(url, timeout=timeout)
+            r.raise_for_status()
+            return r.text
+        except requests.exceptions.RequestException as e:
+            last_err = e
+            if attempt == attempts:
+                break
+            wait = 2 ** attempt
+            print(f"  retry {attempt}/{attempts} in {wait}s: {e}")
+            time.sleep(wait)
+    raise SystemExit(f"Failed to fetch {url} after {attempts} attempts: {last_err}")
+
+
 def main():
     print(f"Fetching {FLORA_URL} …")
-    r = requests.get(FLORA_URL, timeout=120)
-    r.raise_for_status()
-    text = r.text.lstrip("\ufeff")  # strip BOM so "doi_o" (not BOM-prefixed) is the fieldname
+    text = fetch_text(FLORA_URL).lstrip("\ufeff")  # strip BOM so "doi_o" (not BOM-prefixed) is the fieldname
 
     # Sanity-check the CSV before committing
     reader = csv.DictReader(io.StringIO(text))
