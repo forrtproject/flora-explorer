@@ -1055,8 +1055,11 @@ function renderMcCharts(d) {
 }
 
 async function loadMeanCitedness() {
-    // Fetch + render once; on subsequent tab visits reuse the cached data.
-    if (window._mcData) { renderMcCharts(window._mcData); return; }
+    // Fetch + render once. On later tab visits the charts are already in the
+    // DOM (theme toggles re-render via _rerenderAllCharts), so just return;
+    // the in-flight flag stops duplicate fetches from rapid tab switching.
+    if (window._mcData || window._mcLoading) return;
+    window._mcLoading = true;
     const loadingEl  = document.getElementById('mc-loading');
     const overviewEl = document.getElementById('mc-overview');
     const distCard   = document.getElementById('mc-dist-card');
@@ -1079,6 +1082,8 @@ async function loadMeanCitedness() {
         errorEl.style.display   = 'block';
         const det = document.getElementById('mc-error-detail');
         if (det) det.textContent = String(err);
+    } finally {
+        window._mcLoading = false;
     }
 }
 document.getElementById('mc-tab').addEventListener('shown.bs.tab', loadMeanCitedness);
