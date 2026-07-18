@@ -10,6 +10,12 @@ on:
     - cron: '0 11 * * 1'
   workflow_dispatch:
 
+# All data workflows share one concurrency group so their pushes to main are
+# serialized (queued, not cancelled) instead of racing.
+concurrency:
+  group: flora-data-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -30,6 +36,21 @@ jobs:
 
       # The daily refresh-flora.yml keeps data/flora.csv fresh, so this job
       # consumes the committed snapshot rather than re-downloading it here.
+      # Guard against that assumption failing silently: if the snapshot is
+      # older than 48h the daily job has been broken, and enriching stale
+      # input would publish a misleading fresh-timestamped analysis.
+      - name: Check FLoRA snapshot freshness
+        run: |
+          python - <<'EOF'
+          import json, sys
+          from datetime import datetime, timezone
+          stamp = json.load(open("data/flora_meta.json"))["last_updated"]
+          fetched = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+          age_h = (datetime.now(timezone.utc) - fetched).total_seconds() / 3600
+          print(f"flora.csv snapshot age: {age_h:.1f} h")
+          if age_h > 48:
+              sys.exit("flora.csv snapshot is stale (>48h) - fix refresh-flora.yml first")
+          EOF
 
       - name: Enrich with OpenAlex Mean Citedness
         # No continue-on-error: if enrichment fails, flora_with_omc.csv is

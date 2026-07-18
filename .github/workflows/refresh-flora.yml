@@ -6,6 +6,12 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+# All data workflows share one concurrency group so their pushes to main are
+# serialized (queued, not cancelled) instead of racing.
+concurrency:
+  group: flora-data-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
