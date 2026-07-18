@@ -181,7 +181,7 @@
     }
 
     function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome) {
-        if (typeof Plotly === 'undefined') { chartLibMissing(divId, 'Plotly'); return; }
+        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome)); return; }
         const desc = data.descriptive || {}; const model = data[modelField] || {};
         const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
         const traces = [];
@@ -444,7 +444,7 @@
     }
 
     function drawStudyTimeline(s) {
-        if (typeof Plotly === 'undefined') { chartLibMissing('study-plot', 'Plotly'); return; }
+        if (typeof Plotly === 'undefined') { chartLibUnavailable('study-plot', 'Plotly', () => drawStudyTimeline(s)); return; }
         const tl = s.timeline || [];
         if (tl.length === 0) {
             document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--flora-muted)">No citation data available</div>';

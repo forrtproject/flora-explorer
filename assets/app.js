@@ -229,6 +229,19 @@ function shortAuthors(authorData) {
 // (ad-blocker/offline), the library is undefined; show an inline message in the
 // chart container instead of throwing an uncaught error that aborts everything
 // else on the page (tables, FAQ, data stamps, …).
+// The chart libraries load from CDNs *after* app.js, and a fast (cached,
+// same-origin) data fetch can resolve while they are still downloading. So
+// before the window load event, an undefined library means "not loaded yet",
+// not "failed": defer one retry to the load event instead of declaring
+// failure. After load, a missing library really is a failed CDN.
+function chartLibUnavailable(elId, lib, retry) {
+    if (document.readyState !== 'complete') {
+        window.addEventListener('load', retry, { once: true });
+        return;
+    }
+    chartLibMissing(elId, lib);
+}
+
 function chartLibMissing(elId, lib) {
     const el = document.getElementById(elId);
     if (!el) return;
@@ -255,7 +268,7 @@ function updateOverviewStats(data) {
 }
 
 function renderOverviewChart(data) {
-    if (typeof Chart === 'undefined') { chartLibMissing('overview-outcome-chart', 'Chart.js'); return; }
+    if (typeof Chart === 'undefined') { chartLibUnavailable('overview-outcome-chart', 'Chart.js', () => renderOverviewChart(data)); return; }
     const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
     const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
     eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
@@ -431,10 +444,13 @@ function renderInlineMd(text) {
     let s = escapeHtml(text);
     s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
     s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => {
-        // Only allow safe link schemes; anything else (e.g. javascript:) renders as plain text.
-        const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(u.trim());
-        const safe = !scheme || ['http:', 'https:', 'mailto:'].includes(scheme[1].toLowerCase() + ':');
-        return safe ? `<a href="${u}" target="_blank" rel="noopener">${t}</a>` : `${t} (${u})`;
+        // Strict allow-list: the whole trimmed URL must start with an allowed
+        // scheme. Anything else — including relative, protocol-relative, or
+        // control-character-prefixed URLs that browsers would normalize into
+        // javascript: — renders as plain text.
+        const clean = u.trim();
+        const safe = /^(https?:|mailto:)/i.test(clean);
+        return safe ? `<a href="${clean}" target="_blank" rel="noopener">${t}</a>` : `${t} (${u})`;
     });
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
@@ -704,7 +720,7 @@ function renderBrowseOutcomeChart() {
         { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
     ];
     const canvas = document.getElementById('browse-outcome-chart'); if (!canvas) return;
-    if (typeof Chart === 'undefined') { chartLibMissing('browse-outcome-chart', 'Chart.js'); return; }
+    if (typeof Chart === 'undefined') { chartLibUnavailable('browse-outcome-chart', 'Chart.js', renderBrowseOutcomeChart); return; }
     const ctx = canvas.getContext('2d');
     if (browseOutcomeChart) browseOutcomeChart.destroy();
     const ac = themeAxisColors();
@@ -865,7 +881,7 @@ function wrapLabel(str, maxChars = 36) {
 
 function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
     if (existing) existing.destroy();
-    if (typeof Chart === 'undefined') { chartLibMissing(canvasId, 'Chart.js'); return null; }
+    if (typeof Chart === 'undefined') { chartLibUnavailable(canvasId, 'Chart.js', () => { if (trendsInitialized) renderAllTrends(); }); return null; }
     const ctx = document.getElementById(canvasId).getContext('2d');
     const isHorizontal = orientation === 'horizontal';
     const ac = themeAxisColors();
@@ -1173,7 +1189,7 @@ function renderOverlapCharts(d) {
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
     if (chartEl) {
-        if (typeof Plotly === 'undefined') chartLibMissing('ao-chart', 'Plotly');
+        if (typeof Plotly === 'undefined') chartLibUnavailable('ao-chart', 'Plotly', () => renderOverlapCharts(d));
         else Plotly.react(chartEl, traces, layout, config);
     }
 
