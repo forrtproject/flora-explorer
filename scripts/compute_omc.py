@@ -24,6 +24,7 @@ import re
 import sys
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
@@ -98,6 +99,28 @@ def names_match(query: str, display: str) -> bool:
     return overlap >= 0.5
 
 
+def retry_after_seconds(resp, default: float, max_wait: float = 120.0) -> float:
+    """Honor a Retry-After header, which may be either delta-seconds or an
+    HTTP-date. Clamp to a sane maximum and fall back to `default` otherwise."""
+    ra = resp.headers.get("Retry-After")
+    if ra:
+        ra = ra.strip()
+        try:
+            return min(max(float(ra), 0.0), max_wait)
+        except ValueError:
+            pass
+        try:
+            when = parsedate_to_datetime(ra)
+            if when is not None:
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                delta = (when - datetime.now(timezone.utc)).total_seconds()
+                return min(max(delta, 0.0), max_wait)
+        except (TypeError, ValueError):
+            pass
+    return default
+
+
 def lookup_venue(name: str, cache: dict) -> dict | None:
     """Resolve a journal name to an OpenAlex Source with summary_stats."""
     key = normalize_name(name)
@@ -124,15 +147,13 @@ def lookup_venue(name: str, cache: dict) -> dict | None:
                 return None  # transient: do NOT cache, retry next run
             time.sleep(2 ** attempt)
             continue
-        if r.status_code == 429:
-            ra = r.headers.get("Retry-After")
-            try:
-                wait = float(ra) if ra else 2.0 * attempt
-            except ValueError:
-                wait = 2.0 * attempt
+        if r.status_code == 429 or r.status_code >= 500:
+            # Rate limiting and server-side (5xx) errors are transient — back
+            # off and retry within the same attempt budget.
             if attempt == 3:
-                print(f"  ! persistent 429 for {name[:60]}")
+                print(f"  ! persistent HTTP {r.status_code} for {name[:60]}")
                 return None  # transient: do NOT cache
+            wait = retry_after_seconds(r, 2.0 * attempt)
             time.sleep(wait)
             continue
         break
