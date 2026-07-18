@@ -3,7 +3,7 @@
 A static, GitHub-Pages-friendly dashboard for the [FORRT Library of
 Replication Attempts (FLoRA)](https://forrt.org/replication-hub/flora).
 
-Five tabs:
+Six tabs:
 
 | Tab                      | What it shows                                                   | Refreshed |
 |--------------------------|-----------------------------------------------------------------|-----------|
@@ -12,6 +12,7 @@ Five tabs:
 | **Years & Disciplines**  | Year/journal/discipline breakdowns of outcomes                  | Daily     |
 | **Citation Impact**      | OpenCitations event-study of citation changes after replication | Weekly    |
 | **Mean Citedness**       | Journal-level OMC vs replication success (R analysis)           | Weekly    |
+| **Authorship Overlap**   | Original/replication author overlap vs outcomes                 | Daily     |
 
 Every tab shows a "Last updated" stamp pulled from the relevant
 `*_meta.json` next to the data.
