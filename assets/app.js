@@ -1067,6 +1067,7 @@ async function loadMeanCitedness() {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         window._mcJitter = null;  // fresh data → fresh jitter
+        window._mcData = data;
         loadingEl.style.display  = 'none';
         overviewEl.style.display = '';
         distCard.style.display   = '';
