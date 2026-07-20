@@ -1,10 +1,10 @@
 {
   "pub_status": {
     "individual": {
-      "n_originals": 1448,
-      "mean_rate": 0.1255,
-      "median_rate": 0.0728,
-      "grand_mean_rate": 0.062
+      "n_originals": 1453,
+      "mean_rate": 0.1251,
+      "median_rate": 0.0719,
+      "grand_mean_rate": 0.0616
     },
     "large_project": {
       "n_originals": 403,
@@ -33,10 +33,10 @@
       "grand_mean_rate": 0.0641
     },
     "mixed": {
-      "n_originals": 463,
-      "mean_rate": 0.0962,
-      "median_rate": 0.0364,
-      "grand_mean_rate": 0.0469
+      "n_originals": 468,
+      "mean_rate": 0.0953,
+      "median_rate": 0.0358,
+      "grand_mean_rate": 0.0462
     }
   }
 }
