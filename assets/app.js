@@ -31,11 +31,11 @@ const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/r
 const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
 
 const OUTCOME_COLORS = {
-    successful:   '#2f8f4f',
-    failed:       '#b3331e',
-    mixed:        '#d49b1d',
-    inconclusive: '#6f7686',
-    other:        '#a0a7b4'
+    successful:   '#16a34a',
+    failed:       '#b42318',
+    mixed:        '#b8860b',
+    inconclusive: '#888888',
+    other:        '#aaaaaa'
 };
 
 // Filled at runtime from data/disciplines.json
@@ -50,9 +50,9 @@ function disciplineForJournal(journalName) {
 function themeAxisColors() {
     const dark = currentTheme() === 'dark';
     return {
-        grid:   dark ? '#2d2e3d' : '#dfd8e5',
-        tick:   dark ? '#b8b5c4' : '#4e4858',
-        legend: dark ? '#e8e6ee' : '#2a2330'
+        grid:   dark ? '#3a303a' : '#e0e1e1',
+        tick:   dark ? '#c3bac0' : '#4a4a4a',
+        legend: dark ? '#ece7ea' : '#2c2c2c'
     };
 }
 
@@ -309,7 +309,7 @@ function renderRandomExamples(data) {
             <div class="example-card outcome-${cls}">
                 ${studyLink(r.doi_o, null, origInner)}
                 ${hasRep ? studyLink(r.doi_r, r.url_r, repInner) : ''}
-                <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge bg-light text-dark">' + escapeHtml(r.type) + '</span>' : ''}</div>
+                <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge-type type-' + escapeHtml(String(r.type).toLowerCase()) + '">' + escapeHtml(r.type) + '</span>' : ''}</div>
             </div>
         `;
     }).join('');
@@ -604,7 +604,7 @@ function bmCardHtml(row) {
     const rTitle = bmRenderTitleLine(row.title_r, shortAuthors(row.author_r), row.doi_r, row.url_r);
     const rMeta = [bmAuthorYear(row.author_r, row.year_r), row.journal_r].filter(Boolean).map(escapeHtml).join(' · ');
     const tagsParts = [getOutcomeBadge(row.outcome)];
-    if (row.type) tagsParts.push(`<span class="bm-tag-type">${escapeHtml(row.type)}</span>`);
+    if (row.type) tagsParts.push(`<span class="badge-type type-${escapeHtml(String(row.type).toLowerCase())}">${escapeHtml(row.type)}</span>`);
     return `
         <div class="bm-card">
             <div class="bm-row"><div class="bm-row-label">Original</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
@@ -819,7 +819,7 @@ function trendsDatasets(agg) {
     const labelSet = new Set();
     agg.forEach(r => Object.keys(r.byLabel).forEach(l => labelSet.add(l)));
     const labels = Array.from(labelSet).sort();
-    const palette = ['#2f8f4f', '#38b2ac', '#4299e1', '#d49b1d', '#b3331e', '#9f7aea', '#6f7686', '#a0a7b4'];
+    const palette = ['#853953', '#2563eb', '#16a34a', '#b8860b', '#7c3aed', '#b42318', '#A04D6B', '#888888'];
     return labels.map((label, i) => ({ label, data: agg.map(r => r.byLabel[label] || 0), backgroundColor: palette[i % palette.length] }));
 }
 
@@ -935,10 +935,10 @@ window._mcData = null;
 function mcPlotlyTheme() {
     const dark = currentTheme() === 'dark';
     return {
-        paper: dark ? '#1d1e29' : '#ffffff',
-        plot:  dark ? '#1d1e29' : '#ffffff',
-        grid:  dark ? '#2d2e3d' : '#eeeaef',
-        font:  dark ? '#e8e6ee' : '#2a2330',
+        paper: dark ? '#241d23' : '#ffffff',
+        plot:  dark ? '#241d23' : '#ffffff',
+        grid:  dark ? '#3a303a' : '#e0e1e1',
+        font:  dark ? '#ece7ea' : '#2c2c2c',
     };
 }
 
@@ -947,7 +947,7 @@ function renderMcCharts(d) {
     window._mcData = d;
     const t = mcPlotlyTheme();
     const primary = getComputedStyle(document.documentElement)
-        .getPropertyValue('--flora-primary').trim() || '#8b1a4a';
+        .getPropertyValue('--flora-primary').trim() || '#853953';
 
     // ── Overview grid ─────────────────────────────────────────────────────
     const ov = d.overview;
@@ -955,9 +955,9 @@ function renderMcCharts(d) {
     const pctF = ov.n_total ? Math.round(100 * ov.n_failed  / ov.n_total) : 0;
     document.getElementById('mc-overview').innerHTML = `
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Studies with OMC</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#2f8f4f">${ov.n_success.toLocaleString()}</span><span class="mc-stat-label">Successful (${pctS}%)</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#b3331e">${ov.n_failed.toLocaleString()}</span><span class="mc-stat-label">Failed (${pctF}%)</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#d49b1d">${ov.n_mixed.toLocaleString()}</span><span class="mc-stat-label">Mixed</span></div>
+        <div class="mc-stat"><span class="mc-stat-value" style="color:var(--success)">${ov.n_success.toLocaleString()}</span><span class="mc-stat-label">Successful (${pctS}%)</span></div>
+        <div class="mc-stat"><span class="mc-stat-value" style="color:var(--error)">${ov.n_failed.toLocaleString()}</span><span class="mc-stat-label">Failed (${pctF}%)</span></div>
+        <div class="mc-stat"><span class="mc-stat-value" style="color:var(--warning)">${ov.n_mixed.toLocaleString()}</span><span class="mc-stat-label">Mixed</span></div>
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_journals.toLocaleString()}</span><span class="mc-stat-label">Journals matched</span></div>
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines}</span><span class="mc-stat-label">Disciplines</span></div>`;
 
@@ -984,7 +984,7 @@ function renderMcCharts(d) {
     const st = d.stats || {};
     const gc = Array.isArray(d.gam_curve) ? d.gam_curve : [];
     const isDark = currentTheme() === 'dark';
-    const lineColor = isDark ? '#e0a5c0' : primary;
+    const lineColor = isDark ? '#D98BA6' : primary;
 
     // ── GAM chart (Plotly) ────────────────────────────────────────────────
     const gamDiv = document.getElementById('mc-gam-chart');
@@ -1002,7 +1002,7 @@ function renderMcCharts(d) {
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_hi), type: 'scatter', mode: 'lines',
-          fill: 'tonexty', fillcolor: isDark ? 'rgba(224,165,192,0.18)' : 'rgba(139,26,74,0.12)',
+          fill: 'tonexty', fillcolor: isDark ? 'rgba(217,139,166,0.18)' : 'rgba(133,57,83,0.12)',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_hi' },
         { x: gc.map(p => p.omc), y: gc.map(p => p.p), type: 'scatter', mode: 'lines',
           line: { color: lineColor, width: 2.5 }, name: 'Smooth fit',
@@ -1078,10 +1078,10 @@ window._aoData = null;
 function aoPlotlyTheme() {
     const dark = currentTheme() === 'dark';
     return {
-        paper: dark ? '#1d1e29' : '#ffffff',
-        plot:  dark ? '#1d1e29' : '#ffffff',
-        grid:  dark ? '#2d2e3d' : '#eeeaef',
-        font:  dark ? '#e8e6ee' : '#2a2330',
+        paper: dark ? '#241d23' : '#ffffff',
+        plot:  dark ? '#241d23' : '#ffffff',
+        grid:  dark ? '#3a303a' : '#e0e1e1',
+        font:  dark ? '#ece7ea' : '#2c2c2c',
     };
 }
 
@@ -1125,7 +1125,7 @@ function renderOverlapCharts(d) {
         type: 'bar',
         x: groups.map(g => GROUP_LABELS[g]),
         y: groups.map(g => (by[g] && by[g][oc]) || 0),
-        marker: { color: OUTCOME_COLORS[oc] || '#a0a7b4' },
+        marker: { color: OUTCOME_COLORS[oc] || '#aaaaaa' },
     }));
 
     const layout = {

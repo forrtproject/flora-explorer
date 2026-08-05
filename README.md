@@ -25,7 +25,8 @@ Contributions of new dashboards/tabs are welcome — see
 .
 ├── index.html
 ├── assets/
-│   ├── styles.css
+│   ├── ds-tokens.css          # Replication Atlas design tokens (+ dark extension)
+│   ├── styles.css             # Component styles, built on those tokens
 │   ├── app.js                 # Overview / Browse / Years & Disciplines / Mean Citedness loader
 │   ├── citation-impact.js     # Citation Impact tab (lazy-loaded)
 │   └── logo.svg
@@ -113,6 +114,27 @@ R packages required: `jsonlite`, `mgcv`.
 journal → discipline mapping used both by the JS frontend (Years &
 Disciplines tab) and by the R Mean Citedness analysis. Edit it once and
 both views update on the next deploy / refresh.
+
+## Styling
+
+The interface follows the **Replication Atlas design system**
+(FORRT's Explore palette). `assets/ds-tokens.css` holds the system's
+tokens verbatim — the frozen `#853953` brand ramp, semantic
+fg/bg/border triples, the study-type blue/violet pair, Domine +
+Source Sans 3, the 6/10/100/14px shape scale, three elevation levels
+and the `.12s`/`.2s` motion pair — plus a `[data-theme="dark"]` block
+that extends the system, which is light-only upstream.
+
+`assets/styles.css` consumes those tokens; component rules follow the
+system's conventions (10px tracked-uppercase micro-labels, pill chips
+that go faint-tinted rather than solid when active, 3px brand left
+rails on notable rows, dark topbar paired with a dark footer). Chart
+palettes in `app.js` / `citation-impact.js` use the same semantic
+colours. Add new UI by reaching for a token, not a literal hex.
+
+One deliberate deviation: the system specifies a fixed-height
+`100dvh` app shell with independently scrolling panels. FLoRA Explorer
+is a scrolling multi-tab dashboard and keeps normal page flow.
 
 ## Acknowledgements
 

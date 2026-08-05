@@ -11,7 +11,7 @@
     };
 
     const OUTCOME_COLORS = {
-        failed: '#b3331e', successful: '#2f8f4f', mixed: '#d49b1d', all: '#8b1a4a'
+        failed: '#b42318', successful: '#16a34a', mixed: '#b8860b', all: '#853953'
     };
 
     function escapeHtml(s) {
@@ -53,11 +53,11 @@
     function plotlyTheme() {
         const dark = document.documentElement.getAttribute('data-theme') === 'dark';
         return {
-            paper: dark ? '#1d1e29' : '#ffffff',
-            plot:  dark ? '#1d1e29' : '#ffffff',
-            grid:  dark ? '#2d2e3d' : '#eeeaef',
-            font:  dark ? '#e8e6ee' : '#2a2330',
-            muted: dark ? '#9793a4' : '#6f7686'
+            paper: dark ? '#241d23' : '#ffffff',
+            plot:  dark ? '#241d23' : '#ffffff',
+            grid:  dark ? '#3a303a' : '#e0e1e1',
+            font:  dark ? '#ece7ea' : '#2c2c2c',
+            muted: dark ? '#958c93' : '#888888'
         };
     }
 
@@ -180,7 +180,7 @@
         if (desc.event_time && desc.n_units && desc.n_units.length) {
             traces.push({
                 x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines',
-                line: { color: '#bbb', width: 1, dash: 'dot' },
+                line: { color: '#aaa', width: 1, dash: 'dot' },
                 name: 'N (right axis)', yaxis: 'y2',
                 hovertemplate: 't=%{x}: N=%{y}<extra></extra>'
             });
@@ -205,8 +205,8 @@
         if (fect && fect.event_time && fect.event_time.length > 0) {
             const refIdx = desc.event_time ? desc.event_time.indexOf(-1) : -1;
             const baseline = refIdx >= 0 ? desc[descField][refIdx] : 0;
-            const fectColor = '#4a74b4';
-            const fectColorAlpha = 'rgba(74,116,180,0.15)';
+            const fectColor = '#2563eb';
+            const fectColorAlpha = 'rgba(37,99,235,0.15)';
             // CI band: lower bound first (invisible), then upper bound fills back to it
             traces.push({
                 x: fect.event_time,
@@ -246,8 +246,8 @@
                 title: 'N studies', overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
                 tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
             },
-            shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: '#8b1a4a', width: 1.5, dash: 'dash' } }],
-            annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: '#8b1a4a' } }],
+            shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: '#853953', width: 1.5, dash: 'dash' } }],
+            annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: '#853953' } }],
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
             font: { family: 'Inter, sans-serif', size: 12, color: t.font },
             legend: { orientation: 'h', y: -0.22, font: { color: t.font } }
@@ -425,7 +425,7 @@
         }
         const years = tl.map(t => t.year);
         const traces = [
-            { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: '#9ca3af' } },
+            { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: '#888888' } },
             { x: years, y: tl.map(t => t.with_failed),     name: 'Co-cites failed rep',    type: 'bar', marker: { color: OUTCOME_COLORS.failed } },
             { x: years, y: tl.map(t => t.with_mixed),      name: 'Co-cites mixed rep',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
             { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } }
@@ -433,8 +433,8 @@
         const shapes = []; const annotations = [];
         (s.replications || []).forEach((r, i) => {
             if (!r.year) return;
-            shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || '#8b1a4a', width: 2, dash: 'dash' } });
-            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - (i % 3) * 0.06, text: `${r.outcome} rep ${r.year}`, showarrow: false, font: { size: 10, color: OUTCOME_COLORS[r.outcome] || '#8b1a4a' }, bgcolor: 'rgba(255,255,255,0.85)' });
+            shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || '#853953', width: 2, dash: 'dash' } });
+            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - (i % 3) * 0.06, text: `${r.outcome} rep ${r.year}`, showarrow: false, font: { size: 10, color: OUTCOME_COLORS[r.outcome] || '#853953' }, bgcolor: 'rgba(255,255,255,0.85)' });
         });
         const t = plotlyTheme();
         const layout = {
