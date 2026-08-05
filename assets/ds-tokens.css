@@ -1,0 +1,150 @@
+/* =============================================================
+   Replication Atlas design tokens
+   Transcribed from "Explore Design System" (FORRT Replication Atlas).
+   Light values are the design system verbatim; the [data-theme="dark"]
+   block extends the system, which is light-only upstream.
+   ============================================================= */
+
+:root {
+    /* --- Brand ramp (Explore palette — frozen per spec) --- */
+    --primary: #853953;
+    --primary-dark: #612D53;
+    --primary-light: #A04D6B;
+    --primary-faint: #F9F0F4;
+    --explore-dark: var(--primary-dark);
+    --explore-base: var(--primary);
+    --explore-light: var(--primary-light);
+    --explore-faint: var(--primary-faint);
+
+    /* --- Surfaces --- */
+    --neutral: #2c2c2c;
+    --surface: #f3f4f4;
+    --surface-alt: #e8e9e9;
+    --white: #fff;
+    --surface-white: var(--white);
+
+    /* --- Semantic (fg + bg + border triples) --- */
+    --success: #16a34a;
+    --success-light: #15803d;
+    --success-bg: #f0fdf4;
+    --success-border: #86efac;
+    --warning: #b8860b;
+    --warning-bg: #fef8e8;
+    --warning-border: #f0dfa0;
+    --error: #b42318;
+    --error-bg: #fef0ee;
+    --error-border: #f5c6c0;
+    --info: var(--primary);
+    --info-bg: var(--primary-faint);
+    --info-border: #d4a5b8;
+
+    /* --- Text + border ramps --- */
+    --text: #2c2c2c;
+    --text-secondary: #4a4a4a;
+    --text-muted: #888;
+    --text-faint: #aaa;
+    --text-primary: var(--text);
+    --border: #d0d1d1;
+    --border-light: #e0e1e1;
+    --border-subtle: var(--border-light);
+
+    /* --- Study types --- */
+    --study-original-fg: #2563eb;
+    --study-original-bg: #eff6ff;
+    --study-original-border: #93c5fd;
+    --study-replication-fg: #7c3aed;
+    --study-replication-bg: #f5f3ff;
+    --study-replication-border: #c4b5fd;
+
+    /* --- Type --- */
+    --font-display: 'Domine', Georgia, serif;
+    --font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+    --font-serif-display: var(--font-display);
+    --font-sans: var(--font-body);
+    --font-mono: 'SF Mono', ui-monospace, 'Courier New', monospace;
+    --text-10: 10px;
+    --text-11: 11px;
+    --text-12: 12px;
+    --text-13: 13px;
+    --text-14: 14px;
+    --text-detail: 1.15rem;
+    --text-title: 1.5rem;
+    --text-subtitle: var(--text-13);
+    --text-button: var(--text-14);
+    --text-badge: var(--text-10);
+    --body-line-height: 1.6;
+
+    /* --- Space --- */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+
+    /* --- Shape --- */
+    --radius: 6px;
+    --radius-lg: 10px;
+    --radius-pill: 100px;
+    --radius-modal: 14px;
+    --radius-card: var(--radius-lg);
+    --radius-button: var(--radius);
+
+    /* --- Elevation --- */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, .05);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, .07);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, .1);
+
+    /* --- Motion --- */
+    --transition-fast: .12s ease;
+    --transition: .2s ease;
+}
+
+/* Dark extension of the system: the brand ramp keeps its hue, surfaces
+   move to a plum-tinted neutral, and --primary-light carries brand colour
+   onto dark backgrounds where --primary would fail contrast. */
+[data-theme="dark"] {
+    --primary-light: #D98BA6;
+    --primary-faint: #2e2129;
+
+    --neutral: #141013;
+    --surface: #17131a;
+    --surface-alt: #241d23;
+    --white: #241d23;
+
+    --success: #4ade80;
+    --success-light: #22c55e;
+    --success-bg: #14261b;
+    --success-border: #2f6b45;
+    --warning: #e0b040;
+    --warning-bg: #2b2417;
+    --warning-border: #6b5a2c;
+    --error: #f08a7c;
+    --error-bg: #2d1c1a;
+    --error-border: #6e3b34;
+    --info-bg: var(--primary-faint);
+    --info-border: #6b4657;
+
+    --text: #ece7ea;
+    --text-secondary: #c3bac0;
+    --text-muted: #958c93;
+    --text-faint: #6f676d;
+    --border: #3a303a;
+    --border-light: #2c242c;
+
+    --study-original-fg: #93b4fd;
+    --study-original-bg: #1a2133;
+    --study-original-border: #35507f;
+    --study-replication-fg: #c0a8fa;
+    --study-replication-bg: #241e38;
+    --study-replication-border: #4c3d81;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, .35);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, .45);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, .55);
+}
+
+/* --- Named keyframes --- */
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes alertFadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes alertPopIn { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: scale(1) } }
