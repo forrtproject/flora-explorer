@@ -64,6 +64,7 @@
     async function init() {
         if (CI.loaded || CI.loading) return;
         CI.loading = true;
+        showLoading();
         try {
             const [metaRes, aggRes, origRes] = await Promise.all([
                 fetch('data/meta.json'),
@@ -103,6 +104,20 @@
         } finally {
             CI.loading = false;
         }
+    }
+
+    // Immediate "Loading…" state shown on init, before the three fetches resolve.
+    // Cleared by renderKPIs/renderAggregate/renderTable on success, or replaced by
+    // showPlaceholder on failure. Mirrors the mc-loading/ao-loading patterns.
+    function showLoading() {
+        const kpis = document.getElementById('kpis');
+        if (kpis) kpis.innerHTML = `<div style="padding:24px;text-align:center;color:var(--flora-muted);grid-column:1 / -1">⏳ Loading citation data…</div>`;
+        ['plot-cit', 'plot-cocit'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--flora-muted)">Loading…</div>';
+        });
+        const tbody = document.querySelector('#originals-table tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--flora-muted)">Loading…</td></tr>';
     }
 
     function showPlaceholder() {
@@ -166,6 +181,7 @@
     }
 
     function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome) {
+        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome)); return; }
         const desc = data.descriptive || {}; const model = data[modelField] || {};
         const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
         const traces = [];
@@ -405,19 +421,30 @@
                 <h3 style="margin-top:18px">Replications (${s.n_replications})</h3>
                 <ul class="rep-list">${reps}</ul>
             </div>`;
+        // Remember what had focus so we can restore it when the modal closes.
+        CI.lastFocus = document.activeElement;
         document.getElementById('ci-modal').hidden = false;
+        // Move focus into the modal for keyboard/screen-reader users.
+        const closeBtn = document.getElementById('ci-modal-close');
+        if (closeBtn) closeBtn.focus();
         // Reflect the open chart in the address bar so it's directly shareable.
         history.replaceState(null, '', citationLink(s.doi));
         drawStudyTimeline(s);
     }
 
     function closeModal() {
-        document.getElementById('ci-modal').hidden = true;
+        const modal = document.getElementById('ci-modal');
+        if (modal.hidden) return;
+        modal.hidden = true;
         // Drop ?doi= but keep the user on the Citation Impact tab.
         history.replaceState(null, '', new URL('./?tab=citations', window.location.href).href);
+        // Return focus to whatever opened the modal.
+        if (CI.lastFocus && typeof CI.lastFocus.focus === 'function') CI.lastFocus.focus();
+        CI.lastFocus = null;
     }
 
     function drawStudyTimeline(s) {
+        if (typeof Plotly === 'undefined') { chartLibUnavailable('study-plot', 'Plotly', () => drawStudyTimeline(s)); return; }
         const tl = s.timeline || [];
         if (tl.length === 0) {
             document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--flora-muted)">No citation data available</div>';
@@ -495,6 +522,10 @@
         document.getElementById('ci-modal-close').addEventListener('click', closeModal);
         document.getElementById('ci-modal').addEventListener('click', e => {
             if (e.target.id === 'ci-modal') closeModal();
+        });
+        // Escape closes the modal when it's open.
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && !document.getElementById('ci-modal').hidden) closeModal();
         });
     }
 

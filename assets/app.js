@@ -21,13 +21,13 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 // ----- Config -----
 // Prefer local snapshot (daily-refreshed by GitHub Action); fall back to upstream live CSV.
 const LOCAL_CSV_URL = 'data/flora.csv';
-const REMOTE_CSV_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv';
+const REMOTE_CSV_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora.csv';
 const FLORA_META_URL = 'data/flora_meta.json';
 const CITATIONS_META_URL = 'data/meta.json';
 const IMPACT_META_URL = 'data/impact_factor_meta.json';
 const IMPACT_DATA_URL = 'data/impact_factor_data.json';
 const DISCIPLINES_URL = 'data/disciplines.json';
-const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
+const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/CITATION.cff';
 const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
 
 const OUTCOME_COLORS = {
@@ -224,6 +224,41 @@ function shortAuthors(authorData) {
     return '';
 }
 
+// ===== Chart-library guards =====
+// Charts depend on Chart.js / Plotly loaded from a CDN. If a CDN is blocked
+// (ad-blocker/offline), the library is undefined; show an inline message in the
+// chart container instead of throwing an uncaught error that aborts everything
+// else on the page (tables, FAQ, data stamps, …).
+// The chart libraries load from CDNs *after* app.js, and a fast (cached,
+// same-origin) data fetch can resolve while they are still downloading. So
+// before the window load event, an undefined library means "not loaded yet",
+// not "failed": defer one retry to the load event instead of declaring
+// failure. After load, a missing library really is a failed CDN.
+function chartLibUnavailable(elId, lib, retry) {
+    if (document.readyState !== 'complete') {
+        // Dedupe by retry-function identity so several guards sharing one
+        // retry (the five trend charts all retry via renderAllTrends) queue
+        // it only once.
+        const q = (chartLibUnavailable._queued ||= new Set());
+        if (!q.has(retry)) {
+            q.add(retry);
+            window.addEventListener('load', retry, { once: true });
+        }
+        return;
+    }
+    chartLibMissing(elId, lib);
+}
+
+const retryAllTrends = () => { if (trendsInitialized) renderAllTrends(); };
+
+function chartLibMissing(elId, lib) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const msg = `<div class="chart-unavailable" style="padding:24px;text-align:center;color:var(--flora-muted);font-size:0.85rem;">Chart unavailable — ${lib} could not be loaded.</div>`;
+    if (el.tagName === 'CANVAS') { if (el.parentElement) el.parentElement.innerHTML = msg; }
+    else el.innerHTML = msg;
+}
+
 // ===== Overview =====
 function updateOverviewStats(data) {
     const total = data.length;
@@ -242,6 +277,7 @@ function updateOverviewStats(data) {
 }
 
 function renderOverviewChart(data) {
+    if (typeof Chart === 'undefined') { chartLibUnavailable('overview-outcome-chart', 'Chart.js', () => renderOverviewChart(data)); return; }
     const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
     const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
     eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
@@ -287,7 +323,13 @@ function renderRandomExamples(data) {
     const container = document.getElementById('random-examples');
     const usable = data.filter(r => (r.title_o || r.author_o) && r.outcome);
     if (usable.length === 0) { container.innerHTML = '<p class="text-muted">No examples available.</p>'; return; }
-    const shuffled = [...usable].sort(() => Math.random() - 0.5).slice(0, 4);
+    // Fisher–Yates shuffle (unbiased, unlike sort with a random comparator).
+    const pool = [...usable];
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const shuffled = pool.slice(0, 4);
     container.innerHTML = shuffled.map(r => {
         const cls = classifyOutcome(r.outcome);
         const origTitle = r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`;
@@ -410,7 +452,15 @@ document.getElementById('website-citation-copy-btn').addEventListener('click', (
 function renderInlineMd(text) {
     let s = escapeHtml(text);
     s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => {
+        // Strict allow-list: the whole trimmed URL must start with an allowed
+        // scheme. Anything else — including relative, protocol-relative, or
+        // control-character-prefixed URLs that browsers would normalize into
+        // javascript: — renders as plain text.
+        const clean = u.trim();
+        const safe = /^(https?:|mailto:)/i.test(clean);
+        return safe ? `<a href="${clean}" target="_blank" rel="noopener">${t}</a>` : `${t} (${u})`;
+    });
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
     return s;
@@ -531,11 +581,6 @@ function formatDetailRow(rowData) {
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
                     ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome Quote:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div>` : ''}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
-                    ${rowData.effect_o ? `<div><span class="detail-label">Original Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_o)}</span></div>` : ''}
-                    ${rowData.effect_r ? `<div><span class="detail-label">Replication Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_r)}</span></div>` : ''}
-                    ${rowData.n_o ? `<div><span class="detail-label">Original N:</span> <span class="detail-value">${escapeHtml(rowData.n_o)}</span></div>` : ''}
-                    ${rowData.n_r ? `<div><span class="detail-label">Replication N:</span> <span class="detail-value">${escapeHtml(rowData.n_r)}</span></div>` : ''}
-                    ${rowData.description ? `<div><span class="detail-label">Description:</span> <span class="detail-value">${escapeHtml(rowData.description)}</span></div>` : ''}
                 </div>
             </div>
         </div>`;
@@ -588,7 +633,7 @@ let bmFiltered = []; let bmPage = 0; let bmInitialized = false;
 function bmSearchableText(row) {
     return [row.title_o, row.author_o, row.journal_o, row.year_o, row.doi_o,
             row.title_r, row.author_r, row.journal_r, row.year_r, row.doi_r, row.url_r,
-            row.outcome, row.outcome_quote, row.type, row.description].filter(Boolean).join(' | ').toLowerCase();
+            row.outcome, row.outcome_quote, row.type].filter(Boolean).join(' | ').toLowerCase();
 }
 function bmHref(doi, url) { if (doi) return doi.startsWith('http') ? doi : `https://doi.org/${doi}`; if (url) return url; return ''; }
 function bmAuthorYear(authorData, year) { const a = shortAuthors(authorData); const y = year ? `(${year})` : ''; return [a, y].filter(Boolean).join(' '); }
@@ -684,6 +729,7 @@ function renderBrowseOutcomeChart() {
         { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
     ];
     const canvas = document.getElementById('browse-outcome-chart'); if (!canvas) return;
+    if (typeof Chart === 'undefined') { chartLibUnavailable('browse-outcome-chart', 'Chart.js', renderBrowseOutcomeChart); return; }
     const ctx = canvas.getContext('2d');
     if (browseOutcomeChart) browseOutcomeChart.destroy();
     const ac = themeAxisColors();
@@ -844,6 +890,7 @@ function wrapLabel(str, maxChars = 36) {
 
 function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
     if (existing) existing.destroy();
+    if (typeof Chart === 'undefined') { chartLibUnavailable(canvasId, 'Chart.js', retryAllTrends); return null; }
     const ctx = document.getElementById(canvasId).getContext('2d');
     const isHorizontal = orientation === 'horizontal';
     const ac = themeAxisColors();
@@ -1150,7 +1197,10 @@ function renderOverlapCharts(d) {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
-    if (chartEl) Plotly.react(chartEl, traces, layout, config);
+    if (chartEl) {
+        if (typeof Plotly === 'undefined') chartLibUnavailable('ao-chart', 'Plotly', () => renderOverlapCharts(d));
+        else Plotly.react(chartEl, traces, layout, config);
+    }
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
     const caveatEl = document.getElementById('ao-caveat');
