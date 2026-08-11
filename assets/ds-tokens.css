@@ -1,147 +1,274 @@
 /* =============================================================
-   Replication Atlas design tokens
-   Transcribed from "Explore Design System" (FORRT Replication Atlas).
-   Light values are the design system verbatim; the [data-theme="dark"]
-   block extends the system, which is light-only upstream.
+   FORRT design tokens
+   Transcribed from the FORRT living style guide
+   (design_system/design-system.html), whose colour values match
+   design_system/claude_design_colors/tokens/colors.css.
+
+   Upstream carries two naming layers — the generated --color-* scale
+   and a short legacy alias layer (--primary, --text, …). Only the
+   --color-* layer is kept here; the style guide's own authored CSS
+   uses it, and one layer is one place to look.
+
+   The [data-theme="dark"] block extends the system, which is
+   light-only upstream.
    ============================================================= */
 
 :root {
-    /* --- Brand ramp (Explore palette — frozen per spec) --- */
-    --primary: #853953;
-    --primary-dark: #612D53;
-    --primary-light: #A04D6B;
-    --primary-faint: #F9F0F4;
-    --explore-dark: var(--primary-dark);
-    --explore-base: var(--primary);
-    --explore-light: var(--primary-light);
-    --explore-faint: var(--primary-faint);
+    /* ---------------------------------------------------------
+       COLOUR
+       --------------------------------------------------------- */
 
-    /* --- Surfaces --- */
-    --neutral: #2c2c2c;
-    --surface: #f3f4f4;
-    --surface-alt: #e8e9e9;
-    --white: #fff;
-    --surface-white: var(--white);
+    /* Brand — the maroon carries every primary action and every
+       "you are here" signal. It should stay rare enough to mean something. */
+    --color-primary: #853953;
+    --color-primary-dark: #612d53;
+    --color-primary-light: #a04d6b;
+    --color-primary-faint: #f9f0f4;
+    --color-primary-border: #d4a5b8;
 
-    /* --- Semantic (fg + bg + border triples) --- */
-    --success: #16a34a;
-    --success-light: #15803d;
-    --success-bg: #f0fdf4;
-    --success-border: #86efac;
-    --warning: #b8860b;
-    --warning-bg: #fef8e8;
-    --warning-border: #f0dfa0;
-    --error: #b42318;
-    --error-bg: #fef0ee;
-    --error-border: #f5c6c0;
-    --info: var(--primary);
-    --info-bg: var(--primary-faint);
-    --info-border: #d4a5b8;
+    /* Surfaces */
+    --color-neutral: #2c2c2c;
+    --color-surface: #f3f4f4;
+    --color-surface-alt: #e8e9e9;
+    --color-surface-raised: #fff;
+    --color-surface-subtle: #f8f7f8;
 
-    /* --- Text + border ramps --- */
-    --text: #2c2c2c;
-    --text-secondary: #4a4a4a;
-    --text-muted: #888;
-    --text-faint: #aaa;
-    --text-primary: var(--text);
-    --border: #d0d1d1;
-    --border-light: #e0e1e1;
-    --border-subtle: var(--border-light);
+    /* Text ramp */
+    --color-text: #2c2c2c;
+    --color-text-secondary: #4a4a4a;
+    --color-text-muted: #888;
+    --color-text-faint: #aaa;
+    --color-text-inverse: #fff;
+    --color-on-primary: #fff;   /* text sitting on a filled brand surface */
 
-    /* --- Study types --- */
-    --study-original-fg: #2563eb;
-    --study-original-bg: #eff6ff;
-    --study-original-border: #93c5fd;
-    --study-replication-fg: #7c3aed;
-    --study-replication-bg: #f5f3ff;
-    --study-replication-border: #c4b5fd;
+    /* Borders */
+    --color-border: #d0d1d1;
+    --color-border-light: #e0e1e1;
 
-    /* --- Type --- */
+    /* Status ramps — each carries fg + bg + border */
+    --color-success: #16a34a;
+    --color-success-strong: #15803d;
+    --color-success-bg: #f0fdf4;
+    --color-success-border: #86efac;
+    --color-warning: #b8860b;
+    --color-warning-bg: #fef8e8;
+    --color-warning-border: #f0dfa0;
+    --color-error: #b42318;
+    --color-error-bg: #fef0ee;
+    --color-error-border: #f5c6c0;
+    --color-muted-bg: #f3f4f6;
+    --color-muted-fg: #6b7280;
+
+    /* Domain — record type */
+    --color-study-original: #2563eb;
+    --color-study-original-bg: #eff6ff;
+    --color-study-original-border: #93c5fd;
+    --color-study-replication: #7c3aed;
+    --color-study-replication-bg: #f5f3ff;
+    --color-study-replication-border: #c4b5fd;
+
+    /* Domain — replication outcome. Aliased to the status ramp so the
+       dark extension only has to brighten one set of values. */
+    --color-outcome-success: var(--color-success);
+    --color-outcome-mixed: var(--color-warning);
+    --color-outcome-failed: var(--color-error);
+    --color-outcome-unknown: var(--color-border);
+
+    /* Overlay scrim */
+    --color-scrim: rgba(17, 24, 39, .45);
+
+    /* Translucent chart fills. Alpha over a themed surface, so these
+       cannot be derived from the opaque ramp above. */
+    --color-plot-band: rgba(133, 57, 83, .12);          /* brand confidence band */
+    --color-plot-band-original: rgba(37, 99, 235, .15); /* study-original band */
+    --color-plot-point: rgba(80, 80, 80, .15);          /* jittered observations */
+    --color-plot-rule: rgba(100, 100, 100, .4);         /* reference lines */
+    --color-plot-rule-label: rgba(100, 100, 100, .6);
+
+    /* Channel triplet, for rgb(… / α) tinting on dark chrome */
+    --color-white-rgb: 255 255 255;
+
+    /* ---------------------------------------------------------
+       TYPE
+       The serif marks scholarly content — a paper title, a reference,
+       a pulled quote. Never buttons, labels or navigation.
+       --------------------------------------------------------- */
     --font-display: 'Domine', Georgia, serif;
     --font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
-    --font-serif-display: var(--font-display);
-    --font-sans: var(--font-body);
-    --font-mono: 'SF Mono', ui-monospace, 'Courier New', monospace;
-    --text-10: 10px;
-    --text-11: 11px;
-    --text-12: 12px;
-    --text-13: 13px;
-    --text-14: 14px;
-    --text-detail: 1.15rem;
-    --text-title: 1.5rem;
-    --text-subtitle: var(--text-13);
-    --text-button: var(--text-14);
-    --text-badge: var(--text-10);
-    --body-line-height: 1.6;
+    --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-    /* --- Space --- */
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 20px;
-    --space-6: 24px;
+    /* Size ramp — deliberately denser than Bootstrap's defaults */
+    --text-2xs: .625rem;    /* 10px — uppercase micro-labels, badges */
+    --text-xs: .6875rem;    /* 11px — chips, counts, dense metadata */
+    --text-sm: .75rem;      /* 12px — secondary metadata, footnotes */
+    --text-base: .8125rem;  /* 13px — default UI text: rows, buttons, inputs, tabs */
+    --text-md: .875rem;     /* 14px — body copy, prominent labels */
+    --text-lg: 1rem;        /* 16px — section headings */
+    --text-xl: 1.125rem;    /* 18px — page and card titles */
+    --text-2xl: 1.5rem;     /* 24px — hero figures, KPI values */
+    --text-4xl: 2.25rem;    /* 36px — display */
+    /* App extension: the system's ramp tops out at --text-4xl and sets body
+       copy at 14px, which suits its dense three-pane explorer. This is a wide
+       scrolling dashboard, so body copy sits at --text-lg and the hero needs
+       one rung above --text-4xl. */
+    --text-3xl: 1.875rem;   /* 30px — tab page titles */
+    --text-5xl: 3rem;       /* 48px — hero */
 
-    /* --- Shape --- */
-    --radius: 6px;
-    --radius-lg: 10px;
-    --radius-pill: 100px;
-    --radius-modal: 14px;
-    --radius-card: var(--radius-lg);
-    --radius-button: var(--radius);
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
 
-    /* --- Elevation --- */
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, .05);
-    --shadow-md: 0 4px 16px rgba(0, 0, 0, .07);
-    --shadow-lg: 0 8px 30px rgba(0, 0, 0, .1);
+    --tracking-tight: -.01em;
+    --tracking-normal: 0;
+    --tracking-wider: .06em;
+    --tracking-widest: .1em;
 
-    /* --- Motion --- */
-    --transition-fast: .12s ease;
-    --transition: .2s ease;
+    --leading-none: 1;
+    --leading-tight: 1.1;
+    --leading-snug: 1.35;
+    --leading-normal: 1.45;
+    --leading-relaxed: 1.55;
+    --leading-loose: 1.6;
+
+    /* ---------------------------------------------------------
+       SPACE — a 4px grid
+       --------------------------------------------------------- */
+    --spacing-px: 1px;
+    --spacing-0-5: .125rem;
+    --spacing-1: .25rem;
+    --spacing-1-5: .375rem;
+    --spacing-2: .5rem;
+    --spacing-2-5: .625rem;
+    --spacing-3: .75rem;
+    --spacing-4: 1rem;
+    --spacing-5: 1.25rem;
+    --spacing-6: 1.5rem;
+    --spacing-7: 1.75rem;
+    --spacing-8: 2rem;
+    --spacing-10: 2.5rem;
+    --spacing-12: 3rem;
+    --spacing-16: 4rem;
+
+    /* ---------------------------------------------------------
+       SHAPE — radius grows with the element
+       --------------------------------------------------------- */
+    --radius-2xs: 2px;      /* progress bars */
+    --radius-xs: 3px;       /* inline code, focus outlines */
+    --radius-sm: 4px;       /* small badges and tags */
+    --radius-md: 6px;       /* default — buttons, inputs, rows */
+    --radius-lg: 10px;      /* cards and panels */
+    --radius-xl: 14px;      /* dialogs */
+    --radius-pill: 100px;   /* chips and counts */
+    --radius-circle: 50%;
+
+    --border-width-hairline: 1px;   /* everything, by default */
+    --border-width-heavy: 2px;      /* active tab rule */
+    --border-width-accent: 3px;     /* left accent rails */
+    --border-width-emphasis: 4px;   /* status edge */
+
+    /* ---------------------------------------------------------
+       ELEVATION — picked by how far the surface floats
+       --------------------------------------------------------- */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, .05);      /* resting cards */
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, .07);     /* popovers, hover lift */
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, .1);      /* sheets */
+    --shadow-chrome: 0 1px 4px rgba(0, 0, 0, .18);  /* fixed chrome */
+    --shadow-modal-brand: 0 0 0 1px rgba(133, 57, 83, .08), 0 8px 32px rgba(17, 24, 39, .14), 0 2px 8px rgba(17, 24, 39, .08);
+
+    /* Focus rings — never removed without a replacement */
+    --shadow-focus-primary: 0 0 0 3px rgba(133, 57, 83, .16);
+    --shadow-focus-inverse: 0 0 0 3px rgba(255, 255, 255, .28);
+
+    /* ---------------------------------------------------------
+       MOTION — fast and understated; nothing blocking exceeds 200ms
+       --------------------------------------------------------- */
+    --duration-fast: .12s;      /* hover, colour, border */
+    --duration-normal: .2s;     /* size changes, expand/collapse */
+    --duration-slower: .5s;     /* progress bar fills */
+    --ease-standard: ease;
+    --ease-out: ease-out;
+    --ease-emphasized: cubic-bezier(.16, 1, .3, 1);
+
+    --transition: var(--duration-normal) var(--ease-standard);
+    --transition-fast: var(--duration-fast) var(--ease-standard);
+
+    /* ---------------------------------------------------------
+       LAYOUT — width is chosen by content, not importance
+       --------------------------------------------------------- */
+    --size-modal-xl: 920px;
+
+    --z-sticky: 100;
+    --z-overlay: 1000;
+    --z-modal: 1100;
+    --z-popover: 1200;
 }
 
-/* Dark extension of the system: the brand ramp keeps its hue, surfaces
-   move to a plum-tinted neutral, and --primary-light carries brand colour
-   onto dark backgrounds where --primary would fail contrast. */
+/* =============================================================
+   Dark extension
+   The system is light-only upstream. The brand ramp keeps its hue but
+   lightens: at #853953 the maroon fails contrast on a dark surface, so
+   --color-primary itself moves up the ramp and --color-primary-dark
+   stays the hover step below it.
+   ============================================================= */
 [data-theme="dark"] {
-    --primary-light: #D98BA6;
-    --primary-faint: #2e2129;
+    --color-primary: #d98ba6;
+    --color-primary-dark: #c4738f;
+    --color-primary-light: #e8aec3;
+    --color-primary-faint: #2e2129;
+    --color-primary-border: #6b4657;
+    /* The lightened brand is a light fill — what sits on it must go dark. */
+    --color-on-primary: #241d23;
 
-    --neutral: #141013;
-    --surface: #17131a;
-    --surface-alt: #241d23;
-    --white: #241d23;
+    --color-neutral: #141013;
+    --color-surface: #17131a;
+    --color-surface-alt: #241d23;
+    --color-surface-raised: #241d23;
+    --color-surface-subtle: #1e1922;
 
-    --success: #4ade80;
-    --success-light: #22c55e;
-    --success-bg: #14261b;
-    --success-border: #2f6b45;
-    --warning: #e0b040;
-    --warning-bg: #2b2417;
-    --warning-border: #6b5a2c;
-    --error: #f08a7c;
-    --error-bg: #2d1c1a;
-    --error-border: #6e3b34;
-    --info-bg: var(--primary-faint);
-    --info-border: #6b4657;
+    --color-text: #ece7ea;
+    --color-text-secondary: #c3bac0;
+    --color-text-muted: #958c93;
+    --color-text-faint: #6f676d;
 
-    --text: #ece7ea;
-    --text-secondary: #c3bac0;
-    --text-muted: #958c93;
-    --text-faint: #6f676d;
-    --border: #3a303a;
-    --border-light: #2c242c;
+    --color-border: #3a303a;
+    --color-border-light: #2c242c;
 
-    --study-original-fg: #93b4fd;
-    --study-original-bg: #1a2133;
-    --study-original-border: #35507f;
-    --study-replication-fg: #c0a8fa;
-    --study-replication-bg: #241e38;
-    --study-replication-border: #4c3d81;
+    --color-success: #4ade80;
+    --color-success-strong: #86efac;
+    --color-success-bg: #14261b;
+    --color-success-border: #2f6b45;
+    --color-warning: #e0b040;
+    --color-warning-bg: #2b2417;
+    --color-warning-border: #6b5a2c;
+    --color-error: #f08a7c;
+    --color-error-bg: #2d1c1a;
+    --color-error-border: #6e3b34;
+    --color-muted-bg: #2a232a;
+    --color-muted-fg: #9a9099;
+
+    --color-study-original: #93b4fd;
+    --color-study-original-bg: #1a2133;
+    --color-study-original-border: #35507f;
+    --color-study-replication: #c0a8fa;
+    --color-study-replication-bg: #241e38;
+    --color-study-replication-border: #4c3d81;
+
+    --color-scrim: rgba(8, 6, 9, .62);
+
+    --color-plot-band: rgba(217, 139, 166, .18);
+    --color-plot-band-original: rgba(147, 180, 253, .18);
+    --color-plot-point: rgba(210, 210, 220, .2);
+    --color-plot-rule: rgba(200, 200, 210, .45);
+    --color-plot-rule-label: rgba(200, 200, 210, .6);
 
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, .35);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, .45);
     --shadow-lg: 0 8px 30px rgba(0, 0, 0, .55);
+    --shadow-chrome: 0 1px 4px rgba(0, 0, 0, .5);
+    --shadow-modal-brand: 0 0 0 1px rgba(217, 139, 166, .14), 0 8px 32px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .4);
+
+    --shadow-focus-primary: 0 0 0 3px rgba(217, 139, 166, .22);
 }
 
 /* --- Named keyframes --- */

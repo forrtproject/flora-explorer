@@ -10,10 +10,6 @@
         loaded: false, loading: false
     };
 
-    const OUTCOME_COLORS = {
-        failed: '#b42318', successful: '#16a34a', mixed: '#b8860b', all: '#853953'
-    };
-
     function escapeHtml(s) {
         if (s == null) return '';
         return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -48,17 +44,6 @@
         if (!family) return '';
         const initials = given.split(/\s+/).map(p => (p && p[0] ? p[0].toUpperCase() + '.' : '')).join(' ').trim();
         return initials ? `${family}, ${initials}` : family;
-    }
-
-    function plotlyTheme() {
-        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-        return {
-            paper: dark ? '#241d23' : '#ffffff',
-            plot:  dark ? '#241d23' : '#ffffff',
-            grid:  dark ? '#3a303a' : '#e0e1e1',
-            font:  dark ? '#ece7ea' : '#2c2c2c',
-            muted: dark ? '#958c93' : '#888888'
-        };
     }
 
     async function init() {
@@ -107,8 +92,8 @@
 
     function showPlaceholder() {
         const msg = `
-            <div style="padding:24px;background:var(--flora-card-bg);border:1px solid var(--flora-border);
-                        border-radius:8px;text-align:center;color:var(--flora-muted);grid-column:1 / -1">
+            <div style="padding:24px;background:var(--color-surface-raised);border:1px solid var(--color-border-light);
+                        border-radius:8px;text-align:center;color:var(--color-text-muted);grid-column:1 / -1">
               ⏳ <strong>Citation data not yet available.</strong><br>
               The first weekly refresh has not completed yet (or the workflow secrets are not set).
               This panel will populate automatically once the GitHub Action
@@ -117,10 +102,10 @@
         const kpis = document.getElementById('kpis'); if (kpis) kpis.innerHTML = msg;
         ['plot-cit', 'plot-cocit'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--flora-muted)">No data yet</div>';
+            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--color-text-muted)">No data yet</div>';
         });
         const tbody = document.querySelector('#originals-table tbody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--flora-muted)">No data yet. First refresh in progress.</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--color-text-muted)">No data yet. First refresh in progress.</td></tr>';
     }
 
     function renderKPIs() {
@@ -168,6 +153,7 @@
     function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome) {
         const desc = data.descriptive || {}; const model = data[modelField] || {};
         const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
+        const t = plotlyTheme();
         const traces = [];
 
         if (desc.event_time && desc.event_time.length) {
@@ -180,7 +166,7 @@
         if (desc.event_time && desc.n_units && desc.n_units.length) {
             traces.push({
                 x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines',
-                line: { color: '#aaa', width: 1, dash: 'dot' },
+                line: { color: token('--color-text-faint'), width: 1, dash: 'dot' },
                 name: 'N (right axis)', yaxis: 'y2',
                 hovertemplate: 't=%{x}: N=%{y}<extra></extra>'
             });
@@ -193,7 +179,7 @@
                     x: model.event_time,
                     y: model.estimate.map(e => e == null || !Number.isFinite(e) ? null : Math.exp(e) * baseline),
                     type: 'scatter', mode: 'lines',
-                    line: { color: plotlyTheme().font, width: 1.5, dash: 'dot' },
+                    line: { color: t.font, width: 1.5, dash: 'dot' },
                     name: 'Model fit (OLS)', hoverinfo: 'skip'
                 });
             }
@@ -205,8 +191,8 @@
         if (fect && fect.event_time && fect.event_time.length > 0) {
             const refIdx = desc.event_time ? desc.event_time.indexOf(-1) : -1;
             const baseline = refIdx >= 0 ? desc[descField][refIdx] : 0;
-            const fectColor = '#2563eb';
-            const fectColorAlpha = 'rgba(37,99,235,0.15)';
+            const fectColor = token('--color-study-original');
+            const fectColorAlpha = token('--color-plot-band-original');
             // CI band: lower bound first (invisible), then upper bound fills back to it
             traces.push({
                 x: fect.event_time,
@@ -233,11 +219,10 @@
         }
 
         if (traces.length === 0) {
-            document.getElementById(divId).innerHTML = '<div style="padding:60px;text-align:center;color:var(--flora-muted)">No data for this filter</div>';
+            document.getElementById(divId).innerHTML = '<div style="padding:60px;text-align:center;color:var(--color-text-muted)">No data for this filter</div>';
             return;
         }
 
-        const t = plotlyTheme();
         const layout = {
             margin: { t: 30, r: 50, b: 50, l: 60 },
             xaxis: { title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font },
@@ -246,10 +231,10 @@
                 title: 'N studies', overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
                 tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
             },
-            shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: '#853953', width: 1.5, dash: 'dash' } }],
-            annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: '#853953' } }],
+            shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS.all, width: 1.5, dash: 'dash' } }],
+            annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: OUTCOME_COLORS.all } }],
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-            font: { family: 'Inter, sans-serif', size: 12, color: t.font },
+            font: { ...plotFont(), color: t.font },
             legend: { orientation: 'h', y: -0.22, font: { color: t.font } }
         };
         Plotly.newPlot(divId, traces, layout, { displayModeBar: false, responsive: true });
@@ -420,21 +405,23 @@
     function drawStudyTimeline(s) {
         const tl = s.timeline || [];
         if (tl.length === 0) {
-            document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--flora-muted)">No citation data available</div>';
+            document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--color-text-muted)">No citation data available</div>';
             return;
         }
         const years = tl.map(t => t.year);
         const traces = [
-            { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: '#888888' } },
+            { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: token('--color-text-muted') } },
             { x: years, y: tl.map(t => t.with_failed),     name: 'Co-cites failed rep',    type: 'bar', marker: { color: OUTCOME_COLORS.failed } },
             { x: years, y: tl.map(t => t.with_mixed),      name: 'Co-cites mixed rep',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
             { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } }
         ];
         const shapes = []; const annotations = [];
+        const labelBg = token('--color-surface-raised');
         (s.replications || []).forEach((r, i) => {
             if (!r.year) return;
-            shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || '#853953', width: 2, dash: 'dash' } });
-            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - (i % 3) * 0.06, text: `${r.outcome} rep ${r.year}`, showarrow: false, font: { size: 10, color: OUTCOME_COLORS[r.outcome] || '#853953' }, bgcolor: 'rgba(255,255,255,0.85)' });
+            const c = OUTCOME_COLORS[r.outcome] || OUTCOME_COLORS.all;
+            shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: c, width: 2, dash: 'dash' } });
+            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - (i % 3) * 0.06, text: `${r.outcome} rep ${r.year}`, showarrow: false, font: { size: 10, color: c }, bgcolor: labelBg });
         });
         const t = plotlyTheme();
         const layout = {
@@ -444,7 +431,7 @@
             shapes, annotations,
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
-            font: { family: 'Inter, sans-serif', size: 12, color: t.font }
+            font: { ...plotFont(), color: t.font }
         };
         Plotly.newPlot('study-plot', traces, layout, { displayModeBar: false, responsive: true });
     }

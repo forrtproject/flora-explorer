@@ -1,0 +1,26 @@
+:root{
+--space-1:4px;
+--space-2:8px;
+--space-3:12px;
+--space-4:16px;
+--space-5:20px;
+--space-6:24px;
+--radius:6px;
+--radius-lg:10px;
+--radius-pill:100px;
+--radius-modal:14px;
+--radius-card:var(--radius-lg);
+--radius-button:var(--radius);
+--shadow-sm:0 1px 3px rgba(0,0,0,.05);
+--shadow-md:0 4px 16px rgba(0,0,0,.07);
+--shadow-lg:0 8px 30px rgba(0,0,0,.1);
+--transition-fast:.12s ease; /* @kind other */
+--transition:.2s ease; /* @kind other */
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toast-in{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toast-out{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(24px)}}
+@keyframes alertFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes alertPopIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes rim-spin{to{transform:rotate(360deg)}}

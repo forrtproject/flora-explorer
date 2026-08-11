@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Domine:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+:root{
+--font-display:'Domine',Georgia,serif;
+--font-body:'Source Sans 3','Segoe UI',sans-serif;
+--font-serif-display:var(--font-display);
+--font-sans:var(--font-body);
+--font-mono:'SF Mono',ui-monospace,'Courier New',monospace;
+--text-10:10px;
+--text-11:11px;
+--text-12:12px;
+--text-13:13px;
+--text-14:14px;
+--text-detail:1.15rem;
+--text-title:1.5rem;
+--text-subtitle:var(--text-13);
+--text-swatch-label:var(--text-14);
+--text-swatch-hex:var(--text-13);
+--text-button:var(--text-14);
+--text-badge:var(--text-10);
+--body-line-height:1.6;
+}
