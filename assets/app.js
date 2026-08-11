@@ -650,8 +650,10 @@ function setupBrowseMobile(data) {
     const next = document.getElementById('bm-next');
     let debounceTimer;
     input.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => bmApplySearch(input.value), 150); });
-    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
-    next.addEventListener('click', () => { bmPage++; bmRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    // The app shell scrolls .app-main, not the window
+    const scrollPortTop = () => document.querySelector('.app-main')?.scrollTo({ top: 0, behavior: 'smooth' });
+    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); scrollPortTop(); } });
+    next.addEventListener('click', () => { bmPage++; bmRender(); scrollPortTop(); });
     bmApplySearch('');
 }
 
