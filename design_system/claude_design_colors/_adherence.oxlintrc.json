@@ -1,0 +1,221 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/cards/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:Domine|Source Sans 3))/i]",
+        "message": "Font not provided by the design system. Available: Domine, Source Sans 3."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SectionCardPalette'] > JSXAttribute > JSXIdentifier[name!=/^(?:dark|base|light|faint|key|ref|className|style|children)$/]",
+        "message": "<SectionCardPalette> doesn't accept that prop. Declared props: dark, base, light, faint."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "SectionCardPalette": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--body-line-height",
+      "--border",
+      "--border-light",
+      "--border-subtle",
+      "--error",
+      "--error-bg",
+      "--error-border",
+      "--explore-base",
+      "--explore-dark",
+      "--explore-faint",
+      "--explore-light",
+      "--font-body",
+      "--font-display",
+      "--font-mono",
+      "--font-sans",
+      "--font-serif-display",
+      "--info",
+      "--info-bg",
+      "--info-border",
+      "--neutral",
+      "--primary",
+      "--primary-dark",
+      "--primary-faint",
+      "--primary-light",
+      "--radius",
+      "--radius-button",
+      "--radius-card",
+      "--radius-lg",
+      "--radius-modal",
+      "--radius-pill",
+      "--shadow-lg",
+      "--shadow-md",
+      "--shadow-sm",
+      "--space-1",
+      "--space-2",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--study-original-bg",
+      "--study-original-border",
+      "--study-original-fg",
+      "--study-replication-bg",
+      "--study-replication-border",
+      "--study-replication-fg",
+      "--success",
+      "--success-bg",
+      "--success-border",
+      "--success-light",
+      "--surface",
+      "--surface-alt",
+      "--surface-white",
+      "--text",
+      "--text-10",
+      "--text-11",
+      "--text-12",
+      "--text-13",
+      "--text-14",
+      "--text-badge",
+      "--text-button",
+      "--text-detail",
+      "--text-faint",
+      "--text-muted",
+      "--text-primary",
+      "--text-secondary",
+      "--text-subtitle",
+      "--text-swatch-hex",
+      "--text-swatch-label",
+      "--text-title",
+      "--transition",
+      "--transition-fast",
+      "--warning",
+      "--warning-bg",
+      "--warning-border",
+      "--white"
+    ],
+    "tokenKinds": {
+      "--primary": "color",
+      "--primary-dark": "color",
+      "--primary-light": "color",
+      "--primary-faint": "color",
+      "--explore-dark": "color",
+      "--explore-base": "color",
+      "--explore-light": "color",
+      "--explore-faint": "color",
+      "--neutral": "color",
+      "--surface": "color",
+      "--surface-alt": "color",
+      "--white": "color",
+      "--success": "color",
+      "--success-light": "color",
+      "--success-bg": "color",
+      "--success-border": "color",
+      "--warning": "color",
+      "--warning-bg": "color",
+      "--warning-border": "color",
+      "--error": "color",
+      "--error-bg": "color",
+      "--error-border": "color",
+      "--info": "color",
+      "--info-bg": "color",
+      "--info-border": "color",
+      "--text": "font",
+      "--text-secondary": "font",
+      "--text-muted": "font",
+      "--text-faint": "font",
+      "--border": "color",
+      "--border-light": "color",
+      "--study-original-fg": "color",
+      "--study-original-bg": "color",
+      "--study-original-border": "color",
+      "--study-replication-fg": "color",
+      "--study-replication-bg": "color",
+      "--study-replication-border": "color",
+      "--surface-white": "color",
+      "--border-subtle": "color",
+      "--text-primary": "font",
+      "--font-display": "font",
+      "--font-body": "font",
+      "--font-serif-display": "font",
+      "--font-sans": "font",
+      "--font-mono": "font",
+      "--text-10": "font",
+      "--text-11": "font",
+      "--text-12": "font",
+      "--text-13": "font",
+      "--text-14": "font",
+      "--text-detail": "font",
+      "--text-title": "font",
+      "--text-subtitle": "font",
+      "--text-swatch-label": "font",
+      "--text-swatch-hex": "font",
+      "--text-button": "font",
+      "--text-badge": "font",
+      "--body-line-height": "font",
+      "--space-1": "spacing",
+      "--space-2": "spacing",
+      "--space-3": "spacing",
+      "--space-4": "spacing",
+      "--space-5": "spacing",
+      "--space-6": "spacing",
+      "--radius-card": "radius",
+      "--radius-pill": "radius",
+      "--radius-button": "radius",
+      "--radius": "radius",
+      "--radius-lg": "radius",
+      "--radius-modal": "radius",
+      "--shadow-sm": "shadow",
+      "--shadow-md": "shadow",
+      "--shadow-lg": "shadow",
+      "--transition-fast": "other",
+      "--transition": "other"
+    },
+    "fontFamilies": [
+      "Domine",
+      "Source Sans 3"
+    ]
+  }
+}

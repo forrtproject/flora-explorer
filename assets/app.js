@@ -30,12 +30,19 @@ const DISCIPLINES_URL = 'data/disciplines.json';
 const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
 const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
 
+// Resolve a design token to its computed value, so charts follow the theme.
+function token(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// Getters, not values: every read picks up the current theme.
 const OUTCOME_COLORS = {
-    successful:   '#2f8f4f',
-    failed:       '#b3331e',
-    mixed:        '#d49b1d',
-    inconclusive: '#6f7686',
-    other:        '#a0a7b4'
+    get successful()   { return token('--color-outcome-success'); },
+    get failed()       { return token('--color-outcome-failed'); },
+    get mixed()        { return token('--color-outcome-mixed'); },
+    get inconclusive() { return token('--color-text-muted'); },
+    get other()        { return token('--color-text-faint'); },
+    get all()          { return token('--color-primary'); }
 };
 
 // Filled at runtime from data/disciplines.json
@@ -48,13 +55,25 @@ function disciplineForJournal(journalName) {
 }
 
 function themeAxisColors() {
-    const dark = currentTheme() === 'dark';
     return {
-        grid:   dark ? '#2d2e3d' : '#dfd8e5',
-        tick:   dark ? '#b8b5c4' : '#4e4858',
-        legend: dark ? '#e8e6ee' : '#2a2330'
+        grid:   token('--color-border'),
+        tick:   token('--color-text-secondary'),
+        legend: token('--color-text')
     };
 }
+
+// Shared by every Plotly chart, including the Citation Impact tab.
+function plotlyTheme() {
+    return {
+        paper: token('--color-surface-raised'),
+        plot:  token('--color-surface-raised'),
+        grid:  token('--color-border'),
+        font:  token('--color-text'),
+        muted: token('--color-text-muted')
+    };
+}
+
+function plotFont() { return { family: token('--font-body'), size: 12 }; }
 
 // ----- State -----
 let fullRowData = [];
@@ -309,7 +328,7 @@ function renderRandomExamples(data) {
             <div class="example-card outcome-${cls}">
                 ${studyLink(r.doi_o, null, origInner)}
                 ${hasRep ? studyLink(r.doi_r, r.url_r, repInner) : ''}
-                <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge bg-light text-dark">' + escapeHtml(r.type) + '</span>' : ''}</div>
+                <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge-type type-' + escapeHtml(String(r.type).toLowerCase()) + '">' + escapeHtml(r.type) + '</span>' : ''}</div>
             </div>
         `;
     }).join('');
@@ -377,7 +396,7 @@ async function loadCitation() {
         box.dataset.plain = plainParts.join(' ');
     } catch (err) {
         console.error('Citation load failed:', err);
-        const errHtml = '<span style="color: var(--flora-muted);">Could not load live citation. Please see the <a href="' + CITATION_URL + '" target="_blank" class="doi-link">CITATION.cff file</a>.</span>';
+        const errHtml = '<span style="color: var(--color-text-muted);">Could not load live citation. Please see the <a href="' + CITATION_URL + '" target="_blank" class="doi-link">CITATION.cff file</a>.</span>';
         box.innerHTML = errHtml;
         ['citation-text-top', 'citation-text-browse'].forEach(function(id) {
             var el = document.getElementById(id); if (el) el.innerHTML = errHtml;
@@ -604,7 +623,7 @@ function bmCardHtml(row) {
     const rTitle = bmRenderTitleLine(row.title_r, shortAuthors(row.author_r), row.doi_r, row.url_r);
     const rMeta = [bmAuthorYear(row.author_r, row.year_r), row.journal_r].filter(Boolean).map(escapeHtml).join(' · ');
     const tagsParts = [getOutcomeBadge(row.outcome)];
-    if (row.type) tagsParts.push(`<span class="bm-tag-type">${escapeHtml(row.type)}</span>`);
+    if (row.type) tagsParts.push(`<span class="badge-type type-${escapeHtml(String(row.type).toLowerCase())}">${escapeHtml(row.type)}</span>`);
     return `
         <div class="bm-card">
             <div class="bm-row"><div class="bm-row-label">Original</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
@@ -819,7 +838,9 @@ function trendsDatasets(agg) {
     const labelSet = new Set();
     agg.forEach(r => Object.keys(r.byLabel).forEach(l => labelSet.add(l)));
     const labels = Array.from(labelSet).sort();
-    const palette = ['#2f8f4f', '#38b2ac', '#4299e1', '#d49b1d', '#b3331e', '#9f7aea', '#6f7686', '#a0a7b4'];
+    const palette = ['--color-primary', '--color-study-original', '--color-outcome-success',
+                     '--color-outcome-mixed', '--color-study-replication', '--color-outcome-failed',
+                     '--color-primary-light', '--color-text-muted'].map(token);
     return labels.map((label, i) => ({ label, data: agg.map(r => r.byLabel[label] || 0), backgroundColor: palette[i % palette.length] }));
 }
 
@@ -932,22 +953,11 @@ window._rerenderAllCharts = function() {
 // ===== Mean Citedness tab =====
 window._mcData = null;
 
-function mcPlotlyTheme() {
-    const dark = currentTheme() === 'dark';
-    return {
-        paper: dark ? '#1d1e29' : '#ffffff',
-        plot:  dark ? '#1d1e29' : '#ffffff',
-        grid:  dark ? '#2d2e3d' : '#eeeaef',
-        font:  dark ? '#e8e6ee' : '#2a2330',
-    };
-}
-
 function renderMcCharts(d) {
     if (!d) return;
     window._mcData = d;
-    const t = mcPlotlyTheme();
-    const primary = getComputedStyle(document.documentElement)
-        .getPropertyValue('--flora-primary').trim() || '#8b1a4a';
+    const t = plotlyTheme();
+    const primary = token('--color-primary');
 
     // ── Overview grid ─────────────────────────────────────────────────────
     const ov = d.overview;
@@ -955,9 +965,9 @@ function renderMcCharts(d) {
     const pctF = ov.n_total ? Math.round(100 * ov.n_failed  / ov.n_total) : 0;
     document.getElementById('mc-overview').innerHTML = `
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Studies with OMC</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#2f8f4f">${ov.n_success.toLocaleString()}</span><span class="mc-stat-label">Successful (${pctS}%)</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#b3331e">${ov.n_failed.toLocaleString()}</span><span class="mc-stat-label">Failed (${pctF}%)</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#d49b1d">${ov.n_mixed.toLocaleString()}</span><span class="mc-stat-label">Mixed</span></div>
+        <div class="mc-stat"><span class="mc-stat-value" style="color:var(--color-outcome-success)">${ov.n_success.toLocaleString()}</span><span class="mc-stat-label">Successful (${pctS}%)</span></div>
+        <div class="mc-stat"><span class="mc-stat-value" style="color:var(--color-outcome-failed)">${ov.n_failed.toLocaleString()}</span><span class="mc-stat-label">Failed (${pctF}%)</span></div>
+        <div class="mc-stat"><span class="mc-stat-value" style="color:var(--color-outcome-mixed)">${ov.n_mixed.toLocaleString()}</span><span class="mc-stat-label">Mixed</span></div>
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_journals.toLocaleString()}</span><span class="mc-stat-label">Journals matched</span></div>
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines}</span><span class="mc-stat-label">Disciplines</span></div>`;
 
@@ -976,21 +986,20 @@ function renderMcCharts(d) {
         xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         yaxis: { title: 'Number of studies',             gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-        font: { family: 'Inter, sans-serif', size: 12, color: t.font },
+        font: { ...plotFont(), color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
         height: 320,
     }, { displayModeBar: false, responsive: true });
 
     const st = d.stats || {};
     const gc = Array.isArray(d.gam_curve) ? d.gam_curve : [];
-    const isDark = currentTheme() === 'dark';
-    const lineColor = isDark ? '#e0a5c0' : primary;
+
 
     // ── GAM chart (Plotly) ────────────────────────────────────────────────
     const gamDiv = document.getElementById('mc-gam-chart');
     const hasGam = gc.length > 0 && st && st.n_model >= 30;
     if (!hasGam) {
-        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--flora-muted);font-size:0.9rem;text-align:center;padding:2rem">Not enough data to fit a smooth model<br>(requires ≥30 studies with successful or failed outcomes that have OMC data)</div>';
+        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--color-text-muted);font-size:0.9rem;text-align:center;padding:2rem">Not enough data to fit a smooth model<br>(requires ≥30 studies with successful or failed outcomes that have OMC data)</div>';
         return;
     }
     const jitter2 = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
@@ -1002,13 +1011,13 @@ function renderMcCharts(d) {
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_hi), type: 'scatter', mode: 'lines',
-          fill: 'tonexty', fillcolor: isDark ? 'rgba(224,165,192,0.18)' : 'rgba(139,26,74,0.12)',
+          fill: 'tonexty', fillcolor: token('--color-plot-band'),
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_hi' },
         { x: gc.map(p => p.omc), y: gc.map(p => p.p), type: 'scatter', mode: 'lines',
-          line: { color: lineColor, width: 2.5 }, name: 'Smooth fit',
+          line: { color: primary, width: 2.5 }, name: 'Smooth fit',
           hovertemplate: 'OMC = %{x:.2f}<br>P(success) = %{y:.1%}<extra>Smooth fit</extra>' },
         { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), type: 'scatter', mode: 'markers',
-          marker: { color: isDark ? 'rgba(210,210,220,0.20)' : 'rgba(80,80,80,0.15)', size: 5, line: { width: 0 } },
+          marker: { color: token('--color-plot-point'), size: 5, line: { width: 0 } },
           name: 'Studies', text: jitter2.map(p => p.lbl),
           hovertemplate: 'OMC = %{x:.2f}<br>%{text}<extra></extra>' },
     ];
@@ -1019,18 +1028,18 @@ function renderMcCharts(d) {
         yaxis: { title: 'P(successful replication)', range: [-0.08, 1.08],
                  tickformat: '.0%', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-        font: { family: 'Inter, sans-serif', size: 12, color: t.font },
+        font: { ...plotFont(), color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
         shapes: [{
             type: 'line', xref: 'paper', x0: 0, x1: 1,
             yref: 'y', y0: 0.5, y1: 0.5,
-            line: { color: isDark ? 'rgba(200,200,210,0.45)' : 'rgba(100,100,100,0.4)', width: 1.5, dash: 'dash' },
+            line: { color: token('--color-plot-rule'), width: 1.5, dash: 'dash' },
         }],
         annotations: [{
             xref: 'paper', x: 1, xanchor: 'right',
             yref: 'y', y: 0.5, yanchor: 'bottom',
             text: 'chance (50%)', showarrow: false,
-            font: { size: 11, color: isDark ? 'rgba(200,200,210,0.6)' : 'rgba(100,100,100,0.6)' },
+            font: { size: 11, color: token('--color-plot-rule-label') },
         }],
     };
     Plotly.newPlot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true });
@@ -1075,19 +1084,9 @@ document.getElementById('mc-tab').addEventListener('shown.bs.tab', loadMeanCited
 // ===== Authorship Overlap tab =====
 window._aoData = null;
 
-function aoPlotlyTheme() {
-    const dark = currentTheme() === 'dark';
-    return {
-        paper: dark ? '#1d1e29' : '#ffffff',
-        plot:  dark ? '#1d1e29' : '#ffffff',
-        grid:  dark ? '#2d2e3d' : '#eeeaef',
-        font:  dark ? '#e8e6ee' : '#2a2330',
-    };
-}
-
 function renderOverlapCharts(d) {
     if (!d) return;
-    const th = aoPlotlyTheme();
+    const th = plotlyTheme();
     const ov = d.overview;
     const by = d.by_outcome;
 
@@ -1125,7 +1124,7 @@ function renderOverlapCharts(d) {
         type: 'bar',
         x: groups.map(g => GROUP_LABELS[g]),
         y: groups.map(g => (by[g] && by[g][oc]) || 0),
-        marker: { color: OUTCOME_COLORS[oc] || '#a0a7b4' },
+        marker: { color: OUTCOME_COLORS[oc] || OUTCOME_COLORS.other },
     }));
 
     const layout = {
