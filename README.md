@@ -117,24 +117,53 @@ both views update on the next deploy / refresh.
 
 ## Styling
 
-The interface follows the **Replication Atlas design system**
-(FORRT's Explore palette). `assets/ds-tokens.css` holds the system's
-tokens verbatim — the frozen `#853953` brand ramp, semantic
-fg/bg/border triples, the study-type blue/violet pair, Domine +
-Source Sans 3, the 6/10/100/14px shape scale, three elevation levels
-and the `.12s`/`.2s` motion pair — plus a `[data-theme="dark"]` block
-that extends the system, which is light-only upstream.
+The interface follows the **FORRT design system**, transcribed from its
+living style guide. `assets/ds-tokens.css` holds the system's tokens —
+the frozen `#853953` brand ramp, semantic fg/bg/border triples, the
+study-type blue/violet pair, the replication-outcome ramp, Domine +
+Source Sans 3, the 10→36px type scale, the 4px spacing grid, the
+2→14px radius ladder, elevation and focus rings, and the motion
+durations — plus a `[data-theme="dark"]` block that extends the system,
+which is light-only upstream.
 
-`assets/styles.css` consumes those tokens; component rules follow the
-system's conventions (10px tracked-uppercase micro-labels, pill chips
-that go faint-tinted rather than solid when active, 3px brand left
-rails on notable rows, dark topbar paired with a dark footer). Chart
-palettes in `app.js` / `citation-impact.js` use the same semantic
-colours. Add new UI by reaching for a token, not a literal hex.
+Upstream carries two naming layers (the generated `--color-*` scale and
+a short legacy alias layer). Only `--color-*` is kept here, so there is
+one name per value. Add new UI by reaching for a token, not a literal
+hex — including in charts, where `token('--color-…')` in `app.js`
+resolves the current theme's value at render time.
 
-One deliberate deviation: the system specifies a fixed-height
-`100dvh` app shell with independently scrolling panels. FLoRA Explorer
-is a scrolling multi-tab dashboard and keeps normal page flow.
+The type scale in use, top to bottom: hero `--text-5xl` (48px) → tab page
+title `--text-3xl` (30px) → card header `--text-2xl` (24px) → sub-heading
+`--text-xl` (18px) → body `--text-lg` (16px) → metadata and controls
+`--text-md` (14px) → dense metadata `--text-sm` (12px) → uppercase
+micro-labels and badges `--text-xs` (11px). Headline figures (overview
+stat cards, KPI band, Mean Citedness stat boxes) all sit at `--text-4xl`
+so the same kind of number is the same size wherever it appears.
+
+`assets/styles.css` follows the system's component conventions:
+
+- the display serif marks scholarly content only — never navigation or buttons
+- filled controls darken on hover; ghost and outline controls take on the brand colour instead of gaining a fill
+- badges state a fact: uppercase, bold, tracked, `--text-2xs`
+- chips are stateful: active is a maroon tint plus a maroon border, never a fill
+- focus is replaced with `--shadow-focus-primary`, never removed
+
+Four deliberate deviations:
+
+1. The system specifies a fixed-height `100dvh` app shell with
+   independently scrolling panels. FLoRA Explorer is a scrolling
+   multi-tab dashboard and keeps normal page flow.
+2. The WIP corner ribbon stays on the error ramp. On brand plum it
+   reads as decoration rather than caution.
+3. The dark extension moves `--color-primary` itself up the ramp. At
+   `#853953` the maroon fails contrast on a dark surface, so a single
+   brand token can serve both themes rather than every rule carrying a
+   dark-mode override.
+4. The system sets body copy at 14px and interface text at 13px, and its
+   ramp stops at 36px. That density suits its three-pane explorer, read
+   close up. This is a wide scrolling dashboard, so body copy moved to
+   16px and the ramp gained `--text-3xl` (30px) and `--text-5xl` (48px).
+   Legibility beat fidelity here.
 
 ## Acknowledgements
 
