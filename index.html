@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#6b4582">
+    <meta name="theme-color" content="#2c2c2c">
     <title>FLoRA Explorer: FORRT Library of Replication Attempts</title>
     <meta name="description" content="Explore the FORRT Library of Replication Attempts (FLoRA), a comprehensive database tracking replication and reproduction studies across the sciences and humanities.">
     <meta name="keywords" content="replication, reproduction, FLoRA, FORRT, open science, metascience, reproducibility">
@@ -25,7 +25,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Domine:wght@400;500;600;700&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 
     <!-- App CSS -->
     <link rel="stylesheet" href="assets/styles.css">
@@ -34,40 +34,15 @@
 
     <!-- Dark top bar (FORRT-style) -->
     <div class="top-bar">
-        <div class="container top-bar-inner">
+        <div class="top-bar-inner">
             <a class="brand-mark" href="https://forrt.org/replication-hub/" target="_blank">
-                <span>FORRT Replication Hub</span>
+                <span class="brand-icon"><img src="assets/logo.svg" alt=""></span>
+                <span class="brand-name">
+                    <strong>FLoRA</strong>
+                    <span>Replication Explorer</span>
+                </span>
             </a>
-            <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
-                <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-            </button>
-        </div>
-    </div>
 
-    <!-- Hero -->
-    <section class="hero">
-        <div class="container">
-            <div class="hero-inner">
-                <div class="hero-logo"><img src="assets/logo.svg" alt="FLoRA logo"></div>
-                <h1>FLoRA Explorer</h1>
-                <hr class="hero-rule">
-                <p class="hero-subtitle">Tracking reproductions and replications across the sciences and humanities.</p>
-            </div>
-        </div>
-    </section>
-
-    <!-- WIP corner ribbon -->
-    <div class="wip-ribbon" id="wip-ribbon" aria-label="Work in progress">
-        <div class="wip-ribbon-inner">Work in Progress</div>
-    </div>
-    <div class="wip-ribbon-tip" id="wip-ribbon-tip" role="tooltip">
-        <strong>Work in progress.</strong> FLoRA Explorer and the underlying dataset are actively being expanded. Some entries may be incomplete, and features marked <em>experimental</em> may change.
-    </div>
-
-    <!-- Tabs -->
-    <div class="nav-tabs-wrapper">
-        <div class="container">
             <ul class="nav nav-tabs" id="floraTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
@@ -88,9 +63,23 @@
                     <button class="nav-link" id="overlap-tab" data-bs-toggle="tab" data-bs-target="#authorship-overlap" type="button" role="tab">Authorship Overlap</button>
                 </li>
             </ul>
+
+            <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+            </button>
         </div>
     </div>
 
+    <!-- WIP corner ribbon -->
+    <div class="wip-ribbon" id="wip-ribbon" aria-label="Work in progress">
+        <div class="wip-ribbon-inner">Work in Progress</div>
+    </div>
+    <div class="wip-ribbon-tip" id="wip-ribbon-tip" role="tooltip">
+        <strong>Work in progress.</strong> FLoRA Explorer and the underlying dataset are actively being expanded. Some entries may be incomplete, and features marked <em>experimental</em> may change.
+    </div>
+
+    <main class="app-main">
     <div class="container">
         <div id="global-loading" class="loading-spinner">
             <div class="spinner-border" role="status"></div>
@@ -108,9 +97,9 @@
 
                 <div class="row mb-3">
                     <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-total">-</div><div class="label">Total Studies</div></div></div>
-                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-successful" style="color: var(--flora-success);">-</div><div class="label">Successful</div></div></div>
-                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-failed" style="color: var(--flora-danger);">-</div><div class="label">Failed</div></div></div>
-                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-mixed" style="color: var(--flora-warning);">-</div><div class="label">Mixed</div></div></div>
+                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-successful" style="color: var(--color-outcome-success);">-</div><div class="label">Successful</div></div></div>
+                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-failed" style="color: var(--color-outcome-failed);">-</div><div class="label">Failed</div></div></div>
+                    <div class="col-6 col-md-3"><div class="stats-card"><div class="number" id="ov-mixed" style="color: var(--color-outcome-mixed);">-</div><div class="label">Mixed</div></div></div>
                 </div>
 
                 <div class="tab-cite-block">
@@ -184,15 +173,15 @@
                         <div class="card">
                             <div class="card-header">FAQs</div>
                             <div class="card-body">
-                                <p style="color: var(--flora-text-soft); margin-bottom: 1rem;">
+                                <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">
                                     If anything is unclear, here is where we collect frequently asked questions.
                                     The list is loaded live from the
                                     <a href="https://github.com/forrtproject/fred-data/blob/main/output/flora_faq.md" target="_blank" class="doi-link">FLoRA FAQ document</a>
                                     and grows as new questions come in.
                                 </p>
-                                <div id="faq-loading" style="color: var(--flora-muted); font-size: 0.9rem;">Loading FAQs…</div>
+                                <div id="faq-loading" class="note">Loading FAQs…</div>
                                 <div id="faq-content" style="display: none;"></div>
-                                <div id="faq-error" style="display: none; color: var(--flora-muted); font-size: 0.9rem;">
+                                <div id="faq-error" class="note" style="display: none;">
                                     Could not load FAQs at the moment. You can read them directly on
                                     <a href="https://github.com/forrtproject/fred-data/blob/main/output/flora_faq.md" target="_blank" class="doi-link">GitHub</a>.
                                 </div>
@@ -292,13 +281,13 @@
                 <div class="card">
                     <div class="card-header">Recommended Citation</div>
                     <div class="card-body">
-                        <p class="mb-2" style="color: var(--flora-muted); font-size: 0.9rem;">If you use the underlying dataset, please cite it as:</p>
+                        <p class="mb-2" class="note">If you use the underlying dataset, please cite it as:</p>
                         <div class="citation-box" id="citation-box">
                             <button class="copy-btn" id="citation-copy-btn">Copy</button>
                             <div id="citation-text">Loading citation…</div>
                         </div>
 
-                        <p class="mt-4 mb-2" style="color: var(--flora-muted); font-size: 0.9rem;">If you report results based on this website, please cite it as:</p>
+                        <p class="mt-4 mb-2" class="note">If you report results based on this website, please cite it as:</p>
                         <div class="citation-box" id="website-citation-box">
                             <button class="copy-btn" id="website-citation-copy-btn">Copy</button>
                             <div id="website-citation-text">
@@ -426,8 +415,8 @@
                         <p>The journals whose articles have most frequently been the target of replication attempts. For each journal, the bar shows the outcome breakdown of those attempts.</p>
                         <p>Frequency here reflects where replication attention has been focused, not necessarily a journal's overall replicability.</p>
                         <div class="mt-3">
-                            <label for="journal-top-n" style="font-weight:500; font-size:0.9rem; color: var(--flora-muted); margin-right: 0.5rem;">Show top:</label>
-                            <select id="journal-top-n" class="form-select d-inline-block" style="max-width: 160px; font-size: 0.9rem;">
+                            <label for="journal-top-n" class="note" style="font-weight:500; margin-right: 0.5rem;">Show top:</label>
+                            <select id="journal-top-n" class="form-select d-inline-block" style="max-width: 160px;">
                                 <option value="10">10 journals</option>
                                 <option value="15" selected>15 journals</option>
                                 <option value="25">25 journals</option>
@@ -445,8 +434,8 @@
                         <p>This view highlights the venues that publish replication research most actively, including journals dedicated to replications and registered reports.</p>
                         <p class="trend-note">Annotation of replication-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
                         <div class="mt-3">
-                            <label for="rep-journal-top-n" style="font-weight:500; font-size:0.9rem; color: var(--flora-muted); margin-right: 0.5rem;">Show top:</label>
-                            <select id="rep-journal-top-n" class="form-select d-inline-block" style="max-width: 160px; font-size: 0.9rem;">
+                            <label for="rep-journal-top-n" class="note" style="font-weight:500; margin-right: 0.5rem;">Show top:</label>
+                            <select id="rep-journal-top-n" class="form-select d-inline-block" style="max-width: 160px;">
                                 <option value="10">10 journals</option>
                                 <option value="15" selected>15 journals</option>
                                 <option value="25">25 journals</option>
@@ -626,7 +615,7 @@
                             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z"/></svg>
                             Replications only: reproductions are not included in this analysis
                         </span>
-                        <div id="mc-loading" style="color: var(--flora-muted); font-size: 0.9rem; padding: 1rem 0;">Loading analysis…</div>
+                        <div id="mc-loading" class="note" style="padding: 1rem 0;">Loading analysis…</div>
                         <div id="mc-overview" class="mc-overview-grid" style="display:none;"></div>
                         <div id="mc-dist-card" class="mc-chart-card" style="display:none;">
                             <div class="mc-chart-title">Distribution of studies by journal Mean Citedness</div>
@@ -638,9 +627,9 @@
                             <div class="mc-chart-wrap"><div id="mc-gam-chart"></div></div>
                             <p class="mc-model-note" style="margin-top:0.6rem;">Only studies with successful or failed replication outcomes were included in the smooth model. Mixed and inconclusive outcomes were excluded.</p>
                         </div>
-                        <div id="mc-error" style="display:none; color: var(--flora-muted); font-size: 0.9rem;">
+                        <div id="mc-error" class="note" style="display:none;">
                             Failed to load analysis data.
-                            <code id="mc-error-detail" style="display:block;margin-top:0.4rem;font-size:0.8rem;color:var(--flora-text);word-break:break-all;"></code>
+                            <code id="mc-error-detail" class="note-detail" style="display:block;"></code>
                         </div>
                     </div>
                 </div>
@@ -671,7 +660,7 @@
                             Replications only: reproductions are not included in this analysis
                         </span>
 
-                        <div id="ao-loading" style="color:var(--flora-muted);font-size:0.9rem;padding:1rem 0;">Loading analysis…</div>
+                        <div id="ao-loading" class="note" style="padding:1rem 0;">Loading analysis…</div>
 
                         <div id="ao-overview" class="mc-overview-grid" style="display:none;"></div>
 
@@ -690,9 +679,9 @@
                             </div>
                         </div>
 
-                        <div id="ao-error" style="display:none;color:var(--flora-muted);font-size:0.9rem;">
+                        <div id="ao-error" class="note" style="display:none;">
                             Failed to load authorship overlap data.
-                            <code id="ao-error-detail" style="display:block;margin-top:0.4rem;font-size:0.8rem;color:var(--flora-text);word-break:break-all;"></code>
+                            <code id="ao-error-detail" class="note-detail" style="display:block;"></code>
                         </div>
                     </div>
                 </div>
@@ -700,8 +689,13 @@
 
         </div>
 
-        <div class="footer">
-            Data source: <a href="https://github.com/forrtproject/FReD-data" target="_blank">FORRT FLoRA Project</a> ·
+    </div>
+    </main>
+
+    <div class="footer-bar">
+        <span>FLoRA &middot; Tracking reproductions and replications across the sciences and humanities</span>
+        <div>
+            <a href="https://github.com/forrtproject/FReD-data" target="_blank">FORRT FLoRA Project</a>
             <a href="https://forrt.org/replication-hub/" target="_blank">FORRT Replication Hub</a>
         </div>
     </div>
