@@ -3794,5 +3794,15 @@
     "id": "https://openalex.org/S186282544",
     "display_name": "Toxicological Sciences",
     "impact_factor": 5.420224719101124
+  },
+  "group processes & intergroup relations": {
+    "id": "https://openalex.org/S81071032",
+    "display_name": "Group Processes & Intergroup Relations",
+    "impact_factor": 3.4972375690607733
+  },
+  "journal of speech and hearing disorders": {
+    "id": "https://openalex.org/S2755213894",
+    "display_name": "Journal of Speech and Hearing Disorders",
+    "impact_factor": 0.0
   }
 }
