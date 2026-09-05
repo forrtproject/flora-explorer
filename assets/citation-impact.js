@@ -4,7 +4,8 @@
 
 (function() {
     const CI = {
-        meta: null, agg: null, studies: null, index: null, fect: null, cocitBreakdown: null,
+        meta: null, agg: null, index: null, fect: null, cocitBreakdown: null,
+        studyCache: {}, currentDoi: null,
         outcome: 'all', page: 1, perPage: 20,
         sortCol: 'n_citations', sortDir: 'desc',
         loaded: false, loading: false
@@ -61,21 +62,30 @@
         };
     }
 
+    function plotlyReady(timeoutMs = 15000) {
+        return new Promise((resolve, reject) => {
+            const start = Date.now();
+            (function check() {
+                if (typeof Plotly !== 'undefined') return resolve();
+                if (Date.now() - start > timeoutMs) return reject(new Error('Plotly failed to load'));
+                setTimeout(check, 50);
+            })();
+        });
+    }
+
     async function init() {
         if (CI.loaded || CI.loading) return;
         CI.loading = true;
         try {
-            const [metaRes, aggRes, origRes] = await Promise.all([
+            const [metaRes, aggRes, idxRes] = await Promise.all([
                 fetch('data/meta.json'),
                 fetch('data/aggregate.json'),
-                fetch('data/originals.json')
+                fetch('data/originals_index.json')
             ]);
-            if (!metaRes.ok || !aggRes.ok || !origRes.ok) { showPlaceholder(); return; }
+            if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
             CI.agg = await aggRes.json();
-            const originals = await origRes.json();
-            CI.studies = originals.studies;
-            CI.index = originals.index.map(s => {
+            CI.index = (await idxRes.json()).map(s => {
                 // Denominator is citations since the first replication, not lifetime
                 // citations — citing works published before any replication existed
                 // could never have co-cited one.
@@ -95,6 +105,9 @@
                 if (breakdownRes.ok) CI.cocitBreakdown = await breakdownRes.json();
             } catch (_) {}
 
+            // The Plotly script tag near the end of <body> may still be loading when a
+            // deep link opens this tab; the data fetches above are small enough to win that race.
+            await plotlyReady();
             renderKPIs(); renderAggregate(); renderTable(); renderCocitBreakdown(); bindEvents();
             CI.loaded = true;
         } catch (e) {
@@ -383,8 +396,52 @@
         pag.innerHTML = pHtml;
     }
 
-    function showStudy(doi) {
-        const s = CI.studies[doi]; if (!s) return;
+    // Fetch one original's full record (citation timeline and replication list),
+    // keeping it for the rest of the session.
+    async function loadStudy(entry) {
+        if (CI.studyCache[entry.doi]) return CI.studyCache[entry.doi];
+        const res = await fetch('data/originals/' + encodeURIComponent(entry.file));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const s = await res.json();
+        CI.studyCache[entry.doi] = s;
+        return s;
+    }
+
+    function modalHeader(entry) {
+        return `<h2>${escapeHtml(entry.title || '(untitled)')}</h2>
+                <p class="muted">${escapeHtml(formatAuthors(entry.author))} · ${entry.year || '?'}
+                    ${entry.venue ? '· ' + escapeHtml(entry.venue) : ''}<br>
+                    <a href="https://doi.org/${escapeHtml(entry.doi)}" target="_blank">${escapeHtml(entry.doi)}</a></p>`;
+    }
+
+    async function showStudy(doi) {
+        const entry = CI.index && CI.index.find(s => s.doi === doi);
+        if (!entry) return;
+        CI.currentDoi = doi;
+        const body = document.getElementById('ci-modal-body');
+        body.innerHTML = `<div class="modal-body">${modalHeader(entry)}
+            <p class="muted" style="padding:40px 0;text-align:center">Loading citation timeline…</p></div>`;
+        document.getElementById('ci-modal').hidden = false;
+        // Reflect the open chart in the address bar so it's directly shareable.
+        history.replaceState(null, '', citationLink(doi));
+
+        let s;
+        try {
+            s = await loadStudy(entry);
+        } catch (e) {
+            console.error('Citation timeline load failed:', e);
+            if (CI.currentDoi === doi) {
+                body.innerHTML = `<div class="modal-body">${modalHeader(entry)}
+                    <p class="muted" style="padding:40px 0;text-align:center">Could not load the citation timeline for this study.</p></div>`;
+            }
+            return;
+        }
+        // A second row may have been clicked while this fetch was in flight.
+        if (CI.currentDoi !== doi) return;
+        renderStudy(s);
+    }
+
+    function renderStudy(s) {
         const reps = (s.replications || []).map(r => `
             <li>
                 <span class="outcome-badge ${r.outcome}">${r.outcome}</span>
@@ -394,10 +451,7 @@
             </li>`).join('');
         document.getElementById('ci-modal-body').innerHTML = `
             <div class="modal-body">
-                <h2>${escapeHtml(s.title || '(untitled)')}</h2>
-                <p class="muted">${escapeHtml(formatAuthors(s.author))} · ${s.year || '?'}
-                    ${s.venue ? '· ' + escapeHtml(s.venue) : ''}<br>
-                    <a href="https://doi.org/${escapeHtml(s.doi)}" target="_blank">${escapeHtml(s.doi)}</a></p>
+                ${modalHeader(s)}
                 <button type="button" class="ci-share-btn" data-doi="${escapeHtml(s.doi)}">🔗 Copy link to this chart</button>
                 <h3 style="margin-top:18px">Citation timeline</h3>
                 ${s.cocit_conflated ? `<p class="cocit-warning">⚠️ Co-citation can't be measured for ${s.cocit_conflated > 1 ? 'some replications of ' : ''}this study: OpenCitations groups the original and ${s.cocit_conflated > 1 ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p>` : ''}
@@ -405,14 +459,12 @@
                 <h3 style="margin-top:18px">Replications (${s.n_replications})</h3>
                 <ul class="rep-list">${reps}</ul>
             </div>`;
-        document.getElementById('ci-modal').hidden = false;
-        // Reflect the open chart in the address bar so it's directly shareable.
-        history.replaceState(null, '', citationLink(s.doi));
         drawStudyTimeline(s);
     }
 
     function closeModal() {
         document.getElementById('ci-modal').hidden = true;
+        CI.currentDoi = null;
         // Drop ?doi= but keep the user on the Citation Impact tab.
         history.replaceState(null, '', new URL('./?tab=citations', window.location.href).href);
     }
@@ -513,11 +565,12 @@
             .replace(/^doi:/, '');
     }
 
-    // Resolve a (possibly prefixed) DOI to the matching key in CI.studies.
+    // Resolve a (possibly prefixed) DOI to the matching key in the index.
     function findStudyDoi(doi) {
         const t = normalizeDoi(doi);
-        if (!t || !CI.studies) return null;
-        return Object.keys(CI.studies).find(d => normalizeDoi(d) === t) || null;
+        if (!t || !CI.index) return null;
+        const hit = CI.index.find(s => normalizeDoi(s.doi) === t);
+        return hit ? hit.doi : null;
     }
 
     // Build the shareable ?tab=citations&doi=… URL on the main page, relative
@@ -534,7 +587,7 @@
         if (!matchDoi) return false;
         const tabBtn = document.getElementById('citation-tab');
         if (tabBtn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-        showStudy(matchDoi);
+        await showStudy(matchDoi);
         return true;
     }
 

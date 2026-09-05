@@ -27,6 +27,7 @@ jobs:
               "data/meta.json",
               "data/aggregate.json",
               "data/originals.json",
+              "data/originals_index.json",
           ]
           for f in files:
               p = Path(f)
