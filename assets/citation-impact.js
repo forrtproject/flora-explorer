@@ -62,6 +62,17 @@
         };
     }
 
+    function plotlyReady(timeoutMs = 15000) {
+        return new Promise((resolve, reject) => {
+            const start = Date.now();
+            (function check() {
+                if (typeof Plotly !== 'undefined') return resolve();
+                if (Date.now() - start > timeoutMs) return reject(new Error('Plotly failed to load'));
+                setTimeout(check, 50);
+            })();
+        });
+    }
+
     async function init() {
         if (CI.loaded || CI.loading) return;
         CI.loading = true;
@@ -94,6 +105,9 @@
                 if (breakdownRes.ok) CI.cocitBreakdown = await breakdownRes.json();
             } catch (_) {}
 
+            // The Plotly script tag near the end of <body> may still be loading when a
+            // deep link opens this tab; the data fetches above are small enough to win that race.
+            await plotlyReady();
             renderKPIs(); renderAggregate(); renderTable(); renderCocitBreakdown(); bindEvents();
             CI.loaded = true;
         } catch (e) {
