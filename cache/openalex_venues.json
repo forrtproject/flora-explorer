@@ -3829,5 +3829,136 @@
     "id": "https://openalex.org/S161209770",
     "display_name": "The Journal of Mathematical Behavior",
     "impact_factor": 2.3625
+  },
+  "aids": {
+    "id": "https://openalex.org/S20605092",
+    "display_name": "AIDS",
+    "impact_factor": 1.9465174129353233
+  },
+  "addictive behaviors": {
+    "id": "https://openalex.org/S186215666",
+    "display_name": "Addictive Behaviors",
+    "impact_factor": 3.6151603498542273
+  },
+  "american economic journal: economic policy": {
+    "id": "https://openalex.org/S158011328",
+    "display_name": "American Economic Journal Economic Policy",
+    "impact_factor": 6.046242774566474
+  },
+  "american economic journal: macroeconomics": {
+    "id": "https://openalex.org/S170166683",
+    "display_name": "American Economic Journal Macroeconomics",
+    "impact_factor": 5.4227642276422765
+  },
+  "cambridge journal of economics": {
+    "id": "https://openalex.org/S67103694",
+    "display_name": "Cambridge Journal of Economics",
+    "impact_factor": 1.9044117647058822
+  },
+  "concepts in thermal physics": null,
+  "economic systems": {
+    "id": "https://openalex.org/S182651638",
+    "display_name": "Economic Systems Research",
+    "impact_factor": 2.1686746987951806
+  },
+  "european journal of political economy": {
+    "id": "https://openalex.org/S100134864",
+    "display_name": "European Journal of Political Economy",
+    "impact_factor": 3.989830508474576
+  },
+  "hematology, transfusion and cell therapy": {
+    "id": "https://openalex.org/S2898598332",
+    "display_name": "Hematology Transfusion and Cell Therapy",
+    "impact_factor": 0.1126232741617357
+  },
+  "international finance discussion papers": {
+    "id": "https://openalex.org/S4210227286",
+    "display_name": "IFDP Notes",
+    "impact_factor": 0.0
+  },
+  "jahrb\u00fccher f\u00fcr national\u00f6konomie und statistik": {
+    "id": "https://openalex.org/S97042997",
+    "display_name": "Jahrb\u00fccher f\u00fcr National\u00f6konomie und Statistik",
+    "impact_factor": 1.196078431372549
+  },
+  "journal of development economics": {
+    "id": "https://openalex.org/S101209419",
+    "display_name": "Journal of Development Economics",
+    "impact_factor": 3.9363636363636365
+  },
+  "journal of money, credit and banking": {
+    "id": "https://openalex.org/S2058785",
+    "display_name": "Journal of money credit and banking",
+    "impact_factor": 2.248995983935743
+  },
+  "journal of the american statistical association": {
+    "id": "https://openalex.org/S4394736638",
+    "display_name": "Journal of the American Statistical Association",
+    "impact_factor": 1.8791540785498488
+  },
+  "journal of the european economic association": {
+    "id": "https://openalex.org/S165087003",
+    "display_name": "Journal of the European Economic Association",
+    "impact_factor": 4.4
+  },
+  "policy research working papers": {
+    "id": "https://openalex.org/S4210231086",
+    "display_name": "World Bank policy research working paper",
+    "impact_factor": 1.8636363636363635
+  },
+  "quarterly journal of economics": {
+    "id": "https://openalex.org/S203860005",
+    "display_name": "The Quarterly Journal of Economics",
+    "impact_factor": 21.330985915492956
+  },
+  "review of economic dynamics": {
+    "id": "https://openalex.org/S163499366",
+    "display_name": "Review of Economic Dynamics",
+    "impact_factor": 2.0352941176470587
+  },
+  "scandinavian political studies": {
+    "id": "https://openalex.org/S117414780",
+    "display_name": "Scandinavian Political Studies",
+    "impact_factor": 1.3181818181818181
+  },
+  "studies in nonlinear dynamics & econometrics": {
+    "id": "https://openalex.org/S193530623",
+    "display_name": "Studies in Nonlinear Dynamics and Econometrics",
+    "impact_factor": 1.1612903225806452
+  },
+  "the economists voice": {
+    "id": "https://openalex.org/S91213080",
+    "display_name": "The Economists Voice",
+    "impact_factor": 1.0476190476190477
+  },
+  "the federal reserve bank of kansas city research working papers": {
+    "id": "https://openalex.org/S4210173933",
+    "display_name": "The Federal Reserve Bank of Kansas City Research Working Papers",
+    "impact_factor": 0.7333333333333333
+  },
+  "the journal of development studies": {
+    "id": "https://openalex.org/S61808140",
+    "display_name": "The Journal of Development Studies",
+    "impact_factor": 1.6737451737451738
+  },
+  "the journal of law and economics": {
+    "id": "https://openalex.org/S998097505",
+    "display_name": "The Journal of Law and Economics",
+    "impact_factor": 3.345679012345679
+  },
+  "the journal of legal studies": {
+    "id": "https://openalex.org/S9231424",
+    "display_name": "The Journal of Legal Studies",
+    "impact_factor": 1.0208333333333333
+  },
+  "the journal of pediatrics": {
+    "id": "https://openalex.org/S3774022",
+    "display_name": "The Journal of Pediatrics",
+    "impact_factor": 2.5348214285714286
+  },
+  "the lancet global health": {
+    "id": "https://openalex.org/S4210176958",
+    "display_name": "The Lancet Global Health",
+    "impact_factor": 10.961855670103093
   }
 }
