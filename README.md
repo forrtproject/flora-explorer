@@ -41,12 +41,15 @@ Contributions of new dashboards/tabs are welcome — see
 │   ├── author_overlap_meta.json
 │   ├── meta.json              # Citation pipeline (weekly)
 │   ├── aggregate.json
-│   └── originals.json
+│   ├── originals.json         # Full per-original records (input to run_fect.R)
+│   ├── originals_index.json   # Slim table rows loaded when the tab opens
+│   └── originals/             # One file per original, fetched when a row is clicked
 ├── scripts/
 │   ├── refresh_flora.py       # Daily flora.csv snapshot
 │   ├── refresh_data.py        # Weekly OpenCitations citation pipeline
 │   ├── compute_omc.py         # Weekly OpenAlex OMC enrichment
 │   ├── compute_author_overlap.py # Daily authorship-overlap computation
+│   ├── split_originals.py     # Splits originals.json into the index + per-study files
 │   ├── render_impact_factor.R # Computes Mean Citedness stats, writes JSON directly
 │   ├── run_fect.R             # ETWFE overlay for Citation Impact (not yet wired into a workflow)
 │   └── requirements.txt

@@ -22,6 +22,8 @@ import requests
 import statsmodels.api as sm
 from tqdm import tqdm
 
+from split_originals import write_split
+
 # ------------------------------------------------------------------ config
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
@@ -717,9 +719,12 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     }
     (DATA_DIR / "meta.json").write_text(
         json.dumps(clean_for_json(meta), indent=2, allow_nan=False))
+    clean_studies = clean_for_json(studies)
+    clean_index = clean_for_json(originals_index)
     (DATA_DIR / "originals.json").write_text(
-        json.dumps(clean_for_json({"studies": studies, "index": originals_index}),
+        json.dumps({"studies": clean_studies, "index": clean_index},
                    allow_nan=False))
+    write_split(clean_studies, clean_index, DATA_DIR)
     (DATA_DIR / "aggregate.json").write_text(
         json.dumps(clean_for_json(aggregate), indent=2, allow_nan=False))
     (DATA_DIR / "cocit_breakdown.json").write_text(
