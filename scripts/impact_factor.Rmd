@@ -1,0 +1,166 @@
+---
+title: "Mean Citedness analysis"
+output:
+  html_fragment:
+    self_contained: false
+    fig_width: 8
+    fig_height: 4.5
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, warning = FALSE, message = FALSE,
+  fig.path = "../data/impact_factor_figs/", dev = "png", dpi = 110
+)
+```
+
+```{r load}
+suppressPackageStartupMessages({
+  library(jsonlite)
+  library(ggplot2)
+  library(scales)
+  library(mgcv)
+})
+
+raw <- read.csv("../data/flora_with_omc.csv",
+                stringsAsFactors = FALSE, na.strings = c("", "NA"))
+
+DISCIPLINES <- fromJSON("../data/disciplines.json", simplifyVector = FALSE)
+normalize <- function(x) {
+  x <- tolower(x)
+  x <- gsub("[^a-z0-9 ]", " ", x)
+  x <- gsub("\\s+", " ", x)
+  trimws(x)
+}
+lookup <- do.call(rbind, lapply(names(DISCIPLINES), function(disc) {
+  data.frame(journal_norm = normalize(unlist(DISCIPLINES[[disc]])),
+             discipline   = disc, stringsAsFactors = FALSE)
+}))
+raw$journal_norm <- normalize(raw$journal_o)
+raw$discipline   <- lookup$discipline[match(raw$journal_norm, lookup$journal_norm)]
+raw$discipline   <- factor(ifelse(is.na(raw$discipline), "Uncategorized", raw$discipline))
+```
+
+```{r filter}
+raw$impact_factor <- suppressWarnings(as.numeric(raw$impact_factor))
+
+# All studies with OMC — for distribution plot (keep mixed/inconclusive)
+df_all <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 35, ]
+df_all$outcome_fac <- factor(tolower(df_all$outcome),
+                             levels = c("successful", "mixed", "failed", "inconclusive"))
+
+# Binary subset for modelling
+df <- df_all[tolower(df_all$outcome) %in% c("successful", "failed"), ]
+df$outcome_binary <- ifelse(tolower(df$outcome) == "failed", 0, 1)
+df$omc_log        <- log(df$impact_factor + 1)
+df$outcome_fac2   <- factor(tolower(df$outcome), levels = c("failed", "successful"))
+```
+
+```{r empty-bail, results="asis"}
+if (nrow(df) < 30) {
+  cat("<p><em>Not enough studies with both a binary outcome and a journal-level OMC value yet. ",
+      "This analysis will populate as more journals are matched to OpenAlex sources.</em></p>\n")
+  knitr::knit_exit()
+}
+```
+
+```{r overview, results="asis"}
+n_total    <- nrow(df_all)
+n_success  <- sum(tolower(df_all$outcome) == "successful", na.rm = TRUE)
+n_failed   <- sum(tolower(df_all$outcome) == "failed",     na.rm = TRUE)
+n_mixed    <- sum(tolower(df_all$outcome) == "mixed",      na.rm = TRUE)
+n_journals <- length(unique(df_all$journal_o[!is.na(df_all$journal_o) & df_all$journal_o != ""]))
+n_discs    <- length(unique(as.character(df_all$discipline[df_all$discipline != "Uncategorized"])))
+
+cat(sprintf(
+'<div class="mc-overview-grid">
+  <div class="mc-stat"><span class="mc-stat-value">%d</span><span class="mc-stat-label">Studies with OMC</span></div>
+  <div class="mc-stat"><span class="mc-stat-value" style="color:#2f8f4f">%d</span><span class="mc-stat-label">Successful</span></div>
+  <div class="mc-stat"><span class="mc-stat-value" style="color:#b3331e">%d</span><span class="mc-stat-label">Failed</span></div>
+  <div class="mc-stat"><span class="mc-stat-value" style="color:#d49b1d">%d</span><span class="mc-stat-label">Mixed</span></div>
+  <div class="mc-stat"><span class="mc-stat-value">%d</span><span class="mc-stat-label">Journals matched</span></div>
+  <div class="mc-stat"><span class="mc-stat-value">%d</span><span class="mc-stat-label">Disciplines</span></div>
+</div>\n',
+n_total, n_success, n_failed, n_mixed, n_journals, n_discs))
+```
+
+```{r dist-plot, fig.cap="Distribution of studies by journal Mean Citedness (OMC), coloured by replication outcome. Studies with OMC > 35 excluded."}
+outcome_colors <- c(
+  "successful"  = "#2f8f4f",
+  "failed"      = "#b3331e",
+  "mixed"       = "#d49b1d",
+  "inconclusive"= "#6f7686"
+)
+outcome_labels <- c(
+  "successful"  = "Successful",
+  "failed"      = "Failed",
+  "mixed"       = "Mixed",
+  "inconclusive"= "Inconclusive"
+)
+
+present <- intersect(levels(df_all$outcome_fac),
+                     unique(as.character(df_all$outcome_fac[!is.na(df_all$outcome_fac)])))
+
+ggplot(df_all[!is.na(df_all$outcome_fac), ],
+       aes(x = impact_factor, fill = outcome_fac)) +
+  geom_histogram(position = "stack", binwidth = 0.5,
+                 alpha = 0.88, color = "white", linewidth = 0.1) +
+  scale_fill_manual(values = outcome_colors[present],
+                    labels = outcome_labels[present],
+                    name   = "Outcome") +
+  coord_cartesian(xlim = c(0, 20)) +
+  scale_x_continuous(breaks = seq(0, 20, 5)) +
+  labs(x = "OpenAlex Mean Citedness (OMC)", y = "Number of studies") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "top",
+        panel.grid.minor = element_blank())
+```
+
+```{r gam-model}
+gam_fit <- gam(outcome_binary ~ s(omc_log), family = binomial, data = df)
+gam_sum <- summary(gam_fit)
+edf     <- round(gam_sum$edf, 2)
+chi_sq  <- round(gam_sum$chi.sq, 2)
+p_val   <- gam_sum$s.pv
+p_str   <- ifelse(p_val < 0.001, "p &lt; .001", sprintf("p = %.3f", p_val))
+r2_null <- as.numeric(logLik(glm(outcome_binary ~ 1, family = binomial, data = df)))
+r2_gam  <- round(as.numeric(1 - logLik(gam_fit) / r2_null), 3)
+```
+
+```{r gam-note, results="asis"}
+cat(sprintf(
+  '<p class="mc-model-note">GAM (binomial, log-OMC smooth) &mdash; smooth term: edf&nbsp;=&nbsp;%.2f, &#967;<sup>2</sup>&nbsp;=&nbsp;%.2f, %s &mdash; McFadden R<sup>2</sup>&nbsp;=&nbsp;%.3f &mdash; N&nbsp;=&nbsp;%d (successful vs. failed only).</p>\n',
+  edf, chi_sq, p_str, r2_gam, nrow(df)
+))
+```
+
+```{r gam-plot, fig.cap="GAM-estimated probability of successful replication as a function of journal Mean Citedness (OMC). Shaded band: 95% CI. Points are jittered binary outcomes (0 = failed, 1 = successful)."}
+pred <- data.frame(
+  impact_factor = seq(min(df$impact_factor, na.rm = TRUE),
+                      min(max(df$impact_factor, na.rm = TRUE), 20),
+                      length.out = 400)
+)
+pred$omc_log <- log(pred$impact_factor + 1)
+
+gp       <- predict(gam_fit, newdata = pred, type = "link", se.fit = TRUE)
+pred$p    <- plogis(gp$fit)
+pred$p_lo <- plogis(gp$fit - 1.96 * gp$se.fit)
+pred$p_hi <- plogis(gp$fit + 1.96 * gp$se.fit)
+
+ggplot(pred, aes(x = impact_factor)) +
+  geom_ribbon(aes(ymin = p_lo, ymax = p_hi), fill = "#8b1a4a", alpha = 0.18) +
+  geom_line(aes(y = p), color = "#8b1a4a", linewidth = 1.2) +
+  geom_jitter(data = df, aes(x = impact_factor, y = outcome_binary),
+              alpha = 0.13, height = 0.03, width = 0, color = "#6f7686", size = 1) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray55", linewidth = 0.5) +
+  scale_y_continuous(limits = c(0, 1), labels = percent_format()) +
+  scale_x_continuous(breaks = seq(0, 20, 5)) +
+  labs(x = "OpenAlex Mean Citedness (OMC)",
+       y = "P(successful replication)",
+       caption = "Shaded band: 95% CI") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+```

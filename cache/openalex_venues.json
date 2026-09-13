@@ -3735,30 +3735,20 @@
     "display_name": "Sociological Science",
     "impact_factor": 3.2695652173913046
   },
-  "aphasiology": {
-    "id": "https://openalex.org/S86063550",
-    "display_name": "Aphasiology",
-    "impact_factor": 1.9218241042345277
-  },
   "canadian journal of experimental psychology / revue canadienne de psychologie exp\u00e9rimentale": {
     "id": "https://openalex.org/S181082468",
     "display_name": "Canadian Journal of Experimental Psychology/Revue canadienne de psychologie exp\u00e9rimentale",
-    "impact_factor": 0.591304347826087
-  },
-  "ecology and evolution": {
-    "id": "https://openalex.org/S2482021738",
-    "display_name": "Ecology and Evolution",
-    "impact_factor": 2.4403578528827037
+    "impact_factor": 0.6017699115044248
   },
   "european journal of information systems": {
     "id": "https://openalex.org/S116712389",
     "display_name": "European Journal of Information Systems",
-    "impact_factor": 7.355140186915888
+    "impact_factor": 7.327102803738318
   },
   "jci insight": {
     "id": "https://openalex.org/S2764964142",
     "display_name": "JCI Insight",
-    "impact_factor": 6.001366120218579
+    "impact_factor": 5.9733242134062925
   },
   "journal of evolutionary psychology": {
     "id": "https://openalex.org/S4210189590",
@@ -3768,17 +3758,32 @@
   "journal of religion and health": {
     "id": "https://openalex.org/S67703274",
     "display_name": "Journal of Religion and Health",
-    "impact_factor": 2.124031007751938
+    "impact_factor": 2.111254851228978
   },
   "reading research quarterly": {
     "id": "https://openalex.org/S102860129",
     "display_name": "Reading Research Quarterly",
-    "impact_factor": 3.8442622950819674
+    "impact_factor": 3.8114754098360657
   },
   "social behavior and personality: an international journal": {
     "id": "https://openalex.org/S61066606",
     "display_name": "Social Behavior and Personality An International Journal",
-    "impact_factor": 1.1363636363636365
+    "impact_factor": 1.1327272727272728
+  },
+  "toxicological sciences": {
+    "id": "https://openalex.org/S186282544",
+    "display_name": "Toxicological Sciences",
+    "impact_factor": 5.410835214446952
+  },
+  "aphasiology": {
+    "id": "https://openalex.org/S86063550",
+    "display_name": "Aphasiology",
+    "impact_factor": 1.9218241042345277
+  },
+  "ecology and evolution": {
+    "id": "https://openalex.org/S2482021738",
+    "display_name": "Ecology and Evolution",
+    "impact_factor": 2.4403578528827037
   },
   "social science research": {
     "id": "https://openalex.org/S59311786",
@@ -3789,11 +3794,6 @@
     "id": "https://openalex.org/S4210184910",
     "display_name": "The Pacific Sociological Review",
     "impact_factor": 0.0
-  },
-  "toxicological sciences": {
-    "id": "https://openalex.org/S186282544",
-    "display_name": "Toxicological Sciences",
-    "impact_factor": 5.420224719101124
   },
   "group processes & intergroup relations": {
     "id": "https://openalex.org/S81071032",
@@ -3833,22 +3833,17 @@
   "aids": {
     "id": "https://openalex.org/S20605092",
     "display_name": "AIDS",
-    "impact_factor": 1.9465174129353233
-  },
-  "addictive behaviors": {
-    "id": "https://openalex.org/S186215666",
-    "display_name": "Addictive Behaviors",
-    "impact_factor": 3.6151603498542273
+    "impact_factor": 1.9236545682102628
   },
   "american economic journal: economic policy": {
     "id": "https://openalex.org/S158011328",
     "display_name": "American Economic Journal Economic Policy",
-    "impact_factor": 6.046242774566474
+    "impact_factor": 6.023121387283237
   },
   "american economic journal: macroeconomics": {
     "id": "https://openalex.org/S170166683",
     "display_name": "American Economic Journal Macroeconomics",
-    "impact_factor": 5.4227642276422765
+    "impact_factor": 5.414634146341464
   },
   "cambridge journal of economics": {
     "id": "https://openalex.org/S67103694",
@@ -3864,12 +3859,12 @@
   "european journal of political economy": {
     "id": "https://openalex.org/S100134864",
     "display_name": "European Journal of Political Economy",
-    "impact_factor": 3.989830508474576
+    "impact_factor": 3.9693877551020407
   },
   "hematology, transfusion and cell therapy": {
     "id": "https://openalex.org/S2898598332",
     "display_name": "Hematology Transfusion and Cell Therapy",
-    "impact_factor": 0.1126232741617357
+    "impact_factor": 0.11056268509378085
   },
   "international finance discussion papers": {
     "id": "https://openalex.org/S4210227286",
@@ -3884,22 +3879,22 @@
   "journal of development economics": {
     "id": "https://openalex.org/S101209419",
     "display_name": "Journal of Development Economics",
-    "impact_factor": 3.9363636363636365
+    "impact_factor": 3.8972477064220183
   },
   "journal of money, credit and banking": {
     "id": "https://openalex.org/S2058785",
     "display_name": "Journal of money credit and banking",
-    "impact_factor": 2.248995983935743
+    "impact_factor": 2.2329317269076303
   },
   "journal of the american statistical association": {
     "id": "https://openalex.org/S4394736638",
     "display_name": "Journal of the American Statistical Association",
-    "impact_factor": 1.8791540785498488
+    "impact_factor": 1.8556231003039514
   },
   "journal of the european economic association": {
     "id": "https://openalex.org/S165087003",
     "display_name": "Journal of the European Economic Association",
-    "impact_factor": 4.4
+    "impact_factor": 4.404624277456647
   },
   "policy research working papers": {
     "id": "https://openalex.org/S4210231086",
@@ -3909,56 +3904,61 @@
   "quarterly journal of economics": {
     "id": "https://openalex.org/S203860005",
     "display_name": "The Quarterly Journal of Economics",
-    "impact_factor": 21.330985915492956
+    "impact_factor": 21.070422535211268
   },
   "review of economic dynamics": {
     "id": "https://openalex.org/S163499366",
     "display_name": "Review of Economic Dynamics",
-    "impact_factor": 2.0352941176470587
+    "impact_factor": 2.011764705882353
   },
   "scandinavian political studies": {
     "id": "https://openalex.org/S117414780",
     "display_name": "Scandinavian Political Studies",
-    "impact_factor": 1.3181818181818181
+    "impact_factor": 1.309090909090909
   },
   "studies in nonlinear dynamics & econometrics": {
     "id": "https://openalex.org/S193530623",
     "display_name": "Studies in Nonlinear Dynamics and Econometrics",
-    "impact_factor": 1.1612903225806452
+    "impact_factor": 1.1626016260162602
   },
   "the economists voice": {
     "id": "https://openalex.org/S91213080",
     "display_name": "The Economists Voice",
-    "impact_factor": 1.0476190476190477
+    "impact_factor": 1.0602409638554218
   },
   "the federal reserve bank of kansas city research working papers": {
     "id": "https://openalex.org/S4210173933",
     "display_name": "The Federal Reserve Bank of Kansas City Research Working Papers",
-    "impact_factor": 0.7333333333333333
+    "impact_factor": 0.7674418604651163
   },
   "the journal of development studies": {
     "id": "https://openalex.org/S61808140",
     "display_name": "The Journal of Development Studies",
-    "impact_factor": 1.6737451737451738
+    "impact_factor": 1.6602316602316602
   },
   "the journal of law and economics": {
     "id": "https://openalex.org/S998097505",
     "display_name": "The Journal of Law and Economics",
-    "impact_factor": 3.345679012345679
+    "impact_factor": 3.234567901234568
   },
   "the journal of legal studies": {
     "id": "https://openalex.org/S9231424",
     "display_name": "The Journal of Legal Studies",
     "impact_factor": 1.0208333333333333
   },
+  "the lancet global health": {
+    "id": "https://openalex.org/S4210176958",
+    "display_name": "The Lancet Global Health",
+    "impact_factor": 10.88681204569055
+  },
+  "addictive behaviors": {
+    "id": "https://openalex.org/S186215666",
+    "display_name": "Addictive Behaviors",
+    "impact_factor": 3.6151603498542273
+  },
   "the journal of pediatrics": {
     "id": "https://openalex.org/S3774022",
     "display_name": "The Journal of Pediatrics",
     "impact_factor": 2.5348214285714286
-  },
-  "the lancet global health": {
-    "id": "https://openalex.org/S4210176958",
-    "display_name": "The Lancet Global Health",
-    "impact_factor": 10.961855670103093
   }
 }

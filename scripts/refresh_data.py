@@ -9,6 +9,7 @@ Optimised for GitHub Actions:
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
@@ -30,6 +31,10 @@ DATA_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
 
 FLORA_URL = "https://raw.githubusercontent.com/forrtproject/FReD-data/main/output/flora.csv"
+REPRODUCTIONS_GSHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vT0VnLyrf9GCYXtN6l1DgaoLlg6H5r-08Op9eJzSripS1QBSHL031Arc27yUDe0YY7cB4TOnYMm2Vh1"
+    "/pub?gid=984458430&single=true&output=csv"
+)
 OC_BASE = "https://opencitations.net/index/api/v2"
 OC_META = "https://opencitations.net/meta/api/v1"
 OC_KEY = os.environ.get("OC_API_KEY", "").strip()
@@ -164,7 +169,35 @@ def clean_for_json(obj):
 
 
 # ------------------------------------------------------------------ FLoRA
-def load_flora() -> pd.DataFrame:
+def fetch_reproduction_outcomes() -> dict:
+    """Load the reproductions Google Sheet, returning normalised doi_r -> "computational,
+    robustness" combined outcome string. FReD-data's pipeline now sources reproductions
+    from this two-axis sheet but has a bug where that data never reaches flora.csv's
+    single `outcome` column (bind_rows() silently drops it - see scripts/refresh_flora.py
+    for the full rationale). Until that's fixed upstream, this backfills the same way
+    refresh_flora.py does, since this script fetches FLORA_URL directly rather than
+    reading the locally-patched data/flora.csv."""
+    r = requests.get(REPRODUCTIONS_GSHEET_URL, timeout=60)
+    r.raise_for_status()
+    gsheet = pd.read_csv(io.StringIO(r.text), low_memory=False)
+    by_doi: dict[str, str] = {}
+    for _, row in gsheet.iterrows():
+        if str(row.get("validation") or "").strip().lower() == "validated - discarded":
+            continue
+        computational = str(row.get("outcome_computational") or "").strip()
+        robustness = str(row.get("outcome_robustness") or "").strip()
+        if not computational and not robustness:
+            continue
+        doi_key = doi_clean(row.get("doi_r", ""))
+        if doi_key:
+            by_doi[doi_key] = f"{computational}, {robustness}"
+    return by_doi
+
+
+def load_flora_raw() -> pd.DataFrame:
+    """Fetch + parse FLoRA into the common column shape, before any type/outcome
+    filtering - so both filter_replications() and filter_reproductions() can work
+    from the same parsed frame."""
     print("Fetching FLoRA…")
     df = pd.read_csv(FLORA_URL, low_memory=False)
     print(f"  {len(df)} rows; columns: {list(df.columns)[:14]}…")
@@ -208,6 +241,23 @@ def load_flora() -> pd.DataFrame:
         "journal_r": df[col_journal_r] if col_journal_r else "",
     })
 
+    is_reproduction = out["type"].str.contains("reproduc", na=False)
+    missing_outcome = out["outcome"].isna() | out["outcome"].isin(["", "na", "nan"])
+    needs_backfill = is_reproduction & missing_outcome
+    if needs_backfill.any():
+        try:
+            by_doi = fetch_reproduction_outcomes()
+            filled = out.loc[needs_backfill, "doi_r"].map(by_doi)
+            out.loc[needs_backfill, "outcome"] = filled.combine_first(out.loc[needs_backfill, "outcome"])
+            print(f"  Backfilled outcome for {filled.notna().sum()}/{needs_backfill.sum()} "
+                  f"reproduction rows from the Google Sheet")
+        except requests.exceptions.RequestException as e:
+            print(f"  ! could not fetch reproduction outcomes ({e}); leaving outcome as-is")
+
+    return out
+
+
+def filter_replications(out: pd.DataFrame) -> pd.DataFrame:
     n0 = len(out)
     out = out[out["type"].str.contains("replication", na=False)
               & ~out["type"].str.contains("reproduc", na=False)]
@@ -228,6 +278,65 @@ def load_flora() -> pd.DataFrame:
 
     print(f"  Filtered: {n0} → {len(out)} (replications with known outcomes)")
     return out.reset_index(drop=True)
+
+
+def load_flora() -> pd.DataFrame:
+    """Back-compat: raw fetch + the replication filter, exactly as before this
+    was split so build_study_data()'s event-study path is unaffected."""
+    return filter_replications(load_flora_raw())
+
+
+def parse_reproduction_outcome(outcome_raw) -> tuple[str | None, str | None]:
+    """Split a reproduction's compound outcome string into its two independent
+    dimensions. Mirrors assets/app.js's parseReproductionOutcome() exactly - always a
+    "computational, robustness" two-part comma-joined string, parsed positionally (part
+    0 only tested against computational keywords, part 1 only against robustness
+    keywords) so the two dimensions' text never cross-contaminate. Covers both the
+    legacy vocabulary ("computationally successful, robust") and the current one from
+    FReD-data's two-axis reproductions spreadsheet ("computationally reproducible" /
+    "computational issues" / "technical failure" / "failed" / "not checked" for the
+    computational dimension; "robust" / "robustness challenges" / "not checked" for
+    robustness)."""
+    parts = [p.strip() for p in str(outcome_raw or "").lower().split(",")]
+    p0 = parts[0] if len(parts) > 0 else ""
+    p1 = parts[1] if len(parts) > 1 else ""
+    computational = None
+    robustness = None
+
+    if "technical failure" in p0 or p0 == "failed":
+        computational = "technical_failure"
+    elif "computational issue" in p0:
+        computational = "issues"
+    elif "computationally reproducible" in p0 or ("computational" in p0 and "success" in p0):
+        computational = "successful"
+    elif "not checked" in p0:
+        computational = "not_checked"
+
+    if "robustness challenge" in p1:
+        robustness = "challenges"
+    elif "not checked" in p1:
+        robustness = "not_checked"
+    elif "robust" in p1:
+        robustness = "robust"
+
+    return computational, robustness
+
+
+def filter_reproductions(out: pd.DataFrame) -> pd.DataFrame:
+    """Reproduction rows with both DOIs present, so their citations can be fetched
+    from OpenCitations the same way as replications. Unlike filter_replications(),
+    outcome is not restricted to a fixed set here - callers bucket by the parsed
+    computational/robustness dimension and drop the rows that carry no verdict on the
+    dimension they're bucketing by."""
+    is_repro = out["type"].str.contains("reproduc", na=False)
+    repro = (out[is_repro]
+             .dropna(subset=["doi_o", "doi_r"])
+             .drop_duplicates(subset=["doi_o", "doi_r"])
+             .copy())
+    dims = repro["outcome"].apply(parse_reproduction_outcome)
+    repro["computational_bucket"] = dims.apply(lambda t: t[0] or "not_coded")
+    repro["robustness_bucket"] = dims.apply(lambda t: t[1] or "not_coded")
+    return repro.reset_index(drop=True)
 
 
 # ------------------------------------------------------------------ OpenCitations
@@ -678,6 +787,52 @@ def compute_cocit_breakdown(studies: dict) -> dict:
     }
 
 
+def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
+    """Descriptive (not event-study) citation counts for reproductions, bucketed by
+    computational/robustness dimension. Deliberately skips the OLS/TWFE event-study
+    used for replications: event_study() already requires >= 5 distinct originals
+    within the event window (line ~550), and with at most ~15 reproduction DOI pairs
+    - far fewer once split into dimension buckets - that guard would return an empty
+    result anyway. Simple counts are the honest, meaningful thing to show at this
+    dataset size; this will read as a real per-dimension analysis (not "coming soon")
+    once there's enough coded reproductions to make an event-study worthwhile.
+
+    Rows without an actual verdict on a dimension ("not checked"/uncoded) are excluded
+    entirely rather than kept as their own bucket - they carry no information about that
+    dimension and would only dilute the stats for the studies actually assessed. Applied
+    per dimension, so a reproduction whose robustness was never checked still counts
+    toward the computational breakdown."""
+    def bucket_stats(bucket_col: str, buckets: list[str]) -> dict:
+        out = {}
+        for b in buckets:
+            sub = repro[repro[bucket_col] == b]
+            n_citations_o = 0
+            n_citations_r = 0
+            n_cocitations = 0
+            for doi_o, grp in sub.groupby("doi_o"):
+                cites_o = fetch_oc_citations(doi_o) or []
+                co = {c["citing"] for c in cites_o}
+                n_citations_o += len(cites_o)
+                rep_citing = set()
+                for _, row in grp.iterrows():
+                    cites_r = fetch_oc_citations(row["doi_r"]) or []
+                    n_citations_r += len(cites_r)
+                    rep_citing.update(c["citing"] for c in cites_r)
+                n_cocitations += sum(1 for c in co if c in rep_citing)
+            out[b] = {
+                "n_originals": int(sub["doi_o"].nunique()),
+                "n_citations_to_original": int(n_citations_o),
+                "n_citations_to_reproduction": int(n_citations_r),
+                "n_cocitations": int(n_cocitations),
+            }
+        return out
+
+    return {
+        "reproduction-numerical": bucket_stats("computational_bucket", ["successful", "issues", "technical_failure"]),
+        "reproduction-robustness": bucket_stats("robustness_bucket", ["robust", "challenges"]),
+    }
+
+
 def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     panel = build_panel(studies)
     aggregate = {}
@@ -730,7 +885,8 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
 
 # ------------------------------------------------------------------ main
 def main():
-    flora = load_flora()
+    raw = load_flora_raw()
+    flora = filter_replications(raw)
     studies = {}
     partial = True
     try:
@@ -741,6 +897,21 @@ def main():
     finally:
         write_outputs(studies, flora, partial=partial)
     print(f"Done. {len(studies)} originals processed.")
+
+    # Reproductions: a small, separate, best-effort addition. Wrapped so any failure
+    # here can never affect the replication pipeline above, which has already written
+    # its outputs by this point.
+    if should_stop(60):
+        print("⏰ low on time budget; skipping reproduction citation stats this run.")
+    else:
+        try:
+            repro = filter_reproductions(raw)
+            repro_result = compute_reproduction_citations(repro)
+            (DATA_DIR / "reproduction_citations.json").write_text(
+                json.dumps(clean_for_json(repro_result), indent=2, allow_nan=False))
+            print(f"✔ wrote reproduction citation stats ({len(repro)} reproduction rows)")
+        except Exception as e:
+            print(f"! reproduction citation stats failed (non-fatal): {e}")
 
 
 if __name__ == "__main__":
