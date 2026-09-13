@@ -21,13 +21,14 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 // ----- Config -----
 // Prefer local snapshot (daily-refreshed by GitHub Action); fall back to upstream live CSV.
 const LOCAL_CSV_URL = 'data/flora.csv';
-const REMOTE_CSV_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv';
+const REMOTE_CSV_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora.csv';
 const FLORA_META_URL = 'data/flora_meta.json';
 const CITATIONS_META_URL = 'data/meta.json';
 const IMPACT_META_URL = 'data/impact_factor_meta.json';
 const IMPACT_DATA_URL = 'data/impact_factor_data.json';
+const IMPACT_REPRODUCTIONS_URL = 'data/impact_factor_reproductions.json';
 const DISCIPLINES_URL = 'data/disciplines.json';
-const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
+const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/CITATION.cff';
 const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
 
 const OUTCOME_COLORS = {
@@ -35,7 +36,8 @@ const OUTCOME_COLORS = {
     failed:       '#b3331e',
     mixed:        '#d49b1d',
     inconclusive: '#6f7686',
-    other:        '#a0a7b4'
+    qualified:    '#7851a9',
+    other:        '#707782'
 };
 
 // Filled at runtime from data/disciplines.json
@@ -60,6 +62,8 @@ function themeAxisColors() {
 let fullRowData = [];
 let dataTable = null;
 let overviewChart = null;
+let overviewComputationalChart = null;
+let overviewRobustnessChart = null;
 let trendOrigYearChart = null;
 let trendRepYearChart = null;
 let trendJournalChart = null;
@@ -68,19 +72,15 @@ let trendFieldChart = null;
 let trendsInitialized = false;
 
 // ===== Utilities =====
-function classifyOutcome(outcomeRaw) {
-    if (!outcomeRaw) return 'other';
-    const o = outcomeRaw.toLowerCase().trim();
-    if (o.includes('success') || o === 'replicated' || (o.includes('robust') && !o.includes('challenge') && !o.includes('not'))) return 'successful';
-    if (o.includes('fail') || o === 'not replicated' || o.includes('computational issue') || o.includes('robustness challenge')) return 'failed';
-    if (o.includes('mixed') || o.includes('partial')) return 'mixed';
-    if (o.includes('inconclusive')) return 'inconclusive';
-    return 'other';
+function classifyOutcome(raw) {
+    return ({ successful: 'successful', replicated: 'successful', failed: 'failed',
+        'not replicated': 'failed', mixed: 'mixed', partial: 'mixed', inconclusive: 'inconclusive',
+        'statistically successful but flawed': 'qualified' })[String(raw || '').trim().toLowerCase()] || 'other';
 }
 
 function hasMatchedOutcome(row) {
     const c = classifyOutcome(row.outcome);
-    return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive';
+    return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive' || c === 'qualified';
 }
 
 function classifyKind(row) {
@@ -93,13 +93,41 @@ function classifyKind(row) {
     return 'unknown';
 }
 
-function classifyReproductionSubkind(row) {
-    const t = (row.type || '').toLowerCase();
-    const o = (row.outcome || '').toLowerCase();
-    const blob = `${t} ${o}`;
-    if (blob.includes('robust')) return 'robustness';
-    if (blob.includes('computational') || blob.includes('numerical')) return 'numerical';
-    return 'unknown';
+// Splits a reproduction row's compound outcome string (e.g. "computationally successful,
+// robustness challenges") into its two independent dimensions. Either field is null when
+// that dimension hasn't been coded yet (including plain "NA").
+// Reproduction outcome is a comma-joined "computational, robustness" string, always in
+// that fixed order - both the legacy vocabulary ("computationally successful, robust")
+// and the current one sourced from FReD-data's two-axis reproductions spreadsheet
+// ("computationally reproducible"/"computational issues"/"technical failure"/"failed"/
+// "not checked" for computational; "robust"/"robustness challenges"/"not checked" for
+// robustness) use this same two-part shape. Parsing positionally - part[0] only tested
+// against computational keywords, part[1] only against robustness keywords - avoids any
+// cross-contamination between the two dimensions' text.
+function parseReproductionOutcome(raw) {
+    const parts = String(raw || '').toLowerCase().split(',').map(s=>s.trim());
+    const computational = {'computationally reproducible':'successful', 'computationally successful':'successful',
+        'computational issues':'issues', 'technical failure':'technical_failure', failed:'technical_failure', 'not checked':'not_checked'};
+    const robustness = {robust:'robust', 'robustness challenges':'challenges', 'not checked':'not_checked', 'robustness not checked':'not_checked'};
+    return {computational:computational[parts[0]] || null, robustness:robustness[parts[1]] || null};
+}
+
+// Computational and robustness are two independently-assessed dimensions (see
+// parseReproductionOutcome), and a reproduction can be assessed on one but not the other.
+// A row only counts toward a dimension when it carries an actual verdict there;
+// "not checked"/uncoded rows are excluded from that dimension's charts, since they say
+// nothing about it and would otherwise dominate every bar. The exclusion is per-dimension,
+// so a reproduction whose robustness was never checked still appears under computational.
+function isComputationalAssessed(row) {
+    if (classifyKind(row) !== 'reproduction') return false;
+    const { computational } = parseReproductionOutcome(row.outcome);
+    return computational === 'successful' || computational === 'issues' || computational === 'technical_failure';
+}
+
+function isRobustnessAssessed(row) {
+    if (classifyKind(row) !== 'reproduction') return false;
+    const { robustness } = parseReproductionOutcome(row.outcome);
+    return robustness === 'robust' || robustness === 'challenges';
 }
 
 function filterByKind(data, kind) {
@@ -107,48 +135,104 @@ function filterByKind(data, kind) {
     if (kind === 'replication') return data.filter(r => classifyKind(r) === 'replication');
     if (kind === 'reproduction') return data.filter(r => classifyKind(r) === 'reproduction');
     if (kind === 'reproduction-numerical') {
-        return data.filter(r => classifyKind(r) === 'reproduction' && classifyReproductionSubkind(r) === 'numerical');
+        return data.filter(r => isComputationalAssessed(r));
     }
     if (kind === 'reproduction-robustness') {
-        return data.filter(r => classifyKind(r) === 'reproduction' && classifyReproductionSubkind(r) === 'robustness');
+        return data.filter(r => isRobustnessAssessed(r));
     }
     return data;
 }
 
-function getOutcomeBadge(outcome) {
-    if (!outcome) return '<span class="badge badge-unknown">Unknown</span>';
-    const cls = classifyOutcome(outcome);
-    const map = { successful: 'badge-successful', failed: 'badge-failed', mixed: 'badge-mixed', inconclusive: 'badge-inconclusive', other: 'badge-unknown' };
-    return `<span class="badge ${map[cls]}">${escapeHtml(outcome)}</span>`;
+// Shared single-select chip-group control used by the study-type selector on Citation
+// Impact, Mean Citedness, Authorship Overlap, and Registered Reports. Unlike browseKind/
+// trendsKind there's no "all" option here - one of the 3 chips is always active.
+function setupStudyTypeSelect(containerId, onChange) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            container.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            onChange(btn.dataset.value);
+        });
+    });
 }
 
-function getOutcomeBadgeShort(outcome) {
-    if (!outcome) return '<span class="badge badge-unknown">Unknown</span>';
-    const o = outcome.toLowerCase().trim();
-    const cls = classifyOutcome(outcome);
-    const colorMap = { successful: 'badge-successful', failed: 'badge-failed', mixed: 'badge-mixed', inconclusive: 'badge-inconclusive', other: 'badge-unknown' };
-    let short;
-    const compState = o.includes('computationally successful') ? 'CS' :
-                      o.includes('computational issue') ? 'CI' : null;
-    const robState = o.includes('robustness challenge') ? 'RC' :
-                     o.includes('robustness not checked') ? 'RNC' :
-                     (o.includes('robust') && !o.includes('not') && !o.includes('challenge')) ? 'R' : null;
-    if (compState && robState) short = `${compState} · ${robState}`;
-    else if (compState) short = compState === 'CS' ? 'Comp. Successful' : 'Comp. Issues';
-    else if (robState) short = robState === 'R' ? 'Robust' : robState === 'RC' ? 'Robustness Issues' : 'Robustness N/C';
-    else if (cls === 'successful') short = 'Successful';
-    else if (cls === 'failed') short = 'Failed';
-    else if (cls === 'mixed') short = 'Mixed';
-    else if (cls === 'inconclusive') short = 'Inconclusive';
-    else short = outcome.length > 20 ? outcome.slice(0, 18) + '…' : outcome;
-    return `<span class="badge ${colorMap[cls]}" title="${escapeHtml(outcome)}">${escapeHtml(short)}</span>`;
+// Minimum n below which a per-bucket breakdown (grouped bar / histogram / GAM-adjacent
+// stats) isn't meaningful enough to show - an explicit low-N message is shown instead.
+// Reproduction coverage is currently well under this for every dimension, so this is what
+// visitors will see there until the dataset grows; that's an honest reflection of the data,
+// not a bug.
+const ANALYSIS_MIN_N = 5;
+
+// Outcome-bucket definitions shared by Authorship Overlap and Registered Reports, whose
+// by_outcome/by_rr breakdowns use the same bucket vocabulary as the Overview/Browse charts:
+// replications keep the canonical 4-outcome vocabulary; reproductions are split into their
+// two independently-coded dimensions (see parseReproductionOutcome).
+function studyTypeOutcomeBuckets(kind) {
+    if (kind === 'reproduction-numerical') {
+        return [
+            { key: 'successful', label: 'Successful', color: REPRODUCTION_COLORS.successful },
+            { key: 'issues', label: 'Computational issues', color: REPRODUCTION_COLORS.issues },
+            { key: 'technical_failure', label: 'Technical failure', color: REPRODUCTION_COLORS.technical_failure },
+        ];
+    }
+    if (kind === 'reproduction-robustness') {
+        return [
+            { key: 'robust', label: 'Robust', color: REPRODUCTION_COLORS.robust },
+            { key: 'challenges', label: 'Robustness challenges', color: REPRODUCTION_COLORS.challenges },
+        ];
+    }
+    return [
+        { key: 'successful', label: 'Successful', color: OUTCOME_COLORS.successful },
+        { key: 'failed', label: 'Failed', color: OUTCOME_COLORS.failed },
+        { key: 'mixed', label: 'Mixed', color: OUTCOME_COLORS.mixed },
+        { key: 'inconclusive', label: 'Inconclusive', color: OUTCOME_COLORS.inconclusive },
+        { key: 'qualified', label: 'Successful but flawed', color: OUTCOME_COLORS.qualified },
+        { key: 'other', label: 'Other / not coded', color: OUTCOME_COLORS.other },
+    ];
 }
+
+function studyTypeLabel(kind) {
+    if (kind === 'reproduction-numerical') return 'Numerical Reproductions';
+    if (kind === 'reproduction-robustness') return 'Robustness Reproductions';
+    return 'Replications';
+}
+
+let mcKind = 'replication';
+let aoKind = 'replication';
+// Registered Reports (Publication Format), Publication Status, and the large-scale-
+// project plot live together on the merged "Publication Type" tab and share one filter.
+let pubTypeKind = 'replication';
+
+setupStudyTypeSelect('mc-study-type', kind => { mcKind = kind; renderMcCharts(); });
+setupStudyTypeSelect('ao-study-type', kind => { aoKind = kind; renderOverlapCharts(); });
+setupStudyTypeSelect('pubtype-study-type', kind => {
+    pubTypeKind = kind;
+    renderPubStatusCharts();
+    renderRRCharts();
+    renderLargeScaleCharts();
+});
+
+function getOutcomeBadge(outcome) {
+    const raw = String(outcome || 'Not coded');
+    if (raw.includes(',') || /computational|robustness/i.test(raw)) {
+        const d = parseReproductionOutcome(raw);
+        const labels = {successful: 'Reproducible', issues: 'Computational issues', technical_failure: 'Technical failure',
+            robust: 'Robust', challenges: 'Robustness challenges', not_checked: 'Not checked'};
+        return [['Computational', d.computational], ['Robustness', d.robustness]].map(([label, key]) =>
+            `<span class="badge badge-${key === 'successful' || key === 'robust' ? 'successful' : key === 'issues' || key === 'challenges' || key === 'technical_failure' ? 'failed' : 'unknown'}">${label}: ${labels[key] || 'Not coded'}</span>`).join(' ');
+    }
+    return `<span class="badge badge-${classifyOutcome(raw)}">${escapeHtml(raw)}</span>`;
+}
+
+function getOutcomeBadgeShort(outcome) { return getOutcomeBadge(outcome); }
 
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
     const div = document.createElement('div');
     div.textContent = String(text);
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function truncateText(text, maxLength = 60) {
@@ -156,31 +240,23 @@ function truncateText(text, maxLength = 60) {
     return text.length > maxLength ? text.substring(0, maxLength) + '…' : text;
 }
 
+function safeHref(value) {
+    try { const u = new URL(String(value || '')); return ['http:', 'https:'].includes(u.protocol) ? u.href : ''; }
+    catch { return ''; }
+}
 function formatDOI(doi, full = false) {
     if (!doi) return '-';
-    const doiUrl = doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
-    const shortDoi = doi.replace('https://doi.org/', '').replace('http://doi.org/', '');
-    if (full) return `<a href="${doiUrl}" target="_blank" class="doi-link">${escapeHtml(shortDoi)}</a>`;
-    return `<a href="${doiUrl}" target="_blank" class="doi-link" title="${escapeHtml(shortDoi)}">${escapeHtml(shortDoi.substring(0, 25))}${shortDoi.length > 25 ? '…' : ''}</a>`;
+    const clean = String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '');
+    const href = /^10\.\d{4,9}\//.test(clean) ? 'https://doi.org/' + encodeURI(clean) : safeHref(doi);
+    const label = full ? clean : truncateText(clean,25);
+    return href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link" title="${escapeHtml(clean)}">${escapeHtml(label)}</a>` : escapeHtml(label);
 }
-
 function formatUrlOrDoi(url, doi) {
-    if (url) {
-        const displayUrl = url.length > 40 ? url.substring(0, 40) + '…' : url;
-        return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link">${escapeHtml(displayUrl)}</a>`;
-    }
-    if (doi) return formatDOI(doi, true);
-    return '-';
+    const href = safeHref(url);
+    if (href) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link">${escapeHtml(truncateText(url,40))}</a>`;
+    return formatDOI(doi,true);
 }
-
-function formatUrlOrDoiShort(url, doi) {
-    if (url) {
-        const displayUrl = url.length > 25 ? url.substring(0, 25) + '…' : url;
-        return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(displayUrl)}</a>`;
-    }
-    if (doi) return formatDOI(doi, false);
-    return '-';
-}
+function formatUrlOrDoiShort(url, doi) { return formatUrlOrDoi(url,doi); }
 
 function formatAuthors(authorData) {
     if (!authorData) return '-';
@@ -224,40 +300,114 @@ function shortAuthors(authorData) {
     return '';
 }
 
+// ===== Chart-library guards =====
+// Charts depend on Chart.js / Plotly loaded from a CDN. If a CDN is blocked
+// (ad-blocker/offline), the library is undefined; show an inline message in the
+// chart container instead of throwing an uncaught error that aborts everything
+// else on the page (tables, FAQ, data stamps, …).
+// The chart libraries load from CDNs *after* app.js, and a fast (cached,
+// same-origin) data fetch can resolve while they are still downloading. So
+// before the window load event, an undefined library means "not loaded yet",
+// not "failed": defer one retry to the load event instead of declaring
+// failure. After load, a missing library really is a failed CDN.
+function chartLibUnavailable(elId, lib, retry) {
+    if (document.readyState !== 'complete') {
+        // Dedupe by retry-function identity so several guards sharing one
+        // retry (the five trend charts all retry via renderAllTrends) queue
+        // it only once.
+        const q = (chartLibUnavailable._queued ||= new Set());
+        if (!q.has(retry)) {
+            q.add(retry);
+            window.addEventListener('load', retry, { once: true });
+        }
+        return;
+    }
+    chartLibMissing(elId, lib);
+}
+
+const retryAllTrends = () => { if (trendsInitialized) renderAllTrends(); };
+
+function chartLibMissing(elId, lib) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const msg = `<div class="chart-unavailable" style="padding:24px;text-align:center;color:var(--flora-muted);font-size:0.85rem;">Chart unavailable — ${lib} could not be loaded.</div>`;
+    if (el.tagName === 'CANVAS') { if (el.parentElement) el.parentElement.innerHTML = msg; }
+    else el.innerHTML = msg;
+}
+
 // ===== Overview =====
 function updateOverviewStats(data) {
     const total = data.length;
-    const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
-    let successful = 0, failed = 0, mixed = 0;
-    eligible.forEach(row => {
-        const c = classifyOutcome(row.outcome);
-        if (c === 'successful') successful++;
-        else if (c === 'failed') failed++;
-        else if (c === 'mixed') mixed++;
-    });
+    const replications = data.filter(r => classifyKind(r) === 'replication').length;
+    const reproductions = data.filter(r => classifyKind(r) === 'reproduction').length;
     document.getElementById('ov-total').textContent = total.toLocaleString();
-    document.getElementById('ov-successful').textContent = successful.toLocaleString();
-    document.getElementById('ov-failed').textContent = failed.toLocaleString();
-    document.getElementById('ov-mixed').textContent = mixed.toLocaleString();
+    document.getElementById('ov-replications').textContent = replications.toLocaleString();
+    document.getElementById('ov-reproductions').textContent = reproductions.toLocaleString();
 }
 
-function renderOverviewChart(data) {
-    const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
-    const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
-    eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    const datasets = [
-        { label: 'Successful',   data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
-        { label: 'Mixed',        data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
-        { label: 'Failed',       data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
-        { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
-    ];
-    const ctx = document.getElementById('overview-outcome-chart').getContext('2d');
-    if (overviewChart) overviewChart.destroy();
+// Muted grays for "not yet coded"/"not checked" - distinct from the successful/failed/
+// mixed palette so an unassessed reproduction never reads as an outcome.
+const REPRODUCTION_COLORS = {
+    successful:        OUTCOME_COLORS.successful,
+    issues:            OUTCOME_COLORS.failed,
+    technical_failure: '#7a1f1f',
+    robust:            OUTCOME_COLORS.successful,
+    challenges:        OUTCOME_COLORS.failed,
+    not_checked:       '#8a8f9c',
+    not_coded:         '#c3c7ce'
+};
+
+// Builds the {datasets, total} for one of the three outcome dimensions shown on the
+// Overview and Browse Studies tabs. 'replicability' mirrors the original single-chart
+// logic (replications only); 'computational'/'robustness' bucket reproduction rows by
+// the two independent dimensions parsed out of their compound outcome string.
+function computeKindChartData(data, kind) {
+    if (kind === 'replicability') {
+        const eligible = data.filter(r => classifyKind(r) === 'replication');
+        const buckets = studyTypeOutcomeBuckets('replication');
+        const counts = Object.fromEntries(buckets.map(b => [b.key, 0]));
+        eligible.forEach(row => counts[classifyOutcome(row.outcome)]++);
+        return { total: eligible.length, datasets: buckets.map(b => ({label: b.label, data: [counts[b.key]], backgroundColor: b.color})) };
+    }
+    const repro = data.filter(r => classifyKind(r) === 'reproduction');
+    if (kind === 'computational') {
+        const counts = { successful: 0, issues: 0, technical_failure: 0 };
+        repro.forEach(r => { const c = parseReproductionOutcome(r.outcome).computational; if (counts[c] !== undefined) counts[c]++; });
+        return {
+            total: counts.successful + counts.issues + counts.technical_failure,
+            datasets: [
+                { label: 'Successful',           data: [counts.successful],        backgroundColor: REPRODUCTION_COLORS.successful },
+                { label: 'Computational issues', data: [counts.issues],            backgroundColor: REPRODUCTION_COLORS.issues },
+                { label: 'Technical failure',    data: [counts.technical_failure], backgroundColor: REPRODUCTION_COLORS.technical_failure }
+            ]
+        };
+    }
+    // robustness
+    const counts = { robust: 0, challenges: 0 };
+    repro.forEach(r => { const rb = parseReproductionOutcome(r.outcome).robustness; if (counts[rb] !== undefined) counts[rb]++; });
+    return {
+        total: counts.robust + counts.challenges,
+        datasets: [
+            { label: 'Robust',                data: [counts.robust],     backgroundColor: REPRODUCTION_COLORS.robust },
+            { label: 'Robustness challenges', data: [counts.challenges], backgroundColor: REPRODUCTION_COLORS.challenges }
+        ]
+    };
+}
+
+// Shared horizontal-stacked-bar renderer for all 6 outcome-dimension charts (3 on
+// Overview, 3 on Browse Studies). Returns the new Chart.js instance so callers can keep
+// tracking their own module-level "existing chart" variable for destroy/rebuild.
+function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel, retry) {
+    if (typeof Chart === "undefined") { chartLibUnavailable(canvasId, "Chart.js", retry); return null; }
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return existingChart || null;
+    const { datasets, total } = computeKindChartData(data, kind);
+    const ctx = canvas.getContext('2d');
+    if (existingChart) existingChart.destroy();
     const ac = themeAxisColors();
-    overviewChart = new Chart(ctx, {
+    return FloraCharts.chart(ctx, {
         type: 'bar',
-        data: { labels: ['Replications'], datasets },
+        data: { labels: [categoryLabel], datasets },
         options: {
             responsive: true, maintainAspectRatio: false, indexAxis: 'y',
             plugins: {
@@ -268,11 +418,19 @@ function renderOverviewChart(data) {
                 }}}
             },
             scales: {
-                x: { stacked: true, min: 0, max: total, grid: { color: ac.grid }, ticks: { color: ac.tick } },
+                x: { stacked: true, min: 0, max: Math.max(total, 1), grid: { color: ac.grid }, ticks: { color: ac.tick } },
                 y: { stacked: true, display: false }
             }
         }
     });
+}
+
+const retryOverviewCharts = () => renderOverviewChart(fullRowData);
+
+function renderOverviewChart(data) {
+    overviewComputationalChart = renderKindStackedBar('overview-computational-chart', overviewComputationalChart, data, 'computational', 'Reproductions', retryOverviewCharts);
+    overviewRobustnessChart = renderKindStackedBar('overview-robustness-chart', overviewRobustnessChart, data, 'robustness', 'Reproductions', retryOverviewCharts);
+    overviewChart = renderKindStackedBar('overview-outcome-chart', overviewChart, data, 'replicability', 'Replications', retryOverviewCharts);
 }
 
 function studyLink(doi, url, innerHtml, extraClass = '') {
@@ -287,7 +445,13 @@ function renderRandomExamples(data) {
     const container = document.getElementById('random-examples');
     const usable = data.filter(r => (r.title_o || r.author_o) && r.outcome);
     if (usable.length === 0) { container.innerHTML = '<p class="text-muted">No examples available.</p>'; return; }
-    const shuffled = [...usable].sort(() => Math.random() - 0.5).slice(0, 4);
+    // Fisher–Yates shuffle (unbiased, unlike sort with a random comparator).
+    const pool = [...usable];
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const shuffled = pool.slice(0, 4);
     container.innerHTML = shuffled.map(r => {
         const cls = classifyOutcome(r.outcome);
         const origTitle = r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`;
@@ -410,7 +574,15 @@ document.getElementById('website-citation-copy-btn').addEventListener('click', (
 function renderInlineMd(text) {
     let s = escapeHtml(text);
     s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => {
+        // Strict allow-list: the whole trimmed URL must start with an allowed
+        // scheme. Anything else — including relative, protocol-relative, or
+        // control-character-prefixed URLs that browsers would normalize into
+        // javascript: — renders as plain text.
+        const clean = u.trim();
+        const safe = /^(https?:|mailto:)/i.test(clean);
+        return safe ? `<a href="${clean}" target="_blank" rel="noopener">${t}</a>` : `${t} (${u})`;
+    });
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
     return s;
@@ -531,11 +703,6 @@ function formatDetailRow(rowData) {
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
                     ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome Quote:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div>` : ''}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
-                    ${rowData.effect_o ? `<div><span class="detail-label">Original Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_o)}</span></div>` : ''}
-                    ${rowData.effect_r ? `<div><span class="detail-label">Replication Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_r)}</span></div>` : ''}
-                    ${rowData.n_o ? `<div><span class="detail-label">Original N:</span> <span class="detail-value">${escapeHtml(rowData.n_o)}</span></div>` : ''}
-                    ${rowData.n_r ? `<div><span class="detail-label">Replication N:</span> <span class="detail-value">${escapeHtml(rowData.n_r)}</span></div>` : ''}
-                    ${rowData.description ? `<div><span class="detail-label">Description:</span> <span class="detail-value">${escapeHtml(rowData.description)}</span></div>` : ''}
                 </div>
             </div>
         </div>`;
@@ -555,27 +722,28 @@ function initDataTable(data) {
     ]);
 
     dataTable = $('#flora-table').DataTable({
-        data: tableData, responsive: false, pageLength: 25,
+        data: tableData, responsive: false, pageLength: 25, dom: 'lrtip',
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
         order: [[4, 'desc']],
         language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)..." },
         columnDefs: [
-            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '', width: '30px' },
+            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false">Details</button>', width: '60px' },
             { targets: [1, 3], width: '20%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: [2, 4], width: '5%' },
             { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: 6, width: '6%' },
             { targets: [7, 8], width: '12%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
         ],
-        createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); }
+        createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
 
-    dataTable.on('search.dt', renderBrowseOutcomeChart);
+    dataTable.on('order.dt', () => { if (bmInitialized) updateBrowseResults(); syncBrowseUrl(); });
 
-    $('#flora-table tbody').on('click', 'td.details-control', function() {
+    $('#flora-table tbody').on('click', 'button.study-details', function() {
         const tr = $(this).closest('tr');
         const row = dataTable.row(tr);
         const dataIndex = tr.attr('data-index');
+        this.setAttribute('aria-expanded', String(!row.child.isShown()));
         if (row.child.isShown()) { row.child.hide(); tr.removeClass('shown'); }
         else { row.child(formatDetailRow(fullRowData[dataIndex])).show(); tr.addClass('shown'); }
     });
@@ -588,9 +756,9 @@ let bmFiltered = []; let bmPage = 0; let bmInitialized = false;
 function bmSearchableText(row) {
     return [row.title_o, row.author_o, row.journal_o, row.year_o, row.doi_o,
             row.title_r, row.author_r, row.journal_r, row.year_r, row.doi_r, row.url_r,
-            row.outcome, row.outcome_quote, row.type, row.description].filter(Boolean).join(' | ').toLowerCase();
+            row.outcome, row.outcome_quote, row.type].filter(Boolean).join(' | ').toLowerCase();
 }
-function bmHref(doi, url) { if (doi) return doi.startsWith('http') ? doi : `https://doi.org/${doi}`; if (url) return url; return ''; }
+function bmHref(doi, url) { return doi ? safeHref(String(doi).startsWith('http') ? doi : 'https://doi.org/' + encodeURI(doi)) : safeHref(url); }
 function bmAuthorYear(authorData, year) { const a = shortAuthors(authorData); const y = year ? `(${year})` : ''; return [a, y].filter(Boolean).join(' '); }
 function bmRenderTitleLine(title, fallback, doi, url) {
     const text = escapeHtml(title || fallback || '—');
@@ -610,15 +778,13 @@ function bmCardHtml(row) {
             <div class="bm-row"><div class="bm-row-label">Original</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
             <div class="bm-divider"></div>
             <div class="bm-row"><div class="bm-row-label">Replication</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
-            <div class="bm-tags">${tagsParts.join('')}</div>
+            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study evidence and outcome quotation</summary>${formatDetailRow(row)}</details>
         </div>`;
 }
 function bmApplySearch(query) {
-    const q = (query || '').trim().toLowerCase();
-    const source = bmDataSource();
-    bmFiltered = q ? source.filter(r => bmSearchableText(r).includes(q)) : source.slice();
-    bmFiltered.sort((a, b) => (parseInt(b.year_r, 10) || 0) - (parseInt(a.year_r, 10) || 0));
-    bmPage = 0; bmRender();
+    browseQuery = query || '';
+    updateBrowseResults();
+    syncBrowseUrl();
 }
 function bmRender() {
     const list = document.getElementById('browse-mobile-list');
@@ -650,78 +816,87 @@ function setupBrowseMobile(data) {
     const next = document.getElementById('bm-next');
     let debounceTimer;
     input.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => bmApplySearch(input.value), 150); });
-    // The app shell scrolls .app-main, not the window
-    const scrollPortTop = () => document.querySelector('.app-main')?.scrollTo({ top: 0, behavior: 'smooth' });
-    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); scrollPortTop(); } });
-    next.addEventListener('click', () => { bmPage++; bmRender(); scrollPortTop(); });
-    bmApplySearch('');
+    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); } });
+    next.addEventListener('click', () => { bmPage++; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); });
+    input.value = browseQuery; bmApplySearch(browseQuery);
+}
+
+function normalizedQuery(query) {
+    return String(query || '').toLowerCase().replace(/https?:\/\/(?:dx\.)?doi\.org\//g, '').replace(/\bdoi:\s*/g, '').trim();
+}
+function matchesBrowseQuery(row, query) {
+    const text = bmSearchableText(row);
+    const tokens = normalizedQuery(query).match(/"[^"\n]+"|\S+/g) || [];
+    return tokens.every(token => text.includes(token.replace(/^"|"$/g, '')));
+}
+let updatingBrowse = false;
+function updateBrowseResults() {
+    if (updatingBrowse) return;
+    updatingBrowse = true;
+    bmFiltered = getChartData();
+    if (dataTable) {
+        const [column, direction] = dataTable.order()[0] || [4, 'desc'];
+        const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o',8:'doi_r'}[column] || 'year_r';
+        bmFiltered.sort((a,b) => String(a[field] || '').localeCompare(String(b[field] || ''), undefined, {numeric:true}) * (direction === 'desc' ? -1 : 1));
+        dataTable.draw(false);
+    }
+    bmPage = 0;
+    if (bmInitialized) bmRender();
+    updateBrowseKindCount();
+    renderBrowseOutcomeCharts();
+    updatingBrowse = false;
+}
+function syncBrowseUrl() {
+    const url = new URL(location.href);
+    browseQuery ? url.searchParams.set('q', browseQuery) : url.searchParams.delete('q');
+    browseKind !== 'all' ? url.searchParams.set('kind', browseKind) : url.searchParams.delete('kind');
+    if (dataTable) url.searchParams.set('sort', dataTable.order()[0].join(':'));
+    history.replaceState(null, '', url);
 }
 
 // ===== Browse kind filter =====
-let browseKind = 'all';
+let browseKind = new URLSearchParams(location.search).get('kind') || 'all';
+let browseQuery = new URLSearchParams(location.search).get('q') || '';
 let browseOutcomeChart = null;
+let browseComputationalChart = null;
+let browseRobustnessChart = null;
 
 function browseFilteredData() { return filterByKind(fullRowData, browseKind); }
 function bmDataSource() { return browseFilteredData(); }
 
 // Returns rows that pass both the kind filter AND the current DataTables search.
 function getChartData() {
-    if (dataTable) {
-        const indices = dataTable.rows({ search: 'applied' }).indexes().toArray();
-        return filterByKind(indices.map(i => fullRowData[i]), browseKind);
-    }
-    return browseFilteredData();
+    return browseFilteredData().filter(row => matchesBrowseQuery(row, browseQuery));
 }
 
-function renderBrowseOutcomeChart() {
+function renderBrowseOutcomeCharts() {
     const data = getChartData();
-    const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
-    const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
-    eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    const datasets = [
-        { label: 'Successful',   data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
-        { label: 'Mixed',        data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
-        { label: 'Failed',       data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
-        { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
-    ];
-    const canvas = document.getElementById('browse-outcome-chart'); if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (browseOutcomeChart) browseOutcomeChart.destroy();
-    const ac = themeAxisColors();
-    browseOutcomeChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: ['Replications'], datasets },
-        options: {
-            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-            plugins: {
-                legend: { position: 'bottom', labels: { color: ac.legend, boxWidth: 14, padding: 14, font: { size: 12 } } },
-                tooltip: { callbacks: { label: ctx => {
-                    const v = ctx.parsed.x; const pct = total ? ((v / total) * 100).toFixed(1) : 0;
-                    return `${ctx.dataset.label}: ${v.toLocaleString()} (${pct}%)`;
-                }}}
-            },
-            scales: {
-                x: { stacked: true, min: 0, max: Math.max(total, 1), grid: { color: ac.grid }, ticks: { color: ac.tick } },
-                y: { stacked: true, display: false }
-            }
-        }
-    });
+    browseComputationalChart = renderKindStackedBar('browse-computational-chart', browseComputationalChart, data, 'computational', 'Reproductions', renderBrowseOutcomeCharts);
+    browseRobustnessChart = renderKindStackedBar('browse-robustness-chart', browseRobustnessChart, data, 'robustness', 'Reproductions', renderBrowseOutcomeCharts);
+    browseOutcomeChart = renderKindStackedBar('browse-outcome-chart', browseOutcomeChart, data, 'replicability', 'Replications', renderBrowseOutcomeCharts);
+
+    // Only the chart matching the active kind filter is shown; "All studies" shows none,
+    // since mixing the replication and reproduction outcome vocabularies in one box reads
+    // as noise rather than signal.
+    const placeholderEl = document.getElementById('browse-chart-placeholder');
+    const rows = {
+        'reproduction-numerical': document.getElementById('browse-computational-row'),
+        'reproduction-robustness': document.getElementById('browse-robustness-row'),
+        replication: document.getElementById('browse-replicability-row')
+    };
+    if (placeholderEl) placeholderEl.style.display = browseKind === 'all' ? '' : 'none';
+    Object.entries(rows).forEach(([kind, el]) => { if (el) el.style.display = browseKind === kind ? '' : 'none'; });
 }
 
 function updateBrowseKindCount() {
     const el = document.getElementById('browse-kind-count'); if (!el) return;
-    const n = browseFilteredData().length; const total = fullRowData.length;
-    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} studies` : `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
+    const n = getChartData().length; const total = fullRowData.length;
+    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference pairs` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
 }
 
 function applyBrowseKind() {
-    updateBrowseKindCount(); renderBrowseOutcomeChart();
-    if (dataTable) dataTable.draw();
-    if (bmInitialized) {
-        const input = document.getElementById('browse-mobile-input');
-        bmApplySearch(input ? input.value : '');
-    }
+    updateBrowseResults();
+    syncBrowseUrl();
 }
 
 function setupBrowseKindFilter() {
@@ -735,53 +910,63 @@ function setupBrowseKindFilter() {
     });
     $.fn.dataTable.ext.search.push(function(settings, searchData, dataIndex) {
         if (settings.nTable.id !== 'flora-table') return true;
-        if (browseKind === 'all') return true;
         const row = fullRowData[dataIndex]; if (!row) return true;
-        return classifyKind(row) === browseKind;
+        return filterByKind([row], browseKind).length > 0 && matchesBrowseQuery(row, browseQuery);
     });
+    document.querySelectorAll('.browse-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === browseKind));
     applyBrowseKind();
 }
 
 // ===== Trends =====
-let trendsKind = 'all';
+let trendsKind = 'replication';
 function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
 function updateTrendsCount() {
     const el = document.getElementById('trend-filter-count'); if (!el) return;
     const n = trendsFilteredData().length; const total = fullRowData.length;
-    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} studies` : `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
+    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} reference pairs` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
 }
 
-function trendsOutcomeLabel(row) {
-    if (trendsKind === 'all') {
-        const c = classifyOutcome(row.outcome);
-        return c.charAt(0).toUpperCase() + c.slice(1);  // Successful, Mixed, Failed, Inconclusive, Other
-    }
-    if (trendsKind === 'replication') {
-        if (!hasMatchedOutcome(row)) return null;
-        const c = classifyOutcome(row.outcome);
-        if (c === 'successful') return 'Successful';
-        if (c === 'mixed') return 'Mixed';
-        if (c === 'failed') return 'Failed';
-        if (c === 'inconclusive') return 'Inconclusive';
-        return null;
-    }
-    const raw = (row.outcome || '').trim(); return raw || null;
+// Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
+// stacked these by outcome, but for 'reproduction-numerical'/'reproduction-robustness' kinds
+// the label fell back to the row's full raw (compound) outcome string regardless of which
+// dimension was selected, so both dimensions showed up under either kind. Simple counts sidestep
+// that entirely and are also the more legible default for a "how many, by category" view.
+// Which outcome bucket (per studyTypeOutcomeBuckets/trendOutcomeBuckets) a row falls
+// into, for whichever study type is currently selected in the trend filter.
+function outcomeBucketKeyForRow(row, kind) {
+    if (kind === 'reproduction-numerical') return parseReproductionOutcome(row.outcome).computational || 'not_coded';
+    if (kind === 'reproduction-robustness') return parseReproductionOutcome(row.outcome).robustness || 'not_coded';
+    return classifyOutcome(row.outcome);
 }
 
-function aggregateGeneric(data, keyFn) {
+// Reproduction bucket lists already cover every row (not_checked/not_coded catch-all);
+// replications need an explicit "other" bucket added so unmatched outcomes still count
+// toward the bar's total height instead of silently vanishing from the stack.
+function trendOutcomeBuckets(kind) {
+    if (kind === 'reproduction-numerical' || kind === 'reproduction-robustness') return studyTypeOutcomeBuckets(kind);
+    return studyTypeOutcomeBuckets(kind);
+}
+
+function aggregateStackedCounts(data, keyFn, kind) {
+    const buckets = trendOutcomeBuckets(kind);
     const groups = new Map();
     data.forEach(row => {
         const k = keyFn(row);
         if (k === null || k === undefined || k === '') return;
-        const label = trendsOutcomeLabel(row);
-        if (label === null) return;
-        if (!groups.has(k)) groups.set(k, { key: k, total: 0, byLabel: {} });
-        const g = groups.get(k); g.total++; g.byLabel[label] = (g.byLabel[label] || 0) + 1;
+        if (!groups.has(k)) {
+            const counts = {};
+            buckets.forEach(b => { counts[b.key] = 0; });
+            groups.set(k, { key: k, counts, total: 0 });
+        }
+        const g = groups.get(k);
+        const bucketKey = outcomeBucketKeyForRow(row, kind);
+        if (g.counts[bucketKey] !== undefined) g.counts[bucketKey]++;
+        g.total++;
     });
     return Array.from(groups.values());
 }
 
-function aggregateByYear(data, yearField) {
+function aggregateByYear(data, yearField, kind) {
     const yearKey = row => {
         const yRaw = row[yearField]; if (!yRaw) return null;
         const match = String(yRaw).match(/\d{4}/); if (!match) return null;
@@ -789,40 +974,22 @@ function aggregateByYear(data, yearField) {
         if (!y || y < 1800 || y > 2100) return null;
         return String(y);
     };
-    const out = aggregateGeneric(data, yearKey);
+    const out = aggregateStackedCounts(data, yearKey, kind);
     out.sort((a, b) => parseInt(a.key, 10) - parseInt(b.key, 10));
     return out;
 }
 
-function aggregateByJournal(data, field, topN) {
-    const out = aggregateGeneric(data, row => (row[field] || '').trim() || null);
+function aggregateByJournal(data, field, topN, kind) {
+    const out = aggregateStackedCounts(data, row => (row[field] || '').trim() || null, kind);
     out.sort((a, b) => b.total - a.total);
     return out.slice(0, topN);
 }
 
-function aggregateByField(data) {
-    const out = aggregateGeneric(data, row => disciplineForJournal(row.journal_o));
+function aggregateByField(data, kind) {
+    const out = aggregateStackedCounts(data, row => disciplineForJournal(row.journal_o), kind);
     const mapped = out.filter(e => e.key !== 'Uncategorized').sort((a, b) => b.total - a.total);
     const uncat = out.filter(e => e.key === 'Uncategorized');
     return [...mapped, ...uncat];
-}
-
-function trendsDatasets(agg) {
-    if (trendsKind === 'all') {
-        const order = ['Successful', 'Mixed', 'Failed', 'Inconclusive', 'Other'];
-        const colors = { 'Successful': OUTCOME_COLORS.successful, 'Mixed': OUTCOME_COLORS.mixed, 'Failed': OUTCOME_COLORS.failed, 'Inconclusive': OUTCOME_COLORS.inconclusive, 'Other': OUTCOME_COLORS.other };
-        return order.map(label => ({ label, data: agg.map(r => r.byLabel[label] || 0), backgroundColor: colors[label] }));
-    }
-    if (trendsKind === 'replication') {
-        const order = ['Successful', 'Mixed', 'Failed', 'Inconclusive'];
-        const colors = { 'Successful': OUTCOME_COLORS.successful, 'Mixed': OUTCOME_COLORS.mixed, 'Failed': OUTCOME_COLORS.failed, 'Inconclusive': OUTCOME_COLORS.inconclusive };
-        return order.map(label => ({ label, data: agg.map(r => r.byLabel[label] || 0), backgroundColor: colors[label] }));
-    }
-    const labelSet = new Set();
-    agg.forEach(r => Object.keys(r.byLabel).forEach(l => labelSet.add(l)));
-    const labels = Array.from(labelSet).sort();
-    const palette = ['#2f8f4f', '#38b2ac', '#4299e1', '#d49b1d', '#b3331e', '#9f7aea', '#6f7686', '#a0a7b4'];
-    return labels.map((label, i) => ({ label, data: agg.map(r => r.byLabel[label] || 0), backgroundColor: palette[i % palette.length] }));
 }
 
 function wrapLabel(str, maxChars = 36) {
@@ -836,71 +1003,76 @@ function wrapLabel(str, maxChars = 36) {
         else { lines.push(line); line = w; }
     }
     if (line) lines.push(line);
-    if (lines.length > 3) {
-        const trimmed = lines.slice(0, 3); const last = trimmed[2];
-        trimmed[2] = (last.length > maxChars - 1 ? last.slice(0, maxChars - 1) : last) + '…';
-        return trimmed;
-    }
+
     return lines;
 }
 
-function renderStackedChart(canvasId, agg, orientation, existing, opts = {}) {
+function renderStackedCountChart(canvasId, agg, orientation, existing, buckets, opts = {}) {
     if (existing) existing.destroy();
+    if (typeof Chart === 'undefined') { chartLibUnavailable(canvasId, 'Chart.js', retryAllTrends); return null; }
     const ctx = document.getElementById(canvasId).getContext('2d');
     const isHorizontal = orientation === 'horizontal';
     const ac = themeAxisColors();
     const wrapLabels = !!opts.wrapLabels;
-    const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, 38) : r.key);
-    const datasets = trendsDatasets(agg);
-    const isStacked = true;
-    const showLegend = true;
+    const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, window.innerWidth < 600 ? 18 : 38) : r.key);
+    if (isHorizontal) ctx.canvas.parentElement.style.height = Math.max(400, labels.reduce((n,l)=>n+(Array.isArray(l)?l.length:1)*15+15,70)) + 'px';
+    const datasets = buckets.map(b => ({
+        label: b.label,
+        data: agg.map(r => r.counts[b.key] || 0),
+        backgroundColor: b.color,
+    }));
 
-    return new Chart(ctx, {
-        type: 'bar', data: { labels, datasets },
+    return FloraCharts.chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
         options: {
             responsive: true, maintainAspectRatio: false, indexAxis: isHorizontal ? 'y' : 'x',
             plugins: {
-                legend: showLegend ? { position: 'bottom', labels: { padding: 10, color: ac.legend, boxWidth: 12, font: { size: 11 } } } : { display: false },
+                legend: { display: true, position: 'bottom', labels: { color: ac.legend, boxWidth: 14, font: { size: 11 } } },
                 tooltip: { callbacks: {
-                    title: items => { const label = items[0].label; return Array.isArray(label) ? label.join(' ') : label; },
-                    afterLabel: ctx => {
-                        const row = agg[ctx.dataIndex];
-                        const val = ctx.parsed[isHorizontal ? 'x' : 'y'];
-                        const pct = row.total ? ((val / row.total) * 100).toFixed(1) : 0;
-                        return `(${pct}% of ${row.total})`;
-                    }
+                    title: items => { const label = items[0].label; return Array.isArray(label) ? label.join(' ') : label; }
                 }}
             },
             scales: {
-                x: { stacked: isStacked, grid: { color: ac.grid }, ticks: { color: ac.tick, autoSkip: !isHorizontal } },
-                y: { stacked: isStacked, grid: { color: ac.grid, display: !isHorizontal }, ticks: { color: ac.tick, autoSkip: false, font: { size: isHorizontal ? 11 : 12 } } }
+                x: { stacked: true, grid: { color: ac.grid }, ticks: { color: ac.tick, autoSkip: !isHorizontal } },
+                y: { stacked: true, grid: { color: ac.grid, display: !isHorizontal }, ticks: { color: ac.tick, autoSkip: false, font: { size: isHorizontal ? 11 : 12 } } }
             },
             layout: isHorizontal ? { padding: { left: 6 } } : {}
         }
     });
 }
 
-function renderTrendOrigYear() { trendOrigYearChart = renderStackedChart('trend-orig-year', aggregateByYear(trendsFilteredData(), 'year_o'), 'vertical', trendOrigYearChart); }
-function renderTrendRepYear() { trendRepYearChart = renderStackedChart('trend-rep-year', aggregateByYear(trendsFilteredData(), 'year_r'), 'vertical', trendRepYearChart); }
+function renderTrendOrigYear() {
+    trendOrigYearChart = renderStackedCountChart('trend-orig-year', aggregateByYear(trendsFilteredData(), 'year_o', trendsKind), 'vertical', trendOrigYearChart, trendOutcomeBuckets(trendsKind));
+}
+function renderTrendRepYear() {
+    trendRepYearChart = renderStackedCountChart('trend-rep-year', aggregateByYear(trendsFilteredData(), 'year_r', trendsKind), 'vertical', trendRepYearChart, trendOutcomeBuckets(trendsKind));
+}
 function renderTrendJournal() {
     const topN = parseInt(document.getElementById('journal-top-n').value, 10) || 15;
-    const agg = aggregateByJournal(trendsFilteredData(), 'journal_o', topN);
+    const agg = aggregateByJournal(trendsFilteredData(), 'journal_o', topN, trendsKind);
     document.getElementById('trend-journal-container').style.height = Math.max(400, agg.length * 36) + 'px';
-    trendJournalChart = renderStackedChart('trend-journal', agg, 'horizontal', trendJournalChart, { wrapLabels: true });
+    trendJournalChart = renderStackedCountChart('trend-journal', agg, 'horizontal', trendJournalChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
 }
 function renderTrendRepJournal() {
     const topN = parseInt(document.getElementById('rep-journal-top-n').value, 10) || 15;
-    const agg = aggregateByJournal(trendsFilteredData(), 'journal_r', topN);
+    const agg = aggregateByJournal(trendsFilteredData(), 'journal_r', topN, trendsKind);
     document.getElementById('trend-rep-journal-container').style.height = Math.max(400, agg.length * 36) + 'px';
-    trendRepJournalChart = renderStackedChart('trend-rep-journal', agg, 'horizontal', trendRepJournalChart, { wrapLabels: true });
+    trendRepJournalChart = renderStackedCountChart('trend-rep-journal', agg, 'horizontal', trendRepJournalChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
 }
 function renderTrendField() {
-    const agg = aggregateByField(trendsFilteredData());
+    const agg = aggregateByField(trendsFilteredData(), trendsKind);
     document.getElementById('trend-field-container').style.height = Math.max(360, agg.length * 44) + 'px';
-    trendFieldChart = renderStackedChart('trend-field', agg, 'horizontal', trendFieldChart, { wrapLabels: true });
+    trendFieldChart = renderStackedCountChart('trend-field', agg, 'horizontal', trendFieldChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
 }
 function renderAllTrends() {
     updateTrendsCount();
+    const chartsEl = document.getElementById('trends-charts');
+    const placeholderEl = document.getElementById('trends-placeholder');
+    const show = trendsKind !== 'all';
+    if (chartsEl) chartsEl.style.display = show ? '' : 'none';
+    if (placeholderEl) placeholderEl.style.display = show ? 'none' : '';
+    if (!show) return;
     renderTrendOrigYear(); renderTrendRepYear();
     renderTrendJournal(); renderTrendRepJournal();
     renderTrendField();
@@ -926,9 +1098,11 @@ window._rerenderAllCharts = function() {
         renderOverviewChart(fullRowData);
         if (trendsInitialized) renderAllTrends();
     }
-    renderBrowseOutcomeChart();
-    if (window._mcData) renderMcCharts(window._mcData);
-    if (window._aoData) renderOverlapCharts(window._aoData);
+    renderBrowseOutcomeCharts();
+    if (window._mcData) renderMcCharts();
+    if (window._aoData) renderOverlapCharts();
+    if (window._rrData) renderRRCharts();
+    if (window._pubData) { renderPubStatusCharts(); renderLargeScaleCharts(); }
 };
 
 // ===== Mean Citedness tab =====
@@ -944,22 +1118,76 @@ function mcPlotlyTheme() {
     };
 }
 
-function renderMcCharts(d) {
-    if (!d) return;
-    window._mcData = d;
+// Overview-stat key and histogram-bucket key for a Mean Citedness dimension. The
+// replication path's overview keys are R's original naming (n_success, not
+// n_successful) while its histogram keys are "successful" - inconsistent with each
+// other, but real, so both are tracked explicitly rather than assumed to match.
+function mcBucketConfig(kind) {
+    if (kind === 'reproduction-numerical') {
+        return [
+            { histKey: 'successful', overviewKey: 'n_successful', label: 'Successful', color: REPRODUCTION_COLORS.successful },
+            { histKey: 'issues', overviewKey: 'n_issues', label: 'Computational issues', color: REPRODUCTION_COLORS.issues },
+            { histKey: 'technical_failure', overviewKey: 'n_technical_failure', label: 'Technical failure', color: REPRODUCTION_COLORS.technical_failure },
+        ];
+    }
+    if (kind === 'reproduction-robustness') {
+        return [
+            { histKey: 'robust', overviewKey: 'n_robust', label: 'Robust', color: REPRODUCTION_COLORS.robust },
+            { histKey: 'challenges', overviewKey: 'n_challenges', label: 'Robustness challenges', color: REPRODUCTION_COLORS.challenges },
+        ];
+    }
+    return [
+        { histKey: 'successful', overviewKey: 'n_success', label: 'Successful', color: OUTCOME_COLORS.successful },
+        { histKey: 'failed', overviewKey: 'n_failed', label: 'Failed', color: OUTCOME_COLORS.failed },
+        { histKey: 'mixed', overviewKey: 'n_mixed', label: 'Mixed', color: OUTCOME_COLORS.mixed },
+        { histKey: 'inconclusive', overviewKey: 'n_inconclusive', label: 'Inconclusive', color: OUTCOME_COLORS.inconclusive },
+        { histKey: 'qualified', overviewKey: 'n_qualified', label: 'Successful but flawed', color: OUTCOME_COLORS.qualified },
+        { histKey: 'other', overviewKey: 'n_other', label: 'Other / not coded', color: OUTCOME_COLORS.other },
+    ];
+}
+
+function renderMcCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("mc-dist-chart", "Plotly", renderMcCharts); return; }
+    document.getElementById('mc-gam-stats').textContent = '';
+    document.getElementById('mc-gam-chart-data')?.remove();
+    document.querySelector('#mc-gam-card h3').textContent = mcKind === 'replication' ? 'Success probability among successful / failed replications' : 'Model for ' + studyTypeLabel(mcKind);
+    document.querySelector('#mc-gam-card .mc-model-note:last-child').textContent = mcKind === 'replication' ? 'Conditional on unqualified successful or failed outcomes; other outcomes are excluded. Association does not establish causation.' : 'Reproduction summaries are descriptive. No reproduction model has been fitted.';
+    const d = window._mcData && window._mcData[mcKind];
+    const insufficientEl = document.getElementById('mc-placeholder');
+    const overviewEl = document.getElementById('mc-overview');
+    const distCard = document.getElementById('mc-dist-card');
+    const gamCard = document.getElementById('mc-gam-card');
+    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
+        const n = d && d.overview ? d.overview.n_total : 0;
+        if (insufficientEl) {
+            insufficientEl.textContent = `Not enough ${studyTypeLabel(mcKind)} with a Mean Citedness match yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.style.display = '';
+        }
+        if (overviewEl) overviewEl.style.display = 'none';
+        if (distCard) distCard.style.display = 'none';
+        if (gamCard) gamCard.style.display = 'none';
+        return;
+    }
+    if (insufficientEl) insufficientEl.style.display = 'none';
+    if (overviewEl) overviewEl.style.display = '';
+    if (distCard) distCard.style.display = '';
+    if (gamCard) gamCard.style.display = '';
+
     const t = mcPlotlyTheme();
     const primary = getComputedStyle(document.documentElement)
         .getPropertyValue('--flora-primary').trim() || '#8b1a4a';
+    const buckets = mcBucketConfig(mcKind);
 
     // ── Overview grid ─────────────────────────────────────────────────────
     const ov = d.overview;
-    const pctS = ov.n_total ? Math.round(100 * ov.n_success / ov.n_total) : 0;
-    const pctF = ov.n_total ? Math.round(100 * ov.n_failed  / ov.n_total) : 0;
+    const statCards = buckets.map(b => {
+        const n = ov[b.overviewKey] || 0;
+        const pct = ov.n_total ? Math.round(100 * n / ov.n_total) : 0;
+        return `<div class="mc-stat"><span class="mc-stat-value" style="color:${b.color}">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${pct}%)</span></div>`;
+    }).join('');
     document.getElementById('mc-overview').innerHTML = `
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Studies with OMC</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#2f8f4f">${ov.n_success.toLocaleString()}</span><span class="mc-stat-label">Successful (${pctS}%)</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#b3331e">${ov.n_failed.toLocaleString()}</span><span class="mc-stat-label">Failed (${pctF}%)</span></div>
-        <div class="mc-stat"><span class="mc-stat-value" style="color:#d49b1d">${ov.n_mixed.toLocaleString()}</span><span class="mc-stat-label">Mixed</span></div>
+        ${statCards}
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_journals.toLocaleString()}</span><span class="mc-stat-label">Journals matched</span></div>
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines}</span><span class="mc-stat-label">Disciplines</span></div>`;
 
@@ -967,12 +1195,10 @@ function renderMcCharts(d) {
     const bins  = d.histogram || [];
     const xMids = bins.map(b => +((b.bin_lo + b.bin_hi) / 2).toFixed(2));
     const hTpl  = 'OMC %{x:.2f}<br>%{y} studies<extra>%{fullData.name}</extra>';
-    Plotly.newPlot('mc-dist-chart', [
-        { x: xMids, y: bins.map(b => b.successful),   name: 'Successful',   type: 'bar', marker: { color: OUTCOME_COLORS.successful },   hovertemplate: hTpl },
-        { x: xMids, y: bins.map(b => b.failed),       name: 'Failed',       type: 'bar', marker: { color: OUTCOME_COLORS.failed },       hovertemplate: hTpl },
-        { x: xMids, y: bins.map(b => b.mixed),        name: 'Mixed',        type: 'bar', marker: { color: OUTCOME_COLORS.mixed },        hovertemplate: hTpl },
-        { x: xMids, y: bins.map(b => b.inconclusive), name: 'Inconclusive', type: 'bar', marker: { color: OUTCOME_COLORS.inconclusive }, hovertemplate: hTpl },
-    ], {
+    FloraCharts.plot('mc-dist-chart', buckets.map(b => ({
+        x: xMids, y: bins.map(row => row[b.histKey] || 0), name: b.label, type: 'bar',
+        marker: { color: b.color }, hovertemplate: hTpl,
+    })), {
         barmode: 'stack', bargap: 0.05,
         margin: { t: 10, r: 10, b: 50, l: 55 },
         xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
@@ -992,14 +1218,20 @@ function renderMcCharts(d) {
     const gamDiv = document.getElementById('mc-gam-chart');
     const hasGam = gc.length > 0 && st && st.n_model >= 30;
     if (!hasGam) {
-        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--flora-muted);font-size:0.9rem;text-align:center;padding:2rem">Not enough data to fit a smooth model<br>(requires ≥30 studies with successful or failed outcomes that have OMC data)</div>';
+        if (gamDiv.data) Plotly.purge(gamDiv);
+        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--flora-muted);font-size:0.9rem;text-align:center;padding:2rem">' + (mcKind === 'replication' ? 'No fitted model is available for this snapshot. A model requires at least 30 eligible successful/failed pairs and sufficient variation.' : 'No model has been fitted for reproductions. The distribution above is descriptive.') + '</div>';
         return;
     }
-    const jitter2 = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
-        x: pt.omc + (Math.random() - 0.5) * 0.15,
-        y: pt.outcome + (Math.random() - 0.5) * 0.06,
-        lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
-    }));
+    // Jitter is computed once per data load and cached so scatter points stay
+    // put across re-renders (theme toggles, etc.) instead of jumping.
+    if (!window._mcJitter) {
+        window._mcJitter = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
+            x: pt.omc + (Math.random() - 0.5) * 0.15,
+            y: pt.outcome + (Math.random() - 0.5) * 0.06,
+            lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
+        }));
+    }
+    const jitter2 = window._mcJitter;
     const gamTraces = [
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
@@ -1018,7 +1250,7 @@ function renderMcCharts(d) {
         height: 640,
         margin: { t: 10, r: 10, b: 50, l: 60 },
         xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
-        yaxis: { title: 'P(successful replication)', range: [-0.08, 1.08],
+        yaxis: { title: 'P(success | successful or failed)', range: [-0.08, 1.08],
                  tickformat: '.0%', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
         font: { family: 'Inter, sans-serif', size: 12, color: t.font },
@@ -1031,16 +1263,16 @@ function renderMcCharts(d) {
         annotations: [{
             xref: 'paper', x: 1, xanchor: 'right',
             yref: 'y', y: 0.5, yanchor: 'bottom',
-            text: 'chance (50%)', showarrow: false,
+            text: '50% reference', showarrow: false,
             font: { size: 11, color: isDark ? 'rgba(200,200,210,0.6)' : 'rgba(100,100,100,0.6)' },
         }],
     };
-    Plotly.newPlot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true });
+    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true });
     const pNote = (st.p_val !== null && st.p_val !== undefined)
         ? (st.p_val < 0.001 ? 'p < .001' : 'p = ' + st.p_val.toFixed(3))
         : '';
     const glossEdf = '<span class="gloss" tabindex="0">edf<span class="gloss-tip">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</span></span>';
-    const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It isn’t directly comparable to an OLS R² — values around 0.2–0.4 already indicate a good fit.</span></span>';
+    const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</span></span>';
     document.getElementById('mc-gam-stats').innerHTML =
         'Logistic smooth: ' + glossEdf + ' = ' + st.edf +
         ', χ² = ' + st.chi_sq +
@@ -1050,26 +1282,37 @@ function renderMcCharts(d) {
 }
 
 async function loadMeanCitedness() {
+    // Fetch + render once. On later tab visits the charts are already in the
+    // DOM (theme toggles re-render via _rerenderAllCharts), so just return;
+    // the in-flight flag stops duplicate fetches from rapid tab switching.
+    if (window._mcData || window._mcLoading) return;
+    window._mcLoading = true;
     const loadingEl  = document.getElementById('mc-loading');
-    const overviewEl = document.getElementById('mc-overview');
-    const distCard   = document.getElementById('mc-dist-card');
-    const gamCard    = document.getElementById('mc-gam-card');
     const errorEl    = document.getElementById('mc-error');
     try {
-        const res = await fetch(IMPACT_DATA_URL, { cache: 'no-cache' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        loadingEl.style.display  = 'none';
-        overviewEl.style.display = '';
-        distCard.style.display   = '';
-        gamCard.style.display    = '';
-        renderMcCharts(data);
+        const [repRes, reproRes] = await Promise.all([
+            fetch(IMPACT_DATA_URL, { cache: 'no-cache' }),
+            fetch(IMPACT_REPRODUCTIONS_URL, { cache: 'no-cache' }),
+        ]);
+        if (!repRes.ok) throw new Error('HTTP ' + repRes.status);
+        const replicationData = await repRes.json();
+        let reproData = {};
+        if (reproRes.ok) { try { reproData = await reproRes.json(); } catch (_) {} }
+        window._mcData = {
+            replication: replicationData,
+            'reproduction-numerical': reproData['reproduction-numerical'] || null,
+            'reproduction-robustness': reproData['reproduction-robustness'] || null,
+        };
+        loadingEl.style.display = 'none';
+        renderMcCharts();
     } catch (err) {
         console.warn('Mean Citedness load failed:', err);
         loadingEl.style.display = 'none';
         errorEl.style.display   = 'block';
         const det = document.getElementById('mc-error-detail');
         if (det) det.textContent = String(err);
+    } finally {
+        window._mcLoading = false;
     }
 }
 document.getElementById('mc-tab').addEventListener('shown.bs.tab', loadMeanCitedness);
@@ -1087,11 +1330,30 @@ function aoPlotlyTheme() {
     };
 }
 
-function renderOverlapCharts(d) {
-    if (!d) return;
+function renderOverlapCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("ao-chart", "Plotly", renderOverlapCharts); return; }
+    const d = window._aoData && window._aoData[aoKind];
+    const insufficientEl = document.getElementById('ao-placeholder');
+    const overviewEl = document.getElementById('ao-overview');
+    const chartCard = document.getElementById('ao-chart-card');
+    const caveatEl = document.getElementById('ao-caveat');
+    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
+        const n = d && d.overview ? d.overview.n_total : 0;
+        if (insufficientEl) {
+            insufficientEl.textContent = `Not enough ${studyTypeLabel(aoKind)} with known authorship yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.style.display = '';
+        }
+        if (overviewEl) overviewEl.style.display = 'none';
+        if (chartCard) chartCard.style.display = 'none';
+        if (caveatEl) caveatEl.style.display = 'none';
+        return;
+    }
+    if (insufficientEl) insufficientEl.style.display = 'none';
+
     const th = aoPlotlyTheme();
     const ov = d.overview;
     const by = d.by_outcome;
+    const kindNoun = aoKind === 'replication' ? 'Replications' : 'Reproductions';
 
     // ── Overview boxes ─────────────────────────────────────────────────────────
     const ovEl = document.getElementById('ao-overview');
@@ -1099,7 +1361,7 @@ function renderOverlapCharts(d) {
         ovEl.innerHTML =
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Replications included</div>' +
+                '<div class="mc-stat-label">' + kindNoun + ' included</div>' +
             '</div>' +
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_overlap || 0).toLocaleString() + '</div>' +
@@ -1117,17 +1379,16 @@ function renderOverlapCharts(d) {
     }
 
     // ── Grouped bar chart ──────────────────────────────────────────────────────
-    const OUTCOMES   = ['successful', 'failed', 'mixed', 'inconclusive'];
-    const OUT_LABELS = { successful: 'Successful', failed: 'Failed', mixed: 'Mixed', inconclusive: 'Inconclusive' };
+    const buckets = studyTypeOutcomeBuckets(aoKind);
     const groups     = ['overlap', 'no_overlap'];
     const GROUP_LABELS = { overlap: 'Author overlap', no_overlap: 'No author overlap' };
 
-    const traces = OUTCOMES.map(oc => ({
-        name: OUT_LABELS[oc],
+    const traces = buckets.map(b => ({
+        name: b.label,
         type: 'bar',
         x: groups.map(g => GROUP_LABELS[g]),
-        y: groups.map(g => (by[g] && by[g][oc]) || 0),
-        marker: { color: OUTCOME_COLORS[oc] || '#a0a7b4' },
+        y: groups.map(g => (by[g] && by[g][b.key]) || 0),
+        marker: { color: b.color },
     }));
 
     const layout = {
@@ -1139,7 +1400,7 @@ function renderOverlapCharts(d) {
         legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
         margin: { l: 50, r: 20, t: 20, b: 80 },
         yaxis: {
-            title: 'Number of replications',
+            title: 'Number of ' + kindNoun.toLowerCase(),
             gridcolor: th.grid,
             zerolinecolor: th.grid,
             tickfont: { color: th.font },
@@ -1152,15 +1413,15 @@ function renderOverlapCharts(d) {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
-    if (chartEl) Plotly.react(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    chartCard.style.display = '';
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
-    const caveatEl = document.getElementById('ao-caveat');
     if (caveatEl) caveatEl.style.display = '';
 }
 
 async function loadAuthorOverlap() {
-    if (window._aoData) { renderOverlapCharts(window._aoData); return; }
+    if (window._aoData) { renderOverlapCharts(); return; }
     const loadingEl  = document.getElementById('ao-loading');
     const overviewEl = document.getElementById('ao-overview');
     const chartCard  = document.getElementById('ao-chart-card');
@@ -1179,8 +1440,7 @@ async function loadAuthorOverlap() {
         window._aoData = d;
 
         if (loadingEl)  loadingEl.style.display  = 'none';
-        if (chartCard)  chartCard.style.display  = '';
-        renderOverlapCharts(d);
+        renderOverlapCharts();
     } catch (err) {
         if (loadingEl)  loadingEl.style.display  = 'none';
         if (errorEl)    errorEl.style.display    = 'block';
@@ -1190,21 +1450,439 @@ async function loadAuthorOverlap() {
 }
 document.getElementById('overlap-tab').addEventListener('shown.bs.tab', loadAuthorOverlap);
 
+// ===== Registered Reports tab =====
+window._rrData = null;
+
+function renderRRCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("rr-chart", "Plotly", renderRRCharts); return; }
+    const d = window._rrData && window._rrData[pubTypeKind];
+    const insufficientEl = document.getElementById('rr-placeholder');
+    const overviewEl = document.getElementById('rr-overview');
+    const chartCard = document.getElementById('rr-chart-card');
+    const studiesCard = document.getElementById('rr-studies-card');
+    const caveatEl = document.getElementById('rr-caveat');
+    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
+        const n = d && d.overview ? d.overview.n_total : 0;
+        if (insufficientEl) {
+            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} checked against the RR library yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.style.display = '';
+        }
+        if (overviewEl) overviewEl.style.display = 'none';
+        if (chartCard) chartCard.style.display = 'none';
+        if (studiesCard) studiesCard.style.display = 'none';
+        if (caveatEl) caveatEl.style.display = 'none';
+        return;
+    }
+    if (insufficientEl) insufficientEl.style.display = 'none';
+
+    const th = aoPlotlyTheme();
+    const ov = d.overview;
+    const by = d.by_outcome;
+    const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
+
+    // ── Overview boxes ─────────────────────────────────────────────────────────
+    const ovEl = document.getElementById('rr-overview');
+    if (ovEl) {
+        ovEl.innerHTML =
+            '<div class="mc-stat">' +
+                '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
+                '<div class="mc-stat-label">' + kindNoun + ' checked</div>' +
+            '</div>' +
+            '<div class="mc-stat">' +
+                '<div class="mc-stat-value">' + (ov.n_rr || 0).toLocaleString() + '</div>' +
+                '<div class="mc-stat-label">Registered Reports (' + (ov.pct_rr || 0) + '%)</div>' +
+            '</div>' +
+            '<div class="mc-stat">' +
+                '<div class="mc-stat-value">' + (ov.n_non_rr || 0).toLocaleString() + '</div>' +
+                '<div class="mc-stat-label">Rest (' + (ov.pct_non_rr || 0) + '%)</div>' +
+            '</div>' +
+            '<div class="mc-stat">' +
+                '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
+                '<div class="mc-stat-label">Not checkable</div>' +
+            '</div>';
+        ovEl.style.display = '';
+    }
+
+    // ── Grouped bar chart ──────────────────────────────────────────────────────
+    const buckets = studyTypeOutcomeBuckets(pubTypeKind);
+    const groups     = ['rr', 'non_rr'];
+    const GROUP_LABELS = { rr: 'Registered Report', non_rr: 'Rest' };
+
+    const traces = buckets.map(b => ({
+        name: b.label,
+        type: 'bar',
+        x: groups.map(g => GROUP_LABELS[g]),
+        y: groups.map(g => (by[g] && by[g][b.key]) || 0),
+        marker: { color: b.color },
+    }));
+
+    const layout = {
+        barmode: 'group',
+        height: 420,
+        paper_bgcolor: th.paper,
+        plot_bgcolor:  th.plot,
+        font: { color: th.font, size: 13 },
+        legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
+        margin: { l: 50, r: 20, t: 20, b: 80 },
+        yaxis: {
+            title: 'Number of ' + kindNoun.toLowerCase(),
+            gridcolor: th.grid,
+            zerolinecolor: th.grid,
+            tickfont: { color: th.font },
+            titlefont: { color: th.font },
+        },
+        xaxis: {
+            tickfont: { color: th.font },
+        },
+    };
+
+    const config = { responsive: true, displayModeBar: false };
+    const chartEl = document.getElementById('rr-chart');
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    chartCard.style.display = '';
+
+    // ── Included-studies table ───────────────────────────────────────────────────
+    const studies = Array.isArray(d.rr_studies) ? d.rr_studies : [];
+    const tbody = document.querySelector('#rr-studies-table tbody');
+    if (tbody) {
+        tbody.innerHTML = studies.map(s => {
+            const doiLink = formatUrlOrDoi(s.url_r, s.doi_r);
+            return '<tr>' +
+                '<td>' + escapeHtml(s.title_r) + '</td>' +
+                '<td>' + escapeHtml(s.journal_r) + '</td>' +
+                '<td>' + escapeHtml(s.year_r) + '</td>' +
+                '<td>' + escapeHtml(s.outcome) + '</td>' +
+                '<td>' + doiLink + '</td>' +
+            '</tr>';
+        }).join('');
+        if (studiesCard) studiesCard.style.display = studies.length ? '' : 'none';
+        const countEl = document.getElementById('rr-studies-count');
+        if (countEl) countEl.textContent = '(' + studies.length.toLocaleString() + ')';
+    }
+
+    // ── Caveat ─────────────────────────────────────────────────────────────────
+    if (caveatEl) caveatEl.style.display = '';
+}
+
+async function loadRegisteredReports() {
+    if (window._rrData) { renderRRCharts(); return; }
+    const loadingEl  = document.getElementById('rr-loading');
+    const overviewEl = document.getElementById('rr-overview');
+    const chartCard  = document.getElementById('rr-chart-card');
+    const studiesCard = document.getElementById('rr-studies-card');
+    const caveatEl   = document.getElementById('rr-caveat');
+    const errorEl    = document.getElementById('rr-error');
+    try {
+        if (loadingEl)   loadingEl.style.display   = 'block';
+        if (overviewEl)  overviewEl.style.display  = 'none';
+        if (chartCard)   chartCard.style.display   = 'none';
+        if (studiesCard) studiesCard.style.display = 'none';
+        if (caveatEl)    caveatEl.style.display    = 'none';
+        if (errorEl)     errorEl.style.display     = 'none';
+
+        const res = await fetch(RR_DATA_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        window._rrData = d;
+
+        if (loadingEl) loadingEl.style.display = 'none';
+        renderRRCharts();
+    } catch (err) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (errorEl)   errorEl.style.display   = 'block';
+        const det = document.getElementById('rr-error-detail');
+        if (det) det.textContent = String(err);
+    }
+}
+
+// ===== Publication Status tab =====
+window._pubData = null;
+
+function renderPubStatusCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("pub-chart", "Plotly", renderPubStatusCharts); return; }
+    const d = window._pubData && window._pubData[pubTypeKind];
+    const insufficientEl = document.getElementById('pub-placeholder');
+    const overviewEl = document.getElementById('pub-overview');
+    const chartCard = document.getElementById('pub-chart-card');
+    const studiesCard = document.getElementById('pub-studies-card');
+    const caveatEl = document.getElementById('pub-caveat');
+    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
+        const n = d && d.overview ? d.overview.n_total : 0;
+        if (insufficientEl) {
+            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} with publication-status data yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.style.display = '';
+        }
+        if (overviewEl) overviewEl.style.display = 'none';
+        if (chartCard) chartCard.style.display = 'none';
+        if (studiesCard) studiesCard.style.display = 'none';
+        if (caveatEl) caveatEl.style.display = 'none';
+        return;
+    }
+    if (insufficientEl) insufficientEl.style.display = 'none';
+
+    const th = aoPlotlyTheme();
+    const ov = d.overview;
+    const by = d.by_outcome;
+    const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
+
+    // ── Overview boxes ─────────────────────────────────────────────────────────
+    const ovEl = document.getElementById('pub-overview');
+    if (ovEl) {
+        const venueLabels = {journal:'Other named venue', preprint:'Repository / preprint', conference:'Conference output', thesis:'Thesis / dissertation', unknown:'Unknown venue'};
+        ovEl.innerHTML = `<div class="mc-stat"><div class="mc-stat-value">${ov.n_total}</div><div class="mc-stat-label">Reference pairs</div></div>` +
+            Object.entries(venueLabels).map(([key,label])=>`<div class="mc-stat"><div class="mc-stat-value">${ov['n_'+key] || 0}</div><div class="mc-stat-label">${label} (${ov.n_total ? (100*(ov['n_'+key] || 0)/ov.n_total).toFixed(1) : 0}%)</div></div>`).join('');
+        ovEl.style.display = '';
+    }
+
+    // ── Grouped bar chart ──────────────────────────────────────────────────────
+    const buckets = studyTypeOutcomeBuckets(pubTypeKind);
+    const groups = ['journal', 'preprint', 'conference', 'thesis', 'unknown'];
+    const GROUP_LABELS = { journal: 'Other named venue', preprint: 'Repository / preprint', conference: 'Conference output', thesis: 'Thesis / dissertation', unknown: 'Unknown venue' };
+
+    const traces = buckets.map(b => ({
+        name: b.label,
+        type: 'bar',
+        x: groups.map(g => GROUP_LABELS[g]),
+        y: groups.map(g => (by[g] && by[g][b.key]) || 0),
+        marker: { color: b.color },
+    }));
+
+    const layout = {
+        barmode: 'group',
+        height: 420,
+        paper_bgcolor: th.paper,
+        plot_bgcolor:  th.plot,
+        font: { color: th.font, size: 13 },
+        legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
+        margin: { l: 50, r: 20, t: 20, b: 80 },
+        yaxis: {
+            title: 'Number of ' + kindNoun.toLowerCase(),
+            gridcolor: th.grid,
+            zerolinecolor: th.grid,
+            tickfont: { color: th.font },
+            titlefont: { color: th.font },
+        },
+        xaxis: {
+            tickfont: { color: th.font },
+        },
+    };
+
+    const config = { responsive: true, displayModeBar: false };
+    const chartEl = document.getElementById('pub-chart');
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    chartCard.style.display = '';
+
+    // ── All-studies table ─────────────────────────────────────────────────────
+    const studies = Array.isArray(d.pub_studies) ? d.pub_studies : [];
+    const tbody = document.querySelector('#pub-studies-table tbody');
+    if (tbody) {
+        tbody.innerHTML = studies.map(s => {
+            const doiLink = formatUrlOrDoi(s.url_r, s.doi_r);
+            const statusBadge = '<span class="badge badge-unknown">' + escapeHtml(GROUP_LABELS[s.pub_status] || 'Unknown venue') + '</span>';
+            return '<tr>' +
+                '<td>' + escapeHtml(s.title_r) + '</td>' +
+                '<td>' + escapeHtml(s.journal_r) + '</td>' +
+                '<td>' + statusBadge + '</td>' +
+                '<td>' + escapeHtml(s.year_r) + '</td>' +
+                '<td>' + escapeHtml(s.outcome) + '</td>' +
+                '<td>' + doiLink + '</td>' +
+            '</tr>';
+        }).join('');
+        if (studiesCard) studiesCard.style.display = studies.length ? '' : 'none';
+        const countEl = document.getElementById('pub-studies-count');
+        if (countEl) countEl.textContent = '(' + studies.length.toLocaleString() + ')';
+    }
+
+    // ── Caveat ─────────────────────────────────────────────────────────────────
+    if (caveatEl) caveatEl.style.display = '';
+}
+
+async function loadPubStatus() {
+    if (window._pubData) { renderPubStatusCharts(); return; }
+    const loadingEl  = document.getElementById('pub-loading');
+    const overviewEl = document.getElementById('pub-overview');
+    const chartCard  = document.getElementById('pub-chart-card');
+    const studiesCard = document.getElementById('pub-studies-card');
+    const caveatEl   = document.getElementById('pub-caveat');
+    const errorEl    = document.getElementById('pub-error');
+    try {
+        if (loadingEl)   loadingEl.style.display   = 'block';
+        if (overviewEl)  overviewEl.style.display  = 'none';
+        if (chartCard)   chartCard.style.display   = 'none';
+        if (studiesCard) studiesCard.style.display = 'none';
+        if (caveatEl)    caveatEl.style.display    = 'none';
+        if (errorEl)     errorEl.style.display     = 'none';
+
+        const res = await fetch(PUB_STATUS_DATA_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        window._pubData = d;
+
+        if (loadingEl) loadingEl.style.display = 'none';
+        renderPubStatusCharts();
+        renderLargeScaleCharts();
+    } catch (err) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (errorEl)   errorEl.style.display   = 'block';
+        const det = document.getElementById('pub-error-detail');
+        if (det) det.textContent = String(err);
+    }
+}
+
+// ===== Large-scale project plot (third section of the Publication Type tab) =====
+// Reuses window._pubData - compute_pub_status.py nests a "large_scale" result inside
+// each kind alongside the journal/preprint breakdown, since both are pure flora.csv
+// transforms with no external API - no separate fetch needed here.
+function renderLargeScaleCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("ls-chart", "Plotly", renderLargeScaleCharts); return; }
+    document.getElementById('ls-loading').style.display = 'none';
+    const d = window._pubData && window._pubData[pubTypeKind] && window._pubData[pubTypeKind].large_scale;
+    const insufficientEl = document.getElementById('ls-placeholder');
+    const overviewEl = document.getElementById('ls-overview');
+    const chartCard = document.getElementById('ls-chart-card');
+    const studiesCard = document.getElementById('ls-studies-card');
+    const caveatEl = document.getElementById('ls-caveat');
+    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
+        const n = d && d.overview ? d.overview.n_total : 0;
+        if (insufficientEl) {
+            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} with project-scale data yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.style.display = '';
+        }
+        if (overviewEl) overviewEl.style.display = 'none';
+        if (chartCard) chartCard.style.display = 'none';
+        if (studiesCard) studiesCard.style.display = 'none';
+        if (caveatEl) caveatEl.style.display = 'none';
+        return;
+    }
+    if (insufficientEl) insufficientEl.style.display = 'none';
+
+    const th = aoPlotlyTheme();
+    const ov = d.overview;
+    const by = d.by_outcome;
+    const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
+
+    // ── Overview boxes ─────────────────────────────────────────────────────────
+    if (overviewEl) {
+        overviewEl.innerHTML =
+            '<div class="mc-stat">' +
+                '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
+                '<div class="mc-stat-label">' + kindNoun + ' checked</div>' +
+            '</div>' +
+            '<div class="mc-stat">' +
+                '<div class="mc-stat-value">' + (ov.n_individual || 0).toLocaleString() + '</div>' +
+                '<div class="mc-stat-label">Up to 3 targets / unknown (' + (ov.pct_individual || 0) + '%)</div>' +
+            '</div>' +
+            '<div class="mc-stat">' +
+                '<div class="mc-stat-value">' + (ov.n_large_scale || 0).toLocaleString() + '</div>' +
+                '<div class="mc-stat-label">Multiple-target report (' + (ov.pct_large_scale || 0) + '%)</div>' +
+            '</div>';
+        overviewEl.style.display = '';
+    }
+
+    // ── Grouped bar chart ──────────────────────────────────────────────────────
+    const buckets = studyTypeOutcomeBuckets(pubTypeKind);
+    const groups = ['individual', 'large_scale'];
+    const GROUP_LABELS = { individual: 'Up to 3 targets / unknown', large_scale: 'Multiple-target report (>3 targets)' };
+
+    const traces = buckets.map(b => ({
+        name: b.label,
+        type: 'bar',
+        x: groups.map(g => GROUP_LABELS[g]),
+        y: groups.map(g => (by[g] && by[g][b.key]) || 0),
+        marker: { color: b.color },
+    }));
+
+    const layout = {
+        barmode: 'group',
+        height: 420,
+        paper_bgcolor: th.paper,
+        plot_bgcolor:  th.plot,
+        font: { color: th.font, size: 13 },
+        legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
+        margin: { l: 50, r: 20, t: 20, b: 80 },
+        yaxis: {
+            title: 'Number of ' + kindNoun.toLowerCase(),
+            gridcolor: th.grid,
+            zerolinecolor: th.grid,
+            tickfont: { color: th.font },
+            titlefont: { color: th.font },
+        },
+        xaxis: {
+            tickfont: { color: th.font },
+        },
+    };
+
+    const config = { responsive: true, displayModeBar: false };
+    const chartEl = document.getElementById('ls-chart');
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartCard) chartCard.style.display = '';
+
+    // ── Large-scale projects table ───────────────────────────────────────────────
+    // One row per project (publication), not per target study - see
+    // compute_large_scale_result() in compute_pub_status.py. outcome_mix summarises
+    // how that project's many individual outcomes broke down.
+    const bucketLabels = {};
+    buckets.forEach(b => { bucketLabels[b.key] = b.label; });
+    const projects = Array.isArray(d.large_scale_studies) ? d.large_scale_studies : [];
+    const tbody = document.querySelector('#ls-studies-table tbody');
+    if (tbody) {
+        tbody.innerHTML = projects.map(s => {
+            const doiLink = formatUrlOrDoi(s.url_r, s.doi_r);
+            const mix = Object.entries(s.outcome_mix || {})
+                .map(([k, n]) => escapeHtml(bucketLabels[k] || k) + ': ' + n)
+                .join(', ');
+            return '<tr>' +
+                '<td>' + escapeHtml(s.title_r) + '</td>' +
+                '<td>' + escapeHtml(s.journal_r) + '</td>' +
+                '<td>' + escapeHtml(s.year_r) + '</td>' +
+                '<td>' + escapeHtml(s.n_originals) + '</td>' +
+                '<td>' + mix + '</td>' +
+                '<td>' + doiLink + '</td>' +
+            '</tr>';
+        }).join('');
+        if (studiesCard) studiesCard.style.display = projects.length ? '' : 'none';
+        const countEl = document.getElementById('ls-studies-count');
+        if (countEl) countEl.textContent = '(' + projects.length.toLocaleString() + ')';
+    }
+
+    // ── Caveat ─────────────────────────────────────────────────────────────────
+    if (caveatEl) caveatEl.style.display = '';
+}
+
+// One combined loader for the merged "Publication Type" tab: fetches both backing
+// files (Registered Reports needs its own Zotero-derived file; Publication Status +
+// the large-scale plot share pub_status_data.json) and renders all three sections.
+async function loadPublicationType() {
+    await Promise.all([loadRegisteredReports(), loadPubStatus()]);
+    renderLargeScaleCharts();
+}
+document.getElementById('pub-tab').addEventListener('shown.bs.tab', loadPublicationType);
+
 // ===== Data stamps (last updated) =====
 const OVERLAP_DATA_URL = 'data/author_overlap_data.json';
 const OVERLAP_META_URL = 'data/author_overlap_meta.json';
+const RR_DATA_URL = 'data/rr_status_data.json';
+const RR_META_URL = 'data/rr_status_meta.json';
+const PUB_STATUS_DATA_URL = 'data/pub_status_data.json';
+const PUB_STATUS_META_URL = 'data/pub_status_meta.json';
 
 const STAMP_LABELS = {
     flora: 'FLoRA data',
     citations: 'Citation data',
+    reproduction_citations: 'Reproduction citation coverage',
     impact_factor: 'Mean Citedness analysis',
-    author_overlap: 'Authorship Overlap data'
+    author_overlap: 'Authorship Overlap data',
+    rr_status: 'Registered Reports data',
+    pub_status: 'Publication Status data'
 };
 const STAMP_URLS = {
     flora: FLORA_META_URL,
     citations: CITATIONS_META_URL,
+    reproduction_citations: 'data/reproduction_citations_meta.json',
     impact_factor: IMPACT_META_URL,
-    author_overlap: OVERLAP_META_URL
+    author_overlap: OVERLAP_META_URL,
+    rr_status: RR_META_URL,
+    pub_status: PUB_STATUS_META_URL
 };
 
 async function loadDataStamps() {
@@ -1228,16 +1906,20 @@ async function loadDataStamps() {
             const dt = new Date(meta.last_updated);
             const ageMs = Date.now() - dt.getTime();
             const ageDays = ageMs / (1000 * 60 * 60 * 24);
-            const stale = (src === 'citations' || src === 'impact_factor') ? ageDays > 14 : ageDays > 3;
+            const stale = (src === 'citations' || src === 'reproduction_citations' || src === 'impact_factor' || src === 'rr_status') ? ageDays > 14 : ageDays > 3;
             el.classList.toggle('stale', stale);
             const fmt = dt.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             el.innerHTML = `${label} last updated: <strong>${fmt}</strong>`;
+            if (meta.input_snapshot) el.innerHTML += ` · input snapshot: ${escapeHtml(String(meta.input_snapshot))}`;
+            if (meta.recalculated_at) el.innerHTML += ` · recalculated: ${new Date(meta.recalculated_at).toLocaleDateString()}`;
+            if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
             if (meta.source_url) el.innerHTML += ` · <a class="doi-link" href="${meta.source_url}" target="_blank">source</a>`;
         } else {
             el.classList.add('missing');
             el.innerHTML = `${label}: <em>no snapshot yet</em>`;
         }
     });
+    FloraCharts.updateContexts();
 }
 
 // ===== Main load =====
@@ -1309,6 +1991,7 @@ async function loadData() {
     loadFaqs();
     loadDataStamps();
     applyTabFromUrl();
+    document.dispatchEvent(new Event('flora-ready'));
 }
 
 // Map friendly ?tab= values to the Bootstrap tab buttons.
@@ -1318,13 +2001,19 @@ const TAB_PARAM_MAP = {
     trends: 'trends-tab', years: 'trends-tab', disciplines: 'trends-tab',
     citations: 'citation-tab', 'citation-impact': 'citation-tab',
     'mean-citedness': 'mc-tab', omc: 'mc-tab',
-    'authorship-overlap': 'overlap-tab', overlap: 'overlap-tab'
+    'authorship-overlap': 'overlap-tab', overlap: 'overlap-tab',
+    // 'registered-reports'/'rr' and 'publication-status' are pre-merge aliases, kept
+    // so old links/bookmarks still land on the right (now combined) tab.
+    'registered-reports': 'pub-tab', rr: 'pub-tab',
+    'publication-status': 'pub-tab', 'pub-status': 'pub-tab', pub: 'pub-tab',
+    'publication-type': 'pub-tab'
 };
 
 // Canonical ?tab= value for each tab button (the reverse of TAB_PARAM_MAP).
 const TAB_ID_TO_PARAM = {
     'overview-tab': 'overview', 'browse-tab': 'browse', 'trends-tab': 'trends',
-    'citation-tab': 'citations', 'mc-tab': 'mean-citedness', 'overlap-tab': 'authorship-overlap'
+    'citation-tab': 'citations', 'mc-tab': 'mean-citedness', 'overlap-tab': 'authorship-overlap',
+    'pub-tab': 'publication-type'
 };
 
 // Select a tab from the ?tab= URL param (e.g. ?tab=citations). Activating the

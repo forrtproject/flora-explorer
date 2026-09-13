@@ -21,8 +21,10 @@ import csv
 import json
 import os
 import re
+import sys
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
@@ -44,6 +46,15 @@ SESSION.headers.update({"User-Agent": f"FLoRA-Explorer/1.0 (mailto:{EMAIL})"})
 OPENALEX_SOURCES = "https://api.openalex.org/sources"
 BASE_DELAY = 0.12  # OpenAlex allows ~10 req/s with mailto
 
+# Per-run time budget (mirrors refresh_data.py's should_stop pattern) so a slow
+# run saves its lookup cache and retains complete published outputs if time runs out.
+MAX_RUNTIME_SECONDS = int(os.environ.get("MAX_RUNTIME_SECONDS", 3 * 3600))
+START_TIME = time.time()
+
+
+def should_stop(reserve_seconds: int = 300) -> bool:
+    return (time.time() - START_TIME) > (MAX_RUNTIME_SECONDS - reserve_seconds)
+
 
 def normalize_name(name: str) -> str:
     if not name:
@@ -57,14 +68,58 @@ def normalize_name(name: str) -> str:
 def load_cache() -> dict:
     if CACHE_FILE.exists():
         try:
-            return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+            cache = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+            return {key: value for key, value in cache.items()
+                    if value is None or names_match(key, value.get("display_name", ""))}
         except Exception:
             pass
     return {}
 
 
 def save_cache(cache: dict) -> None:
-    CACHE_FILE.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    # Write to a temp file then atomically replace, so a crash mid-write can't
+    # truncate the committed cache/openalex_venues.json.
+    tmp = CACHE_FILE.with_name(CACHE_FILE.name + ".tmp")
+    tmp.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    os.replace(tmp, CACHE_FILE)
+
+
+def name_tokens(s: str) -> set[str]:
+    return set(re.sub(r"[^\w\s]", " ", normalize_name(s)).split())
+
+
+def names_match(query: str, display: str) -> bool:
+    """Require the same distinctive words; generic journal words are insufficient."""
+    q, d = name_tokens(query), name_tokens(display)
+    if not q or not d:
+        return False
+    if q == d:
+        return True
+    # Journal, International, and subject words distinguish real source titles.
+    generic = {"the", "and"}
+    return bool(q - generic) and q - generic == d - generic
+
+
+def retry_after_seconds(resp, default: float, max_wait: float = 120.0) -> float:
+    """Honor a Retry-After header, which may be either delta-seconds or an
+    HTTP-date. Clamp to a sane maximum and fall back to `default` otherwise."""
+    ra = resp.headers.get("Retry-After")
+    if ra:
+        ra = ra.strip()
+        try:
+            return min(max(float(ra), 0.0), max_wait)
+        except ValueError:
+            pass
+        try:
+            when = parsedate_to_datetime(ra)
+            if when is not None:
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                delta = (when - datetime.now(timezone.utc)).total_seconds()
+                return min(max(delta, 0.0), max_wait)
+        except (TypeError, ValueError):
+            pass
+    return default
 
 
 def lookup_venue(name: str, cache: dict) -> dict | None:
@@ -82,35 +137,51 @@ def lookup_venue(name: str, cache: dict) -> dict | None:
         "filter": "type:journal|conference|repository|ebook platform",
         "mailto": EMAIL,
     }
-    try:
-        r = SESSION.get(OPENALEX_SOURCES, params=params, timeout=30)
-    except requests.exceptions.RequestException as e:
-        print(f"  ! network error for {name[:60]}: {e}")
-        return None
 
-    if r.status_code == 429:
-        time.sleep(2.0)
+    r = None
+    for attempt in range(1, 4):
         try:
             r = SESSION.get(OPENALEX_SOURCES, params=params, timeout=30)
-        except requests.exceptions.RequestException:
-            return None
+        except requests.exceptions.RequestException as e:
+            if attempt == 3:
+                print(f"  ! network error for {name[:60]}: {e}")
+                return None  # transient: do NOT cache, retry next run
+            time.sleep(2 ** attempt)
+            continue
+        if r.status_code == 429 or r.status_code >= 500:
+            # Rate limiting and server-side (5xx) errors are transient — back
+            # off and retry within the same attempt budget.
+            if attempt == 3:
+                print(f"  ! persistent HTTP {r.status_code} for {name[:60]}")
+                return None  # transient: do NOT cache
+            wait = retry_after_seconds(r, 2.0 * attempt)
+            time.sleep(wait)
+            continue
+        break
 
-    if r.status_code != 200:
-        print(f"  ! HTTP {r.status_code} for {name[:60]}")
-        cache[key] = None
+    if r is None or r.status_code != 200:
+        # Transient HTTP error (5xx etc.): do NOT cache, so it retries next run.
+        print(f"  ! HTTP {getattr(r, 'status_code', 'none')} for {name[:60]}")
         return None
 
     try:
         results = r.json().get("results", [])
     except ValueError:
-        cache[key] = None
-        return None
+        return None  # transient parse failure: do NOT cache
 
     if not results:
-        cache[key] = None
+        cache[key] = None  # genuine 200-with-no-results: cache the negative
         return None
 
     src = results[0]
+    display = src.get("display_name") or ""
+    if not names_match(name, display):
+        # Fuzzy top hit is unrelated to the queried journal — record a miss
+        # rather than attaching a wrong venue/impact factor.
+        print(f"  ~ weak match for {name[:50]!r} -> {display[:50]!r}; recording miss")
+        cache[key] = None
+        return None
+
     summary = (src.get("summary_stats") or {})
     omc = summary.get("2yr_mean_citedness")
     entry = {
@@ -121,6 +192,91 @@ def lookup_venue(name: str, cache: dict) -> dict | None:
     cache[key] = entry
     time.sleep(BASE_DELAY)
     return entry
+
+
+def load_disciplines() -> dict:
+    """journal name (lowercase, trimmed) -> discipline, from data/disciplines.json's
+    {discipline: [journal, ...]} shape."""
+    path = DATA_DIR / "disciplines.json"
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    mapping = {}
+    for discipline, journals in data.items():
+        for j in journals:
+            mapping[str(j).strip().lower()] = discipline
+    return mapping
+
+
+from classification import parse_reproduction_outcome
+
+
+
+def compute_reproduction_impact_stats(rows: list[dict]) -> None:
+    """Write descriptive journal Mean Citedness summaries for each reproduction dimension.
+
+    No reproduction model is fitted. Unchecked dimensions and unmatched journals
+    are excluded independently, and the two assessed subsets can overlap.
+    """
+    discipline_map = load_disciplines()
+    repro_rows = []
+    for row in rows:
+        if "reproduc" not in (row.get("type") or "").lower():
+            continue
+        try:
+            impact = float(row.get("impact_factor") or "")
+        except ValueError:
+            impact = None
+        if impact is None or impact >= 35:
+            continue
+        computational, robustness = parse_reproduction_outcome(row.get("outcome"))
+        journal = (row.get("journal_o") or "").strip()
+        repro_rows.append({
+            "impact_factor": impact,
+            "journal": journal,
+            "discipline": discipline_map.get(journal.lower(), "Uncategorized"),
+            "computational": computational or "not_coded",
+            "robustness": robustness or "not_coded",
+        })
+
+    def build_dimension(bucket_key: str, buckets: list[str]) -> dict:
+        # Rows without an actual verdict on this dimension ("not checked"/uncoded) are
+        # dropped rather than kept as their own bucket - they say nothing about it. Applied
+        # per dimension, so a reproduction whose robustness was never checked still counts
+        # toward the computational breakdown.
+        rows = [r for r in repro_rows if r[bucket_key] in buckets]
+        journals = {r["journal"] for r in rows if r["journal"]}
+        disciplines = {r["discipline"] for r in rows if r["discipline"] != "Uncategorized"}
+        overview = {"n_total": len(rows), "n_journals": len(journals), "n_disciplines": len(disciplines)}
+        for b in buckets:
+            overview[f"n_{b}"] = sum(1 for r in rows if r[bucket_key] == b)
+
+        breaks = [i * 0.5 for i in range(71)]  # 0..35 in steps of 0.5, matching the R histogram
+        histogram = []
+        for lo, hi in zip(breaks[:-1], breaks[1:]):
+            counts = {b: 0 for b in buckets}
+            for r in rows:
+                if lo <= r["impact_factor"] < hi:
+                    counts[r[bucket_key]] += 1
+            histogram.append({"bin_lo": lo, "bin_hi": hi, **counts})
+
+        return {
+            "overview": overview,
+            "histogram": histogram,
+            "stats": {"edf": None, "chi_sq": None, "p_val": None, "r2": None, "n_model": 0},
+            "gam_curve": [],
+            "jitter": [],
+        }
+
+    result = {
+        "reproduction-numerical": build_dimension("computational", ["successful", "issues", "technical_failure"]),
+        "reproduction-robustness": build_dimension("robustness", ["robust", "challenges"]),
+    }
+    out_path = DATA_DIR / "impact_factor_reproductions.json"
+    out_path.write_text(json.dumps(result), encoding="utf-8")
+    print(f"✔ Wrote {out_path.relative_to(ROOT)} "
+          f"(numerical n={result['reproduction-numerical']['overview']['n_total']}, "
+          f"robustness n={result['reproduction-robustness']['overview']['n_total']})")
 
 
 def main():
@@ -142,10 +298,21 @@ def main():
           f"(cache has {len(cache)} entries)")
 
     new_lookups = 0
+    transient_errors = 0
+    partial = False
     for i, j in enumerate(unique_journals, 1):
         if normalize_name(j) in cache:
             continue
+        if should_stop():
+            print(f"⏰ Time budget reached at {i}/{len(unique_journals)}; "
+                  f"retaining the previous complete enrichment.")
+            partial = True
+            break
         lookup_venue(j, cache)
+        # A lookup that neither cached a hit nor a genuine miss was a
+        # transient failure (network / 429 / 5xx / parse).
+        if normalize_name(j) not in cache:
+            transient_errors += 1
         new_lookups += 1
         if new_lookups % 50 == 0:
             save_cache(cache)
@@ -153,6 +320,16 @@ def main():
 
     save_cache(cache)
     print(f"✔ {new_lookups} new venues looked up; cache size now {len(cache)}")
+
+    if partial:
+        sys.exit("Time budget exhausted; cache saved, previous enrichment outputs retained")
+
+    # A widespread OpenAlex outage would otherwise yield an incompletely
+    # enriched CSV with a fresh timestamp. Exit nonzero (cache already saved,
+    # CSV unwritten) so the workflow fails instead of committing it as fresh.
+    if new_lookups >= 10 and transient_errors / new_lookups > 0.5:
+        sys.exit(f"✗ {transient_errors}/{new_lookups} venue lookups failed "
+                 f"transiently - OpenAlex looks unhealthy, aborting run")
 
     enriched = 0
     for row in rows:
@@ -166,7 +343,7 @@ def main():
             enriched += 1
 
     with OUT_CSV.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=out_columns)
+        writer = csv.DictWriter(f, fieldnames=out_columns, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -178,6 +355,8 @@ def main():
     }
     (DATA_DIR / "flora_with_omc_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print(f"✔ Wrote {OUT_CSV.relative_to(ROOT)} ({enriched}/{len(rows)} rows have OMC)")
+
+    compute_reproduction_impact_stats(rows)
 
 
 if __name__ == "__main__":

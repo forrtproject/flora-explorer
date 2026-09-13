@@ -4,8 +4,9 @@
 
 (function() {
     const CI = {
-        meta: null, agg: null, studies: null, index: null, fect: null, cocitBreakdown: null,
-        outcome: 'all', page: 1, perPage: 20,
+        meta: null, agg: null, index: null, fect: null, cocitBreakdown: null,
+        studyCache: {}, currentDoi: null,
+        outcome: ['all','failed','mixed','successful'].includes(new URLSearchParams(location.search).get('ci-outcome')) ? new URLSearchParams(location.search).get('ci-outcome') : 'all', page: 1, perPage: 20,
         sortCol: 'n_citations', sortDir: 'desc',
         loaded: false, loading: false
     };
@@ -13,6 +14,8 @@
     const OUTCOME_COLORS = {
         failed: '#b3331e', successful: '#2f8f4f', mixed: '#d49b1d', all: '#8b1a4a'
     };
+
+    let ciKind = 'replication';
 
     function escapeHtml(s) {
         if (s == null) return '';
@@ -61,21 +64,31 @@
         };
     }
 
+    function plotlyReady(timeoutMs = 15000) {
+        return new Promise((resolve, reject) => {
+            const start = Date.now();
+            (function check() {
+                if (typeof Plotly !== 'undefined') return resolve();
+                if (Date.now() - start > timeoutMs) return reject(new Error('Plotly failed to load'));
+                setTimeout(check, 50);
+            })();
+        });
+    }
+
     async function init() {
         if (CI.loaded || CI.loading) return;
         CI.loading = true;
+        showLoading();
         try {
-            const [metaRes, aggRes, origRes] = await Promise.all([
+            const [metaRes, aggRes, idxRes] = await Promise.all([
                 fetch('data/meta.json'),
                 fetch('data/aggregate.json'),
-                fetch('data/originals.json')
+                fetch('data/originals_index.json')
             ]);
-            if (!metaRes.ok || !aggRes.ok || !origRes.ok) { showPlaceholder(); return; }
+            if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
             CI.agg = await aggRes.json();
-            const originals = await origRes.json();
-            CI.studies = originals.studies;
-            CI.index = originals.index.map(s => {
+            CI.index = (await idxRes.json()).map(s => {
                 // Denominator is citations since the first replication, not lifetime
                 // citations — citing works published before any replication existed
                 // could never have co-cited one.
@@ -95,7 +108,19 @@
                 if (breakdownRes.ok) CI.cocitBreakdown = await breakdownRes.json();
             } catch (_) {}
 
+            // Optional: simple descriptive citation counts for reproductions (no event-study -
+            // too few reproductions for that model to be meaningful; see refresh_data.py)
+            try {
+                const reproRes = await fetch('data/reproduction_citations.json');
+                if (reproRes.ok) CI.repro = await reproRes.json();
+            } catch (_) {}
+
+            // The Plotly script tag near the end of <body> may still be loading when a
+            // deep link opens this tab; the data fetches above are small enough to win that race.
+            await plotlyReady();
             renderKPIs(); renderAggregate(); renderTable(); renderCocitBreakdown(); bindEvents();
+            renderCiKindGate(ciKind);
+            document.querySelectorAll('#outcome-chips .chip').forEach(b=>{b.classList.toggle('active',b.dataset.value===CI.outcome);b.setAttribute('aria-pressed',String(b.dataset.value===CI.outcome));});
             CI.loaded = true;
         } catch (e) {
             console.error('Citation Impact load failed:', e);
@@ -103,6 +128,81 @@
         } finally {
             CI.loading = false;
         }
+    }
+
+    // Reproduction dimension buckets for the descriptive citation-count table (mirrors
+    // parseReproductionOutcome() in assets/app.js). Unlike the replication view, there's no
+    // event-study model here - too few reproductions for that to be meaningful - so this
+    // just shows the simple counts refresh_data.py's compute_reproduction_citations() wrote.
+    const CI_REPRO_BUCKETS = {
+        'reproduction-numerical': [
+            { key: 'successful', label: 'Successful' },
+            { key: 'issues', label: 'Computational issues' },
+            { key: 'technical_failure', label: 'Technical failure' },
+        ],
+        'reproduction-robustness': [
+            { key: 'robust', label: 'Robust' },
+            { key: 'challenges', label: 'Robustness challenges' },
+        ],
+    };
+    const CI_REPRO_MIN_N = 5;
+
+    function renderCiKindGate(kind) {
+        const contentEl = document.getElementById('ci-content');
+        const reproEl = document.getElementById('ci-repro-content');
+        const placeholderEl = document.getElementById('ci-placeholder');
+        if (kind === 'replication') {
+            if (contentEl) contentEl.style.display = '';
+            if (CI.loaded) renderAggregate();
+            if (reproEl) reproEl.style.display = 'none';
+            if (placeholderEl) placeholderEl.style.display = 'none';
+            return;
+        }
+        if (contentEl) contentEl.style.display = 'none';
+
+        const buckets = CI_REPRO_BUCKETS[kind] || [];
+        const data = CI.repro && CI.repro[kind];
+        const totalOriginals = data
+            ? buckets.reduce((sum, b) => sum + ((data[b.key] && data[b.key].n_originals) || 0), 0)
+            : 0;
+        if (!data || totalOriginals < CI_REPRO_MIN_N) {
+            if (reproEl) reproEl.style.display = 'none';
+            if (placeholderEl) {
+                placeholderEl.textContent =
+                    `Not enough reproductions with citation data yet (n=${totalOriginals}; need at least ${CI_REPRO_MIN_N}).`;
+                placeholderEl.style.display = '';
+            }
+            return;
+        }
+        if (placeholderEl) placeholderEl.style.display = 'none';
+        if (reproEl) reproEl.style.display = '';
+        const tbody = document.querySelector('#ci-repro-table tbody');
+        if (tbody) {
+            tbody.innerHTML = buckets.map(b => {
+                const row = data[b.key] || {};
+                return '<tr>' +
+                    '<td>' + escapeHtml(b.label) + '</td>' +
+                    '<td>' + (row.n_originals || 0).toLocaleString() + '</td>' +
+                    '<td>' + (row.n_citations_to_original || 0).toLocaleString() + '</td>' +
+                    '<td>' + (row.n_citations_to_reproduction || 0).toLocaleString() + '</td>' +
+                    '<td>' + (row.n_cocitations || 0).toLocaleString() + '</td>' +
+                '</tr>';
+            }).join('');
+        }
+    }
+
+    // Immediate "Loading…" state shown on init, before the three fetches resolve.
+    // Cleared by renderKPIs/renderAggregate/renderTable on success, or replaced by
+    // showPlaceholder on failure. Mirrors the mc-loading/ao-loading patterns.
+    function showLoading() {
+        const kpis = document.getElementById('kpis');
+        if (kpis) kpis.innerHTML = `<div style="padding:24px;text-align:center;color:var(--flora-muted);grid-column:1 / -1">⏳ Loading citation data…</div>`;
+        ['plot-cit', 'plot-cocit'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--flora-muted)">Loading…</div>';
+        });
+        const tbody = document.querySelector('#originals-table tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--flora-muted)">Loading…</td></tr>';
     }
 
     function showPlaceholder() {
@@ -142,19 +242,9 @@
         let html;
         const hasModel = model.att != null && Number.isFinite(model.att);
         if (hasModel) {
-            const pctNum = (Math.exp(model.att) - 1) * 100;
-            const ci = (model.att_ci || []).filter(v => v != null && Number.isFinite(v));
-            const ciLNum = ci.length === 2 ? (Math.exp(ci[0]) - 1) * 100 : null;
-            const ciHNum = ci.length === 2 ? (Math.exp(ci[1]) - 1) * 100 : null;
-            const ciL = ciLNum !== null ? ciLNum.toFixed(1) : '?';
-            const ciH = ciHNum !== null ? ciHNum.toFixed(1) : '?';
-            const notSig = ciLNum !== null && ciHNum !== null && ciLNum < 0 && ciHNum > 0;
-            const direction = pctNum >= 0 ? 'higher' : 'lower';
-            const gloss = '<span class="gloss" tabindex="0">Average post-replication effect on citations<span class="gloss-tip">Compares citation counts in the years after the first replication to the year just before it (t = -1), controlling for study and year fixed effects.</span></span>';
-            html = `<strong>${gloss}:</strong>
-                citations were an estimated <strong>${Math.abs(pctNum).toFixed(1)}% ${direction}</strong> after the first replication than in the year before it
-                (95% CI: ${ciL}%, ${ciH}%)${notSig ? ' — <span class="muted">not statistically distinguishable from no change</span>' : ''}
-                · <span class="muted">based on ${model.n_units} originals</span>`;
+            const interval = model.att_ci || [];
+            const ci = interval.length === 2 && interval.every(Number.isFinite) ? ` (95% CI ${interval[0].toFixed(3)} to ${interval[1].toFixed(3)})` : '';
+            html = `<strong>Adjusted post-replication association:</strong> ${model.att.toFixed(3)} log(1 + citations) units${ci}, based on ${model.n_units} originals. This is not a percentage change in raw citations or evidence that replication caused the change.`;
         } else if (desc.n_units && desc.n_units.length) {
             const maxN = Math.max(...desc.n_units);
             html = `<strong>Descriptive trajectory shown.</strong>
@@ -166,6 +256,7 @@
     }
 
     function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome) {
+        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome)); return; }
         const desc = data.descriptive || {}; const model = data[modelField] || {};
         const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
         const traces = [];
@@ -185,51 +276,28 @@
                 hovertemplate: 't=%{x}: N=%{y}<extra></extra>'
             });
         }
-        if (model.event_time && model.estimate && model.estimate.some(v => v != null && Number.isFinite(v))) {
-            const refIdx = desc.event_time ? desc.event_time.indexOf(-1) : -1;
-            const baseline = refIdx >= 0 ? desc[descField][refIdx] : null;
-            if (baseline) {
-                traces.push({
-                    x: model.event_time,
-                    y: model.estimate.map(e => e == null || !Number.isFinite(e) ? null : Math.exp(e) * baseline),
-                    type: 'scatter', mode: 'lines',
-                    line: { color: plotlyTheme().font, width: 1.5, dash: 'dot' },
-                    name: 'Model fit (OLS)', hoverinfo: 'skip'
-                });
-            }
+        const modelId = divId + '-model';
+        let modelEl = document.getElementById(modelId);
+        if (!modelEl) {
+            modelEl = document.createElement('div'); modelEl.id = modelId; modelEl.className = 'coefficient-plot';
+            document.getElementById(divId).insertAdjacentElement('afterend', modelEl);
         }
-
-        // ETWFE overlay (optional, only shown when fect_results.json exists)
-        const fectKey = modelField === 'citations_model' ? 'citations' : 'cocitations';
-        const fect = CI.fect && CI.fect[outcome] && CI.fect[outcome][fectKey];
-        if (fect && fect.event_time && fect.event_time.length > 0) {
-            const refIdx = desc.event_time ? desc.event_time.indexOf(-1) : -1;
-            const baseline = refIdx >= 0 ? desc[descField][refIdx] : 0;
-            const fectColor = '#4a74b4';
-            const fectColorAlpha = 'rgba(74,116,180,0.15)';
-            // CI band: lower bound first (invisible), then upper bound fills back to it
-            traces.push({
-                x: fect.event_time,
-                y: fect.att_lo.map(v => baseline + (v || 0)),
-                type: 'scatter', mode: 'lines',
-                line: { width: 0 }, showlegend: false,
-                hoverinfo: 'skip', name: '_fect_lo'
-            });
-            traces.push({
-                x: fect.event_time,
-                y: fect.att_hi.map(v => baseline + (v || 0)),
-                type: 'scatter', mode: 'lines', fill: 'tonexty',
-                fillcolor: fectColorAlpha, line: { width: 0 },
-                showlegend: false, hoverinfo: 'skip', name: '_fect_hi'
-            });
-            traces.push({
-                x: fect.event_time,
-                y: fect.att_est.map(v => baseline + (v || 0)),
-                type: 'scatter', mode: 'lines',
-                line: { color: fectColor, width: 2, dash: 'dashdot' },
-                name: `ETWFE (n=${fect.n_units})`,
-                hovertemplate: 't=%{x}: %{y:.2f}<extra>ETWFE causal est.</extra>'
-            });
+        const valid = (model.event_time || []).map((x,i) => ({x, y:model.estimate?.[i], lo:model.ci_low?.[i], hi:model.ci_high?.[i]}))
+            .filter(p => [p.y,p.lo,p.hi].every(v => typeof v === 'number' && Number.isFinite(v)));
+        if (valid.length) {
+            const t = plotlyTheme();
+            FloraCharts.plot(modelId, [{name:'OLS coefficient (95% CI)', x:valid.map(p=>p.x), y:valid.map(p=>p.y),
+                type:'scatter', mode:'markers', error_y:{type:'data', symmetric:false,
+                    array:valid.map(p=>p.hi-p.y), arrayminus:valid.map(p=>p.y-p.lo)}, marker:{color:t.font}}], {
+                title:{text:'Adjusted association: log(1 + count)', font:{size:14}}, height:340,
+                xaxis:{title:'Years from first replication', automargin:true, color:t.font},
+                yaxis:{title:'Coefficient (reference: year −1)', zeroline:true, zerolinecolor:t.font, automargin:true, color:t.font},
+                margin:{t:45,r:20,b:60,l:65}, plot_bgcolor:t.plot,paper_bgcolor:t.paper,font:{color:t.font},
+            }, {responsive:true,displayModeBar:false});
+        } else {
+            if (modelEl.data) Plotly.purge(modelEl);
+            modelEl.textContent = 'No fitted model for this selection.';
+            document.getElementById(modelId+'-data')?.remove();
         }
 
         if (traces.length === 0) {
@@ -252,7 +320,7 @@
             font: { family: 'Inter, sans-serif', size: 12, color: t.font },
             legend: { orientation: 'h', y: -0.22, font: { color: t.font } }
         };
-        Plotly.newPlot(divId, traces, layout, { displayModeBar: false, responsive: true });
+        FloraCharts.plot(divId, traces, layout, { displayModeBar: false, responsive: true });
     }
 
     function renderOutcomeBar(outcomeMix, nReplications) {
@@ -274,7 +342,7 @@
     }
 
     const PUBSTATUS_LABELS = {
-        individual: 'Individual', large_project: 'Large project (>3 originals)', unpublished: 'Preprint only'
+        individual: 'Up to 3 targets', large_project: 'Multiple-target report (>3 targets)'
     };
     const BREAKDOWN_OUTCOME_LABELS = { successful: 'Successful', failed: 'Failed', mixed: 'Mixed' };
 
@@ -306,7 +374,7 @@
         const bd = CI.cocitBreakdown;
         if (!bd) { el.innerHTML = '<p class="muted">Not available yet — this analysis is included from the next scheduled data refresh.</p>'; return; }
         el.innerHTML =
-            renderBreakdownTable('By publication status of the replication', bd.pub_status || {}, PUBSTATUS_LABELS) +
+            renderBreakdownTable('By replication report size', bd.pub_status || {}, PUBSTATUS_LABELS) +
             renderBreakdownTable('By outcome of the replication', bd.outcome || {}, BREAKDOWN_OUTCOME_LABELS);
     }
 
@@ -362,13 +430,13 @@
                 <tr data-doi="${escapeHtml(s.doi)}">
                     <td>
                         <div class="title-cell">${escapeHtml(s.title || '(untitled)')}</div>
-                        <div class="author-cell">${escapeHtml(formatAuthors(s.author))} ${s.venue ? '· ' + escapeHtml(s.venue) : ''}</div>
+                        <div class="author-cell">${escapeHtml(formatAuthors(s.author))} ${s.venue && s.venue !== 'nan' ? '· ' + escapeHtml(s.venue) : ''}</div>
                     </td>
                     <td>${s.year || '—'}</td>
                     <td>${renderOutcomeBar(s.outcome_mix, s.n_replications)}</td>
                     <td>${(s.n_citations || 0).toLocaleString()}</td>
                     <td>${renderCocitCell(s)}</td>
-                    <td>›</td>
+                    <td><button type="button" class="timeline-open" aria-label="Open citation timeline for ${escapeHtml(s.title || s.doi)}">Timeline</button></td>
                 </tr>`;
         }).join('');
 
@@ -383,8 +451,55 @@
         pag.innerHTML = pHtml;
     }
 
-    function showStudy(doi) {
-        const s = CI.studies[doi]; if (!s) return;
+    // Fetch one original's full record (citation timeline and replication list),
+    // keeping it for the rest of the session.
+    async function loadStudy(entry) {
+        if (CI.studyCache[entry.doi]) return CI.studyCache[entry.doi];
+        const res = await fetch('data/originals/' + encodeURIComponent(entry.file));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const s = await res.json();
+        CI.studyCache[entry.doi] = s;
+        return s;
+    }
+
+    function modalHeader(entry) {
+        return `<h2>${escapeHtml(entry.title || '(untitled)')}</h2>
+                <p class="muted">${escapeHtml(formatAuthors(entry.author))} · ${entry.year || '?'}
+                    ${entry.venue && entry.venue !== 'nan' ? '· ' + escapeHtml(entry.venue) : ''}<br>
+                    <a href="https://doi.org/${escapeHtml(entry.doi)}" target="_blank">${escapeHtml(entry.doi)}</a></p>`;
+    }
+
+    async function showStudy(doi) {
+        const entry = CI.index && CI.index.find(s => s.doi === doi);
+        if (!entry) return;
+        CI.currentDoi = doi;
+        CI.lastFocus = document.activeElement;
+        const body = document.getElementById('ci-modal-body');
+        body.innerHTML = `<div class="modal-body">${modalHeader(entry)}
+            <p class="muted" style="padding:40px 0;text-align:center">Loading citation timeline…</p></div>`;
+        document.getElementById('ci-modal').hidden = false;
+        setBackgroundInert(true);
+        document.getElementById('ci-modal-close').focus();
+        // Reflect the open chart in the address bar so it's directly shareable.
+        history.replaceState(null, '', citationLink(doi));
+
+        let s;
+        try {
+            s = await loadStudy(entry);
+        } catch (e) {
+            console.error('Citation timeline load failed:', e);
+            if (CI.currentDoi === doi) {
+                body.innerHTML = `<div class="modal-body">${modalHeader(entry)}
+                    <p class="muted" style="padding:40px 0;text-align:center">Could not load the citation timeline for this study.</p></div>`;
+            }
+            return;
+        }
+        // A second row may have been clicked while this fetch was in flight.
+        if (CI.currentDoi !== doi) return;
+        renderStudy(s);
+    }
+
+    function renderStudy(s) {
         const reps = (s.replications || []).map(r => `
             <li>
                 <span class="outcome-badge ${r.outcome}">${r.outcome}</span>
@@ -394,10 +509,7 @@
             </li>`).join('');
         document.getElementById('ci-modal-body').innerHTML = `
             <div class="modal-body">
-                <h2>${escapeHtml(s.title || '(untitled)')}</h2>
-                <p class="muted">${escapeHtml(formatAuthors(s.author))} · ${s.year || '?'}
-                    ${s.venue ? '· ' + escapeHtml(s.venue) : ''}<br>
-                    <a href="https://doi.org/${escapeHtml(s.doi)}" target="_blank">${escapeHtml(s.doi)}</a></p>
+                ${modalHeader(s)}
                 <button type="button" class="ci-share-btn" data-doi="${escapeHtml(s.doi)}">🔗 Copy link to this chart</button>
                 <h3 style="margin-top:18px">Citation timeline</h3>
                 ${s.cocit_conflated ? `<p class="cocit-warning">⚠️ Co-citation can't be measured for ${s.cocit_conflated > 1 ? 'some replications of ' : ''}this study: OpenCitations groups the original and ${s.cocit_conflated > 1 ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p>` : ''}
@@ -405,19 +517,35 @@
                 <h3 style="margin-top:18px">Replications (${s.n_replications})</h3>
                 <ul class="rep-list">${reps}</ul>
             </div>`;
+        // Remember what had focus so we can restore it when the modal closes.
         document.getElementById('ci-modal').hidden = false;
+        // Move focus into the modal for keyboard/screen-reader users.
+        const closeBtn = document.getElementById('ci-modal-close');
+        if (closeBtn) closeBtn.focus();
         // Reflect the open chart in the address bar so it's directly shareable.
         history.replaceState(null, '', citationLink(s.doi));
         drawStudyTimeline(s);
     }
 
+    function setBackgroundInert(value) {
+        document.querySelectorAll('body > .top-bar, body > main, body > .footer-bar').forEach(el => el.inert = value);
+    }
+
     function closeModal() {
-        document.getElementById('ci-modal').hidden = true;
+        const modal = document.getElementById('ci-modal');
+        if (modal.hidden) return;
+        modal.hidden = true;
+        setBackgroundInert(false);
+        CI.currentDoi = null;
         // Drop ?doi= but keep the user on the Citation Impact tab.
-        history.replaceState(null, '', new URL('./?tab=citations', window.location.href).href);
+        const url = new URL(location.href);url.searchParams.delete('doi');url.searchParams.set('tab','citations');history.replaceState(null,'',url);
+        // Return focus to whatever opened the modal.
+        if (CI.lastFocus && typeof CI.lastFocus.focus === 'function') CI.lastFocus.focus();
+        CI.lastFocus = null;
     }
 
     function drawStudyTimeline(s) {
+        if (typeof Plotly === 'undefined') { chartLibUnavailable('study-plot', 'Plotly', () => drawStudyTimeline(s)); return; }
         const tl = s.timeline || [];
         if (tl.length === 0) {
             document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--flora-muted)">No citation data available</div>';
@@ -428,7 +556,8 @@
             { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: '#9ca3af' } },
             { x: years, y: tl.map(t => t.with_failed),     name: 'Co-cites failed rep',    type: 'bar', marker: { color: OUTCOME_COLORS.failed } },
             { x: years, y: tl.map(t => t.with_mixed),      name: 'Co-cites mixed rep',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
-            { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } }
+            { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } },
+            { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Co-cites multiple outcome categories', type: 'bar', marker: {color:'#7851a9'} }
         ];
         const shapes = []; const annotations = [];
         (s.replications || []).forEach((r, i) => {
@@ -446,7 +575,7 @@
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
             font: { family: 'Inter, sans-serif', size: 12, color: t.font }
         };
-        Plotly.newPlot('study-plot', traces, layout, { displayModeBar: false, responsive: true });
+        FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true });
     }
 
     function bindEvents() {
@@ -470,7 +599,9 @@
             renderTable();
         }
         document.querySelectorAll('#originals-table thead th[data-sort]').forEach(th => {
+            th.tabIndex = 0; th.setAttribute('role','button');
             th.addEventListener('click', () => sortBy(th.dataset.sort));
+            th.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') {e.preventDefault();sortBy(th.dataset.sort);} });
         });
         document.querySelectorAll('.cocit-sort-btn').forEach(btn => {
             btn.addEventListener('click', () => sortBy(btn.dataset.sort));
@@ -496,6 +627,17 @@
         document.getElementById('ci-modal').addEventListener('click', e => {
             if (e.target.id === 'ci-modal') closeModal();
         });
+        // Escape closes the modal when it's open.
+        document.addEventListener('keydown', e => {
+            const modal = document.getElementById('ci-modal');
+            if (e.key === 'Tab' && !modal.hidden) {
+                const items = [...modal.querySelectorAll('button, a[href], input, select, summary, [tabindex="0"]')].filter(el => el.getClientRects().length);
+                const first = items[0], last = items[items.length - 1];
+                if (e.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) { e.preventDefault(); last?.focus(); }
+                else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { e.preventDefault(); first?.focus(); }
+            }
+            if (e.key === 'Escape' && !document.getElementById('ci-modal').hidden) closeModal();
+        });
     }
 
     // Memoised loader so the deep-link handler can await the same in-flight
@@ -513,17 +655,18 @@
             .replace(/^doi:/, '');
     }
 
-    // Resolve a (possibly prefixed) DOI to the matching key in CI.studies.
+    // Resolve a (possibly prefixed) DOI to the matching key in the index.
     function findStudyDoi(doi) {
         const t = normalizeDoi(doi);
-        if (!t || !CI.studies) return null;
-        return Object.keys(CI.studies).find(d => normalizeDoi(d) === t) || null;
+        if (!t || !CI.index) return null;
+        const hit = CI.index.find(s => normalizeDoi(s.doi) === t);
+        return hit ? hit.doi : null;
     }
 
     // Build the shareable ?tab=citations&doi=… URL on the main page, relative
     // so it works under the GitHub Pages project path (/flora-explorer/).
     function citationLink(doi) {
-        return new URL('./?tab=citations&doi=' + encodeURIComponent(doi), window.location.href).href;
+        const url = new URL(location.href); url.searchParams.set('tab','citations');url.searchParams.set('doi',doi);return url.href;
     }
 
     // Switch to the Citation Impact tab, ensure data is loaded, then open the
@@ -534,7 +677,7 @@
         if (!matchDoi) return false;
         const tabBtn = document.getElementById('citation-tab');
         if (tabBtn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-        showStudy(matchDoi);
+        await showStudy(matchDoi);
         return true;
     }
 
@@ -546,6 +689,8 @@
 
     // Lazy-load when the user opens the tab
     document.getElementById('citation-tab').addEventListener('shown.bs.tab', ensureInit);
+
+    setupStudyTypeSelect('ci-study-type', kind => { ciKind = kind; renderCiKindGate(kind); });
 
     // Open a study popup straight away if arrived via /citations/?doi=…
     handleDeepLink();

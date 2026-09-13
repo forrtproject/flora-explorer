@@ -29,6 +29,19 @@ out_meta  <- file.path(root, "data", "impact_factor_meta.json")
 
 if (!file.exists(data_csv)) stop("flora_with_omc.csv not found at ", data_csv)
 
+# ── Outcome classifier ───────────────────────────────────────────────────────
+# Faithful port of classifyOutcome() in assets/app.js so all tabs agree on how
+# free-text outcome labels map to categories. Returns one of
+# "successful" / "failed" / "mixed" / "inconclusive" / "other".
+classify_outcome <- function(x) {
+  mapping <- c(successful="successful", replicated="successful", failed="failed",
+    "not replicated"="failed", mixed="mixed", partial="mixed", inconclusive="inconclusive",
+    "statistically successful but flawed"="qualified")
+  result <- unname(mapping[trimws(tolower(x))])
+  result[is.na(result)] <- "other"
+  result
+}
+
 # ── Load & enrich ────────────────────────────────────────────────────────────
 raw <- read.csv(data_csv, stringsAsFactors = FALSE, na.strings = c("", "NA"))
 
@@ -48,44 +61,63 @@ raw$discipline   <- lookup$discipline[match(raw$journal_norm, lookup$journal_nor
 raw$discipline   <- ifelse(is.na(raw$discipline), "Uncategorized", raw$discipline)
 
 raw$impact_factor <- suppressWarnings(as.numeric(raw$impact_factor))
-df_all  <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 35, ]
-oc_all  <- tolower(df_all$outcome)
+
+# This analysis is replications only - reproductions are coded on different dimensions
+# (computational/robustness, not successful/failed/mixed) and are handled separately by
+# compute_omc.py's compute_reproduction_impact_stats(), written to
+# data/impact_factor_reproductions.json. Without this filter, reproduction rows silently
+# inflated n_total/n_journals/n_disciplines here (their outcome text never matched
+# "successful"/"failed"/etc, so they never affected the outcome counts, but were still
+# counted as rows).
+raw$type_lc     <- tolower(raw$type)
+is_reproduction <- grepl("reproduc", raw$type_lc)
+is_replication  <- grepl("replication", raw$type_lc) & !is_reproduction
+
+df_all  <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 35 & is_replication, ]
+df_all$outcome_class <- classify_outcome(df_all$outcome)
+oc_all <- df_all$outcome_class
 
 # ── Overview stats ───────────────────────────────────────────────────────────
 overview <- list(
   n_total       = nrow(df_all),
-  n_success     = sum(oc_all == "successful",   na.rm = TRUE),
-  n_failed      = sum(oc_all == "failed",       na.rm = TRUE),
-  n_mixed       = sum(oc_all == "mixed",        na.rm = TRUE),
-  n_inconclusive= sum(oc_all == "inconclusive", na.rm = TRUE),
+  n_input       = sum(is_replication),
+  n_excluded    = sum(is_replication) - nrow(df_all),
+  n_classified  = sum(oc_all %in% c("successful", "failed", "mixed")),
+  n_success     = sum(oc_all == "successful"),
+  n_failed      = sum(oc_all == "failed"),
+  n_mixed       = sum(oc_all == "mixed"),
+  n_inconclusive = sum(oc_all == "inconclusive"),
+  n_qualified = sum(oc_all == "qualified"),
+  n_other = sum(oc_all == "other"),
   n_journals    = length(unique(df_all$journal_o[!is.na(df_all$journal_o) &
                                                    nchar(df_all$journal_o) > 0])),
   n_disciplines = length(unique(df_all$discipline[df_all$discipline != "Uncategorized"]))
 )
 
-# ── Histogram data (bin width 0.5, 0–20) ─────────────────────────────────────
-breaks    <- seq(0, 20, by = 0.5)
+# ── Histogram data (bin width 0.5, 0–35) ─────────────────────────────────────
+breaks    <- seq(0, 35, by = 0.5)
 hist_data <- lapply(seq_len(length(breaks) - 1), function(i) {
   lo <- breaks[i]; hi <- breaks[i + 1]
   sub <- df_all[df_all$impact_factor >= lo & df_all$impact_factor < hi, ]
-  oc  <- tolower(sub$outcome)
-  list(bin_lo       = lo,
-       bin_hi       = hi,
-       successful   = sum(oc == "successful",   na.rm = TRUE),
-       failed       = sum(oc == "failed",       na.rm = TRUE),
-       mixed        = sum(oc == "mixed",        na.rm = TRUE),
-       inconclusive = sum(oc == "inconclusive", na.rm = TRUE))
+  oc  <- sub$outcome_class
+  list(bin_lo     = lo,
+       bin_hi     = hi,
+       successful = sum(oc == "successful"),
+       failed     = sum(oc == "failed"),
+       mixed      = sum(oc == "mixed"),
+       inconclusive = sum(oc == "inconclusive"), qualified = sum(oc == "qualified"), other = sum(oc == "other"))
 })
 
 # ── GAM model ────────────────────────────────────────────────────────────────
 df  <- df_all[oc_all %in% c("successful", "failed"), ]
-df$outcome_binary <- ifelse(tolower(df$outcome) == "failed", 0L, 1L)
+df$outcome_binary <- ifelse(df$outcome_class == "failed", 0L, 1L)
 df$omc_log        <- log(df$impact_factor + 1)
 
 stats_out <- list(edf = NA, chi_sq = NA, p_val = NA, r2 = NA, n_model = nrow(df))
 gam_curve <- list()
 jitter    <- list()
 
+set.seed(20260913)
 if (nrow(df) >= 30) {
   gam_fit <- tryCatch(
     gam(outcome_binary ~ s(omc_log), family = binomial, data = df),
@@ -138,6 +170,7 @@ writeLines(toJSON(result, auto_unbox = TRUE, pretty = FALSE), out_data)
 meta <- list(
   last_updated    = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
   n_rows_with_omc = overview$n_total,
+  input_snapshot = fromJSON(file.path(root, "data", "flora_with_omc_meta.json"))$last_updated,
   source          = "scripts/render_impact_factor.R"
 )
 writeLines(toJSON(meta, auto_unbox = TRUE, pretty = TRUE), out_meta)
