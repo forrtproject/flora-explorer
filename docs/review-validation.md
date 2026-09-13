@@ -40,8 +40,8 @@ Verified against the committed snapshots on 13 September 2026:
 
 - Eight browser/data acceptance suites passed, including CSV export and asynchronous restoration of shared citation filters. Browser scenarios: desktop/mobile search, DOI and author/year input, zero matches, reloads, evidence controls, model switching, timeline deep links, interval traces, all seven tabs, percentages, venue evidence and responsive redraws.
 - Generated-data invariants: each timeline reconciles with citation and co-citation totals; all group outcome counts and Mean Citedness histogram bins reconcile with their displayed populations.
-- Thirteen Python regression tests passed: qualified and two-dimensional outcomes, venue evidence, mutually exclusive citation counts, failed reproduction lookups, shared reproduction reports and preservation of outputs after an empty run.
-- Additional regressions cover delayed Chart.js loading and chart ownership, FAQ attribute escaping, strict journal-name matching and cached hits, safe enrichment timeouts, canonical report keys, invalid RRDB responses, preserved report-size labels, and citation request budgets.
+- Fifteen Python regression tests passed: qualified and two-dimensional outcomes, venue evidence, mutually exclusive citation counts, failed reproduction lookups, shared reproduction reports and preservation of outputs after an empty run.
+- Additional regressions cover delayed Chart.js loading and chart ownership, FAQ attribute escaping, strict journal-name matching and cached hits, safe enrichment timeouts, canonical report keys, invalid RRDB responses, preserved report-size labels, citation request budgets, invalid reproduction outcome sheets, and merged-DOI reproduction records.
 - Exact search totals use a fixed, documented four-pair fixture. Current Mean Citedness totals are independently reconciled with the enriched CSV; venue counts are checked against the current FLoRA CSV.
 - JavaScript/Python syntax checks and R parsing/rendering.
 

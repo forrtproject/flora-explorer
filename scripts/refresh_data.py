@@ -278,7 +278,11 @@ def fetch_reproduction_outcomes() -> dict:
     reading the locally-patched data/flora.csv."""
     r = requests.get(REPRODUCTIONS_GSHEET_URL, timeout=60)
     r.raise_for_status()
-    gsheet = pd.read_csv(io.StringIO(r.text), low_memory=False)
+    gsheet = pd.read_csv(io.StringIO(r.text), low_memory=False).fillna("")
+    required = {"validation", "doi_r", "outcome_computational", "outcome_robustness"}
+    missing = required - set(gsheet.columns)
+    if missing:
+        raise ValueError(f"Reproduction outcome sheet is missing columns: {sorted(missing)}")
     by_doi: dict[str, str] = {}
     for _, row in gsheet.iterrows():
         if str(row.get("validation") or "").strip().lower() == "validated - discarded":
@@ -290,6 +294,8 @@ def fetch_reproduction_outcomes() -> dict:
         doi_key = doi_clean(row.get("doi_r", ""))
         if doi_key:
             by_doi[doi_key] = f"{computational}, {robustness}"
+    if not by_doi:
+        raise ValueError("Reproduction outcome sheet has no usable outcome records")
     return by_doi
 
 
@@ -931,6 +937,7 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
     No reproduction event-study model is fitted.
     """
     citation_cache = {}
+    entity_cache = {}
     def required_citations(doi):
         if doi not in citation_cache:
             if should_stop(60):
@@ -954,7 +961,18 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
                 rep_citing = set()
                 for _, row in grp.iterrows():
                     if row["doi_r"] != doi_o:
-                        rep_citing.update(required_citations(row["doi_r"]))
+                        cr = required_citations(row["doi_r"])
+                        if cr and cr == co:
+                            if doi_o not in entity_cache:
+                                if should_stop(105):
+                                    raise RuntimeError("Time budget exhausted; retaining previous reproduction summary")
+                                ids = oc_entity_ids(doi_o)
+                                if not ids:
+                                    raise RuntimeError("Cannot verify merged citation records; retaining previous reproduction summary")
+                                entity_cache[doi_o] = ids
+                            if f"doi:{row['doi_r']}" in entity_cache[doi_o]:
+                                continue
+                        rep_citing.update(cr)
                 n_cocitations += sum(1 for c in co if c in rep_citing)
             out[b] = {
                 "n_originals": int(sub["doi_o"].nunique()),
