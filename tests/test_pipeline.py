@@ -58,7 +58,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_shared_reproduction_report_is_counted_once(self):
         frame=pd.DataFrame([dict(doi_o=f'10.test/{i}',doi_r='10.test/reproduction',computational_bucket='successful',robustness_bucket='robust') for i in [1,2]])
-        with patch.object(pipeline,'fetch_oc_citations',return_value=[{'citing':'one','year':2020}]):
+        with patch.object(pipeline,'fetch_oc_citations',return_value=[{'citing':'one','year':2020}]), patch.object(pipeline,'oc_entity_ids',side_effect=lambda doi:{'doi:'+doi}):
             data=pipeline.compute_reproduction_citations(frame)['reproduction-numerical']['successful']
         self.assertEqual(data['n_citations_to_reproduction'],1)
         self.assertEqual(data['n_citations_to_original'],2)
@@ -156,6 +156,26 @@ class PipelineTests(unittest.TestCase):
         repro=[c.parse_reproduction_outcome(r['outcome']) for r in eligible if 'reproduc' in r['type'].lower()]
         for index,kind,buckets in [(0,'reproduction-numerical',{'successful','issues','technical_failure'}),(1,'reproduction-robustness',{'robust','challenges'})]:
             self.assertEqual(reproductions[kind]['overview']['n_total'],sum(d[index] in buckets for d in repro))
+
+    def test_reproduction_outcome_sheet_rejects_malformed_or_unusable_records(self):
+        header='validation,doi_r,outcome_computational,outcome_robustness\n'
+        for text in ['error\nUnavailable\n',header,header+',10.test/a,,\n',header+'validated - discarded,10.test/a,computationally reproducible,robust\n']:
+            with patch.object(pipeline.requests,'get',return_value=Mock(text=text)):
+                with self.assertRaises(ValueError): pipeline.fetch_reproduction_outcomes()
+        with patch.object(pipeline.requests,'get',return_value=Mock(text=header+',https://doi.org/10.test/a,computationally reproducible,\n')):
+            self.assertEqual(pipeline.fetch_reproduction_outcomes(),{'10.test/a':'computationally reproducible, '})
+
+    def test_merged_reproduction_dois_are_not_cocitations(self):
+        frame=pd.DataFrame([dict(doi_o='original',doi_r='report',computational_bucket='successful',robustness_bucket='robust')])
+        for ids,expected in [({'doi:original','doi:report','omid:br/one'},0),({'doi:original','omid:br/one'},1)]:
+            with patch.object(pipeline,'fetch_oc_citations',return_value=[{'citing':'shared','year':2020}]), patch.object(pipeline,'oc_entity_ids',return_value=ids) as fetch:
+                result=pipeline.compute_reproduction_citations(frame)
+                self.assertEqual(result['reproduction-numerical']['successful']['n_cocitations'],expected)
+                self.assertEqual(result['reproduction-robustness']['robust']['n_cocitations'],expected)
+                fetch.assert_called_once_with('original')
+        with patch.object(pipeline,'fetch_oc_citations',return_value=[{'citing':'shared','year':2020}]), patch.object(pipeline,'oc_entity_ids',return_value=set()):
+            with self.assertRaisesRegex(RuntimeError,'Cannot verify merged'):
+                pipeline.compute_reproduction_citations(frame)
 
 if __name__=='__main__':
     unittest.main()
