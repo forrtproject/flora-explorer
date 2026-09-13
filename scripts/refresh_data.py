@@ -9,11 +9,13 @@ Optimised for GitHub Actions:
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +23,8 @@ import pandas as pd
 import requests
 import statsmodels.api as sm
 from tqdm import tqdm
+
+from split_originals import write_split
 
 # ------------------------------------------------------------------ config
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +34,10 @@ DATA_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
 
 FLORA_URL = "https://raw.githubusercontent.com/forrtproject/FReD-data/main/output/flora.csv"
+REPRODUCTIONS_GSHEET_URL = (
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vT0VnLyrf9GCYXtN6l1DgaoLlg6H5r-08Op9eJzSripS1QBSHL031Arc27yUDe0YY7cB4TOnYMm2Vh1"
+    "/pub?gid=984458430&single=true&output=csv"
+)
 OC_BASE = "https://opencitations.net/index/api/v2"
 OC_META = "https://opencitations.net/meta/api/v1"
 OC_KEY = os.environ.get("OC_API_KEY", "").strip()
@@ -43,7 +51,15 @@ MAX_RUNTIME_SECONDS = int(os.environ.get("MAX_RUNTIME_SECONDS", 5 * 3600))
 START_TIME = time.time()
 
 BASE_DELAY = 0.7
+MAX_429_ATTEMPTS = 4
 OUTCOMES_KEEP = {"successful", "failed", "mixed"}
+
+# Accumulates run-level problems so meta.json can flag an incomplete run.
+RUN_STATS = {
+    "rep_fetch_error_dois": [],   # replications whose citations we couldn't fetch
+    "originals_errored": 0,       # originals skipped because a replication fetch failed
+    "originals_skipped": 0,       # originals skipped because their own fetch failed
+}
 
 session = requests.Session()
 session.headers.update({"User-Agent": f"FLoRA-Explorer/1.0 ({EMAIL})"})
@@ -77,11 +93,80 @@ def cache_path(kind: str, doi: str) -> Path:
     return CACHE_DIR / kind / f"{doi_slug(doi)}.json"
 
 
-def cache_fresh(p: Path) -> bool:
+def read_cache(p: Path) -> list | None:
+    """Return the cached rows if the file exists, is in the new wrapped format
+    ({"fetched_at": ISO, "rows": [...]}), and is within the TTL. Returns None
+    for missing, unreadable, TTL-expired, or old-format (bare-list, no
+    fetched_at) files so they refetch once and upgrade to the new format.
+
+    TTL is measured from the embedded `fetched_at` timestamp rather than the
+    file mtime, because a git checkout in CI resets mtime and would otherwise
+    make every cached file look freshly written."""
     if not p.exists():
-        return False
-    age_days = (time.time() - p.stat().st_mtime) / 86400
-    return age_days < CACHE_TTL_DAYS
+        return None
+    try:
+        payload = json.loads(p.read_text())
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or "fetched_at" not in payload:
+        return None  # old bare-list format -> treat as stale, refetch & upgrade
+    try:
+        fetched = datetime.fromisoformat(payload["fetched_at"])
+        age_days = (datetime.now(timezone.utc) - fetched).total_seconds() / 86400
+    except Exception:
+        return None
+    if age_days >= CACHE_TTL_DAYS:
+        return None
+    rows = payload.get("rows")
+    return rows if isinstance(rows, list) else None
+
+
+def write_cache(p: Path, rows: list) -> None:
+    p.write_text(json.dumps({
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "rows": rows,
+    }))
+
+
+def citing_key(citing: str) -> str:
+    """Extract a stable identity key from an OpenCitations v2 composite `citing`
+    string like 'omid:br/06... 10.1016/... openalex:w... pmid:...'. Prefer the
+    OMID token (OpenCitations' canonical resource id); fall back to the DOI
+    token (starts with '10.'); else the whole string lowercased. Idempotent, so
+    it is safe to apply both when caching and when reading cached rows."""
+    if not citing:
+        return ""
+    toks = str(citing).strip().split()
+    for t in toks:
+        if t.startswith("omid:"):
+            return t
+    for t in toks:
+        tl = t[4:] if t.startswith("doi:") else t
+        if tl.startswith("10."):
+            return tl.lower()
+    return str(citing).strip().lower()
+
+
+def retry_after_seconds(resp, default: float, max_wait: float = 120.0) -> float:
+    """Honor a Retry-After header, which may be either delta-seconds or an
+    HTTP-date. Clamp to a sane maximum and fall back to `default` otherwise."""
+    ra = resp.headers.get("Retry-After")
+    if ra:
+        ra = ra.strip()
+        try:
+            return min(max(float(ra), 0.0), max_wait)
+        except ValueError:
+            pass
+        try:
+            when = parsedate_to_datetime(ra)
+            if when is not None:
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                delta = (when - datetime.now(timezone.utc)).total_seconds()
+                return min(max(delta, 0.0), max_wait)
+        except (TypeError, ValueError):
+            pass
+    return default
 
 
 def parse_year(s) -> int | None:
@@ -164,9 +249,62 @@ def clean_for_json(obj):
 
 
 # ------------------------------------------------------------------ FLoRA
-def load_flora() -> pd.DataFrame:
+def fetch_text(url: str, attempts: int = 3, timeout: int = 60) -> str:
+    """GET text via the shared session with a timeout and simple exponential
+    backoff, so a transient blip doesn't hang or fail the long CI job."""
+    last_err = None
+    for attempt in range(1, attempts + 1):
+        try:
+            r = session.get(url, timeout=timeout)
+            r.raise_for_status()
+            return r.text
+        except requests.exceptions.RequestException as e:
+            last_err = e
+            if attempt == attempts:
+                break
+            wait = 2 ** attempt
+            print(f"  retry {attempt}/{attempts} for {url} in {wait}s: {e}")
+            time.sleep(wait)
+    raise SystemExit(f"Failed to fetch {url} after {attempts} attempts: {last_err}")
+
+
+def fetch_reproduction_outcomes() -> dict:
+    """Load the reproductions Google Sheet, returning normalised doi_r -> "computational,
+    robustness" combined outcome string. FReD-data's pipeline now sources reproductions
+    from this two-axis sheet but has a bug where that data never reaches flora.csv's
+    single `outcome` column (bind_rows() silently drops it - see scripts/refresh_flora.py
+    for the full rationale). Until that's fixed upstream, this backfills the same way
+    refresh_flora.py does, since this script fetches FLORA_URL directly rather than
+    reading the locally-patched data/flora.csv."""
+    r = requests.get(REPRODUCTIONS_GSHEET_URL, timeout=60)
+    r.raise_for_status()
+    gsheet = pd.read_csv(io.StringIO(r.text), low_memory=False).fillna("")
+    required = {"validation", "doi_r", "outcome_computational", "outcome_robustness"}
+    missing = required - set(gsheet.columns)
+    if missing:
+        raise ValueError(f"Reproduction outcome sheet is missing columns: {sorted(missing)}")
+    by_doi: dict[str, str] = {}
+    for _, row in gsheet.iterrows():
+        if str(row.get("validation") or "").strip().lower() == "validated - discarded":
+            continue
+        computational = str(row.get("outcome_computational") or "").strip()
+        robustness = str(row.get("outcome_robustness") or "").strip()
+        if not computational and not robustness:
+            continue
+        doi_key = doi_clean(row.get("doi_r", ""))
+        if doi_key:
+            by_doi[doi_key] = f"{computational}, {robustness}"
+    if not by_doi:
+        raise ValueError("Reproduction outcome sheet has no usable outcome records")
+    return by_doi
+
+
+def load_flora_raw() -> pd.DataFrame:
+    """Fetch + parse FLoRA into the common column shape, before any type/outcome
+    filtering - so both filter_replications() and filter_reproductions() can work
+    from the same parsed frame."""
     print("Fetching FLoRA…")
-    df = pd.read_csv(FLORA_URL, low_memory=False)
+    df = pd.read_csv(DATA_DIR / "flora.csv", low_memory=False) if (DATA_DIR / "flora.csv").exists() else pd.read_csv(io.StringIO(fetch_text(FLORA_URL)), low_memory=False)
     print(f"  {len(df)} rows; columns: {list(df.columns)[:14]}…")
 
     def find_col(names, required=True, default=None):
@@ -208,6 +346,24 @@ def load_flora() -> pd.DataFrame:
         "journal_r": df[col_journal_r] if col_journal_r else "",
     })
 
+    is_reproduction = out["type"].str.contains("reproduc", na=False)
+    missing_outcome = out["outcome"].isna() | out["outcome"].isin(["", "na", "nan"])
+    needs_backfill = is_reproduction & missing_outcome
+    if needs_backfill.any():
+        try:
+            by_doi = fetch_reproduction_outcomes()
+            filled = out.loc[needs_backfill, "doi_r"].map(by_doi)
+            out.loc[needs_backfill, "outcome"] = filled.combine_first(out.loc[needs_backfill, "outcome"])
+            print(f"  Backfilled outcome for {filled.notna().sum()}/{needs_backfill.sum()} "
+                  f"reproduction rows from the Google Sheet")
+        except requests.exceptions.RequestException as e:
+            print(f"  ! could not fetch reproduction outcomes ({e}); leaving outcome as-is")
+
+    return out
+
+
+def filter_replications(out: pd.DataFrame) -> pd.DataFrame:
+    all_targets = out.groupby("doi_r")["doi_o"].nunique()
     n0 = len(out)
     out = out[out["type"].str.contains("replication", na=False)
               & ~out["type"].str.contains("reproduc", na=False)]
@@ -215,71 +371,111 @@ def load_flora() -> pd.DataFrame:
     out = out.dropna(subset=["doi_o", "doi_r"]).drop_duplicates(subset=["doi_o", "doi_r"])
     out["journal_r"] = out["journal_r"].replace("", np.nan)
 
-    # Publication status of the replication: "unpublished" (no journal_r —
-    # in practice a preprint or repository entry, since a doi_r is required
-    # to reach this point), "individual" or "large_project" depending on how
-    # many distinct originals share the same replication article (doi_r).
-    n_originals_per_doi_r = out.groupby("doi_r")["doi_o"].nunique()
+    # Report size is based on all recorded pairs, before restricting outcomes.
+    # It does not establish publication or peer-review status.
+    n_originals_per_doi_r = all_targets
     out["n_originals_in_rep"] = out["doi_r"].map(n_originals_per_doi_r)
-    out["pub_status"] = np.where(
-        out["journal_r"].isna(), "unpublished",
-        np.where(out["n_originals_in_rep"] > 3, "large_project", "individual")
-    )
+    out["pub_status"] = np.where(out["n_originals_in_rep"] > 3, "large_project", "individual")
 
     print(f"  Filtered: {n0} → {len(out)} (replications with known outcomes)")
     return out.reset_index(drop=True)
 
 
+def load_flora() -> pd.DataFrame:
+    """Back-compat: raw fetch + the replication filter, exactly as before this
+    was split so build_study_data()'s event-study path is unaffected."""
+    return filter_replications(load_flora_raw())
+
+
+from classification import parse_reproduction_outcome
+
+
+
+def filter_reproductions(out: pd.DataFrame) -> pd.DataFrame:
+    """Reproduction rows with both DOIs present, so their citations can be fetched
+    from OpenCitations the same way as replications. Unlike filter_replications(),
+    outcome is not restricted to a fixed set here - callers bucket by the parsed
+    computational/robustness dimension and drop the rows that carry no verdict on the
+    dimension they're bucketing by."""
+    is_repro = out["type"].str.contains("reproduc", na=False)
+    repro = (out[is_repro]
+             .dropna(subset=["doi_o", "doi_r"])
+             .drop_duplicates(subset=["doi_o", "doi_r"])
+             .copy())
+    dims = repro["outcome"].apply(parse_reproduction_outcome)
+    repro["computational_bucket"] = dims.apply(lambda t: t[0] or "not_coded")
+    repro["robustness_bucket"] = dims.apply(lambda t: t[1] or "not_coded")
+    return repro.reset_index(drop=True)
+
+
 # ------------------------------------------------------------------ OpenCitations
 def fetch_oc_citations(doi: str) -> list[dict] | None:
     cp = cache_path("oc", doi)
-    if cache_fresh(cp):
-        try:
-            return json.loads(cp.read_text())
-        except Exception:
-            pass
+    cached = read_cache(cp)
+    if cached is not None:
+        # Normalise citing ids to the stable key at read time so pre-existing
+        # cache files (which store the full composite string) stay valid.
+        return [{"citing": citing_key(c.get("citing", "")), "year": c.get("year")}
+                for c in cached]
 
     cp.parent.mkdir(exist_ok=True)
     url = f"{OC_BASE}/citations/doi:{doi}"
 
-    for attempt in (1, 2):
+    for attempt in range(1, MAX_429_ATTEMPTS + 1):
+        if should_stop(105):  # 45-second request plus 60 seconds to finish outputs
+            return None
         try:
             r = session.get(url, timeout=45)
         except requests.exceptions.RequestException as e:
-            print(f"  ! network error {doi[:40]}: {e}")
-            return None
+            # Network blips are transient — back off and retry like a 429.
+            if attempt == MAX_429_ATTEMPTS:
+                print(f"  ! network error {doi[:40]} (persistent): {e}")
+                return None
+            wait = BASE_DELAY * (2 ** attempt)
+            if should_stop(105 + wait):
+                return None
+            time.sleep(wait)
+            continue
 
         if r.status_code == 200:
             try:
                 rows = r.json()
             except Exception:
-                rows = []
+                # A 200 whose body doesn't parse is transient (proxy/HTML error
+                # page); treat as a failure and do NOT cache it as zero citations.
+                print(f"  ! JSON parse error for {doi[:40]} (200); not caching")
+                return None
             out = []
             for row in rows:
-                citing = doi_clean(str(row.get("citing", "")).replace("doi:", ""))
+                citing = citing_key(str(row.get("citing", "")))
                 creation = row.get("creation", "")
                 year = None
                 if creation and len(creation) >= 4 and creation[:4].isdigit():
                     year = int(creation[:4])
                 if citing and year:
                     out.append({"citing": citing, "year": year})
-            cp.write_text(json.dumps(out))
+            write_cache(cp, out)
             time.sleep(BASE_DELAY)
             return out
 
         if r.status_code == 404:
-            cp.write_text("[]")
+            write_cache(cp, [])
             time.sleep(BASE_DELAY)
             return []
 
-        if r.status_code == 429:
-            if attempt == 1:
-                time.sleep(8)
-                continue
-            else:
-                print(f"  · skip {doi[:40]} (persistent 429)")
+        if r.status_code == 429 or r.status_code >= 500:
+            # Rate limiting and server-side (5xx) errors are transient — back
+            # off and retry within the same attempt budget.
+            if attempt == MAX_429_ATTEMPTS:
+                print(f"  · skip {doi[:40]} (persistent HTTP {r.status_code})")
                 return None
+            wait = retry_after_seconds(r, BASE_DELAY * (2 ** attempt))
+            if should_stop(105 + wait):
+                return None
+            time.sleep(wait)
+            continue
 
+        # Other 4xx: not retryable.
         print(f"  ! HTTP {r.status_code} for {doi[:40]}")
         return None
 
@@ -293,24 +489,30 @@ def oc_entity_ids(doi: str) -> set[str]:
     replication cannot be told apart from plain citation of the original. We use
     this to detect and drop such conflated replications."""
     cp = cache_path("oc_meta", doi)
-    if cache_fresh(cp):
-        try:
-            return set(json.loads(cp.read_text()))
-        except Exception:
-            pass
+    cached = read_cache(cp)
+    if cached is not None:
+        return set(cached)
 
     cp.parent.mkdir(exist_ok=True)
     url = f"{OC_META}/metadata/doi:{doi}"
     ids: set[str] = set()
     try:
         r = session.get(url, timeout=45)
-        if r.status_code == 200:
-            for rec in r.json():
-                ids.update(rec.get("id", "").split())
-    except (requests.exceptions.RequestException, ValueError):
+    except requests.exceptions.RequestException:
         return ids  # transient: don't cache, retry next run
 
-    cp.write_text(json.dumps(sorted(ids)))
+    if r.status_code != 200:
+        # Non-200 without an exception (e.g. 429/5xx) must NOT be cached as an
+        # empty id set, or the OMID-conflation check is silently defeated for
+        # 30 days. Return the (empty) set without writing the cache.
+        return ids
+    try:
+        for rec in r.json():
+            ids.update(rec.get("id", "").split())
+    except ValueError:
+        return ids  # parse failure: transient, don't cache
+
+    write_cache(cp, sorted(ids))
     time.sleep(BASE_DELAY)
     return ids
 
@@ -342,6 +544,7 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         cites_o = fetch_oc_citations(doi_o)
         if cites_o is None:
             n_skipped += 1
+            RUN_STATS["originals_skipped"] += 1
             continue
 
         reps_df = flora[flora["doi_o"] == doi_o][
@@ -357,14 +560,28 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         pubstatus_min_year: dict = {}
         entity_o = None  # original's OMID identifier set, fetched only when needed
         n_conflated = 0
+        rep_fetch_failed = False
+        budget_exhausted = False
 
         for _, row in reps_df.iterrows():
             if should_stop():
+                # Budget ran out partway through this original's replications.
+                # Publishing it now would under-count its co-citations exactly
+                # like a fetch failure, so treat it the same: mark incomplete,
+                # skip it this run, and stop the outer loop so it retries next run.
+                rep_fetch_failed = True
+                budget_exhausted = True
                 break
             doi_r = row["doi_r"]
             cites_r = fetch_oc_citations(doi_r)
             if cites_r is None:
-                cites_r = []
+                # A failed replication fetch would silently under-count this
+                # original's co-citations (writing an artificially low number
+                # while the run commits as "complete"). Skip the whole original
+                # instead and retry it next run, so we never publish wrong counts.
+                rep_fetch_failed = True
+                RUN_STATS["rep_fetch_error_dois"].append(doi_r)
+                break
             year_r = parse_year(row["year_r"])
             rep_info.append({
                 "doi": doi_r,
@@ -399,19 +616,33 @@ def build_study_data(flora: pd.DataFrame) -> dict:
                 outcome_min_year[row["outcome"]] = min(outcome_min_year.get(row["outcome"], year_r), year_r)
                 pubstatus_min_year[row["pub_status"]] = min(pubstatus_min_year.get(row["pub_status"], year_r), year_r)
 
+        if rep_fetch_failed:
+            RUN_STATS["originals_errored"] += 1
+            if budget_exhausted:
+                print(f"⏰ Time budget exhausted mid-study; stopping at "
+                      f"{len(studies)} originals (current original deferred).")
+                break  # stop the outer loop; this original retries next run
+            continue  # don't publish under-counted co-citations; retry next run
+
+        cites_o = list({c["citing"]: c for c in cites_o}.values())
         per_year = {}
         for c in cites_o:
             y = c["year"]; citing = c["citing"]
             bucket = per_year.setdefault(y, {
-                "only": 0, "with_successful": 0, "with_failed": 0, "with_mixed": 0
+                "only": 0, "with_successful": 0, "with_failed": 0,
+                "with_mixed": 0, "with_multiple": 0, "with_any": 0,
             })
             cocited = {o for o, s in rep_citings_by_outcome.items() if citing in s}
             if not cocited:
                 bucket["only"] += 1
             else:
-                if "successful" in cocited: bucket["with_successful"] += 1
-                if "failed" in cocited:     bucket["with_failed"] += 1
-                if "mixed" in cocited:      bucket["with_mixed"] += 1
+                if len(cocited) > 1:
+                    bucket["with_multiple"] += 1
+                else:
+                    bucket["with_" + next(iter(cocited))] += 1
+                # Deduped: a citing work co-citing replications of two outcomes
+                # counts once here, matching study-level n_cocitations.
+                bucket["with_any"] += 1
 
         timeline = sorted([{"year": y, **v} for y, v in per_year.items()],
                           key=lambda x: x["year"])
@@ -457,7 +688,8 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         year_o = parse_year(meta_o.get("year"))
         title = str(meta_o.get("title") or "")[:300]
         author = parse_flora_authors(meta_o.get("author"))
-        venue = str(meta_o.get("venue") or "")[:200]
+        venue_raw = meta_o.get("venue")
+        venue = str(venue_raw)[:200] if pd.notna(venue_raw) and str(venue_raw).strip().lower() not in {"nan", "na", "none"} else ""
 
         outcome_mix = dict(reps_df["outcome"].value_counts())
         outcome_mix = {k: int(v) for k, v in outcome_mix.items()}
@@ -488,6 +720,10 @@ def build_study_data(flora: pd.DataFrame) -> dict:
 
     if n_skipped:
         print(f"  ({n_skipped} originals skipped due to API issues; will retry next run)")
+    if RUN_STATS["originals_errored"]:
+        print(f"  ({RUN_STATS['originals_errored']} originals errored: a replication's "
+              f"citations could not be fetched; skipped to avoid under-counting, "
+              f"will retry next run)")
     if conflated:
         same_doi = [c for c in conflated if c[2] == "same-doi"]
         merges = [c for c in conflated if c[2] == "omid-merge"]
@@ -508,11 +744,25 @@ def build_panel(studies: dict) -> pd.DataFrame:
         if s["year"] is None:
             continue
         y_min = s["year"]; y_max = CURRENT_YEAR
-        cite_by_year = {t["year"]: sum(t[k] for k in
-                                       ("only","with_successful","with_failed","with_mixed"))
-                        for t in s["timeline"]}
-        cocite_by_year = {t["year"]: t["with_successful"] + t["with_failed"] + t["with_mixed"]
-                          for t in s["timeline"]}
+        # Distinct citing works per year. "only" and "with_any" are disjoint
+        # (a work either co-cites no replication or is counted once in with_any),
+        # so only+with_any avoids double-counting a work that co-cites
+        # replications of two outcomes. Legacy fallback for timeline rows written
+        # before with_any existed sums the (potentially overlapping) buckets.
+        cite_by_year = {
+            t["year"]: (t["only"] + t["with_any"]) if "with_any" in t
+            else sum(t[k] for k in ("only", "with_successful", "with_failed", "with_mixed"))
+            for t in s["timeline"]
+        }
+        # Use the deduped per-year count so a citing work co-citing replications
+        # of two outcomes is not double-counted (matches study-level
+        # n_cocitations). Fall back to the summed buckets for any older timeline
+        # rows written before "with_any" existed.
+        cocite_by_year = {
+            t["year"]: t.get("with_any",
+                             t["with_successful"] + t["with_failed"] + t["with_mixed"])
+            for t in s["timeline"]
+        }
         for y in range(y_min, y_max + 1):
             rows.append({
                 "doi": doi, "year": y, "age": y - s["year"],
@@ -634,7 +884,7 @@ def descriptive_trajectory(panel: pd.DataFrame, outcomes: list[str]) -> dict:
     }
 
 
-PUBSTATUS_LABELS = ["individual", "large_project", "unpublished"]
+PUBSTATUS_LABELS = ["individual", "large_project"]
 OUTCOME_LABELS = ["successful", "failed", "mixed"]
 
 
@@ -678,7 +928,69 @@ def compute_cocit_breakdown(studies: dict) -> dict:
     }
 
 
+def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
+    """Descriptive citation counts by assessed reproduction dimension.
+
+    Original and reproduction reports are counted once per outcome bucket. A
+    shared report can occur in several buckets; those totals are not additive.
+    Failed lookups abort the summary rather than substituting zero citations.
+    No reproduction event-study model is fitted.
+    """
+    citation_cache = {}
+    entity_cache = {}
+    def required_citations(doi):
+        if doi not in citation_cache:
+            if should_stop(60):
+                raise RuntimeError("Time budget exhausted; retaining previous reproduction summary")
+            rows = fetch_oc_citations(doi)
+            if rows is None:
+                raise RuntimeError(f"Citation lookup failed for {doi}; retaining previous reproduction summary")
+            citation_cache[doi] = {citing_key(c["citing"]) for c in rows if c.get("citing")}
+        return citation_cache[doi]
+
+    def bucket_stats(bucket_col: str, buckets: list[str]) -> dict:
+        out = {}
+        for b in buckets:
+            sub = repro[repro[bucket_col] == b]
+            n_citations_o = 0
+            n_citations_r = sum(len(required_citations(doi)) for doi in sub["doi_r"].unique())
+            n_cocitations = 0
+            for doi_o, grp in sub.groupby("doi_o"):
+                co = required_citations(doi_o)
+                n_citations_o += len(co)
+                rep_citing = set()
+                for _, row in grp.iterrows():
+                    if row["doi_r"] != doi_o:
+                        cr = required_citations(row["doi_r"])
+                        if cr and cr == co:
+                            if doi_o not in entity_cache:
+                                if should_stop(105):
+                                    raise RuntimeError("Time budget exhausted; retaining previous reproduction summary")
+                                ids = oc_entity_ids(doi_o)
+                                if not ids:
+                                    raise RuntimeError("Cannot verify merged citation records; retaining previous reproduction summary")
+                                entity_cache[doi_o] = ids
+                            if f"doi:{row['doi_r']}" in entity_cache[doi_o]:
+                                continue
+                        rep_citing.update(cr)
+                n_cocitations += sum(1 for c in co if c in rep_citing)
+            out[b] = {
+                "n_originals": int(sub["doi_o"].nunique()),
+                "n_citations_to_original": int(n_citations_o),
+                "n_citations_to_reproduction": int(n_citations_r),
+                "n_cocitations": int(n_cocitations),
+            }
+        return out
+
+    return {
+        "reproduction-numerical": bucket_stats("computational_bucket", ["successful", "issues", "technical_failure"]),
+        "reproduction-robustness": bucket_stats("robustness_bucket", ["robust", "challenges"]),
+    }
+
+
 def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
+    if not studies:
+        raise RuntimeError("No complete originals; retaining the previous citation outputs")
     panel = build_panel(studies)
     aggregate = {}
     for label, outcomes in [
@@ -714,12 +1026,19 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
         "outcome_counts": {k: int(v) for k, v in flora["outcome"].value_counts().items()},
         "pub_status_counts": {k: int(v) for k, v in flora["pub_status"].value_counts().items()},
         "partial_run": partial,
+        "fetch_errors": len(RUN_STATS["rep_fetch_error_dois"]),
+        "fetch_error_dois": RUN_STATS["rep_fetch_error_dois"][:50],
+        "originals_errored": RUN_STATS["originals_errored"],
+        "originals_skipped": RUN_STATS["originals_skipped"],
     }
     (DATA_DIR / "meta.json").write_text(
         json.dumps(clean_for_json(meta), indent=2, allow_nan=False))
+    clean_studies = clean_for_json(studies)
+    clean_index = clean_for_json(originals_index)
     (DATA_DIR / "originals.json").write_text(
-        json.dumps(clean_for_json({"studies": studies, "index": originals_index}),
+        json.dumps({"studies": clean_studies, "index": clean_index},
                    allow_nan=False))
+    write_split(clean_studies, clean_index, DATA_DIR)
     (DATA_DIR / "aggregate.json").write_text(
         json.dumps(clean_for_json(aggregate), indent=2, allow_nan=False))
     (DATA_DIR / "cocit_breakdown.json").write_text(
@@ -730,17 +1049,42 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
 
 # ------------------------------------------------------------------ main
 def main():
-    flora = load_flora()
+    raw = load_flora_raw()
+    flora = filter_replications(raw)
     studies = {}
     partial = True
     try:
         studies = build_study_data(flora)
-        partial = should_stop()
+        # A run is partial if it ran out of time, skipped originals whose own
+        # fetch failed, or errored originals because a replication fetch failed.
+        partial = (should_stop()
+                   or RUN_STATS["originals_errored"] > 0
+                   or RUN_STATS["originals_skipped"] > 0)
     except KeyboardInterrupt:
         print("⛔ interrupted")
     finally:
         write_outputs(studies, flora, partial=partial)
     print(f"Done. {len(studies)} originals processed.")
+
+    # Reproductions: a small, separate, best-effort addition. Wrapped so any failure
+    # here can never affect the replication pipeline above, which has already written
+    # its outputs by this point.
+    if should_stop(60):
+        print("⏰ low on time budget; skipping reproduction citation stats this run.")
+    else:
+        try:
+            repro = filter_reproductions(raw)
+            repro_result = compute_reproduction_citations(repro)
+            (DATA_DIR / "reproduction_citations.json").write_text(
+                json.dumps(clean_for_json(repro_result), indent=2, allow_nan=False))
+            (DATA_DIR / "reproduction_citations_meta.json").write_text(json.dumps({
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "input_snapshot": json.loads((DATA_DIR / "flora_meta.json").read_text())["last_updated"],
+                "source": "OpenCitations; cached citation coverage varies by report",
+            }, indent=2))
+            print(f"✔ wrote reproduction citation stats ({len(repro)} reproduction rows)")
+        except Exception as e:
+            print(f"! reproduction citation stats failed (non-fatal): {e}")
 
 
 if __name__ == "__main__":
