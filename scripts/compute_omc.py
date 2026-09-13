@@ -95,7 +95,8 @@ def names_match(query: str, display: str) -> bool:
         return False
     if q == d:
         return True
-    generic = {"the", "of", "and", "journal", "journals", "international", "for", "in", "on"}
+    # Journal, International, and subject words distinguish real source titles.
+    generic = {"the", "and"}
     return bool(q - generic) and q - generic == d - generic
 
 

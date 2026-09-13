@@ -484,11 +484,6 @@
     "display_name": "Civil Wars",
     "impact_factor": 0.9358974358974359
   },
-  "climate": {
-    "id": "https://openalex.org/S80591372",
-    "display_name": "Journal of Climate",
-    "impact_factor": 2.344344344344344
-  },
   "clinical epigenetics": {
     "id": "https://openalex.org/S200416800",
     "display_name": "Clinical Epigenetics",
@@ -2175,11 +2170,6 @@
     "display_name": "Nature Neuroscience",
     "impact_factor": 15.841352405721716
   },
-  "neuro-ophthalmology": {
-    "id": "https://openalex.org/S195816289",
-    "display_name": "Journal of Neuro-Ophthalmology",
-    "impact_factor": 0.9624060150375939
-  },
   "neuroimage": {
     "id": "https://openalex.org/S103225281",
     "display_name": "NeuroImage",
@@ -3271,11 +3261,6 @@
     "display_name": "Psychological Methods",
     "impact_factor": 2.56973293768546
   },
-  "andrology": {
-    "id": "https://openalex.org/S4394735507",
-    "display_name": "Journal of Andrology",
-    "impact_factor": 0.0
-  },
   "applied economics": {
     "id": "https://openalex.org/S201533460",
     "display_name": "Applied Economics",
@@ -3477,11 +3462,6 @@
     "id": "https://openalex.org/S205793605",
     "display_name": "Business Strategy and the Environment",
     "impact_factor": 8.00048567265663
-  },
-  "educational psychology": {
-    "id": "https://openalex.org/S61703936",
-    "display_name": "Journal of Educational Psychology",
-    "impact_factor": 2.270053475935829
   },
   "educational technology research and development": {
     "id": "https://openalex.org/S114840262",
