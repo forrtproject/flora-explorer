@@ -47,8 +47,7 @@ OPENALEX_SOURCES = "https://api.openalex.org/sources"
 BASE_DELAY = 0.12  # OpenAlex allows ~10 req/s with mailto
 
 # Per-run time budget (mirrors refresh_data.py's should_stop pattern) so a slow
-# run exits cleanly, still writing the CSV with whatever was enriched, instead
-# of overrunning the workflow timeout.
+# run saves its lookup cache and retains complete published outputs if time runs out.
 MAX_RUNTIME_SECONDS = int(os.environ.get("MAX_RUNTIME_SECONDS", 3 * 3600))
 START_TIME = time.time()
 
@@ -69,7 +68,9 @@ def normalize_name(name: str) -> str:
 def load_cache() -> dict:
     if CACHE_FILE.exists():
         try:
-            return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+            cache = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+            return {key: value for key, value in cache.items()
+                    if value is None or names_match(key, value.get("display_name", ""))}
         except Exception:
             pass
     return {}
@@ -88,15 +89,14 @@ def name_tokens(s: str) -> set[str]:
 
 
 def names_match(query: str, display: str) -> bool:
-    """Guard against fuzzy search returning an unrelated top hit: require decent
-    token overlap between the queried journal name and the candidate's
-    display_name (containment of the shorter token set)."""
-    q = name_tokens(query)
-    d = name_tokens(display)
+    """Require the same distinctive words; generic journal words are insufficient."""
+    q, d = name_tokens(query), name_tokens(display)
     if not q or not d:
         return False
-    overlap = len(q & d) / min(len(q), len(d))
-    return overlap >= 0.5
+    if q == d:
+        return True
+    generic = {"the", "of", "and", "journal", "journals", "international", "for", "in", "on"}
+    return bool(q - generic) and q - generic == d - generic
 
 
 def retry_after_seconds(resp, default: float, max_wait: float = 120.0) -> float:
@@ -298,12 +298,14 @@ def main():
 
     new_lookups = 0
     transient_errors = 0
+    partial = False
     for i, j in enumerate(unique_journals, 1):
         if normalize_name(j) in cache:
             continue
         if should_stop():
             print(f"⏰ Time budget reached at {i}/{len(unique_journals)}; "
-                  f"writing CSV with venues resolved so far.")
+                  f"retaining the previous complete enrichment.")
+            partial = True
             break
         lookup_venue(j, cache)
         # A lookup that neither cached a hit nor a genuine miss was a
@@ -317,6 +319,9 @@ def main():
 
     save_cache(cache)
     print(f"✔ {new_lookups} new venues looked up; cache size now {len(cache)}")
+
+    if partial:
+        sys.exit("Time budget exhausted; cache saved, previous enrichment outputs retained")
 
     # A widespread OpenAlex outage would otherwise yield an incompletely
     # enriched CSV with a fresh timestamp. Exit nonzero (cache already saved,
@@ -337,7 +342,7 @@ def main():
             enriched += 1
 
     with OUT_CSV.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=out_columns)
+        writer = csv.DictWriter(f, fieldnames=out_columns, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 

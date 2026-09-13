@@ -1,6 +1,9 @@
 {
   "last_updated": "2026-09-07T09:56:48.290755+00:00",
   "n_rows": 2815,
-  "n_with_omc": 2759,
-  "source": "OpenAlex Sources API (summary_stats.2yr_mean_citedness)"
+  "n_with_omc": 2652,
+  "source": "Cached OpenAlex Sources API values; unverified journal-name matches excluded",
+  "recalculated_at": "2026-09-13T21:37:25.495215+00:00",
+  "rejected_cached_venue_matches": 43,
+  "n_rows_with_rejected_match": 107
 }

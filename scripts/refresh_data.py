@@ -416,6 +416,8 @@ def fetch_oc_citations(doi: str) -> list[dict] | None:
     url = f"{OC_BASE}/citations/doi:{doi}"
 
     for attempt in range(1, MAX_429_ATTEMPTS + 1):
+        if should_stop(105):  # 45-second request plus 60 seconds to finish outputs
+            return None
         try:
             r = session.get(url, timeout=45)
         except requests.exceptions.RequestException as e:
@@ -423,7 +425,10 @@ def fetch_oc_citations(doi: str) -> list[dict] | None:
             if attempt == MAX_429_ATTEMPTS:
                 print(f"  ! network error {doi[:40]} (persistent): {e}")
                 return None
-            time.sleep(BASE_DELAY * (2 ** attempt))
+            wait = BASE_DELAY * (2 ** attempt)
+            if should_stop(105 + wait):
+                return None
+            time.sleep(wait)
             continue
 
         if r.status_code == 200:
@@ -459,6 +464,8 @@ def fetch_oc_citations(doi: str) -> list[dict] | None:
                 print(f"  · skip {doi[:40]} (persistent HTTP {r.status_code})")
                 return None
             wait = retry_after_seconds(r, BASE_DELAY * (2 ** attempt))
+            if should_stop(105 + wait):
+                return None
             time.sleep(wait)
             continue
 
@@ -926,6 +933,8 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
     citation_cache = {}
     def required_citations(doi):
         if doi not in citation_cache:
+            if should_stop(60):
+                raise RuntimeError("Time budget exhausted; retaining previous reproduction summary")
             rows = fetch_oc_citations(doi)
             if rows is None:
                 raise RuntimeError(f"Citation lookup failed for {doi}; retaining previous reproduction summary")

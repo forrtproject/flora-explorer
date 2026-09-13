@@ -11,16 +11,17 @@ before(async()=>{
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
 });
 after(async()=>{await browser?.close();server?.kill();});
-async function page(query, width=1280){
+async function page(query, width=1280, setup){
   const p=await browser.newPage({viewport:{width,height:900}});p.errors=[];
   p.on('pageerror',e=>p.errors.push(e.message));
+  if(setup) await setup(p);
   await p.goto(base+query);await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
   await p.waitForFunction(()=>typeof Chart!=='undefined'&&typeof Plotly!=='undefined');
   return p;
 }
 async function browseRows(p){return p.evaluate(()=>getChartData().map(r=>[r.title_o,r.title_r,r.outcome]));}
 test('desktop/mobile search, DOI URLs, empty results, shared view and evidence agree',async()=>{
-  const p=await page('?tab=browse&kind=replication&q=power+posing');
+  const p=await page('?tab=browse&kind=replication&q=power+posing',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
   await p.waitForFunction(()=>getChartData().length===4);
   const expected=await browseRows(p);assert.deepEqual(expected.map(r=>r[2]).sort(),['failed','failed','failed','mixed']);
   const values=await p.evaluate(()=>Chart.getChart('browse-outcome-chart').data.datasets.map(d=>[d.label,d.data[0]]));
@@ -91,7 +92,8 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
   await p.click('#pub-tab');await p.waitForFunction(()=>document.getElementById('pub-chart')?.data?.length>0);
   const sums=await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].x.map((_,i)=>t.reduce((n,s)=>n+s.y[i],0));});
   assert.ok(sums.every(s=>Math.abs(s-100)<1e-8));
-  assert.match(await p.locator('#pub-overview').textContent(),/257/);
+  const unknown=await p.evaluate(csv=>Papa.parse(csv,{header:true,skipEmptyLines:true}).data.filter(r=>r.type.toLowerCase().includes('replication')&&!r.type.toLowerCase().includes('reproduc')&&['','na','nan','none','null'].includes((r.journal_r||'').trim().toLowerCase())).length,fs.readFileSync('data/flora.csv','utf8'));
+  assert.equal(Number(await p.locator('#pub-overview .mc-stat').filter({hasText:'Unknown venue'}).locator('.mc-stat-value').textContent()),unknown);
   await p.locator('#pub-studies-card summary').click();
   const thesis=p.locator('#pub-studies-table tbody tr').filter({hasText:'Digital Library of Theses'});
   assert.ok(await thesis.count());assert.match(await thesis.first().innerText(),/Thesis \/ dissertation/);
@@ -131,4 +133,36 @@ test('every generated timeline, outcome summary and venue grouping preserves cou
   }
   for(const d of Object.values(read('impact_factor_reproductions.json'))) assert.equal(d.histogram.reduce((sum,b)=>sum+Object.entries(b).filter(([k])=>!k.startsWith('bin_')).reduce((n,[k,v])=>n+v,0),0),d.overview.n_total);
   const d=read('impact_factor_data.json');assert.equal(d.histogram.reduce((sum,b)=>sum+Object.entries(b).filter(([k])=>!k.startsWith('bin_')).reduce((n,[k,v])=>n+v,0),0),d.overview.n_total);
+});
+
+test('late Chart.js loading preserves chart ownership through repeated redraws',async()=>{
+  const p=await browser.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  await p.route('**/chart.umd.min.js',async route=>{await gate;await route.continue();});
+  try {
+    await p.goto(base+'?tab=browse',{waitUntil:'commit'});
+    await p.waitForFunction(()=>typeof fullRowData!=='undefined'&&fullRowData.length>0);
+    await p.evaluate(()=>{renderOverviewChart(fullRowData);renderOverviewChart(fullRowData);renderBrowseOutcomeCharts();renderBrowseOutcomeCharts();});
+    release();await p.waitForLoadState('load');
+    await p.waitForFunction(()=>typeof Chart!=='undefined'&&Chart.getChart('overview-outcome-chart'));
+    assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
+    await p.click('#theme-toggle');await p.click('.browse-kind-btn[data-kind="replication"]');
+    assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
+    assert.deepEqual(errors,[]);
+  } finally {release();await p.close();}
+});
+
+test('FAQ URLs stay inside href attributes and default filter states agree',async()=>{
+  const p=await page('?tab=overview');
+  const links=await p.evaluate(()=>{
+    const node=document.createElement('div');
+    node.innerHTML=renderInlineMd('[quoted](https://example.org/"onmouseover="alert) [mail](mailto:a@example.org) [unsafe](javascript:alert)');
+    return [...node.querySelectorAll('a')].map(a=>({href:a.getAttribute('href'),attributes:[...a.attributes].map(x=>x.name)}));
+  });
+  assert.equal(links.length,2);assert.equal(links[0].href,'https://example.org/"onmouseover="alert');
+  assert.ok(links.every(a=>!a.attributes.some(n=>n.startsWith('on'))));
+  assert.equal(links[1].href,'mailto:a@example.org');
+  assert.deepEqual(await p.locator('#trends .trend-filter-btn').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('active')=== (n.getAttribute('aria-pressed')==='true'))),[true,true,true,true]);
+  assert.deepEqual(p.errors,[]);await p.close();
 });

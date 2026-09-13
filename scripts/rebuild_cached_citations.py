@@ -11,18 +11,21 @@ import pandas as pd
 import refresh_data as pipeline
 
 
-def main():
-    previous = json.loads((pipeline.DATA_DIR / 'originals.json').read_text())
-    previous_meta = json.loads((pipeline.DATA_DIR / 'meta.json').read_text())
+def cohort_frame(previous):
+    """Preserve report labels established before citation-cohort filtering."""
     rows = []
     for s in previous['studies'].values():
         for r in s['replications']:
             rows.append(dict(doi_o=s['doi'], title_o=s['title'], author_o=s['author'],
                 year_o=s['year'], journal_o=s['venue'], doi_r=r['doi'], title_r=r['title'],
-                author_r=r['author'], year_r=r['year'], outcome=r['outcome'], type='replication', journal_r=''))
-    frame = pd.DataFrame(rows)
-    counts = frame.groupby('doi_r').doi_o.nunique()
-    frame['pub_status'] = frame.doi_r.map(lambda d: 'large_project' if counts[d] > 3 else 'individual')
+                author_r=r['author'], year_r=r['year'], outcome=r['outcome'], type='replication', journal_r='', pub_status=r['pub_status']))
+    return pd.DataFrame(rows)
+
+
+def main():
+    previous = json.loads((pipeline.DATA_DIR / 'originals.json').read_text())
+    previous_meta = json.loads((pipeline.DATA_DIR / 'meta.json').read_text())
+    frame = cohort_frame(previous)
     def cache_rows(kind, doi):
         path = pipeline.cache_path(kind, doi)
         if not path.exists():

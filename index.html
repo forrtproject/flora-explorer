@@ -440,8 +440,8 @@
 
                 <div class="trend-filter" role="group" aria-label="Filter by study kind">
                     <span class="trend-filter-label">Show:</span>
-                    <button type="button" class="trend-filter-btn" data-kind="all" aria-pressed="true">All studies</button>
-                    <button type="button" class="trend-filter-btn active" data-kind="replication" aria-pressed="false">Replications only</button>
+                    <button type="button" class="trend-filter-btn" data-kind="all" aria-pressed="false">All studies</button>
+                    <button type="button" class="trend-filter-btn active" data-kind="replication" aria-pressed="true">Replications only</button>
                     <button type="button" class="trend-filter-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                     <button type="button" class="trend-filter-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
                     <span class="trend-filter-count" id="trend-filter-count"></span>
@@ -936,10 +936,10 @@
 
                 <!-- ---- Individual vs. large-scale replication projects ---- -->
                 <div class="card">
-                    <h2 class="card-header">Individual vs. Large-Scale Replication Projects</h2>
+                    <h2 class="card-header">Reports by number of original targets</h2>
                     <div class="card-body">
                         <p style="margin-bottom:0.75rem;">
-                            This analysis checks whether a replication/reproduction's write-up is part of a
+                            This analysis groups replication and reproduction reports by their number of recorded original targets.
                             <strong>Multiple-target reports</strong> contain more than three distinct original targets in the recorded data. The remaining group contains reports with up to three targets and records with missing report identifiers. Target count does not establish the number of laboratories or membership of a coordinated project. Chart percentages count reference pairs; the evidence list counts reports.
                         </p>
                         <div id="ls-placeholder" class="coming-soon-placeholder" style="display:none;"></div>
