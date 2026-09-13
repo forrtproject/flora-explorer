@@ -38,6 +38,9 @@ def normalize(name: str) -> str:
     return re.sub(r"[^a-z]", "", name.lower())
 
 
+from classification import classify_outcome
+
+
 def family_names(author_json) -> set[str]:
     """Extract normalised family names from an author JSON string."""
     if not isinstance(author_json, str) or not author_json.strip():
@@ -56,40 +59,8 @@ def family_names(author_json) -> set[str]:
     return {normalize(n) for n in raw if len(normalize(n)) > 1}
 
 
-def parse_reproduction_outcome(outcome_raw) -> tuple[str | None, str | None]:
-    """Split a reproduction's compound outcome string into its two independent
-    dimensions. Mirrors assets/app.js's parseReproductionOutcome() exactly - always a
-    "computational, robustness" two-part comma-joined string, parsed positionally (part
-    0 only tested against computational keywords, part 1 only against robustness
-    keywords) so the two dimensions' text never cross-contaminate. Covers both the
-    legacy vocabulary ("computationally successful, robust") and the current one from
-    FReD-data's two-axis reproductions spreadsheet ("computationally reproducible" /
-    "computational issues" / "technical failure" / "failed" / "not checked" for the
-    computational dimension; "robust" / "robustness challenges" / "not checked" for
-    robustness)."""
-    parts = [p.strip() for p in str(outcome_raw or "").lower().split(",")]
-    p0 = parts[0] if len(parts) > 0 else ""
-    p1 = parts[1] if len(parts) > 1 else ""
-    computational = None
-    robustness = None
+from classification import parse_reproduction_outcome
 
-    if "technical failure" in p0 or p0 == "failed":
-        computational = "technical_failure"
-    elif "computational issue" in p0:
-        computational = "issues"
-    elif "computationally reproducible" in p0 or ("computational" in p0 and "success" in p0):
-        computational = "successful"
-    elif "not checked" in p0:
-        computational = "not_checked"
-
-    if "robustness challenge" in p1:
-        robustness = "challenges"
-    elif "not checked" in p1:
-        robustness = "not_checked"
-    elif "robust" in p1:
-        robustness = "robust"
-
-    return computational, robustness
 
 
 # ── Compute per-row overlap flag ───────────────────────────────────────────────
@@ -101,7 +72,7 @@ def _overlap(row) -> bool | None:
     return bool(orig & repl)
 
 
-REPLICATION_OUTCOMES = ["successful", "failed", "mixed", "inconclusive"]
+REPLICATION_OUTCOMES = ["successful", "failed", "mixed", "inconclusive", "qualified", "other"]
 # Rows without an actual verdict on a dimension ("not checked"/uncoded) are dropped from
 # that dimension entirely rather than kept as their own bucket - they say nothing about it.
 # Applied per dimension, so a reproduction whose robustness was never checked still counts
@@ -159,7 +130,7 @@ repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 
 result = {
     "replication": compute_overlap_result(
-        df[is_replication], lambda r: r["outcome_lc"], REPLICATION_OUTCOMES
+        df[is_replication], lambda r: classify_outcome(r["outcome_lc"]), REPLICATION_OUTCOMES
     ),
     "reproduction-numerical": compute_overlap_result(
         repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)],

@@ -6,6 +6,12 @@ on:
     - cron: '0 4 * * 1'
   workflow_dispatch:
 
+# Data workflows share a concurrency group. Staggered schedules avoid
+# simultaneous pushes and replacement of pending scheduled runs.
+concurrency:
+  group: flora-data-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
 

@@ -2,9 +2,15 @@ name: Refresh FLoRA snapshot (daily)
 
 on:
   schedule:
-    # 03:00 UTC every day
-    - cron: '0 3 * * *'
+    # 06:00 UTC every day
+    - cron: '0 6 * * *'
   workflow_dispatch:
+
+# Data workflows share a concurrency group. Staggered schedules avoid
+# simultaneous pushes and replacement of pending scheduled runs.
+concurrency:
+  group: flora-data-main
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -42,5 +48,6 @@ jobs:
             echo "No changes to commit."
           else
             git commit -m "Daily FLoRA snapshot: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git pull --rebase origin main
             git push
           fi

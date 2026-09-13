@@ -31,6 +31,7 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
+from classification import classify_outcome, classify_venue, REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS
 import pandas as pd
 import requests
 
@@ -91,40 +92,8 @@ rr_dois, rr_titles = fetch_rr_library()
 print(f"RRDB: {len(rr_dois)} DOIs, {len(rr_titles)} titles")
 
 
-def parse_reproduction_outcome(outcome_raw) -> tuple[str | None, str | None]:
-    """Split a reproduction's compound outcome string into its two independent
-    dimensions. Mirrors assets/app.js's parseReproductionOutcome() exactly - always a
-    "computational, robustness" two-part comma-joined string, parsed positionally (part
-    0 only tested against computational keywords, part 1 only against robustness
-    keywords) so the two dimensions' text never cross-contaminate. Covers both the
-    legacy vocabulary ("computationally successful, robust") and the current one from
-    FReD-data's two-axis reproductions spreadsheet ("computationally reproducible" /
-    "computational issues" / "technical failure" / "failed" / "not checked" for the
-    computational dimension; "robust" / "robustness challenges" / "not checked" for
-    robustness)."""
-    parts = [p.strip() for p in str(outcome_raw or "").lower().split(",")]
-    p0 = parts[0] if len(parts) > 0 else ""
-    p1 = parts[1] if len(parts) > 1 else ""
-    computational = None
-    robustness = None
+from classification import parse_reproduction_outcome
 
-    if "technical failure" in p0 or p0 == "failed":
-        computational = "technical_failure"
-    elif "computational issue" in p0:
-        computational = "issues"
-    elif "computationally reproducible" in p0 or ("computational" in p0 and "success" in p0):
-        computational = "successful"
-    elif "not checked" in p0:
-        computational = "not_checked"
-
-    if "robustness challenge" in p1:
-        robustness = "challenges"
-    elif "not checked" in p1:
-        robustness = "not_checked"
-    elif "robust" in p1:
-        robustness = "robust"
-
-    return computational, robustness
 
 
 def _classify(row) -> bool | None:
@@ -146,7 +115,7 @@ def _clean(v):
     return None if pd.isna(v) else v
 
 
-REPLICATION_OUTCOMES = ["successful", "failed", "mixed", "inconclusive"]
+
 # Rows without an actual verdict on a dimension ("not checked"/uncoded) are dropped from
 # that dimension entirely rather than kept as their own bucket - they say nothing about it.
 # Applied per dimension, so a reproduction whose robustness was never checked still counts
@@ -204,6 +173,7 @@ df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower
 
 is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
 is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
+df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
 repro_df = df[is_reproduction].copy()
 repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)

@@ -1,16 +1,16 @@
 {
   "reproduction-numerical": {
     "successful": {
-      "n_originals": 140,
-      "n_citations_to_original": 36455,
+      "n_originals": 141,
+      "n_citations_to_original": 39718,
       "n_citations_to_reproduction": 1035,
-      "n_cocitations": 369
+      "n_cocitations": 502
     },
     "issues": {
-      "n_originals": 82,
-      "n_citations_to_original": 28497,
+      "n_originals": 83,
+      "n_citations_to_original": 28534,
       "n_citations_to_reproduction": 1216,
-      "n_cocitations": 408
+      "n_cocitations": 411
     },
     "technical_failure": {
       "n_originals": 3,
@@ -27,10 +27,10 @@
       "n_cocitations": 286
     },
     "challenges": {
-      "n_originals": 111,
+      "n_originals": 112,
       "n_citations_to_original": 32718,
-      "n_citations_to_reproduction": 1773,
-      "n_cocitations": 609
+      "n_citations_to_reproduction": 1791,
+      "n_cocitations": 614
     }
   }
 }
