@@ -1,9 +1,0 @@
-# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-# Temporary scope for the consolidation review in PR #10.
-# Remove this file after review fixes are complete, before merging the PR.
-# Generated data and API caches exceed CodeRabbit's file limit; their producers
-# and validation tests remain in scope, as does package.json.
-reviews:
-  path_filters:
-    - "!data/**/*.json"
-    - "!cache/**/*.json"
