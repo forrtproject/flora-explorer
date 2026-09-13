@@ -1,135 +1,101 @@
 # FLoRA Explorer
 
-A static, GitHub-Pages-friendly dashboard for the [FORRT Library of
-Replication Attempts (FLoRA)](https://forrt.org/replication-hub/flora).
+A static dashboard for the [FORRT Library of Replication Attempts (FLoRA)](https://forrt.org/replication-hub/flora). Each database row is a **reference pair**, linking an original report to a replication or reproduction report. Reports can occur in multiple pairs.
 
-Seven tabs:
+| View | Purpose | Data refresh |
+|---|---|---|
+| Overview | Reference-pair counts and separate replication, computational and robustness outcomes | Daily |
+| Browse Studies | Shared desktop/mobile search, full evidence, outcome quotations, links and filtered CSV export | Daily |
+| Years & Disciplines | Outcome counts by year, venue and discipline | Daily |
+| Citation Impact | Citation trajectories, adjusted associations, co-citation rates and individual timelines | Weekly |
+| Mean Citedness | Journal-level citation metric distributions and a conditional replication-success model | Weekly |
+| Authorship Overlap | Within-group outcome percentages based on surname overlap | Daily |
+| Publication Type | Recorded venue categories, Registered Reports matching and reports with multiple original targets | Daily / weekly |
 
-| Tab                      | What it shows                                                   | Refreshed |
-|--------------------------|-----------------------------------------------------------------|-----------|
-| **Overview**             | Headline counts, outcome distribution, About, FAQ, citations    | Daily     |
-| **Browse Studies**       | Full searchable DataTable + mobile card list                    | Daily     |
-| **Years & Disciplines**  | Year/journal/discipline breakdowns of outcomes                  | Daily     |
-| **Citation Impact**      | OpenCitations event-study of citation changes after replication | Weekly    |
-| **Mean Citedness**       | Journal-level OMC vs replication success (R analysis)           | Weekly    |
-| **Authorship Overlap**   | Replication outcomes by original/replication author overlap     | Daily     |
-| **Registered Reports**   | Replication outcomes for Registered Reports vs. other replications, matched against the FORRT Zotero RR library | Weekly |
+Every chart has a nearby data table and CSV export. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
 
-Every tab shows a "Last updated" stamp pulled from the relevant
-`*_meta.json` next to the data.
+## Run locally
 
-Contributions of new dashboards/tabs are welcome — see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+There is no build step or application server. From this directory:
 
-## Layout
-
-```
-.
-├── index.html
-├── assets/
-│   ├── styles.css
-│   ├── app.js                 # Overview / Browse / Years & Disciplines / Mean Citedness loader
-│   ├── citation-impact.js     # Citation Impact tab (lazy-loaded)
-│   └── logo.svg
-├── data/                      # All written by GitHub Actions, except disciplines.json
-│   ├── disciplines.json       # Hand-curated journal → discipline map (commit-controlled)
-│   ├── flora.csv              # Daily snapshot of upstream flora.csv
-│   ├── flora_meta.json
-│   ├── flora_with_omc.csv     # FLoRA + OpenAlex OMC per journal_o (weekly)
-│   ├── flora_with_omc_meta.json
-│   ├── impact_factor_data.json # Chart-ready Mean Citedness data (weekly)
-│   ├── impact_factor_meta.json
-│   ├── author_overlap_data.json # Authorship Overlap tab data (daily)
-│   ├── author_overlap_meta.json
-│   ├── rr_status_data.json    # Registered Reports tab data (weekly)
-│   ├── rr_status_meta.json
-│   ├── meta.json              # Citation pipeline (weekly)
-│   ├── aggregate.json
-│   └── originals.json
-├── scripts/
-│   ├── refresh_flora.py       # Daily flora.csv snapshot
-│   ├── refresh_data.py        # Weekly OpenCitations citation pipeline
-│   ├── compute_omc.py         # Weekly OpenAlex OMC enrichment
-│   ├── compute_author_overlap.py # Daily authorship-overlap computation
-│   ├── compute_rr_status.py   # Weekly Registered-Reports classification (Zotero API)
-│   ├── render_impact_factor.R # Computes Mean Citedness stats, writes JSON directly
-│   ├── run_fect.R             # ETWFE overlay for Citation Impact (not yet wired into a workflow)
-│   └── requirements.txt
-├── archive/                   # Superseded scripts/outputs, kept for reference only
-│   ├── scripts/                #   compute_impact_json.py, impact_factor.Rmd
-│   └── data/                   #   impact_factor.html + impact_factor_figs/
-├── cache/                     # API caches committed between runs
-│   ├── oc/                    # OpenCitations
-│   └── openalex_venues.json   # OpenAlex sources
-└── .github/workflows/
-    ├── refresh-flora.yml          # Daily   03:00 UTC (flora.csv + author overlap)
-    ├── refresh-data.yml           # Weekly Mon 04:00 UTC (citation pipeline)
-    ├── refresh-impact-factor.yml  # Weekly Mon 05:00 UTC (OMC + R render)
-    ├── refresh-rr-status.yml      # Weekly Mon 06:00 UTC (Registered Reports classification)
-    └── clean-json.yml             # Manual maintenance helper
+```sh
+python3 -m http.server 8876 --bind 127.0.0.1
 ```
 
-## Deploying on GitHub Pages
+Open <http://127.0.0.1:8876/>. Third-party browser libraries load from their CDNs. GitHub Pages can serve `main` from the repository root.
 
-1. Push this repository to GitHub.
-2. **Settings → Pages → Build and deployment → Source: *Deploy from a branch*.**
-   Pick `main` and `/ (root)`.
-3. **Settings → Secrets and variables → Actions** — add the secrets used by
-   the data-refresh workflows:
-   - `MY_EMAIL` — your email. Used in the polite User-Agent header for
-     OpenAlex, OpenCitations, and the Zotero API. Required.
-   - `OC_API_KEY` — *optional* OpenCitations API key (raises rate limits).
-4. **Settings → Actions → General → Workflow permissions:** select
-   *Read and write permissions* so the bot can commit refreshed data
-   back to the repo.
-5. Trigger the workflows manually the first time
-   (`Actions → Refresh FLoRA snapshot → Run workflow`, etc.) so the data
-   files appear. Subsequent runs follow the cron schedule.
+## Data and interpretation
 
-That is the entire deploy — no build step, no server.
+- **Replication outcomes:** explicit mappings retain “statistically successful but flawed” as a separate qualified category. Unknown, descriptive-only and uninformative outcomes remain visible under other/not coded. They are excluded from the binary Mean Citedness model and the successful/failed/mixed citation cohort.
+- **Reproduction outcomes:** computational reproducibility and robustness are independent dimensions. Each includes only assessed outcomes. The same pair can appear in both subsets. Reproduction models are not fitted; their summaries are descriptive.
+- **Publication venues:** recognisable repositories/preprints, conference outputs and theses are separated. Missing venues remain unknown. “Other named venue” does not verify journal publication or peer review.
+- **Registered Reports:** matching uses the [RRDB CSV](https://github.com/LukasRoeseler/RRDB/blob/main/zotero_registered_reports.csv). A non-match is not evidence that a report was not registered.
+- **Report size:** more than three distinct original targets defines a multiple-target report. This does not establish the number of laboratories or membership of a coordinated project. Charts count pairs; evidence lists count reports. Different snapshots/cohorts can have different coverage.
+- **Citation timelines:** stacked categories are mutually exclusive. A work citing replications from multiple outcome categories appears once in a separate segment. Outcome-specific rate tables overlap and must not be summed.
+- **Citation models:** coefficient plots show OLS estimates and 95% intervals on the `log(1 + count)` scale, relative to year −1, separately from raw trajectories. The model adjusts for original and calendar-year effects. These are adjusted associations, not established causal effects or percentage changes in raw counts. Outcome groups use the earliest recorded replication year; same-year ties follow stored record order.
+- **Mean Citedness:** OpenAlex's two-year journal-level metric is retrieved at enrichment time, not matched to the original publication year. The logistic smooth conditions on unqualified successful/failed outcomes with matched OMC below 35. The histogram retains other outcomes. The 50% line is a reference, not a chance baseline.
 
-Until the first refresh has run, the Explorer falls back to fetching
-`flora.csv` directly from the FReD-data repository so the Overview /
-Browse / Years tabs still work.
+The data are not representative of all research. Shared reports, repeated targets, journals and projects create dependence. Read the coverage and matching caveats alongside each view.
 
-## Running data refreshes locally
+## Source layout
 
-```bash
+- `index.html`: seven tab panels and evidence dialog.
+- `assets/app.js`: shared search, outcome presentation, chart data and tab loaders.
+- `assets/citation-impact.js`: citation index, models and timelines loaded on demand.
+- `assets/chart-accessibility.js`: chart rendering, readable data tables, percentages and CSV exports.
+- `assets/view-controls.js`: URL state, navigation and filtered exports.
+- `assets/styles.css`, `assets/ds-tokens.css`: responsive components and FORRT design tokens.
+- `data/`: committed snapshots, chart summaries and a curated journal-to-discipline map.
+- `data/originals_index.json`: compact citation table index; full records are fetched from `data/originals/` only when opened. `originals.json` remains available for bulk download and reproducible recalculation.
+- `scripts/classification.py`: explicit outcome, venue and reproduction-dimension categories.
+- `scripts/`: data preparation and analysis pipelines.
+- `cache/`: committed OpenCitations and OpenAlex responses. Cache timestamps are preserved independently of filesystem checkout dates.
+- `archive/`: superseded R Markdown analysis and rendered artifacts.
+- `tests/`: browser acceptance scenarios and pipeline regression checks.
+
+## Refresh data
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
 pip install -r scripts/requirements.txt
-
-# Daily snapshot (just pulls flora.csv)
 python scripts/refresh_flora.py
-
-# Mean Citedness pipeline (needs R)
-MY_EMAIL=you@example.org python scripts/compute_omc.py
-Rscript scripts/render_impact_factor.R
-
-# Citation Impact pipeline (long-running; uses OpenCitations)
-MY_EMAIL=you@example.org python scripts/refresh_data.py
-
-# Authorship Overlap (needs flora.csv already downloaded)
 python scripts/compute_author_overlap.py
-
-# Registered Reports status (needs flora.csv already downloaded; queries the Zotero API)
-MY_EMAIL=you@example.org python scripts/compute_rr_status.py
+python scripts/compute_pub_status.py
+python scripts/compute_rr_status.py
 ```
 
-R packages required: `jsonlite`, `mgcv`.
+OpenAlex enrichment uses `MY_EMAIL`. The citation pipeline also accepts an optional `OC_API_KEY`. Keep credentials in environment variables or GitHub Actions secrets.
 
-## Editing the disciplines map
+```sh
+python scripts/compute_omc.py
+Rscript scripts/render_impact_factor.R
+python scripts/refresh_data.py
+```
 
-`data/disciplines.json` is the **single source of truth** for the
-journal → discipline mapping used both by the JS frontend (Years &
-Disciplines tab) and by the R Mean Citedness analysis. Edit it once and
-both views update on the next deploy / refresh.
+R requires `jsonlite` and `mgcv`. The citation refresh can run for several hours; do not use it just to test the UI. All data workflows share a concurrency group and stagger their schedules. A failed lookup is not treated as evidence of zero citations. Empty citation runs preserve previous outputs; partial runs are labelled.
 
-## Acknowledgements
+To recalculate the existing citation cohort from its committed cache, without network requests:
 
-- Data: [FORRT FReD project](https://github.com/forrtproject/FReD-data)
-- Citation backend: [OpenCitations COCI](https://opencitations.net)
-- Journal Mean Citedness: [OpenAlex Sources API](https://docs.openalex.org/api-entities/sources)
+```sh
+python scripts/rebuild_cached_citations.py
+```
+
+This validates cache availability, recomputes the timelines and models, and writes the compact index and individual records. The original coverage date stays unchanged; a separate recalculation date records the computation. It does not expand the citation cohort. `scripts/run_fect.R` is retained as an optional research analysis and is not part of the deployed OLS figures or scheduled workflows.
+
+## Validate changes
+
+```sh
+pip install -r scripts/requirements.txt
+python -m unittest discover -s tests -p 'test_*.py'
+npm ci
+npm test
+```
+
+Browser tests start their own local server and use installed Chrome by default. For Playwright's bundled Chromium, run `npx playwright install chromium` and set `BROWSER_CHANNEL=chromium`. Tests cover desktop/mobile search, shared views, stale model state, keyboard evidence access, model intervals, responsive redraws, accessible tables and reconciliation of generated counts.
+
+[Validation notes](docs/review-validation.md) record the current acceptance results and data coverage. Contributions of additional views are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Suggested citation
 
-> Wallrich, L., & Röseler, L. (2026). *FLoRA Explorer* [Website].
-> <https://forrt.org/flora-explorer/>
+Wallrich, L., & Röseler, L. (2026). *FLoRA Explorer* [Website]. <https://forrt.org/flora-explorer/>

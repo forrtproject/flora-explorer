@@ -95,13 +95,18 @@ run_etwfe <- function(df, depvar) {
     )
     eff <- emfx(fit, type = "event")
 
-    # Ensure t=-1 is present (reference period, AME = 0 by construction)
+    # Ensure t=-1 is present (reference period, AME = 0 by construction).
+    # Build the row from an existing eff row so it carries every column emfx
+    # produced (which is more than the five we set); extras are filled with NA.
     if (!(-1L) %in% eff$.event) {
-      eff <- rbind(
-        data.frame(.event = -1L, dydx = 0, std.error = 0,
-                   conf.low = 0, conf.high = 0),
-        eff
-      )
+      ref <- eff[1, , drop = FALSE]
+      ref[] <- NA
+      ref$.event    <- -1L
+      ref$dydx      <- 0
+      ref$std.error <- 0
+      ref$conf.low  <- 0
+      ref$conf.high <- 0
+      eff <- rbind(ref, eff)
     }
 
     keep <- eff$.event >= LO & eff$.event <= HI

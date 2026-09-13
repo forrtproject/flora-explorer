@@ -21,14 +21,14 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 // ----- Config -----
 // Prefer local snapshot (daily-refreshed by GitHub Action); fall back to upstream live CSV.
 const LOCAL_CSV_URL = 'data/flora.csv';
-const REMOTE_CSV_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv';
+const REMOTE_CSV_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora.csv';
 const FLORA_META_URL = 'data/flora_meta.json';
 const CITATIONS_META_URL = 'data/meta.json';
 const IMPACT_META_URL = 'data/impact_factor_meta.json';
 const IMPACT_DATA_URL = 'data/impact_factor_data.json';
 const IMPACT_REPRODUCTIONS_URL = 'data/impact_factor_reproductions.json';
 const DISCIPLINES_URL = 'data/disciplines.json';
-const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/CITATION.cff';
+const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/CITATION.cff';
 const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
 
 const OUTCOME_COLORS = {
@@ -36,7 +36,8 @@ const OUTCOME_COLORS = {
     failed:       '#b3331e',
     mixed:        '#d49b1d',
     inconclusive: '#6f7686',
-    other:        '#a0a7b4'
+    qualified:    '#7851a9',
+    other:        '#707782'
 };
 
 // Filled at runtime from data/disciplines.json
@@ -71,19 +72,15 @@ let trendFieldChart = null;
 let trendsInitialized = false;
 
 // ===== Utilities =====
-function classifyOutcome(outcomeRaw) {
-    if (!outcomeRaw) return 'other';
-    const o = outcomeRaw.toLowerCase().trim();
-    if (o.includes('success') || o === 'replicated' || (o.includes('robust') && !o.includes('challenge') && !o.includes('not'))) return 'successful';
-    if (o.includes('fail') || o === 'not replicated' || o.includes('computational issue') || o.includes('robustness challenge')) return 'failed';
-    if (o.includes('mixed') || o.includes('partial')) return 'mixed';
-    if (o.includes('inconclusive')) return 'inconclusive';
-    return 'other';
+function classifyOutcome(raw) {
+    return ({ successful: 'successful', replicated: 'successful', failed: 'failed',
+        'not replicated': 'failed', mixed: 'mixed', partial: 'mixed', inconclusive: 'inconclusive',
+        'statistically successful but flawed': 'qualified' })[String(raw || '').trim().toLowerCase()] || 'other';
 }
 
 function hasMatchedOutcome(row) {
     const c = classifyOutcome(row.outcome);
-    return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive';
+    return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive' || c === 'qualified';
 }
 
 function classifyKind(row) {
@@ -107,22 +104,12 @@ function classifyKind(row) {
 // robustness) use this same two-part shape. Parsing positionally - part[0] only tested
 // against computational keywords, part[1] only against robustness keywords - avoids any
 // cross-contamination between the two dimensions' text.
-function parseReproductionOutcome(outcomeStr) {
-    const parts = (outcomeStr || '').toLowerCase().split(',').map(p => p.trim());
-    const p0 = parts[0] || '';
-    const p1 = parts[1] || '';
-    let computational = null, robustness = null;
-
-    if (p0.includes('technical failure') || p0 === 'failed') computational = 'technical_failure';
-    else if (p0.includes('computational issue')) computational = 'issues';
-    else if (p0.includes('computationally reproducible') || (p0.includes('computational') && p0.includes('success'))) computational = 'successful';
-    else if (p0.includes('not checked')) computational = 'not_checked';
-
-    if (p1.includes('robustness challenge')) robustness = 'challenges';
-    else if (p1.includes('not checked')) robustness = 'not_checked';
-    else if (p1.includes('robust')) robustness = 'robust';
-
-    return { computational, robustness };
+function parseReproductionOutcome(raw) {
+    const parts = String(raw || '').toLowerCase().split(',').map(s=>s.trim());
+    const computational = {'computationally reproducible':'successful', 'computationally successful':'successful',
+        'computational issues':'issues', 'technical failure':'technical_failure', failed:'technical_failure', 'not checked':'not_checked'};
+    const robustness = {robust:'robust', 'robustness challenges':'challenges', 'not checked':'not_checked', 'robustness not checked':'not_checked'};
+    return {computational:computational[parts[0]] || null, robustness:robustness[parts[1]] || null};
 }
 
 // Computational and robustness are two independently-assessed dimensions (see
@@ -201,6 +188,8 @@ function studyTypeOutcomeBuckets(kind) {
         { key: 'failed', label: 'Failed', color: OUTCOME_COLORS.failed },
         { key: 'mixed', label: 'Mixed', color: OUTCOME_COLORS.mixed },
         { key: 'inconclusive', label: 'Inconclusive', color: OUTCOME_COLORS.inconclusive },
+        { key: 'qualified', label: 'Successful but flawed', color: OUTCOME_COLORS.qualified },
+        { key: 'other', label: 'Other / not coded', color: OUTCOME_COLORS.other },
     ];
 }
 
@@ -226,33 +215,18 @@ setupStudyTypeSelect('pubtype-study-type', kind => {
 });
 
 function getOutcomeBadge(outcome) {
-    if (!outcome) return '<span class="badge badge-unknown">Unknown</span>';
-    const cls = classifyOutcome(outcome);
-    const map = { successful: 'badge-successful', failed: 'badge-failed', mixed: 'badge-mixed', inconclusive: 'badge-inconclusive', other: 'badge-unknown' };
-    return `<span class="badge ${map[cls]}">${escapeHtml(outcome)}</span>`;
+    const raw = String(outcome || 'Not coded');
+    if (raw.includes(',') || /computational|robustness/i.test(raw)) {
+        const d = parseReproductionOutcome(raw);
+        const labels = {successful: 'Reproducible', issues: 'Computational issues', technical_failure: 'Technical failure',
+            robust: 'Robust', challenges: 'Robustness challenges', not_checked: 'Not checked'};
+        return [['Computational', d.computational], ['Robustness', d.robustness]].map(([label, key]) =>
+            `<span class="badge badge-${key === 'successful' || key === 'robust' ? 'successful' : key === 'issues' || key === 'challenges' || key === 'technical_failure' ? 'failed' : 'unknown'}">${label}: ${labels[key] || 'Not coded'}</span>`).join(' ');
+    }
+    return `<span class="badge badge-${classifyOutcome(raw)}">${escapeHtml(raw)}</span>`;
 }
 
-function getOutcomeBadgeShort(outcome) {
-    if (!outcome) return '<span class="badge badge-unknown">Unknown</span>';
-    const o = outcome.toLowerCase().trim();
-    const cls = classifyOutcome(outcome);
-    const colorMap = { successful: 'badge-successful', failed: 'badge-failed', mixed: 'badge-mixed', inconclusive: 'badge-inconclusive', other: 'badge-unknown' };
-    let short;
-    const compState = o.includes('computationally successful') ? 'CS' :
-                      o.includes('computational issue') ? 'CI' : null;
-    const robState = o.includes('robustness challenge') ? 'RC' :
-                     o.includes('robustness not checked') ? 'RNC' :
-                     (o.includes('robust') && !o.includes('not') && !o.includes('challenge')) ? 'R' : null;
-    if (compState && robState) short = `${compState} · ${robState}`;
-    else if (compState) short = compState === 'CS' ? 'Comp. Successful' : 'Comp. Issues';
-    else if (robState) short = robState === 'R' ? 'Robust' : robState === 'RC' ? 'Robustness Issues' : 'Robustness N/C';
-    else if (cls === 'successful') short = 'Successful';
-    else if (cls === 'failed') short = 'Failed';
-    else if (cls === 'mixed') short = 'Mixed';
-    else if (cls === 'inconclusive') short = 'Inconclusive';
-    else short = outcome.length > 20 ? outcome.slice(0, 18) + '…' : outcome;
-    return `<span class="badge ${colorMap[cls]}" title="${escapeHtml(outcome)}">${escapeHtml(short)}</span>`;
-}
+function getOutcomeBadgeShort(outcome) { return getOutcomeBadge(outcome); }
 
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
@@ -266,31 +240,23 @@ function truncateText(text, maxLength = 60) {
     return text.length > maxLength ? text.substring(0, maxLength) + '…' : text;
 }
 
+function safeHref(value) {
+    try { const u = new URL(String(value || '')); return ['http:', 'https:'].includes(u.protocol) ? u.href : ''; }
+    catch { return ''; }
+}
 function formatDOI(doi, full = false) {
     if (!doi) return '-';
-    const doiUrl = doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
-    const shortDoi = doi.replace('https://doi.org/', '').replace('http://doi.org/', '');
-    if (full) return `<a href="${doiUrl}" target="_blank" class="doi-link">${escapeHtml(shortDoi)}</a>`;
-    return `<a href="${doiUrl}" target="_blank" class="doi-link" title="${escapeHtml(shortDoi)}">${escapeHtml(shortDoi.substring(0, 25))}${shortDoi.length > 25 ? '…' : ''}</a>`;
+    const clean = String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '');
+    const href = /^10\.\d{4,9}\//.test(clean) ? 'https://doi.org/' + encodeURI(clean) : safeHref(doi);
+    const label = full ? clean : truncateText(clean,25);
+    return href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link" title="${escapeHtml(clean)}">${escapeHtml(label)}</a>` : escapeHtml(label);
 }
-
 function formatUrlOrDoi(url, doi) {
-    if (url) {
-        const displayUrl = url.length > 40 ? url.substring(0, 40) + '…' : url;
-        return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link">${escapeHtml(displayUrl)}</a>`;
-    }
-    if (doi) return formatDOI(doi, true);
-    return '-';
+    const href = safeHref(url);
+    if (href) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link">${escapeHtml(truncateText(url,40))}</a>`;
+    return formatDOI(doi,true);
 }
-
-function formatUrlOrDoiShort(url, doi) {
-    if (url) {
-        const displayUrl = url.length > 25 ? url.substring(0, 25) + '…' : url;
-        return `<a href="${escapeHtml(url)}" target="_blank" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(displayUrl)}</a>`;
-    }
-    if (doi) return formatDOI(doi, false);
-    return '-';
-}
+function formatUrlOrDoiShort(url, doi) { return formatUrlOrDoi(url,doi); }
 
 function formatAuthors(authorData) {
     if (!authorData) return '-';
@@ -334,6 +300,41 @@ function shortAuthors(authorData) {
     return '';
 }
 
+// ===== Chart-library guards =====
+// Charts depend on Chart.js / Plotly loaded from a CDN. If a CDN is blocked
+// (ad-blocker/offline), the library is undefined; show an inline message in the
+// chart container instead of throwing an uncaught error that aborts everything
+// else on the page (tables, FAQ, data stamps, …).
+// The chart libraries load from CDNs *after* app.js, and a fast (cached,
+// same-origin) data fetch can resolve while they are still downloading. So
+// before the window load event, an undefined library means "not loaded yet",
+// not "failed": defer one retry to the load event instead of declaring
+// failure. After load, a missing library really is a failed CDN.
+function chartLibUnavailable(elId, lib, retry) {
+    if (document.readyState !== 'complete') {
+        // Dedupe by retry-function identity so several guards sharing one
+        // retry (the five trend charts all retry via renderAllTrends) queue
+        // it only once.
+        const q = (chartLibUnavailable._queued ||= new Set());
+        if (!q.has(retry)) {
+            q.add(retry);
+            window.addEventListener('load', retry, { once: true });
+        }
+        return;
+    }
+    chartLibMissing(elId, lib);
+}
+
+const retryAllTrends = () => { if (trendsInitialized) renderAllTrends(); };
+
+function chartLibMissing(elId, lib) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const msg = `<div class="chart-unavailable" style="padding:24px;text-align:center;color:var(--flora-muted);font-size:0.85rem;">Chart unavailable — ${lib} could not be loaded.</div>`;
+    if (el.tagName === 'CANVAS') { if (el.parentElement) el.parentElement.innerHTML = msg; }
+    else el.innerHTML = msg;
+}
+
 // ===== Overview =====
 function updateOverviewStats(data) {
     const total = data.length;
@@ -362,18 +363,11 @@ const REPRODUCTION_COLORS = {
 // the two independent dimensions parsed out of their compound outcome string.
 function computeKindChartData(data, kind) {
     if (kind === 'replicability') {
-        const eligible = data.filter(r => classifyKind(r) === 'replication' && hasMatchedOutcome(r));
-        const counts = { successful: 0, mixed: 0, failed: 0, inconclusive: 0 };
-        eligible.forEach(row => { counts[classifyOutcome(row.outcome)]++; });
-        return {
-            total: eligible.length,
-            datasets: [
-                { label: 'Successful',   data: [counts.successful],   backgroundColor: OUTCOME_COLORS.successful },
-                { label: 'Mixed',        data: [counts.mixed],        backgroundColor: OUTCOME_COLORS.mixed },
-                { label: 'Failed',       data: [counts.failed],       backgroundColor: OUTCOME_COLORS.failed },
-                { label: 'Inconclusive', data: [counts.inconclusive], backgroundColor: OUTCOME_COLORS.inconclusive }
-            ]
-        };
+        const eligible = data.filter(r => classifyKind(r) === 'replication');
+        const buckets = studyTypeOutcomeBuckets('replication');
+        const counts = Object.fromEntries(buckets.map(b => [b.key, 0]));
+        eligible.forEach(row => counts[classifyOutcome(row.outcome)]++);
+        return { total: eligible.length, datasets: buckets.map(b => ({label: b.label, data: [counts[b.key]], backgroundColor: b.color})) };
     }
     const repro = data.filter(r => classifyKind(r) === 'reproduction');
     if (kind === 'computational') {
@@ -404,13 +398,14 @@ function computeKindChartData(data, kind) {
 // Overview, 3 on Browse Studies). Returns the new Chart.js instance so callers can keep
 // tracking their own module-level "existing chart" variable for destroy/rebuild.
 function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel) {
+    if (typeof Chart === "undefined") { chartLibUnavailable(canvasId, "Chart.js", () => renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel)); return null; }
     const canvas = document.getElementById(canvasId);
     if (!canvas) return existingChart || null;
     const { datasets, total } = computeKindChartData(data, kind);
     const ctx = canvas.getContext('2d');
     if (existingChart) existingChart.destroy();
     const ac = themeAxisColors();
-    return new Chart(ctx, {
+    return FloraCharts.chart(ctx, {
         type: 'bar',
         data: { labels: [categoryLabel], datasets },
         options: {
@@ -448,7 +443,13 @@ function renderRandomExamples(data) {
     const container = document.getElementById('random-examples');
     const usable = data.filter(r => (r.title_o || r.author_o) && r.outcome);
     if (usable.length === 0) { container.innerHTML = '<p class="text-muted">No examples available.</p>'; return; }
-    const shuffled = [...usable].sort(() => Math.random() - 0.5).slice(0, 4);
+    // Fisher–Yates shuffle (unbiased, unlike sort with a random comparator).
+    const pool = [...usable];
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const shuffled = pool.slice(0, 4);
     container.innerHTML = shuffled.map(r => {
         const cls = classifyOutcome(r.outcome);
         const origTitle = r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`;
@@ -571,7 +572,15 @@ document.getElementById('website-citation-copy-btn').addEventListener('click', (
 function renderInlineMd(text) {
     let s = escapeHtml(text);
     s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`);
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => {
+        // Strict allow-list: the whole trimmed URL must start with an allowed
+        // scheme. Anything else — including relative, protocol-relative, or
+        // control-character-prefixed URLs that browsers would normalize into
+        // javascript: — renders as plain text.
+        const clean = u.trim();
+        const safe = /^(https?:|mailto:)/i.test(clean);
+        return safe ? `<a href="${clean}" target="_blank" rel="noopener">${t}</a>` : `${t} (${u})`;
+    });
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
     return s;
@@ -692,11 +701,6 @@ function formatDetailRow(rowData) {
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
                     ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome Quote:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div>` : ''}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
-                    ${rowData.effect_o ? `<div><span class="detail-label">Original Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_o)}</span></div>` : ''}
-                    ${rowData.effect_r ? `<div><span class="detail-label">Replication Effect:</span> <span class="detail-value">${escapeHtml(rowData.effect_r)}</span></div>` : ''}
-                    ${rowData.n_o ? `<div><span class="detail-label">Original N:</span> <span class="detail-value">${escapeHtml(rowData.n_o)}</span></div>` : ''}
-                    ${rowData.n_r ? `<div><span class="detail-label">Replication N:</span> <span class="detail-value">${escapeHtml(rowData.n_r)}</span></div>` : ''}
-                    ${rowData.description ? `<div><span class="detail-label">Description:</span> <span class="detail-value">${escapeHtml(rowData.description)}</span></div>` : ''}
                 </div>
             </div>
         </div>`;
@@ -716,27 +720,28 @@ function initDataTable(data) {
     ]);
 
     dataTable = $('#flora-table').DataTable({
-        data: tableData, responsive: false, pageLength: 25,
+        data: tableData, responsive: false, pageLength: 25, dom: 'lrtip',
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
         order: [[4, 'desc']],
         language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)..." },
         columnDefs: [
-            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '', width: '30px' },
+            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false">Details</button>', width: '60px' },
             { targets: [1, 3], width: '20%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: [2, 4], width: '5%' },
             { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: 6, width: '6%' },
             { targets: [7, 8], width: '12%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
         ],
-        createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); }
+        createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
 
-    dataTable.on('search.dt', renderBrowseOutcomeCharts);
+    dataTable.on('order.dt', () => { if (bmInitialized) updateBrowseResults(); syncBrowseUrl(); });
 
-    $('#flora-table tbody').on('click', 'td.details-control', function() {
+    $('#flora-table tbody').on('click', 'button.study-details', function() {
         const tr = $(this).closest('tr');
         const row = dataTable.row(tr);
         const dataIndex = tr.attr('data-index');
+        this.setAttribute('aria-expanded', String(!row.child.isShown()));
         if (row.child.isShown()) { row.child.hide(); tr.removeClass('shown'); }
         else { row.child(formatDetailRow(fullRowData[dataIndex])).show(); tr.addClass('shown'); }
     });
@@ -749,9 +754,9 @@ let bmFiltered = []; let bmPage = 0; let bmInitialized = false;
 function bmSearchableText(row) {
     return [row.title_o, row.author_o, row.journal_o, row.year_o, row.doi_o,
             row.title_r, row.author_r, row.journal_r, row.year_r, row.doi_r, row.url_r,
-            row.outcome, row.outcome_quote, row.type, row.description].filter(Boolean).join(' | ').toLowerCase();
+            row.outcome, row.outcome_quote, row.type].filter(Boolean).join(' | ').toLowerCase();
 }
-function bmHref(doi, url) { if (doi) return doi.startsWith('http') ? doi : `https://doi.org/${doi}`; if (url) return url; return ''; }
+function bmHref(doi, url) { return doi ? safeHref(String(doi).startsWith('http') ? doi : 'https://doi.org/' + encodeURI(doi)) : safeHref(url); }
 function bmAuthorYear(authorData, year) { const a = shortAuthors(authorData); const y = year ? `(${year})` : ''; return [a, y].filter(Boolean).join(' '); }
 function bmRenderTitleLine(title, fallback, doi, url) {
     const text = escapeHtml(title || fallback || '—');
@@ -771,15 +776,13 @@ function bmCardHtml(row) {
             <div class="bm-row"><div class="bm-row-label">Original</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
             <div class="bm-divider"></div>
             <div class="bm-row"><div class="bm-row-label">Replication</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
-            <div class="bm-tags">${tagsParts.join('')}</div>
+            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study evidence and outcome quotation</summary>${formatDetailRow(row)}</details>
         </div>`;
 }
 function bmApplySearch(query) {
-    const q = (query || '').trim().toLowerCase();
-    const source = bmDataSource();
-    bmFiltered = q ? source.filter(r => bmSearchableText(r).includes(q)) : source.slice();
-    bmFiltered.sort((a, b) => (parseInt(b.year_r, 10) || 0) - (parseInt(a.year_r, 10) || 0));
-    bmPage = 0; bmRender();
+    browseQuery = query || '';
+    updateBrowseResults();
+    syncBrowseUrl();
 }
 function bmRender() {
     const list = document.getElementById('browse-mobile-list');
@@ -811,13 +814,47 @@ function setupBrowseMobile(data) {
     const next = document.getElementById('bm-next');
     let debounceTimer;
     input.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => bmApplySearch(input.value), 150); });
-    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
-    next.addEventListener('click', () => { bmPage++; bmRender(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
-    bmApplySearch('');
+    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); } });
+    next.addEventListener('click', () => { bmPage++; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); });
+    input.value = browseQuery; bmApplySearch(browseQuery);
+}
+
+function normalizedQuery(query) {
+    return String(query || '').toLowerCase().replace(/https?:\/\/(?:dx\.)?doi\.org\//g, '').replace(/\bdoi:\s*/g, '').trim();
+}
+function matchesBrowseQuery(row, query) {
+    const text = bmSearchableText(row);
+    const tokens = normalizedQuery(query).match(/"[^"\n]+"|\S+/g) || [];
+    return tokens.every(token => text.includes(token.replace(/^"|"$/g, '')));
+}
+let updatingBrowse = false;
+function updateBrowseResults() {
+    if (updatingBrowse) return;
+    updatingBrowse = true;
+    bmFiltered = getChartData();
+    if (dataTable) {
+        const [column, direction] = dataTable.order()[0] || [4, 'desc'];
+        const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o',8:'doi_r'}[column] || 'year_r';
+        bmFiltered.sort((a,b) => String(a[field] || '').localeCompare(String(b[field] || ''), undefined, {numeric:true}) * (direction === 'desc' ? -1 : 1));
+        dataTable.draw(false);
+    }
+    bmPage = 0;
+    if (bmInitialized) bmRender();
+    updateBrowseKindCount();
+    renderBrowseOutcomeCharts();
+    updatingBrowse = false;
+}
+function syncBrowseUrl() {
+    const url = new URL(location.href);
+    browseQuery ? url.searchParams.set('q', browseQuery) : url.searchParams.delete('q');
+    browseKind !== 'all' ? url.searchParams.set('kind', browseKind) : url.searchParams.delete('kind');
+    if (dataTable) url.searchParams.set('sort', dataTable.order()[0].join(':'));
+    history.replaceState(null, '', url);
 }
 
 // ===== Browse kind filter =====
-let browseKind = 'all';
+let browseKind = new URLSearchParams(location.search).get('kind') || 'all';
+let browseQuery = new URLSearchParams(location.search).get('q') || '';
 let browseOutcomeChart = null;
 let browseComputationalChart = null;
 let browseRobustnessChart = null;
@@ -827,11 +864,7 @@ function bmDataSource() { return browseFilteredData(); }
 
 // Returns rows that pass both the kind filter AND the current DataTables search.
 function getChartData() {
-    if (dataTable) {
-        const indices = dataTable.rows({ search: 'applied' }).indexes().toArray();
-        return filterByKind(indices.map(i => fullRowData[i]), browseKind);
-    }
-    return browseFilteredData();
+    return browseFilteredData().filter(row => matchesBrowseQuery(row, browseQuery));
 }
 
 function renderBrowseOutcomeCharts() {
@@ -855,17 +888,13 @@ function renderBrowseOutcomeCharts() {
 
 function updateBrowseKindCount() {
     const el = document.getElementById('browse-kind-count'); if (!el) return;
-    const n = browseFilteredData().length; const total = fullRowData.length;
-    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} studies` : `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
+    const n = getChartData().length; const total = fullRowData.length;
+    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference pairs` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
 }
 
 function applyBrowseKind() {
-    updateBrowseKindCount(); renderBrowseOutcomeCharts();
-    if (dataTable) dataTable.draw();
-    if (bmInitialized) {
-        const input = document.getElementById('browse-mobile-input');
-        bmApplySearch(input ? input.value : '');
-    }
+    updateBrowseResults();
+    syncBrowseUrl();
 }
 
 function setupBrowseKindFilter() {
@@ -879,20 +908,20 @@ function setupBrowseKindFilter() {
     });
     $.fn.dataTable.ext.search.push(function(settings, searchData, dataIndex) {
         if (settings.nTable.id !== 'flora-table') return true;
-        if (browseKind === 'all') return true;
         const row = fullRowData[dataIndex]; if (!row) return true;
-        return filterByKind([row], browseKind).length > 0;
+        return filterByKind([row], browseKind).length > 0 && matchesBrowseQuery(row, browseQuery);
     });
+    document.querySelectorAll('.browse-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === browseKind));
     applyBrowseKind();
 }
 
 // ===== Trends =====
-let trendsKind = 'all';
+let trendsKind = 'replication';
 function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
 function updateTrendsCount() {
     const el = document.getElementById('trend-filter-count'); if (!el) return;
     const n = trendsFilteredData().length; const total = fullRowData.length;
-    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} studies` : `${n.toLocaleString()} of ${total.toLocaleString()} studies`;
+    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} reference pairs` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
 }
 
 // Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
@@ -913,7 +942,7 @@ function outcomeBucketKeyForRow(row, kind) {
 // toward the bar's total height instead of silently vanishing from the stack.
 function trendOutcomeBuckets(kind) {
     if (kind === 'reproduction-numerical' || kind === 'reproduction-robustness') return studyTypeOutcomeBuckets(kind);
-    return [...studyTypeOutcomeBuckets(kind), { key: 'other', label: 'Other / not yet coded', color: OUTCOME_COLORS.other }];
+    return studyTypeOutcomeBuckets(kind);
 }
 
 function aggregateStackedCounts(data, keyFn, kind) {
@@ -972,28 +1001,26 @@ function wrapLabel(str, maxChars = 36) {
         else { lines.push(line); line = w; }
     }
     if (line) lines.push(line);
-    if (lines.length > 3) {
-        const trimmed = lines.slice(0, 3); const last = trimmed[2];
-        trimmed[2] = (last.length > maxChars - 1 ? last.slice(0, maxChars - 1) : last) + '…';
-        return trimmed;
-    }
+
     return lines;
 }
 
 function renderStackedCountChart(canvasId, agg, orientation, existing, buckets, opts = {}) {
     if (existing) existing.destroy();
+    if (typeof Chart === 'undefined') { chartLibUnavailable(canvasId, 'Chart.js', retryAllTrends); return null; }
     const ctx = document.getElementById(canvasId).getContext('2d');
     const isHorizontal = orientation === 'horizontal';
     const ac = themeAxisColors();
     const wrapLabels = !!opts.wrapLabels;
-    const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, 38) : r.key);
+    const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, window.innerWidth < 600 ? 18 : 38) : r.key);
+    if (isHorizontal) ctx.canvas.parentElement.style.height = Math.max(400, labels.reduce((n,l)=>n+(Array.isArray(l)?l.length:1)*15+15,70)) + 'px';
     const datasets = buckets.map(b => ({
         label: b.label,
         data: agg.map(r => r.counts[b.key] || 0),
         backgroundColor: b.color,
     }));
 
-    return new Chart(ctx, {
+    return FloraCharts.chart(ctx, {
         type: 'bar',
         data: { labels, datasets },
         options: {
@@ -1112,10 +1139,17 @@ function mcBucketConfig(kind) {
         { histKey: 'failed', overviewKey: 'n_failed', label: 'Failed', color: OUTCOME_COLORS.failed },
         { histKey: 'mixed', overviewKey: 'n_mixed', label: 'Mixed', color: OUTCOME_COLORS.mixed },
         { histKey: 'inconclusive', overviewKey: 'n_inconclusive', label: 'Inconclusive', color: OUTCOME_COLORS.inconclusive },
+        { histKey: 'qualified', overviewKey: 'n_qualified', label: 'Successful but flawed', color: OUTCOME_COLORS.qualified },
+        { histKey: 'other', overviewKey: 'n_other', label: 'Other / not coded', color: OUTCOME_COLORS.other },
     ];
 }
 
 function renderMcCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("mc-dist-chart", "Plotly", renderMcCharts); return; }
+    document.getElementById('mc-gam-stats').textContent = '';
+    document.getElementById('mc-gam-chart-data')?.remove();
+    document.querySelector('#mc-gam-card h3').textContent = mcKind === 'replication' ? 'Success probability among successful / failed replications' : 'Model for ' + studyTypeLabel(mcKind);
+    document.querySelector('#mc-gam-card .mc-model-note:last-child').textContent = mcKind === 'replication' ? 'Conditional on unqualified successful or failed outcomes; other outcomes are excluded. Association does not establish causation.' : 'Reproduction summaries are descriptive. No reproduction model has been fitted.';
     const d = window._mcData && window._mcData[mcKind];
     const insufficientEl = document.getElementById('mc-placeholder');
     const overviewEl = document.getElementById('mc-overview');
@@ -1159,7 +1193,7 @@ function renderMcCharts() {
     const bins  = d.histogram || [];
     const xMids = bins.map(b => +((b.bin_lo + b.bin_hi) / 2).toFixed(2));
     const hTpl  = 'OMC %{x:.2f}<br>%{y} studies<extra>%{fullData.name}</extra>';
-    Plotly.newPlot('mc-dist-chart', buckets.map(b => ({
+    FloraCharts.plot('mc-dist-chart', buckets.map(b => ({
         x: xMids, y: bins.map(row => row[b.histKey] || 0), name: b.label, type: 'bar',
         marker: { color: b.color }, hovertemplate: hTpl,
     })), {
@@ -1182,14 +1216,20 @@ function renderMcCharts() {
     const gamDiv = document.getElementById('mc-gam-chart');
     const hasGam = gc.length > 0 && st && st.n_model >= 30;
     if (!hasGam) {
-        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--flora-muted);font-size:0.9rem;text-align:center;padding:2rem">Not enough data to fit a smooth model<br>(requires ≥30 studies with successful or failed outcomes that have OMC data)</div>';
+        if (gamDiv.data) Plotly.purge(gamDiv);
+        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--flora-muted);font-size:0.9rem;text-align:center;padding:2rem">' + (mcKind === 'replication' ? 'No fitted model is available for this snapshot. A model requires at least 30 eligible successful/failed pairs and sufficient variation.' : 'No model has been fitted for reproductions. The distribution above is descriptive.') + '</div>';
         return;
     }
-    const jitter2 = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
-        x: pt.omc + (Math.random() - 0.5) * 0.15,
-        y: pt.outcome + (Math.random() - 0.5) * 0.06,
-        lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
-    }));
+    // Jitter is computed once per data load and cached so scatter points stay
+    // put across re-renders (theme toggles, etc.) instead of jumping.
+    if (!window._mcJitter) {
+        window._mcJitter = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
+            x: pt.omc + (Math.random() - 0.5) * 0.15,
+            y: pt.outcome + (Math.random() - 0.5) * 0.06,
+            lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
+        }));
+    }
+    const jitter2 = window._mcJitter;
     const gamTraces = [
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
@@ -1208,7 +1248,7 @@ function renderMcCharts() {
         height: 640,
         margin: { t: 10, r: 10, b: 50, l: 60 },
         xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
-        yaxis: { title: 'P(successful replication)', range: [-0.08, 1.08],
+        yaxis: { title: 'P(success | successful or failed)', range: [-0.08, 1.08],
                  tickformat: '.0%', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
         font: { family: 'Inter, sans-serif', size: 12, color: t.font },
@@ -1221,16 +1261,16 @@ function renderMcCharts() {
         annotations: [{
             xref: 'paper', x: 1, xanchor: 'right',
             yref: 'y', y: 0.5, yanchor: 'bottom',
-            text: 'chance (50%)', showarrow: false,
+            text: '50% reference', showarrow: false,
             font: { size: 11, color: isDark ? 'rgba(200,200,210,0.6)' : 'rgba(100,100,100,0.6)' },
         }],
     };
-    Plotly.newPlot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true });
+    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true });
     const pNote = (st.p_val !== null && st.p_val !== undefined)
         ? (st.p_val < 0.001 ? 'p < .001' : 'p = ' + st.p_val.toFixed(3))
         : '';
     const glossEdf = '<span class="gloss" tabindex="0">edf<span class="gloss-tip">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</span></span>';
-    const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It isn’t directly comparable to an OLS R² — values around 0.2–0.4 already indicate a good fit.</span></span>';
+    const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</span></span>';
     document.getElementById('mc-gam-stats').innerHTML =
         'Logistic smooth: ' + glossEdf + ' = ' + st.edf +
         ', χ² = ' + st.chi_sq +
@@ -1240,7 +1280,11 @@ function renderMcCharts() {
 }
 
 async function loadMeanCitedness() {
-    if (window._mcData) { renderMcCharts(); return; }
+    // Fetch + render once. On later tab visits the charts are already in the
+    // DOM (theme toggles re-render via _rerenderAllCharts), so just return;
+    // the in-flight flag stops duplicate fetches from rapid tab switching.
+    if (window._mcData || window._mcLoading) return;
+    window._mcLoading = true;
     const loadingEl  = document.getElementById('mc-loading');
     const errorEl    = document.getElementById('mc-error');
     try {
@@ -1265,6 +1309,8 @@ async function loadMeanCitedness() {
         errorEl.style.display   = 'block';
         const det = document.getElementById('mc-error-detail');
         if (det) det.textContent = String(err);
+    } finally {
+        window._mcLoading = false;
     }
 }
 document.getElementById('mc-tab').addEventListener('shown.bs.tab', loadMeanCitedness);
@@ -1283,6 +1329,7 @@ function aoPlotlyTheme() {
 }
 
 function renderOverlapCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("ao-chart", "Plotly", renderOverlapCharts); return; }
     const d = window._aoData && window._aoData[aoKind];
     const insufficientEl = document.getElementById('ao-placeholder');
     const overviewEl = document.getElementById('ao-overview');
@@ -1364,7 +1411,7 @@ function renderOverlapCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
-    if (chartEl) Plotly.react(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
     chartCard.style.display = '';
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
@@ -1405,6 +1452,7 @@ document.getElementById('overlap-tab').addEventListener('shown.bs.tab', loadAuth
 window._rrData = null;
 
 function renderRRCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("rr-chart", "Plotly", renderRRCharts); return; }
     const d = window._rrData && window._rrData[pubTypeKind];
     const insufficientEl = document.getElementById('rr-placeholder');
     const overviewEl = document.getElementById('rr-overview');
@@ -1488,7 +1536,7 @@ function renderRRCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('rr-chart');
-    if (chartEl) Plotly.react(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
     chartCard.style.display = '';
 
     // ── Included-studies table ───────────────────────────────────────────────────
@@ -1496,14 +1544,12 @@ function renderRRCharts() {
     const tbody = document.querySelector('#rr-studies-table tbody');
     if (tbody) {
         tbody.innerHTML = studies.map(s => {
-            const doiLink = s.doi_r
-                ? '<a href="https://doi.org/' + encodeURIComponent(s.doi_r) + '" target="_blank" class="doi-link">' + s.doi_r + '</a>'
-                : (s.url_r ? '<a href="' + s.url_r + '" target="_blank" class="doi-link">link</a>' : '');
+            const doiLink = formatUrlOrDoi(s.url_r, s.doi_r);
             return '<tr>' +
-                '<td>' + (s.title_r || '') + '</td>' +
-                '<td>' + (s.journal_r || '') + '</td>' +
-                '<td>' + (s.year_r || '') + '</td>' +
-                '<td>' + (s.outcome || '') + '</td>' +
+                '<td>' + escapeHtml(s.title_r) + '</td>' +
+                '<td>' + escapeHtml(s.journal_r) + '</td>' +
+                '<td>' + escapeHtml(s.year_r) + '</td>' +
+                '<td>' + escapeHtml(s.outcome) + '</td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -1551,6 +1597,7 @@ async function loadRegisteredReports() {
 window._pubData = null;
 
 function renderPubStatusCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("pub-chart", "Plotly", renderPubStatusCharts); return; }
     const d = window._pubData && window._pubData[pubTypeKind];
     const insufficientEl = document.getElementById('pub-placeholder');
     const overviewEl = document.getElementById('pub-overview');
@@ -1579,30 +1626,16 @@ function renderPubStatusCharts() {
     // ── Overview boxes ─────────────────────────────────────────────────────────
     const ovEl = document.getElementById('pub-overview');
     if (ovEl) {
-        ovEl.innerHTML =
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + kindNoun + ' checked</div>' +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_journal || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Journal (peer-reviewed) (' + (ov.pct_journal || 0) + '%)</div>' +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_preprint || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Preprint / working paper (' + (ov.pct_preprint || 0) + '%)</div>' +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Not checkable</div>' +
-            '</div>';
+        const venueLabels = {journal:'Other named venue', preprint:'Repository / preprint', conference:'Conference output', thesis:'Thesis / dissertation', unknown:'Unknown venue'};
+        ovEl.innerHTML = `<div class="mc-stat"><div class="mc-stat-value">${ov.n_total}</div><div class="mc-stat-label">Reference pairs</div></div>` +
+            Object.entries(venueLabels).map(([key,label])=>`<div class="mc-stat"><div class="mc-stat-value">${ov['n_'+key] || 0}</div><div class="mc-stat-label">${label} (${ov.n_total ? (100*(ov['n_'+key] || 0)/ov.n_total).toFixed(1) : 0}%)</div></div>`).join('');
         ovEl.style.display = '';
     }
 
     // ── Grouped bar chart ──────────────────────────────────────────────────────
     const buckets = studyTypeOutcomeBuckets(pubTypeKind);
-    const groups     = ['journal', 'preprint'];
-    const GROUP_LABELS = { journal: 'Journal', preprint: 'Preprint / working paper' };
+    const groups = ['journal', 'preprint', 'conference', 'thesis', 'unknown'];
+    const GROUP_LABELS = { journal: 'Other named venue', preprint: 'Repository / preprint', conference: 'Conference output', thesis: 'Thesis / dissertation', unknown: 'Unknown venue' };
 
     const traces = buckets.map(b => ({
         name: b.label,
@@ -1634,7 +1667,7 @@ function renderPubStatusCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('pub-chart');
-    if (chartEl) Plotly.react(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
     chartCard.style.display = '';
 
     // ── All-studies table ─────────────────────────────────────────────────────
@@ -1642,12 +1675,8 @@ function renderPubStatusCharts() {
     const tbody = document.querySelector('#pub-studies-table tbody');
     if (tbody) {
         tbody.innerHTML = studies.map(s => {
-            const doiLink = s.doi_r
-                ? '<a href="https://doi.org/' + encodeURIComponent(s.doi_r) + '" target="_blank" class="doi-link">' + escapeHtml(s.doi_r) + '</a>'
-                : (s.url_r ? '<a href="' + escapeHtml(s.url_r) + '" target="_blank" class="doi-link">link</a>' : '');
-            const statusBadge = s.pub_status === 'journal'
-                ? '<span class="badge badge-successful">Journal</span>'
-                : '<span class="badge badge-unknown">Preprint</span>';
+            const doiLink = formatUrlOrDoi(s.url_r, s.doi_r);
+            const statusBadge = '<span class="badge badge-unknown">' + escapeHtml(GROUP_LABELS[s.pub_status] || 'Unknown venue') + '</span>';
             return '<tr>' +
                 '<td>' + escapeHtml(s.title_r) + '</td>' +
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
@@ -1689,6 +1718,7 @@ async function loadPubStatus() {
 
         if (loadingEl) loadingEl.style.display = 'none';
         renderPubStatusCharts();
+        renderLargeScaleCharts();
     } catch (err) {
         if (loadingEl) loadingEl.style.display = 'none';
         if (errorEl)   errorEl.style.display   = 'block';
@@ -1702,6 +1732,8 @@ async function loadPubStatus() {
 // each kind alongside the journal/preprint breakdown, since both are pure flora.csv
 // transforms with no external API - no separate fetch needed here.
 function renderLargeScaleCharts() {
+    if (typeof Plotly === "undefined") { chartLibUnavailable("ls-chart", "Plotly", renderLargeScaleCharts); return; }
+    document.getElementById('ls-loading').style.display = 'none';
     const d = window._pubData && window._pubData[pubTypeKind] && window._pubData[pubTypeKind].large_scale;
     const insufficientEl = document.getElementById('ls-placeholder');
     const overviewEl = document.getElementById('ls-overview');
@@ -1736,11 +1768,11 @@ function renderLargeScaleCharts() {
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_individual || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Individual (' + (ov.pct_individual || 0) + '%)</div>' +
+                '<div class="mc-stat-label">Up to 3 targets / unknown (' + (ov.pct_individual || 0) + '%)</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_large_scale || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Large-scale project (' + (ov.pct_large_scale || 0) + '%)</div>' +
+                '<div class="mc-stat-label">Multiple-target report (' + (ov.pct_large_scale || 0) + '%)</div>' +
             '</div>';
         overviewEl.style.display = '';
     }
@@ -1748,7 +1780,7 @@ function renderLargeScaleCharts() {
     // ── Grouped bar chart ──────────────────────────────────────────────────────
     const buckets = studyTypeOutcomeBuckets(pubTypeKind);
     const groups = ['individual', 'large_scale'];
-    const GROUP_LABELS = { individual: 'Individual', large_scale: 'Large-scale project (>5 targets)' };
+    const GROUP_LABELS = { individual: 'Up to 3 targets / unknown', large_scale: 'Multiple-target report (>3 targets)' };
 
     const traces = buckets.map(b => ({
         name: b.label,
@@ -1780,7 +1812,7 @@ function renderLargeScaleCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ls-chart');
-    if (chartEl) Plotly.react(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
     if (chartCard) chartCard.style.display = '';
 
     // ── Large-scale projects table ───────────────────────────────────────────────
@@ -1793,9 +1825,7 @@ function renderLargeScaleCharts() {
     const tbody = document.querySelector('#ls-studies-table tbody');
     if (tbody) {
         tbody.innerHTML = projects.map(s => {
-            const doiLink = s.doi_r
-                ? '<a href="https://doi.org/' + encodeURIComponent(s.doi_r) + '" target="_blank" class="doi-link">' + escapeHtml(s.doi_r) + '</a>'
-                : (s.url_r ? '<a href="' + escapeHtml(s.url_r) + '" target="_blank" class="doi-link">link</a>' : '');
+            const doiLink = formatUrlOrDoi(s.url_r, s.doi_r);
             const mix = Object.entries(s.outcome_mix || {})
                 .map(([k, n]) => escapeHtml(bucketLabels[k] || k) + ': ' + n)
                 .join(', ');
@@ -1837,6 +1867,7 @@ const PUB_STATUS_META_URL = 'data/pub_status_meta.json';
 const STAMP_LABELS = {
     flora: 'FLoRA data',
     citations: 'Citation data',
+    reproduction_citations: 'Reproduction citation coverage',
     impact_factor: 'Mean Citedness analysis',
     author_overlap: 'Authorship Overlap data',
     rr_status: 'Registered Reports data',
@@ -1845,6 +1876,7 @@ const STAMP_LABELS = {
 const STAMP_URLS = {
     flora: FLORA_META_URL,
     citations: CITATIONS_META_URL,
+    reproduction_citations: 'data/reproduction_citations_meta.json',
     impact_factor: IMPACT_META_URL,
     author_overlap: OVERLAP_META_URL,
     rr_status: RR_META_URL,
@@ -1872,16 +1904,20 @@ async function loadDataStamps() {
             const dt = new Date(meta.last_updated);
             const ageMs = Date.now() - dt.getTime();
             const ageDays = ageMs / (1000 * 60 * 60 * 24);
-            const stale = (src === 'citations' || src === 'impact_factor' || src === 'rr_status') ? ageDays > 14 : ageDays > 3;
+            const stale = (src === 'citations' || src === 'reproduction_citations' || src === 'impact_factor' || src === 'rr_status') ? ageDays > 14 : ageDays > 3;
             el.classList.toggle('stale', stale);
             const fmt = dt.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             el.innerHTML = `${label} last updated: <strong>${fmt}</strong>`;
+            if (meta.input_snapshot) el.innerHTML += ` · input snapshot: ${escapeHtml(String(meta.input_snapshot))}`;
+            if (meta.recalculated_at) el.innerHTML += ` · recalculated: ${new Date(meta.recalculated_at).toLocaleDateString()}`;
+            if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
             if (meta.source_url) el.innerHTML += ` · <a class="doi-link" href="${meta.source_url}" target="_blank">source</a>`;
         } else {
             el.classList.add('missing');
             el.innerHTML = `${label}: <em>no snapshot yet</em>`;
         }
     });
+    FloraCharts.updateContexts();
 }
 
 // ===== Main load =====
@@ -1953,6 +1989,7 @@ async function loadData() {
     loadFaqs();
     loadDataStamps();
     applyTabFromUrl();
+    document.dispatchEvent(new Event('flora-ready'));
 }
 
 // Map friendly ?tab= values to the Bootstrap tab buttons.

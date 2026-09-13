@@ -1,26 +1,8 @@
-"""
-Two classifications of each FLoRA replication/reproduction's write-up, feeding the
-"Publication Type" tab (Publication Status + the large-scale-project plot; Publication
-Format/Registered Reports is computed separately by compute_rr_status.py, since that
-one needs the Zotero API):
+"""Summarise recorded publication venues and reports with more than three targets.
 
-1. Publication Status - peer-reviewed journal vs. preprint/working paper/registry,
-   based on the journal_r field. A row is "preprint" if journal_r is empty/NaN, or its
-   lowercased text matches a known preprint-server/repository/working-paper naming
-   pattern (OSF, arXiv, SSRN, bioRxiv/medRxiv, or text containing "preprint",
-   "working paper", "repository", "registries") - a plain presence/absence test on
-   journal_r is not enough, since several of those venues are already recorded there
-   as text (e.g. "OSF Registries", "arXiv", "SSRN Electronic Journal") rather than
-   left blank. Otherwise "journal".
-
-2. Large-scale project - whether a row's replication/reproduction publication (doi_r)
-   reports on more than 5 distinct target/original studies (doi_o), e.g. a Registered
-   Replication Report or Many-Labs-style coordinated project, vs. an individual
-   single-target write-up.
-
-Output:
-  data/pub_status_data.json
-  data/pub_status_meta.json
+Venue categories are metadata heuristics, not verified peer-review status.
+Unknown venues remain unknown. Counts refer to reference pairs; project lists
+contain one record per repetition report.
 """
 from __future__ import annotations
 
@@ -28,6 +10,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from classification import classify_outcome, classify_venue, REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS
 import pandas as pd
 
 ROOT     = Path(__file__).resolve().parents[1]
@@ -39,56 +22,8 @@ OUT_META = DATA_DIR / "pub_status_meta.json"
 if not IN_CSV.exists():
     raise SystemExit(f"{IN_CSV} not found.")
 
-PREPRINT_KEYWORDS = [
-    "osf", "arxiv", "preprint", "ssrn", "working paper",
-    "repository", "registries", "biorxiv", "medrxiv",
-    "psycharchiv", "zenodo",
-]
+from classification import parse_reproduction_outcome
 
-
-def is_preprint(journal_r) -> bool:
-    """True if journal_r is empty/NaN, or its lowercased text matches a known
-    preprint-server/repository/working-paper naming pattern."""
-    if not isinstance(journal_r, str) or not journal_r.strip():
-        return True
-    j = journal_r.lower()
-    return any(kw in j for kw in PREPRINT_KEYWORDS)
-
-
-def parse_reproduction_outcome(outcome_raw) -> tuple[str | None, str | None]:
-    """Split a reproduction's compound outcome string into its two independent
-    dimensions. Mirrors assets/app.js's parseReproductionOutcome() exactly - always a
-    "computational, robustness" two-part comma-joined string, parsed positionally (part
-    0 only tested against computational keywords, part 1 only against robustness
-    keywords) so the two dimensions' text never cross-contaminate. Covers both the
-    legacy vocabulary ("computationally successful, robust") and the current one from
-    FReD-data's two-axis reproductions spreadsheet ("computationally reproducible" /
-    "computational issues" / "technical failure" / "failed" / "not checked" for the
-    computational dimension; "robust" / "robustness challenges" / "not checked" for
-    robustness)."""
-    parts = [p.strip() for p in str(outcome_raw or "").lower().split(",")]
-    p0 = parts[0] if len(parts) > 0 else ""
-    p1 = parts[1] if len(parts) > 1 else ""
-    computational = None
-    robustness = None
-
-    if "technical failure" in p0 or p0 == "failed":
-        computational = "technical_failure"
-    elif "computational issue" in p0:
-        computational = "issues"
-    elif "computationally reproducible" in p0 or ("computational" in p0 and "success" in p0):
-        computational = "successful"
-    elif "not checked" in p0:
-        computational = "not_checked"
-
-    if "robustness challenge" in p1:
-        robustness = "challenges"
-    elif "not checked" in p1:
-        robustness = "not_checked"
-    elif "robust" in p1:
-        robustness = "robust"
-
-    return computational, robustness
 
 
 def _clean(v):
@@ -96,7 +31,7 @@ def _clean(v):
     return None if pd.isna(v) else v
 
 
-REPLICATION_OUTCOMES = ["successful", "failed", "mixed", "inconclusive"]
+
 # Rows without an actual verdict on a dimension ("not checked"/uncoded) are dropped from
 # that dimension entirely rather than kept as their own bucket - they say nothing about it.
 # Applied per dimension, so a reproduction whose robustness was never checked still counts
@@ -107,21 +42,11 @@ ROBUSTNESS_BUCKETS = ["robust", "challenges"]
 
 def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) -> dict:
     sub = sub.copy()
-    sub["is_preprint"] = sub.get("journal_r", pd.Series(dtype=str)).apply(is_preprint)
-
-    # Every row is classifiable here (an empty journal_r counts as preprint), so
-    # n_unknown is always 0 - kept in the schema for shape-parity with the other
-    # analysis tabs' JSON (author_overlap_data.json, rr_status_data.json), whose
-    # frontend-shared overview-box rendering expects the same field set.
+    sub["pub_status"] = sub.get("journal_r", pd.Series(index=sub.index, dtype=str)).apply(classify_venue)
     n_total = len(sub)
-    n_preprint = int(sub["is_preprint"].sum())
-    n_journal = n_total - n_preprint
-    n_unknown = 0
-
-    by_outcome: dict[str, dict[str, int]] = {}
-    for grp, flag in [("journal", False), ("preprint", True)]:
-        bkt = sub.loc[sub["is_preprint"] == flag, bucket_col]
-        by_outcome[grp] = {b: int((bkt == b).sum()) for b in buckets}
+    counts = sub["pub_status"].value_counts().to_dict()
+    n_journal, n_preprint, n_unknown = (int(counts.get(k, 0)) for k in ['journal','preprint','unknown'])
+    by_outcome = {group: {b: int(((sub.pub_status == group) & (sub[bucket_col] == b)).sum()) for b in buckets} for group in VENUE_LABELS}
 
     # Every row of this kind, not a subset - unlike the Registered Reports table,
     # which only lists the RR-matched studies.
@@ -133,7 +58,7 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
             "outcome": _clean(row.get("outcome")),
             "doi_r": _clean(row.get("doi_r")),
             "url_r": _clean(row.get("url_r")),
-            "pub_status": "preprint" if row["is_preprint"] else "journal",
+            "pub_status": row["pub_status"],
         }
         for _, row in sub.iterrows()
     ]
@@ -145,6 +70,8 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
             "n_journal": n_journal,
             "n_preprint": n_preprint,
             "n_unknown": n_unknown,
+            "n_conference": int(counts.get("conference", 0)),
+            "n_thesis": int(counts.get("thesis", 0)),
             "pct_journal": round(100 * n_journal / n_total, 1) if n_total else 0,
             "pct_preprint": round(100 * n_preprint / n_total, 1) if n_total else 0,
         },
@@ -153,15 +80,14 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
     }
 
 
-LARGE_SCALE_THRESHOLD = 5  # > this many distinct target studies per doi_r = "large-scale"
+LARGE_SCALE_THRESHOLD = MULTI_TARGET_THRESHOLD
 
 
 def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) -> dict:
     sub = sub.copy()
-    n_originals_per_doi_r = sub.groupby("doi_r")["doi_o"].nunique()
-    # A row with no doi_r can't be grouped with any other row via that key, so it
-    # can't be shown to be part of a >5-target project - default to "individual".
-    sub["n_originals_in_rep"] = sub["doi_r"].map(n_originals_per_doi_r).fillna(1)
+    n_originals_per_doi_r = df.groupby("report_key")["target_key"].nunique()
+    # DOI or URL keys identify reports and targets; unknown identifiers are not evidence of a multi-target report.
+    sub["n_originals_in_rep"] = sub["report_key"].map(n_originals_per_doi_r).fillna(0)
     sub["is_large_scale"] = sub["n_originals_in_rep"] > LARGE_SCALE_THRESHOLD
 
     n_total = len(sub)
@@ -178,14 +104,14 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
     # individually would mostly repeat the same title/journal/DOI. outcome_mix instead
     # summarises how that project's many individual outcomes broke down.
     large_scale_studies = []
-    for doi_r, grp in sub.loc[sub["is_large_scale"]].groupby("doi_r"):
+    for doi_r, grp in sub.loc[sub["is_large_scale"]].groupby("report_key"):
         first = grp.iloc[0]
         outcome_mix = {b: int((grp[bucket_col] == b).sum()) for b in buckets if (grp[bucket_col] == b).any()}
         large_scale_studies.append({
             "title_r": _clean(first.get("title_r")),
             "journal_r": _clean(first.get("journal_r")),
             "year_r": _clean(first.get("year_r")),
-            "doi_r": _clean(doi_r),
+            "doi_r": _clean(first.get("doi_r")),
             "url_r": _clean(first.get("url_r")),
             "n_originals": int(first["n_originals_in_rep"]),
             "outcome_mix": outcome_mix,
@@ -208,11 +134,15 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
 
 # ── Load & split by study type ─────────────────────────────────────────────────
 df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+for suffix, key in [("r", "report_key"), ("o", "target_key")]:
+    df[key] = df["doi_" + suffix].fillna(df.get("url_" + suffix)).fillna("").str.lower().str.strip()
+    df.loc[df[key] == "", key] = None
 df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
 df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 
 is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
 is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
+df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
 repro_df = df[is_reproduction].copy()
 repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)

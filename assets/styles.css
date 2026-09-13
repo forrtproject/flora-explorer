@@ -1,3 +1,4 @@
+@import url('ds-tokens.css');
 /* =============================================================
    FLoRA Explorer — stylesheet
    ============================================================= */
@@ -686,3 +687,64 @@ tr.shown td.details-control::before { transform: rotate(90deg); }
 }
 .rr-studies-details[open] > summary.mc-chart-title::before { transform: rotate(90deg); }
 .rr-studies-count { font-weight: 400; color: var(--flora-muted); font-size: 0.85em; }
+
+/* FORRT token aliases retain the development components and their responsive layout. */
+:root, [data-theme="dark"] {
+    --flora-primary: var(--color-primary);
+    --flora-primary-dark: var(--color-primary-dark);
+    --flora-bg: var(--color-surface);
+    --flora-card-bg: var(--color-surface-raised);
+    --flora-text: var(--color-text);
+    --flora-text-soft: var(--color-text-secondary);
+    --flora-border: var(--color-border);
+    --font-sans: var(--font-body);
+    --font-serif: var(--font-display);
+}
+body {font-family:var(--font-body);line-height:1.6;}
+h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
+.card-header {font-size:1.15rem;margin:0;}
+.mc-chart-title {font-size:1.05rem;}
+.explorer-intro {max-width:65rem;margin-bottom:1.5rem;}
+.explorer-intro h1 {font-size:clamp(1.5rem,3vw,2rem);}
+.route-link {display:inline-block;margin:0 .7rem .5rem 0;padding:.5rem .9rem;border:1px solid var(--flora-primary);border-radius:.35rem;}
+.browse-search {margin:1rem 0 1.5rem;}
+.browse-search label {display:block;font-weight:700;margin-bottom:.4rem;}
+.browse-actions {display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.6rem;}
+.browse-actions button,.study-details,.timeline-open,.chart-mode,.chart-export {border:1px solid var(--flora-border);border-radius:.3rem;background:var(--flora-card-bg);color:var(--flora-text);padding:.35rem .65rem;}
+:focus-visible {outline:3px solid var(--flora-primary);outline-offset:3px;}
+.chart-data {clear:both;margin:1rem 0;padding:.65rem .8rem;background:var(--flora-card-bg);border:1px solid var(--flora-border);border-radius:.4rem;max-width:100%;}
+.chart-data summary,.tab-cite-block summary,.bm-evidence summary {cursor:pointer;font-weight:600;}
+.chart-summary,.chart-context {font-size:.85rem;line-height:1.5;margin:.7rem 0;}
+.table-scroll {max-height:28rem;overflow:auto;margin-top:.7rem;}
+.table-scroll table {border-collapse:collapse;width:100%;font-size:.85rem;}
+.table-scroll th,.table-scroll td {padding:.45rem;text-align:left;border-bottom:1px solid var(--flora-border);white-space:normal;}
+.table-scroll caption {caption-side:top;color:var(--flora-text);}
+.chart-data .table-scroll th {text-transform:none;}
+.badge {white-space:normal;line-height:1.4;text-transform:none;}
+.badge-successful,.outcome-badge.successful {background:#246f3d!important;color:#fff!important;}
+.badge-mixed,.outcome-badge.mixed {background:#d49b1d!important;color:#201800!important;}
+.badge-qualified {background:#684491!important;color:#fff!important;}
+.badge-other,.badge-unknown,.badge-inconclusive {background:#626875!important;color:#fff!important;}
+td.details-control::before,td.details-control::after {display:none!important;}
+.bm-evidence {margin-top:.8rem;}
+.mobile-navigation {display:none;}
+.coefficient-plot {min-height:340px;margin-top:1rem;}
+.tab-cite-block {margin:1rem 0;}
+.tab-cite-block:not([open]) {padding:.6rem 1rem;}
+@media(max-width:767px) {
+ .mobile-navigation {display:flex;gap:.5rem;align-items:center;color:white;flex:1;min-width:0;}
+ .mobile-navigation select {max-width:100%;min-width:0;width:100%;padding:.4rem;background:#333;color:white;border:1px solid #aaa;border-radius:.3rem;}
+ .top-bar .nav-tabs {display:none;}
+ .top-bar-inner {gap:.65rem;}
+ .brand-mark {flex-shrink:0;}
+ .chart-container-stack {height:220px;}
+ .detail-grid {grid-template-columns:1fr;}
+ .mc-chart-wrap {overflow:visible;}
+ .chart-data {padding:.5rem;}
+ .footer-bar {font-size:.65rem;padding:.35rem .6rem;}
+ .footer-bar>span {display:none;}
+ .chart-mode {margin-bottom:.5rem;}
+}
+.trend-card > .chart-data, .trend-section > .chart-data {grid-column:1 / -1;}
+@media(max-width:767px) {.wip-ribbon,.wip-ribbon-tip {display:none;} .top-bar .theme-toggle {flex-shrink:0;} .mobile-navigation select {font-size:.8rem;}}
+.trend-block > .chart-data {grid-column:1 / -1;}
