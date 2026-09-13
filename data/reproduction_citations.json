@@ -1,0 +1,36 @@
+{
+  "reproduction-numerical": {
+    "successful": {
+      "n_originals": 140,
+      "n_citations_to_original": 36455,
+      "n_citations_to_reproduction": 1035,
+      "n_cocitations": 369
+    },
+    "issues": {
+      "n_originals": 82,
+      "n_citations_to_original": 28497,
+      "n_citations_to_reproduction": 1216,
+      "n_cocitations": 408
+    },
+    "technical_failure": {
+      "n_originals": 3,
+      "n_citations_to_original": 145,
+      "n_citations_to_reproduction": 0,
+      "n_cocitations": 0
+    }
+  },
+  "reproduction-robustness": {
+    "robust": {
+      "n_originals": 50,
+      "n_citations_to_original": 19309,
+      "n_citations_to_reproduction": 553,
+      "n_cocitations": 286
+    },
+    "challenges": {
+      "n_originals": 111,
+      "n_citations_to_original": 32718,
+      "n_citations_to_reproduction": 1773,
+      "n_cocitations": 609
+    }
+  }
+}

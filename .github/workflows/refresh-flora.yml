@@ -2,8 +2,8 @@ name: Refresh FLoRA snapshot (daily)
 
 on:
   schedule:
-    # 06:00 UTC every day
-    - cron: '0 6 * * *'
+    # 03:00 UTC every day
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -27,14 +27,17 @@ jobs:
       - name: Download flora.csv
         run: python scripts/refresh_flora.py
 
-      - name: Compute author overlap
+      - name: Compute authorship overlap
         run: python scripts/compute_author_overlap.py
+
+      - name: Compute publication status
+        run: python scripts/compute_pub_status.py
 
       - name: Commit refreshed data
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/flora.csv data/flora_meta.json data/author_overlap_data.json data/author_overlap_meta.json
+          git add data/flora.csv data/flora_meta.json data/author_overlap_data.json data/author_overlap_meta.json data/pub_status_data.json data/pub_status_meta.json
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else

@@ -4,7 +4,7 @@
       "n_originals": 1604,
       "mean_rate": 0.1232,
       "median_rate": 0.0702,
-      "grand_mean_rate": 0.0621
+      "grand_mean_rate": 0.0616
     },
     "large_project": {
       "n_originals": 403,
@@ -24,19 +24,19 @@
       "n_originals": 870,
       "mean_rate": 0.1207,
       "median_rate": 0.0519,
-      "grand_mean_rate": 0.0543
+      "grand_mean_rate": 0.0536
     },
     "failed": {
       "n_originals": 704,
       "mean_rate": 0.0822,
       "median_rate": 0.0333,
-      "grand_mean_rate": 0.0637
+      "grand_mean_rate": 0.0638
     },
     "mixed": {
       "n_originals": 505,
       "mean_rate": 0.0937,
       "median_rate": 0.0345,
-      "grand_mean_rate": 0.0459
+      "grand_mean_rate": 0.0457
     }
   }
 }
