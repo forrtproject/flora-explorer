@@ -73,7 +73,8 @@ class PipelineTests(unittest.TestCase):
         for query, candidate in [
             ('Journal of Clinical Psychology','Journal of Cognitive Psychology'),
             ('Intelligence','IEEE Transactions on Pattern Analysis and Machine Intelligence'),
-            ('Brain','Brain Research'), ('Journal of Personality','Journal of Personality and Social Psychology'),
+            ('Brain','Brain Research'), ('Climate','Journal of Climate'),
+            ('Educational Psychology','Journal of Educational Psychology'), ('Journal of Personality','Journal of Personality and Social Psychology'),
         ]:
             self.assertFalse(omc.names_match(query,candidate))
         for query,candidate in [('Journal of Clinical Psychology','journal of clinical psychology'),
