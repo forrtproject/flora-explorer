@@ -41,3 +41,11 @@ def parse_reproduction_outcome(raw):
     robustness = {'robust':'robust', 'robustness challenges':'challenges', 'not checked':'not_checked',
                   'robustness not checked':'not_checked'}
     return computational.get(parts[0].strip()), robustness.get(parts[1].strip() if len(parts)>1 else '')
+
+
+def reference_key(doi, url=None):
+    """Use a canonical DOI, or the recorded URL when no DOI is available."""
+    key = normalize_doi(doi)
+    if not key:
+        key = str(url or '').strip().lower()
+    return None if key in ('', 'nan', 'na', 'none', 'null') else key

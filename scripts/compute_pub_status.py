@@ -22,7 +22,7 @@ OUT_META = DATA_DIR / "pub_status_meta.json"
 if not IN_CSV.exists():
     raise SystemExit(f"{IN_CSV} not found.")
 
-from classification import parse_reproduction_outcome
+from classification import parse_reproduction_outcome, reference_key
 
 
 
@@ -135,8 +135,7 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
 # ── Load & split by study type ─────────────────────────────────────────────────
 df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
 for suffix, key in [("r", "report_key"), ("o", "target_key")]:
-    df[key] = df["doi_" + suffix].fillna(df.get("url_" + suffix)).fillna("").str.lower().str.strip()
-    df.loc[df[key] == "", key] = None
+    df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
 df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
 df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 

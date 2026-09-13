@@ -232,7 +232,7 @@ function escapeHtml(text) {
     if (text === null || text === undefined) return '';
     const div = document.createElement('div');
     div.textContent = String(text);
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function truncateText(text, maxLength = 60) {
@@ -397,8 +397,8 @@ function computeKindChartData(data, kind) {
 // Shared horizontal-stacked-bar renderer for all 6 outcome-dimension charts (3 on
 // Overview, 3 on Browse Studies). Returns the new Chart.js instance so callers can keep
 // tracking their own module-level "existing chart" variable for destroy/rebuild.
-function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel) {
-    if (typeof Chart === "undefined") { chartLibUnavailable(canvasId, "Chart.js", () => renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel)); return null; }
+function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel, retry) {
+    if (typeof Chart === "undefined") { chartLibUnavailable(canvasId, "Chart.js", retry); return null; }
     const canvas = document.getElementById(canvasId);
     if (!canvas) return existingChart || null;
     const { datasets, total } = computeKindChartData(data, kind);
@@ -425,10 +425,12 @@ function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel
     });
 }
 
+const retryOverviewCharts = () => renderOverviewChart(fullRowData);
+
 function renderOverviewChart(data) {
-    overviewComputationalChart = renderKindStackedBar('overview-computational-chart', overviewComputationalChart, data, 'computational', 'Reproductions');
-    overviewRobustnessChart = renderKindStackedBar('overview-robustness-chart', overviewRobustnessChart, data, 'robustness', 'Reproductions');
-    overviewChart = renderKindStackedBar('overview-outcome-chart', overviewChart, data, 'replicability', 'Replications');
+    overviewComputationalChart = renderKindStackedBar('overview-computational-chart', overviewComputationalChart, data, 'computational', 'Reproductions', retryOverviewCharts);
+    overviewRobustnessChart = renderKindStackedBar('overview-robustness-chart', overviewRobustnessChart, data, 'robustness', 'Reproductions', retryOverviewCharts);
+    overviewChart = renderKindStackedBar('overview-outcome-chart', overviewChart, data, 'replicability', 'Replications', retryOverviewCharts);
 }
 
 function studyLink(doi, url, innerHtml, extraClass = '') {
@@ -869,9 +871,9 @@ function getChartData() {
 
 function renderBrowseOutcomeCharts() {
     const data = getChartData();
-    browseComputationalChart = renderKindStackedBar('browse-computational-chart', browseComputationalChart, data, 'computational', 'Reproductions');
-    browseRobustnessChart = renderKindStackedBar('browse-robustness-chart', browseRobustnessChart, data, 'robustness', 'Reproductions');
-    browseOutcomeChart = renderKindStackedBar('browse-outcome-chart', browseOutcomeChart, data, 'replicability', 'Replications');
+    browseComputationalChart = renderKindStackedBar('browse-computational-chart', browseComputationalChart, data, 'computational', 'Reproductions', renderBrowseOutcomeCharts);
+    browseRobustnessChart = renderKindStackedBar('browse-robustness-chart', browseRobustnessChart, data, 'robustness', 'Reproductions', renderBrowseOutcomeCharts);
+    browseOutcomeChart = renderKindStackedBar('browse-outcome-chart', browseOutcomeChart, data, 'replicability', 'Replications', renderBrowseOutcomeCharts);
 
     // Only the chart matching the active kind filter is shown; "All studies" shows none,
     // since mixing the replication and reproduction outcome vocabularies in one box reads

@@ -3,22 +3,24 @@ import csv
 import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 import pandas as pd
 import classification as c
 import refresh_data as pipeline
+import compute_omc as omc
+import compute_rr_status as rr
+import rebuild_cached_citations as rebuild
 
 class PipelineTests(unittest.TestCase):
     def test_qualified_success_and_reproduction_dimensions(self):
-        with (ROOT/'data/flora.csv').open() as source:
-            rows=list(csv.DictReader(source))
-        qualified=[r for r in rows if r['outcome']=='statistically successful but flawed']
-        self.assertEqual(len(qualified),7)
-        self.assertTrue(all(c.classify_outcome(r['outcome'])=='qualified' for r in qualified))
+        self.assertEqual(c.classify_outcome('statistically successful but flawed'),'qualified')
+        self.assertEqual(c.classify_outcome('successful'),'successful')
+        self.assertEqual(c.classify_outcome('uncoded'),'other')
         for raw,expected in [
             ('computationally reproducible, robustness challenges',('successful','challenges')),
             ('technical failure, not checked',('technical_failure','not_checked')),
@@ -26,10 +28,6 @@ class PipelineTests(unittest.TestCase):
             ('NA',(None,None)),
         ]:
             self.assertEqual(c.parse_reproduction_outcome(raw),expected)
-        repro=[r for r in rows if 'reproduc' in r['type']]
-        dimensions=[c.parse_reproduction_outcome(r['outcome']) for r in repro]
-        self.assertEqual(sum(d[0] in {'successful','issues','technical_failure'} for d in dimensions),294)
-        self.assertEqual(sum(d[1] in {'robust','challenges'} for d in dimensions),167)
 
     def test_venue_evidence_does_not_infer_peer_review(self):
         self.assertEqual(c.classify_venue(None),'unknown')
@@ -70,6 +68,93 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'retaining the previous'):
             pipeline.write_outputs({},pd.DataFrame(),partial=True)
         self.assertEqual((ROOT/'data/meta.json').read_bytes(),before)
+
+    def test_journal_matching_rejects_generic_overlap_and_old_cache_hits(self):
+        for query, candidate in [
+            ('Journal of Clinical Psychology','Journal of Cognitive Psychology'),
+            ('Intelligence','IEEE Transactions on Pattern Analysis and Machine Intelligence'),
+            ('Brain','Brain Research'), ('Journal of Personality','Journal of Personality and Social Psychology'),
+        ]:
+            self.assertFalse(omc.names_match(query,candidate))
+        for query,candidate in [('Journal of Clinical Psychology','journal of clinical psychology'),
+                                ('The Journal of Neuroscience','Journal of Neuroscience')]:
+            self.assertTrue(omc.names_match(query,candidate))
+        with tempfile.TemporaryDirectory() as tmp:
+            cache=Path(tmp)/'cache.json'
+            cache.write_text(json.dumps({'brain':{'display_name':'Brain Research'},'missing':None}))
+            with patch.object(omc,'CACHE_FILE',cache):
+                self.assertEqual(omc.load_cache(),{'missing':None})
+
+    def test_enrichment_budget_preserves_outputs_and_saves_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)
+            source=folder/'flora.csv'; source.write_text('journal_o\nNew Journal\n')
+            output=folder/'flora_with_omc.csv'; output.write_text('previous complete CSV')
+            meta=folder/'flora_with_omc_meta.json'; meta.write_text('previous metadata')
+            with patch.object(omc,'IN_CSV',source), patch.object(omc,'OUT_CSV',output), \
+                 patch.object(omc,'DATA_DIR',folder), patch.object(omc,'load_cache',return_value={}), \
+                 patch.object(omc,'save_cache') as save, patch.object(omc,'should_stop',return_value=True):
+                with self.assertRaisesRegex(SystemExit,'previous enrichment outputs retained'):
+                    omc.main()
+                save.assert_called_once_with({})
+            self.assertEqual(output.read_text(),'previous complete CSV')
+            self.assertEqual(meta.read_text(),'previous metadata')
+
+    def test_report_keys_merge_doi_variants_before_counting_targets(self):
+        rows=[(report,target) for report in ['10.test/report','https://doi.org/10.test/REPORT','doi:10.test/report']
+              for target in ['10.test/a','https://doi.org/10.test/a','10.test/b','10.test/c']]
+        targets={}
+        for report,target in rows:
+            targets.setdefault(c.reference_key(report),set()).add(c.reference_key(target))
+        self.assertEqual(targets,{'10.test/report':{'10.test/a','10.test/b','10.test/c'}})
+        self.assertFalse(len(targets['10.test/report'])>c.MULTI_TARGET_THRESHOLD)
+        self.assertEqual(c.reference_key(float('nan'),' HTTPS://EXAMPLE.ORG/REPORT '),'https://example.org/report')
+        self.assertIsNone(c.reference_key(None,None))
+
+    def test_rrdb_rejects_invalid_inputs_before_replacing_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output=Path(tmp)/'data.json'; output.write_text('previous data')
+            meta=Path(tmp)/'meta.json'; meta.write_text('previous metadata')
+            for text in ['error\nService unavailable\n','DOI,title\n,\n','DOI,title,itemType\n10.test/a,Attachment,attachment\n']:
+                response=Mock(text=text)
+                with patch.object(rr.requests,'get',return_value=response), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
+                    with self.assertRaises(ValueError): rr.main()
+                self.assertEqual(output.read_text(),'previous data')
+                self.assertEqual(meta.read_text(),'previous metadata')
+            with patch.object(rr.requests,'get',return_value=Mock(text='DOI,title\nhttps://doi.org/10.test/A,Example title\n')):
+                self.assertEqual(rr.fetch_rr_library(),({'10.test/a'},{'exampletitle'}))
+
+    def test_cache_rebuild_preserves_report_size_outside_surviving_cohort(self):
+        previous={'studies':{'one':dict(doi='one',title='O',author='A',year=2010,venue='',replications=[
+            dict(doi='report',title='R',author='B',year=2015,outcome='failed',pub_status='large_project')])}}
+        frame=rebuild.cohort_frame(previous)
+        self.assertEqual(frame['pub_status'].tolist(),['large_project'])
+        self.assertEqual(frame.doi_o.nunique(),1)
+
+    def test_reproduction_budget_is_checked_between_lookups(self):
+        frame=pd.DataFrame([dict(doi_o='original',doi_r='report',computational_bucket='successful',robustness_bucket='robust')])
+        with patch.object(pipeline,'should_stop',side_effect=[False,True]), patch.object(pipeline,'fetch_oc_citations',return_value=[]) as fetch:
+            with self.assertRaisesRegex(RuntimeError,'Time budget exhausted'):
+                pipeline.compute_reproduction_citations(frame)
+            fetch.assert_called_once_with('report')
+        with patch.object(pipeline,'read_cache',return_value=None), patch.object(pipeline,'should_stop',side_effect=[False,True]), \
+             patch.object(pipeline.session,'get',side_effect=pipeline.requests.exceptions.Timeout) as request, patch.object(pipeline.time,'sleep') as sleep:
+            self.assertIsNone(pipeline.fetch_oc_citations('10.test/budget'))
+            request.assert_called_once(); sleep.assert_not_called()
+        with patch.object(pipeline,'read_cache',return_value=[]), patch.object(pipeline,'should_stop',return_value=True):
+            self.assertEqual(pipeline.fetch_oc_citations('10.test/cached'),[])
+
+    def test_mean_citedness_counts_reconcile_with_enriched_csv(self):
+        with (ROOT/'data/flora_with_omc.csv').open() as source:
+            rows=list(csv.DictReader(source))
+        eligible=[r for r in rows if r.get('impact_factor') and float(r['impact_factor'])<35]
+        rep=[r for r in eligible if 'replication' in r['type'].lower() and 'reproduc' not in r['type'].lower()]
+        result=json.loads((ROOT/'data/impact_factor_data.json').read_text())
+        self.assertEqual(result['overview']['n_total'],len(rep))
+        reproductions=json.loads((ROOT/'data/impact_factor_reproductions.json').read_text())
+        repro=[c.parse_reproduction_outcome(r['outcome']) for r in eligible if 'reproduc' in r['type'].lower()]
+        for index,kind,buckets in [(0,'reproduction-numerical',{'successful','issues','technical_failure'}),(1,'reproduction-robustness',{'robust','challenges'})]:
+            self.assertEqual(reproductions[kind]['overview']['n_total'],sum(d[index] in buckets for d in repro))
 
 if __name__=='__main__':
     unittest.main()

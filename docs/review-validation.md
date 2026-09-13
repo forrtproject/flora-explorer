@@ -8,7 +8,7 @@ Verified against the committed snapshots on 13 September 2026:
 - Switching from replications to either reproduction dimension removes all replication-model statistics and the old model's data table. The replacement states that no reproduction model was fitted.
 - All 2,146 citation timelines reconcile with their unique citing-work totals. Power Posing totals 655, including 35 works that co-cite replications from multiple outcome categories, counted once.
 - Citation coefficients have visible 95% intervals on the log(1 + count) scale. Raw count trajectories are separate.
-- The seven qualified-success pairs remain visibly qualified. The replication Mean Citedness histogram includes all 2,461 matched pairs, including seven qualified and 12 other/uncoded outcomes.
+- The seven qualified-success pairs remain visibly qualified. The replication Mean Citedness histogram includes all 2,380 matched pairs, including seven qualified and 11 other/uncoded outcomes.
 - Publication metadata yield 257 unknown-venue replication pairs, 50 conference-output pairs and three thesis/dissertation pairs. These are not labelled peer-reviewed journal articles.
 - Keyboard users can open study evidence and timelines, dismiss the timeline with Escape, and return focus to the originating control. Focus remains within the open dialog.
 - All chart renderers expose readable data tables and CSV exports. Group comparisons default to percentages and show denominators. Charts and controls were exercised at desktop, 390-pixel and 320-pixel widths, including dark-theme redraws.
@@ -38,10 +38,14 @@ Verified against the committed snapshots on 13 September 2026:
 
 ## Checks
 
-- Six browser/data acceptance suites passed, including CSV export and asynchronous restoration of shared citation filters. Browser scenarios: desktop/mobile search, DOI and author/year input, zero matches, reloads, evidence controls, model switching, timeline deep links, interval traces, all seven tabs, percentages, venue evidence and responsive redraws.
+- Eight browser/data acceptance suites passed, including CSV export and asynchronous restoration of shared citation filters. Browser scenarios: desktop/mobile search, DOI and author/year input, zero matches, reloads, evidence controls, model switching, timeline deep links, interval traces, all seven tabs, percentages, venue evidence and responsive redraws.
 - Generated-data invariants: each timeline reconciles with citation and co-citation totals; all group outcome counts and Mean Citedness histogram bins reconcile with their displayed populations.
-- Six Python regression tests passed: qualified and two-dimensional outcomes, venue evidence, mutually exclusive citation counts, failed reproduction lookups, shared reproduction reports and preservation of outputs after an empty run.
+- Thirteen Python regression tests passed: qualified and two-dimensional outcomes, venue evidence, mutually exclusive citation counts, failed reproduction lookups, shared reproduction reports and preservation of outputs after an empty run.
+- Additional regressions cover delayed Chart.js loading and chart ownership, FAQ attribute escaping, strict journal-name matching and cached hits, safe enrichment timeouts, canonical report keys, invalid RRDB responses, preserved report-size labels, and citation request budgets.
+- Exact search totals use a fixed, documented four-pair fixture. Current Mean Citedness totals are independently reconciled with the enriched CSV; venue counts are checked against the current FLoRA CSV.
 - JavaScript/Python syntax checks and R parsing/rendering.
+
+The stricter journal-name check removed 43 unverified cached matches affecting 107 enriched reference pairs. These entries are eligible for lookup again during the next enrichment run. The current summaries exclude their Mean Citedness values: 2,380 replication pairs, 208 numerical-reproduction pairs and 148 robustness-reproduction pairs remain in the respective analyses. The original enrichment coverage date is retained separately from the recalculation date. Recalculating report-size keys found no changed classifications in the current data.
 
 These checks do not independently validate primary-study coding, establish the causal identification of the models, or certify compatibility with every screen reader/browser. Venue and surname classifications remain labelled heuristics. Citation and Mean Citedness snapshots have different coverage dates from the daily pair-level dataset.
 

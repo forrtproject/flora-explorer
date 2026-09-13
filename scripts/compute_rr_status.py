@@ -49,9 +49,6 @@ RRDB_CITATION = (
     "Registered Reports. https://doi.org/10.17605/OSF.IO/VUR72"
 )
 
-if not IN_CSV.exists():
-    raise SystemExit(f"{IN_CSV} not found.")
-
 
 def normalize_doi(doi) -> str:
     """Lowercase, strip whitespace/prefixes so DOIs compare equal regardless of formatting."""
@@ -79,17 +76,18 @@ def fetch_rr_library() -> tuple[set[str], set[str]]:
     resp.raise_for_status()
     df_rr = pd.read_csv(io.StringIO(resp.text), low_memory=False)
 
-    is_attachment_or_note = df_rr.get("itemType", pd.Series(dtype=str)).astype(str).str.lower().isin(["attachment", "note"])
+    if not {"DOI", "title"}.issubset(df_rr.columns):
+        raise ValueError("RRDB CSV is missing required DOI/title columns; retaining previous outputs")
+    is_attachment_or_note = df_rr.get("itemType", pd.Series("", index=df_rr.index)).astype(str).str.lower().isin(["attachment", "note"])
     df_rr = df_rr[~is_attachment_or_note]
 
     dois = set(df_rr.get("DOI", pd.Series(dtype=str)).apply(normalize_doi)) - {""}
     titles = set(df_rr.get("title", pd.Series(dtype=str)).apply(normalize_title)) - {""}
+    if not dois and not titles:
+        raise ValueError("RRDB CSV has no usable DOI or title; retaining previous outputs")
     return dois, titles
 
 
-print(f"Fetching Registered Reports Database (RRDB) from {RRDB_CSV_URL} …")
-rr_dois, rr_titles = fetch_rr_library()
-print(f"RRDB: {len(rr_dois)} DOIs, {len(rr_titles)} titles")
 
 
 from classification import parse_reproduction_outcome
@@ -166,42 +164,54 @@ def compute_rr_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) ->
     }
 
 
-# ── Load & split by study type ─────────────────────────────────────────────────
-df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
-df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+def main():
+    global rr_dois, rr_titles
+    if not IN_CSV.exists():
+        raise SystemExit(f"{IN_CSV} not found.")
+    print(f"Fetching Registered Reports Database (RRDB) from {RRDB_CSV_URL} …")
+    rr_dois, rr_titles = fetch_rr_library()
+    print(f"RRDB: {len(rr_dois)} DOIs, {len(rr_titles)} titles")
 
-is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
-is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
-df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
+    # ── Load & split by study type ─────────────────────────────────────────────────
+    df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+    df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
+    df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 
-repro_df = df[is_reproduction].copy()
-repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
-repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
-repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
+    is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
+    is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
+    df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
-result = {
-    "replication": compute_rr_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES),
-    "reproduction-numerical": compute_rr_result(
-        repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)],
-        "computational_bucket", COMPUTATIONAL_BUCKETS),
-    "reproduction-robustness": compute_rr_result(
-        repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)],
-        "robustness_bucket", ROBUSTNESS_BUCKETS),
-}
+    repro_df = df[is_reproduction].copy()
+    repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+    repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
+    repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 
-OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
-OUT_META.write_text(json.dumps({
-    "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
-    "n_rr_library_items": len(rr_dois | rr_titles),
-    "source": "scripts/compute_rr_status.py",
-    "source_url": RRDB_SOURCE_URL,
-    "source_citation": RRDB_CITATION,
-}, indent=2), encoding="utf-8")
+    result = {
+        "replication": compute_rr_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES),
+        "reproduction-numerical": compute_rr_result(
+            repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)],
+            "computational_bucket", COMPUTATIONAL_BUCKETS),
+        "reproduction-robustness": compute_rr_result(
+            repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)],
+            "robustness_bucket", ROBUSTNESS_BUCKETS),
+    }
 
-for kind, r in result.items():
-    ov = r["overview"]
-    print(f"{kind}: n_total={ov['n_total']}, rr={ov['n_rr']} ({ov['pct_rr']}%), "
-          f"non_rr={ov['n_non_rr']}, unknown={ov['n_unknown']}")
-print(f"Written: {OUT_DATA}")
+    OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
+    OUT_META.write_text(json.dumps({
+        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
+        "n_rr_library_items": len(rr_dois | rr_titles),
+        "source": "scripts/compute_rr_status.py",
+        "source_url": RRDB_SOURCE_URL,
+        "source_citation": RRDB_CITATION,
+    }, indent=2), encoding="utf-8")
+
+    for kind, r in result.items():
+        ov = r["overview"]
+        print(f"{kind}: n_total={ov['n_total']}, rr={ov['n_rr']} ({ov['pct_rr']}%), "
+              f"non_rr={ov['n_non_rr']}, unknown={ov['n_unknown']}")
+    print(f"Written: {OUT_DATA}")
+
+
+if __name__ == "__main__":
+    main()

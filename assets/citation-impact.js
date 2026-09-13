@@ -465,7 +465,7 @@
     function modalHeader(entry) {
         return `<h2>${escapeHtml(entry.title || '(untitled)')}</h2>
                 <p class="muted">${escapeHtml(formatAuthors(entry.author))} · ${entry.year || '?'}
-                    ${entry.venue ? '· ' + escapeHtml(entry.venue) : ''}<br>
+                    ${entry.venue && entry.venue !== 'nan' ? '· ' + escapeHtml(entry.venue) : ''}<br>
                     <a href="https://doi.org/${escapeHtml(entry.doi)}" target="_blank">${escapeHtml(entry.doi)}</a></p>`;
     }
 
