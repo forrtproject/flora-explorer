@@ -397,9 +397,10 @@ h1, .serif, .card-header, .stats-card .number,
 [data-theme="dark"] .dataTables_length select { background-color: var(--flora-input-bg); color: var(--flora-text); border-color: var(--flora-border); }
 [data-theme="dark"] .form-select, [data-theme="dark"] .form-control { background-color: var(--flora-input-bg); color: var(--flora-text); border-color: var(--flora-border); }
 
-td.details-control { cursor: pointer; text-align: center; color: var(--flora-primary); font-size: 0.9rem; }
-td.details-control::before { content: "▶"; display: inline-block; transition: transform 0.2s ease; }
-tr.shown td.details-control::before { transform: rotate(90deg); }
+td.details-control { text-align: center; }
+td.details-control .study-details { border: 0; background: none; padding: 0.2rem 0.4rem; cursor: pointer; color: var(--flora-primary); font-size: 0.9rem; line-height: 1; }
+td.details-control .study-details::before { content: "▶"; display: inline-block; transition: transform 0.2s ease; }
+tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .detail-row { background-color: var(--flora-subtle-bg); padding: 1rem; }
 .detail-row h6 { color: var(--flora-primary); font-weight: 600; font-size: 1.05rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--flora-border); padding-bottom: 0.25rem; }
 [data-theme="dark"] .detail-row h6 { color: var(--flora-primary-dark-accent); }
@@ -710,7 +711,7 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .browse-search {margin:1rem 0 1.5rem;}
 .browse-search label {display:block;font-weight:700;margin-bottom:.4rem;}
 .browse-actions {display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.6rem;}
-.browse-actions button,.study-details,.timeline-open,.chart-mode,.chart-export {border:1px solid var(--flora-border);border-radius:.3rem;background:var(--flora-card-bg);color:var(--flora-text);padding:.35rem .65rem;}
+.browse-actions button,.timeline-open,.chart-mode,.chart-export {border:1px solid var(--flora-border);border-radius:.3rem;background:var(--flora-card-bg);color:var(--flora-text);padding:.35rem .65rem;}
 :focus-visible {outline:3px solid var(--flora-primary);outline-offset:3px;}
 .chart-data {clear:both;margin:1rem 0;padding:.65rem .8rem;background:var(--flora-card-bg);border:1px solid var(--flora-border);border-radius:.4rem;max-width:100%;}
 .chart-data summary,.tab-cite-block summary,.bm-evidence summary {cursor:pointer;font-weight:600;}
@@ -725,7 +726,6 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .badge-mixed,.outcome-badge.mixed {background:#d49b1d!important;color:#201800!important;}
 .badge-qualified {background:#684491!important;color:#fff!important;}
 .badge-other,.badge-unknown,.badge-inconclusive {background:#626875!important;color:#fff!important;}
-td.details-control::before,td.details-control::after {display:none!important;}
 .bm-evidence {margin-top:.8rem;}
 .mobile-navigation {display:none;}
 .coefficient-plot {min-height:340px;margin-top:1rem;}

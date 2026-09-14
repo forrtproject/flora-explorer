@@ -727,7 +727,7 @@ function initDataTable(data) {
         order: [[4, 'desc']],
         language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)..." },
         columnDefs: [
-            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false">Details</button>', width: '60px' },
+            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '30px' },
             { targets: [1, 3], width: '20%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: [2, 4], width: '5%' },
             { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
