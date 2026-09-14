@@ -58,6 +58,7 @@
         });
         btn.addEventListener('shown.bs.tab',()=>{
             document.getElementById('mobile-navigation').value=btn.id;
+            document.querySelector('.app-main').scrollTop = 0;
             requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
         });
     });
@@ -73,5 +74,23 @@
         FloraCharts.download('flora-filtered-reference-pairs.csv',keys,rows.map(row=>keys.map(k=>row[k])),
             `Unit: reference pair\n${stamp}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nIncluded: ${rows.length}; excluded by filters: ${fullRowData.length-rows.length}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
     };
+    // Associate static and dynamically inserted glossary definitions with their triggers.
+    let tipNumber = 0;
+    function describeTips() {
+        document.querySelectorAll('.info-icon, .gloss').forEach(trigger => {
+            const tip = trigger.querySelector('.info-tip, .gloss-tip');
+            if (!tip || trigger.hasAttribute('aria-describedby')) return;
+            tip.id ||= 'flora-tip-' + (++tipNumber);
+            tip.setAttribute('role', 'tooltip');
+            trigger.setAttribute('aria-describedby', tip.id);
+            trigger.addEventListener('mouseleave', () => trigger.classList.remove('tip-dismissed'));
+            trigger.addEventListener('blur', () => trigger.classList.remove('tip-dismissed'));
+        });
+    }
+    new MutationObserver(describeTips).observe(document.getElementById('floraTabsContent'), {childList:true, subtree:true});
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') document.querySelectorAll('.info-icon:hover, .info-icon:focus, .gloss:hover, .gloss:focus').forEach(el => el.classList.add('tip-dismissed'));
+    });
+    describeTips();
     pressed();
 })();

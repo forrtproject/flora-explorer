@@ -43,7 +43,7 @@
                 </span>
             </a>
 
-            <label class="mobile-navigation">Explore <select id="mobile-navigation" aria-label="Choose explorer tab"><option value="overview-tab">Overview</option><option value="browse-tab">Browse Studies</option><option value="trends-tab">Years &amp; Disciplines</option><option value="citation-tab">Citation Impact</option><option value="mc-tab">Mean Citedness</option><option value="overlap-tab">Authorship Overlap</option><option value="pub-tab">Publication Type</option></select></label>
+            <label class="mobile-navigation"><span>Explore</span> <select id="mobile-navigation" aria-label="Choose explorer tab"><option value="overview-tab">Overview</option><option value="browse-tab">Browse Studies</option><option value="trends-tab">Years &amp; Disciplines</option><option value="citation-tab">Citation Impact</option><option value="mc-tab">Mean Citedness</option><option value="overlap-tab">Authorship Overlap</option><option value="pub-tab">Publication Type</option></select></label>
             <ul class="nav nav-tabs" id="floraTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
@@ -632,7 +632,7 @@
 
                         <div class="search-row">
                             <input id="search-input" type="search" placeholder="Search title, author, or DOI…" />
-                            <select id="filter-outcome">
+                            <select id="filter-outcome" aria-label="Filter originals by any recorded replication outcome">
                                 <option value="">All outcomes</option>
                                 <option value="failed">Has failed replication</option>
                                 <option value="successful">Has successful replication</option>
@@ -647,9 +647,9 @@
                                         <th>Original</th>
                                         <th class="sortable" data-sort="year">Year</th>
                                         <th class="sortable" data-sort="n_replications">Replications</th>
-                                        <th class="sortable" data-sort="n_citations">Citations</th>
-                                        <th class="cocit-th">Co-citations <span class="cocit-sort-toggle">
-                                            <button type="button" class="cocit-sort-btn" data-sort="n_cocitations" title="Sort by co-citation count">#</button><button type="button" class="cocit-sort-btn" data-sort="cocit_prop" title="Sort by co-citation share">%</button>
+                                        <th class="sortable" data-sort="n_citations">Citations, all years</th>
+                                        <th class="cocit-th">Co-citations since first recorded replication <span class="cocit-sort-toggle">
+                                            <button type="button" class="cocit-sort-btn" data-sort="n_cocitations" title="Sort by co-citation count" aria-label="Sort by co-citation count">#</button><button type="button" class="cocit-sort-btn" data-sort="cocit_prop" title="Sort by co-citation share" aria-label="Sort by co-citation percentage">%</button>
                                         </span></th>
                                         <th></th>
                                     </tr>
@@ -825,7 +825,7 @@
                                 <code>journal_r</code> field recorded in FLoRA, classified as above. Some studies
                                 currently classified as preprints may since have been formally published in a
                                 different venue without FLoRA yet reflecting that update. Any outcome
-                                difference between the two groups should also not be read as caused by publication
+                                differences between these groups should also not be read as caused by publication
                                 venue alone: constructive peer review, a tendency for more selective journals to
                                 accept more polished work, and publication-pressure effects — for example a bias
                                 toward reporting positive or successful results in order to get published, or

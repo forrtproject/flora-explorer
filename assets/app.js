@@ -687,7 +687,7 @@ function formatDetailRow(rowData) {
                     </div>
                 </div>
                 <div class="detail-card">
-                    <h6>Replication Study</h6>
+                    <h6>${classifyKind(rowData) === "replication" ? "Replication" : "Reproduction"} report</h6>
                     <div class="detail-section">
                         <div><span class="detail-label">Title:</span> <span class="detail-value">${escapeHtml(rowData.title_r) || '-'}</span></div>
                         <div><span class="detail-label">Authors:</span> <span class="detail-value">${formatAuthors(rowData.author_r)}</span></div>
@@ -698,10 +698,10 @@ function formatDetailRow(rowData) {
                 </div>
             </div>
             <div class="detail-card mt-3">
-                <h6>Replication Details</h6>
+                <h6>Recorded evidence</h6>
                 <div class="detail-section">
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
-                    ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome Quote:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div>` : ''}
+                    ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome quotation:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div><p class="small">Source: ${escapeHtml(rowData.outcome_quote_source) || "not recorded"}. This excerpt may cover only part of the findings and may not fully explain the recorded outcome.</p>` : '<p class="small">No supporting quotation is recorded for this pair.</p>'}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
                 </div>
             </div>
@@ -769,7 +769,7 @@ function bmRenderTitleLine(title, fallback, doi, url) {
 function bmCardHtml(row) {
     const oTitle = bmRenderTitleLine(row.title_o, shortAuthors(row.author_o), row.doi_o, null);
     const oMeta = [bmAuthorYear(row.author_o, row.year_o), row.journal_o].filter(Boolean).map(escapeHtml).join(' · ');
-    const rTitle = bmRenderTitleLine(row.title_r, shortAuthors(row.author_r), row.doi_r, row.url_r);
+    const rTitle = bmRenderTitleLine(row.title_r, shortAuthors(row.author_r), row.url_r ? null : row.doi_r, row.url_r);
     const rMeta = [bmAuthorYear(row.author_r, row.year_r), row.journal_r].filter(Boolean).map(escapeHtml).join(' · ');
     const tagsParts = [getOutcomeBadge(row.outcome)];
     if (row.type) tagsParts.push(`<span class="bm-tag-type">${escapeHtml(row.type)}</span>`);
@@ -777,7 +777,7 @@ function bmCardHtml(row) {
         <div class="bm-card">
             <div class="bm-row"><div class="bm-row-label">Original</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
             <div class="bm-divider"></div>
-            <div class="bm-row"><div class="bm-row-label">Replication</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
+            <div class="bm-row"><div class="bm-row-label">${classifyKind(row) === "replication" ? "Replication" : "Reproduction"}</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
             <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study evidence and outcome quotation</summary>${formatDetailRow(row)}</details>
         </div>`;
 }
@@ -796,14 +796,14 @@ function bmRender() {
     if (!list) return;
     const total = bmFiltered.length;
     if (total === 0) {
-        list.innerHTML = '<div class="bm-empty">No studies match your search.</div>';
-        meta.textContent = '0 studies'; pager.style.display = 'none'; return;
+        list.innerHTML = '<div class="bm-empty">No reference pairs match your search. Try fewer terms or select All.</div>';
+        meta.textContent = '0 reference pairs'; pager.style.display = 'none'; return;
     }
     const totalPages = Math.max(1, Math.ceil(total / BM_PAGE_SIZE));
     if (bmPage >= totalPages) bmPage = totalPages - 1;
     const start = bmPage * BM_PAGE_SIZE; const end = Math.min(total, start + BM_PAGE_SIZE);
     list.innerHTML = bmFiltered.slice(start, end).map(bmCardHtml).join('');
-    meta.innerHTML = `Showing <strong>${start + 1}–${end}</strong> of <strong>${total.toLocaleString()}</strong> studies`;
+    meta.innerHTML = `Showing <strong>${start + 1}–${end}</strong> of <strong>${total.toLocaleString()}</strong> reference ${total === 1 ? "pair" : "pairs"}`;
     info.textContent = `Page ${bmPage + 1} of ${totalPages}`;
     prev.disabled = bmPage === 0; next.disabled = bmPage >= totalPages - 1;
     pager.style.display = totalPages > 1 ? 'flex' : 'none';
@@ -891,7 +891,7 @@ function renderBrowseOutcomeCharts() {
 function updateBrowseKindCount() {
     const el = document.getElementById('browse-kind-count'); if (!el) return;
     const n = getChartData().length; const total = fullRowData.length;
-    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference pairs` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
+    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
 }
 
 function applyBrowseKind() {
@@ -923,7 +923,7 @@ function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
 function updateTrendsCount() {
     const el = document.getElementById('trend-filter-count'); if (!el) return;
     const n = trendsFilteredData().length; const total = fullRowData.length;
-    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} reference pairs` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
+    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
 }
 
 // Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
