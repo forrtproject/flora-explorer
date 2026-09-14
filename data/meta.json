@@ -1,21 +1,19 @@
 {
-  "last_updated": "2026-09-07T09:13:24.916629+00:00",
-  "n_originals": 2146,
-  "n_replications": 2290,
+  "last_updated": "2026-09-14T06:18:03.390744+00:00",
+  "n_originals": 2153,
+  "n_replications": 2297,
   "outcome_counts": {
-    "successful": 947,
-    "failed": 806,
-    "mixed": 537
+    "successful": 950,
+    "failed": 807,
+    "mixed": 540
   },
   "pub_status_counts": {
-    "individual": 1848,
+    "individual": 1855,
     "large_project": 442
   },
   "partial_run": false,
   "fetch_errors": 0,
   "fetch_error_dois": [],
   "originals_errored": 0,
-  "originals_skipped": 0,
-  "recalculated_at": "2026-09-13T16:41:25.842693+00:00",
-  "source": "Committed OpenCitations cache; unchanged citation cohort"
+  "originals_skipped": 0
 }

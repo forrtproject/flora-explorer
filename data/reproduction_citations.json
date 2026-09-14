@@ -2,15 +2,15 @@
   "reproduction-numerical": {
     "successful": {
       "n_originals": 141,
-      "n_citations_to_original": 39718,
+      "n_citations_to_original": 39796,
       "n_citations_to_reproduction": 1035,
-      "n_cocitations": 502
+      "n_cocitations": 503
     },
     "issues": {
       "n_originals": 83,
-      "n_citations_to_original": 28534,
-      "n_citations_to_reproduction": 1216,
-      "n_cocitations": 411
+      "n_citations_to_original": 39784,
+      "n_citations_to_reproduction": 2529,
+      "n_cocitations": 885
     },
     "technical_failure": {
       "n_originals": 3,
@@ -22,15 +22,15 @@
   "reproduction-robustness": {
     "robust": {
       "n_originals": 50,
-      "n_citations_to_original": 19309,
-      "n_citations_to_reproduction": 553,
-      "n_cocitations": 286
+      "n_citations_to_original": 22743,
+      "n_citations_to_reproduction": 684,
+      "n_cocitations": 373
     },
     "challenges": {
       "n_originals": 112,
-      "n_citations_to_original": 32718,
-      "n_citations_to_reproduction": 1791,
-      "n_cocitations": 614
+      "n_citations_to_original": 76475,
+      "n_citations_to_reproduction": 6258,
+      "n_cocitations": 2267
     }
   }
 }
