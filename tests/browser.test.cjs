@@ -166,3 +166,35 @@ test('FAQ URLs stay inside href attributes and default filter states agree',asyn
   assert.deepEqual(await p.locator('#trends .trend-filter-btn').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('active')=== (n.getAttribute('aria-pressed')==='true'))),[true,true,true,true]);
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+
+test('tab changes reset the content scroll; definitions are described and dismissible', async()=>{
+  const p=await page('?tab=overview');
+  const tip=p.locator('.info-icon').first();
+  assert.ok(await tip.getAttribute('aria-describedby'));
+  await tip.focus();
+  assert.equal(await tip.locator('.info-tip').getAttribute('role'),'tooltip');
+  await p.keyboard.press('Escape');
+  assert.equal(await tip.locator('.info-tip').evaluate(el=>getComputedStyle(el).pointerEvents),'none');
+  await p.evaluate(()=>document.querySelector('.app-main').scrollTop=1000);
+  await p.click('#browse-tab');
+  await p.waitForFunction(()=>document.querySelector('.app-main').scrollTop===0);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('citation content reflows at 320px after loading on desktop', async()=>{
+  const p=await page('?tab=citations');
+  await p.waitForFunction(()=>document.querySelector('#citation-impact .js-plotly-plot'));
+  await p.setViewportSize({width:320,height:844});
+  await p.waitForTimeout(500);
+  assert.ok(await p.locator('#mobile-navigation').evaluate(el=>el.clientWidth>=140));
+  const widths=await p.locator('.app-main').evaluate(el=>[el.scrollWidth,el.clientWidth]);
+  await p.close();
+  assert.ok(widths[0]<=widths[1]+1,`main overflow: ${widths}`);
+  assert.deepEqual(p.errors,[]);
+});
+test('comparison tables identify counts, denominators and percentage units', async()=>{
+  const p=await page('?tab=authorship-overlap');
+  await p.waitForSelector('#ao-chart-data');
+  assert.deepEqual(await p.locator('#ao-chart-data thead th').allTextContents(),['Group','Outcome','Reference pairs','Group denominator','Percentage (%)']);
+  assert.deepEqual(p.errors,[]);await p.close();
+});

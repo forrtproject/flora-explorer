@@ -101,6 +101,16 @@ window.FloraCharts = (() => {
         }
         const title = plain(layout.title?.text || layout.title || id.replace(/-/g,' '));
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
+        if (comparisonIds.has(id)) {
+            const rows = [];
+            traces.forEach(t => (t.x || []).forEach((group, i) => {
+                const count = Number(t.y?.[i]) || 0;
+                const denominator = traces.reduce((n, series) => n + (Number(series.y?.[i]) || 0), 0);
+                rows.push([plain(group), plain(t.name), count, denominator, denominator ? Number((100 * count / denominator).toFixed(1)) : 'Not available']);
+            }));
+            table(el, rows, ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], summary);
+            return Plotly.react(el, display, layout, config);
+        }
         const rows=[];
         display.forEach(t => (t.x || []).forEach((x,i)=>{
             const horizontal=t.orientation==='h';
