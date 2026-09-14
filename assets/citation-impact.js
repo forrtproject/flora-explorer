@@ -358,7 +358,7 @@
                 <td>${fmt(d.grand_mean_rate)}</td>
             </tr>`;
         }).join('');
-        return `<div class="cocit-breakdown-table">
+        return `<div class="cocit-breakdown-table" tabindex="0" role="region" aria-label="${escapeHtml(title)}">
             <h4>${title}</h4>
             <table>
                 <thead><tr><th>Group</th><th>N originals</th><th>Per-paper mean</th><th>Median</th><th>Weighted mean</th></tr></thead>
@@ -385,7 +385,7 @@
         const tooltip = denom
             ? `${s.n_cocitations.toLocaleString()} of ${denom.toLocaleString()} citations since the first replication (${s.first_replication_year}) also cite a replication`
             : `${s.n_cocitations.toLocaleString()} co-citations`;
-        return `<span title="${escapeHtml(tooltip)}">${s.n_cocitations.toLocaleString()}<span class="cocit-pct"> (${pct})</span></span>`;
+        return `<span title="${escapeHtml(tooltip)}">${s.n_cocitations.toLocaleString()}<span class="cocit-pct"> (${pct}${denom > 0 ? ` of ${denom.toLocaleString()}` : ""})</span></span>`;
     }
 
     function renderTable() {
