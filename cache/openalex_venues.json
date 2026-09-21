@@ -3781,5 +3781,25 @@
   "the journal of nutrition": null,
   "the modern language journal": null,
   "unknown": null,
-  "arxiv": null
+  "arxiv": null,
+  "human resource development quarterly": {
+    "id": "https://openalex.org/S191693275",
+    "display_name": "Human Resource Development Quarterly",
+    "impact_factor": 2.3333333333333335
+  },
+  "journal of experimental psychopathology": {
+    "id": "https://openalex.org/S2764689155",
+    "display_name": "Journal of Experimental Psychopathology",
+    "impact_factor": 0.8125
+  },
+  "psychology of addictive behaviors": {
+    "id": "https://openalex.org/S31064911",
+    "display_name": "Psychology of Addictive Behaviors",
+    "impact_factor": 1.3798219584569733
+  },
+  "the international journal for the psychology of religion": {
+    "id": "https://openalex.org/S9652748",
+    "display_name": "International Journal for the Psychology of Religion",
+    "impact_factor": 2.5483870967741935
+  }
 }
