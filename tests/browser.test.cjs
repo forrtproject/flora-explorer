@@ -66,6 +66,10 @@ test('chart data and the current browse link copy to the clipboard',async()=>{
   assert.match(csv,/Category,|"Category"/);
   assert.match(csv,/Included in the plot:/);
   assert.doesNotMatch(csv,/Included: \d+ reference pairs/);
+  await p.evaluate(()=>{window.originalClipboardWrite=navigator.clipboard.writeText.bind(navigator.clipboard);navigator.clipboard.writeText=()=>Promise.reject(new Error('Clipboard unavailable'));});
+  await p.click('#overview-computational-chart-data-copy');
+  assert.equal(await p.locator('#overview-computational-chart-data-copy-status').textContent(),'Could not copy chart CSV');
+  await p.evaluate(()=>{navigator.clipboard.writeText=window.originalClipboardWrite;delete window.originalClipboardWrite;});
   await p.click('#browse-tab');
   await p.fill('#browse-mobile-input','power posing');
   await p.waitForFunction(()=>location.search.includes('q=power'));

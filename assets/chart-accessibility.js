@@ -43,16 +43,25 @@ window.FloraCharts = (() => {
             if (label) label.append(action);
             else details.before(action);
         }
+        let status = document.getElementById(id + '-copy-status');
+        if (!status) {
+            status = document.createElement('span');
+            status.id = id + '-copy-status'; status.className = 'visually-hidden'; status.setAttribute('role', 'status');
+            action.after(status);
+        }
         action.setAttribute('aria-label', 'Copy chart CSV for ' + (el.getAttribute('aria-label') || el.id));
         action.title = 'Copy chart CSV';
         action.onclick = async () => {
+            status.textContent = '';
             try {
                 await navigator.clipboard.writeText(csvText(headers, rows, summary + '\n' + context(el)));
                 action.title = 'Chart CSV copied';
                 action.setAttribute('aria-label', 'Chart CSV copied');
+                status.textContent = 'Chart CSV copied';
                 setTimeout(() => { action.title = 'Copy chart CSV'; action.setAttribute('aria-label', 'Copy chart CSV for ' + (el.getAttribute('aria-label') || el.id)); }, 2000);
             } catch {
                 action.title = 'Could not copy chart CSV';
+                status.textContent = 'Could not copy chart CSV';
             }
         };
         el.setAttribute('aria-describedby', id);
