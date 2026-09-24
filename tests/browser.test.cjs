@@ -50,9 +50,9 @@ test('desktop/mobile search, DOI URLs, empty results, shared view and evidence a
   assert.match(await p.locator('#browse-outcome-chart-data').textContent(),/No matching assessed outcomes/);
   await p.fill('#browse-mobile-input','');await p.click('.browse-kind-btn[data-kind="all"]');
   await p.waitForFunction(()=>getChartData().length===fullRowData.length);
-  assert.equal(await p.locator('#export-browse').innerText(),'Download all CSV');
-  const allDownloadEvent=p.waitForEvent('download');await p.click('#export-browse');
-  assert.equal((await allDownloadEvent).suggestedFilename(),'flora-reference-pairs.csv');
+  assert.equal(await p.locator('#export-browse').innerText(),'Download full CSV');
+  const fullDownloadEvent=p.waitForEvent('download');await p.click('#export-browse');
+  assert.equal((await fullDownloadEvent).suggestedFilename(),'flora-reference-pairs.csv');
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('chart data and the current browse link copy to the clipboard',async()=>{

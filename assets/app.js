@@ -892,7 +892,7 @@ function updateBrowseKindCount() {
     const el = document.getElementById('browse-kind-count'); if (!el) return;
     const n = getChartData().length; const total = fullRowData.length;
     el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference pairs` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
-    document.querySelector('#export-browse span').textContent = browseQuery.trim() || browseKind !== 'all' ? 'Download filtered CSV' : 'Download all CSV';
+    document.querySelector('#export-browse span').textContent = browseQuery.trim() || browseKind !== 'all' ? 'Download filtered CSV' : 'Download full CSV';
 }
 
 function applyBrowseKind() {
