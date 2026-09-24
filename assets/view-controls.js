@@ -70,7 +70,8 @@
     document.getElementById('export-browse').onclick=()=>{
         const rows=getChartData(); const keys=Object.keys(fullRowData[0] || {});
         const stamp=document.querySelector('#browse .data-stamp')?.textContent || '';
-        FloraCharts.download('flora-filtered-reference-pairs.csv',keys,rows.map(row=>keys.map(k=>row[k])),
+        const filtered=browseQuery.trim() || browseKind !== 'all';
+        FloraCharts.download(filtered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv',keys,rows.map(row=>keys.map(k=>row[k])),
             `Unit: reference pair\n${stamp}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nIncluded: ${rows.length}; excluded by filters: ${fullRowData.length-rows.length}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
     };
     pressed();
