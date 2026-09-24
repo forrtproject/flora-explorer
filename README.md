@@ -12,7 +12,7 @@ A static dashboard for the [FORRT Library of Replication Attempts (FLoRA)](https
 | Authorship Overlap | Within-group outcome percentages based on surname overlap | Daily |
 | Publication Type | Recorded venue categories, Registered Reports matching and reports with multiple original targets | Daily / weekly |
 
-Every chart has a nearby data table and CSV export. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
+Every chart has a nearby data table and a compact button to copy its CSV data. Browse Studies also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
 
 ## Run locally
 
