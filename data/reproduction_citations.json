@@ -1,16 +1,16 @@
 {
   "reproduction-numerical": {
     "successful": {
-      "n_originals": 141,
-      "n_citations_to_original": 39796,
-      "n_citations_to_reproduction": 1035,
-      "n_cocitations": 503
+      "n_originals": 144,
+      "n_citations_to_original": 39912,
+      "n_citations_to_reproduction": 1062,
+      "n_cocitations": 517
     },
     "issues": {
-      "n_originals": 82,
-      "n_citations_to_original": 39765,
-      "n_citations_to_reproduction": 2523,
-      "n_cocitations": 883
+      "n_originals": 83,
+      "n_citations_to_original": 40038,
+      "n_citations_to_reproduction": 2531,
+      "n_cocitations": 888
     },
     "technical_failure": {
       "n_originals": 3,
@@ -27,10 +27,10 @@
       "n_cocitations": 373
     },
     "challenges": {
-      "n_originals": 111,
-      "n_citations_to_original": 76456,
-      "n_citations_to_reproduction": 6252,
-      "n_cocitations": 2265
+      "n_originals": 113,
+      "n_citations_to_original": 76763,
+      "n_citations_to_reproduction": 6264,
+      "n_cocitations": 2271
     }
   }
 }
