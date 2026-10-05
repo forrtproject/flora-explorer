@@ -3851,5 +3851,57 @@
     "id": "https://openalex.org/S78020522",
     "display_name": "Structural Equation Modeling A Multidisciplinary Journal",
     "impact_factor": 2.8520179372197307
+  },
+  "annals of internal medicine": {
+    "id": "https://openalex.org/S119722071",
+    "display_name": "Annals of Internal Medicine",
+    "impact_factor": 4.974301675977654
+  },
+  "chemical senses": {
+    "id": "https://openalex.org/S8722945",
+    "display_name": "Chemical Senses",
+    "impact_factor": 2.874125874125874
+  },
+  "communication & sport": {
+    "id": "https://openalex.org/S2764771808",
+    "display_name": "Communication & Sport",
+    "impact_factor": 2.3130434782608695
+  },
+  "early intervention in psychiatry": {
+    "id": "https://openalex.org/S130551847",
+    "display_name": "Early Intervention in Psychiatry",
+    "impact_factor": 1.8453159041394336
+  },
+  "human factors: the journal of the human factors and ergonomics society": {
+    "id": "https://openalex.org/S83386566",
+    "display_name": "Human Factors The Journal of the Human Factors and Ergonomics Society",
+    "impact_factor": 3.3174603174603177
+  },
+  "international journal of forecasting": {
+    "id": "https://openalex.org/S39841227",
+    "display_name": "International Journal of Forecasting",
+    "impact_factor": 3.971311475409836
+  },
+  "journal of clinical nursing": {
+    "id": "https://openalex.org/S180106345",
+    "display_name": "Journal of Clinical Nursing",
+    "impact_factor": 3.5622377622377623
+  },
+  "journal of infectious diseases": {
+    "id": "https://openalex.org/S54542293",
+    "display_name": "The Journal of Infectious Diseases",
+    "impact_factor": 4.125835189309577
+  },
+  "managerial and decision economics": {
+    "id": "https://openalex.org/S138400101",
+    "display_name": "Managerial and Decision Economics",
+    "impact_factor": 4.500725689404935
+  },
+  "osf registries": null,
+  "proceedings of the royal society of london. series b: biological sciences": null,
+  "i-perception": {
+    "id": "https://openalex.org/S135407459",
+    "display_name": "i-Perception",
+    "impact_factor": 1.1069182389937107
   }
 }
