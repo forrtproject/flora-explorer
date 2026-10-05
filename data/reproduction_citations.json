@@ -7,10 +7,10 @@
       "n_cocitations": 517
     },
     "issues": {
-      "n_originals": 83,
-      "n_citations_to_original": 40038,
-      "n_citations_to_reproduction": 2531,
-      "n_cocitations": 888
+      "n_originals": 84,
+      "n_citations_to_original": 44879,
+      "n_citations_to_reproduction": 2606,
+      "n_cocitations": 958
     },
     "technical_failure": {
       "n_originals": 3,
@@ -27,10 +27,10 @@
       "n_cocitations": 373
     },
     "challenges": {
-      "n_originals": 113,
-      "n_citations_to_original": 76763,
-      "n_citations_to_reproduction": 6264,
-      "n_cocitations": 2271
+      "n_originals": 114,
+      "n_citations_to_original": 81604,
+      "n_citations_to_reproduction": 6339,
+      "n_cocitations": 2341
     }
   }
 }
