@@ -3725,5 +3725,183 @@
     "id": "https://openalex.org/S3774022",
     "display_name": "The Journal of Pediatrics",
     "impact_factor": 2.5348214285714286
+  },
+  "analysis": null,
+  "andrology": null,
+  "assessment": null,
+  "behavioural brain research": {
+    "id": "https://openalex.org/S81474683",
+    "display_name": "Behavioural Brain Research",
+    "impact_factor": 2.949003984063745
+  },
+  "brain": null,
+  "brain sciences": null,
+  "canadian journal of education / revue canadienne de l\u00e9ducation": null,
+  "climate": null,
+  "cortex": null,
+  "eastern illinois university": null,
+  "economic systems": null,
+  "educational psychology": null,
+  "experimental psychology": null,
+  "gesellschaft f\u00fcr informatik e.v.": null,
+  "intelligence": null,
+  "international finance discussion papers": null,
+  "journal of alzheimers disease": null,
+  "journal of cognition": null,
+  "journal of cognitive psychology": null,
+  "journal of communication technology": null,
+  "journal of community psychology": null,
+  "journal of experimental psychology": null,
+  "journal of medical genetics": null,
+  "journal of personality": null,
+  "language in mind": null,
+  "learning & behavior": null,
+  "learning & memory": null,
+  "linguistics": null,
+  "na": null,
+  "neuro-ophthalmology": null,
+  "perception": null,
+  "poetics": null,
+  "policy research working papers": null,
+  "psychotherapy: theory, research, practice, training": null,
+  "public administration": null,
+  "quarterly journal of experimental psychology": {
+    "id": "https://openalex.org/S59062809",
+    "display_name": "Quarterly Journal of Experimental Psychology",
+    "impact_factor": 1.547568710359408
+  },
+  "representation": null,
+  "review of finance": null,
+  "social psychology": null,
+  "stress": null,
+  "survey research methods": null,
+  "system": null,
+  "the canadian modern language review": null,
+  "the journal of neuroscience": null,
+  "the journal of nutrition": null,
+  "the modern language journal": null,
+  "unknown": null,
+  "arxiv": null,
+  "human resource development quarterly": {
+    "id": "https://openalex.org/S191693275",
+    "display_name": "Human Resource Development Quarterly",
+    "impact_factor": 2.3333333333333335
+  },
+  "journal of experimental psychopathology": {
+    "id": "https://openalex.org/S2764689155",
+    "display_name": "Journal of Experimental Psychopathology",
+    "impact_factor": 0.8125
+  },
+  "psychology of addictive behaviors": {
+    "id": "https://openalex.org/S31064911",
+    "display_name": "Psychology of Addictive Behaviors",
+    "impact_factor": 1.3798219584569733
+  },
+  "the international journal for the psychology of religion": {
+    "id": "https://openalex.org/S9652748",
+    "display_name": "International Journal for the Psychology of Religion",
+    "impact_factor": 2.5483870967741935
+  },
+  "academy of management proceedings": {
+    "id": "https://openalex.org/S4210223487",
+    "display_name": "Academy of Management Proceedings",
+    "impact_factor": 0.06267567729202798
+  },
+  "american journal of small business": {
+    "id": "https://openalex.org/S4210188002",
+    "display_name": "American Journal of Small Business",
+    "impact_factor": 0.0
+  },
+  "annals of epidemiology": {
+    "id": "https://openalex.org/S40844199",
+    "display_name": "Annals of Epidemiology",
+    "impact_factor": 1.3304347826086957
+  },
+  "entrepreneurship theory and practice": {
+    "id": "https://openalex.org/S187626162",
+    "display_name": "Entrepreneurship Theory and Practice",
+    "impact_factor": 6.567741935483871
+  },
+  "evolution": {
+    "id": "https://openalex.org/S87560609",
+    "display_name": "Evolution",
+    "impact_factor": 2.679186228482003
+  },
+  "journal of behavioral addictions": {
+    "id": "https://openalex.org/S2764456207",
+    "display_name": "Journal of Behavioral Addictions",
+    "impact_factor": 6.888888888888889
+  },
+  "journal of systems and software": {
+    "id": "https://openalex.org/S37879656",
+    "display_name": "Journal of Systems and Software",
+    "impact_factor": 4.208286674132139
+  },
+  "psychological science in the public interest": {
+    "id": "https://openalex.org/S1025063068",
+    "display_name": "Psychological Science in the Public Interest",
+    "impact_factor": 3.5454545454545454
+  },
+  "psychology of consciousness: theory, research, and practice": {
+    "id": "https://openalex.org/S4210176507",
+    "display_name": "Psychology of Consciousness Theory Research and Practice",
+    "impact_factor": 0.8449612403100775
+  },
+  "structural equation modeling: a multidisciplinary journal": {
+    "id": "https://openalex.org/S78020522",
+    "display_name": "Structural Equation Modeling A Multidisciplinary Journal",
+    "impact_factor": 2.8520179372197307
+  },
+  "annals of internal medicine": {
+    "id": "https://openalex.org/S119722071",
+    "display_name": "Annals of Internal Medicine",
+    "impact_factor": 4.974301675977654
+  },
+  "chemical senses": {
+    "id": "https://openalex.org/S8722945",
+    "display_name": "Chemical Senses",
+    "impact_factor": 2.874125874125874
+  },
+  "communication & sport": {
+    "id": "https://openalex.org/S2764771808",
+    "display_name": "Communication & Sport",
+    "impact_factor": 2.3130434782608695
+  },
+  "early intervention in psychiatry": {
+    "id": "https://openalex.org/S130551847",
+    "display_name": "Early Intervention in Psychiatry",
+    "impact_factor": 1.8453159041394336
+  },
+  "human factors: the journal of the human factors and ergonomics society": {
+    "id": "https://openalex.org/S83386566",
+    "display_name": "Human Factors The Journal of the Human Factors and Ergonomics Society",
+    "impact_factor": 3.3174603174603177
+  },
+  "international journal of forecasting": {
+    "id": "https://openalex.org/S39841227",
+    "display_name": "International Journal of Forecasting",
+    "impact_factor": 3.971311475409836
+  },
+  "journal of clinical nursing": {
+    "id": "https://openalex.org/S180106345",
+    "display_name": "Journal of Clinical Nursing",
+    "impact_factor": 3.5622377622377623
+  },
+  "journal of infectious diseases": {
+    "id": "https://openalex.org/S54542293",
+    "display_name": "The Journal of Infectious Diseases",
+    "impact_factor": 4.125835189309577
+  },
+  "managerial and decision economics": {
+    "id": "https://openalex.org/S138400101",
+    "display_name": "Managerial and Decision Economics",
+    "impact_factor": 4.500725689404935
+  },
+  "osf registries": null,
+  "proceedings of the royal society of london. series b: biological sciences": null,
+  "i-perception": {
+    "id": "https://openalex.org/S135407459",
+    "display_name": "i-Perception",
+    "impact_factor": 1.1069182389937107
   }
 }

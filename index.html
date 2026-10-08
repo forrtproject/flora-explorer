@@ -75,14 +75,6 @@
         </div>
     </div>
 
-    <!-- WIP corner ribbon -->
-    <div class="wip-ribbon" id="wip-ribbon" aria-label="Work in progress">
-        <div class="wip-ribbon-inner">Work in Progress</div>
-    </div>
-    <div class="wip-ribbon-tip" id="wip-ribbon-tip" role="tooltip">
-        <strong>Work in progress.</strong> FLoRA Explorer and the underlying dataset are actively being expanded. Some entries may be incomplete, and features marked <em>experimental</em> may change.
-    </div>
-
     <main class="app-main">
     <div class="container">
         <div id="global-loading" class="loading-spinner">
@@ -97,7 +89,7 @@
             <!-- ============================ OVERVIEW ============================ -->
             <div class="tab-pane fade show active" id="overview" role="tabpanel">
 
-                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs.</p><p><a class="route-link" href="?tab=browse">Find a study</a> <a class="route-link" href="?tab=trends">Explore patterns</a></p></section>
+                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. To look up studies, use the <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Replication Atlas</a>.</p></section>
                 <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <div class="row mb-3">
@@ -332,16 +324,16 @@
             <!-- ============================ BROWSE ============================ -->
             <div class="tab-pane fade" id="browse" role="tabpanel">
                 <div class="data-stamp" data-stamp-source="flora"></div>
-                <div class="browse-search"><label for="browse-mobile-input">Find a reference pair</label><input type="search" id="browse-mobile-input" class="form-control" placeholder="Title, author, year, DOI or DOI URL" autocomplete="off"><div class="browse-actions"><button type="button" id="share-view">Copy current view link</button><button type="button" id="export-browse">Export matching pairs</button><a href="?tab=overview#website-citation-box">Citation guidance</a><span id="view-feedback" role="status"></span></div></div>
-
-
-                <div class="trend-filter" role="group" aria-label="Filter by study kind">
-                    <span class="trend-filter-label">Show:</span>
-                    <button type="button" class="trend-filter-btn browse-kind-btn active" data-kind="all" aria-pressed="true">All studies</button>
-                    <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="replication" aria-pressed="false">Replications only</button>
-                    <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
-                    <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
-                    <span class="trend-filter-count" id="browse-kind-count"></span>
+                <div class="browse-filter-panel">
+                    <div class="browse-search"><label for="browse-mobile-input">Find a reference pair</label><div class="browse-search-row"><input type="search" id="browse-mobile-input" class="form-control" placeholder="Title, author, year, DOI or DOI URL" autocomplete="off"><button type="button" id="share-view" class="icon-action" aria-label="Copy current view link" title="Copy current view link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><button type="button" id="export-browse" class="browse-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg><span>Download full CSV</span></button></div><span id="view-feedback" role="status"></span></div>
+                    <div class="trend-filter browse-kind-filter" role="group" aria-label="Filter by study kind">
+                        <span class="trend-filter-label">Show:</span>
+                        <button type="button" class="trend-filter-btn browse-kind-btn active" data-kind="all" aria-pressed="true">All studies</button>
+                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="replication" aria-pressed="false">Replications only</button>
+                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
+                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
+                        <span class="trend-filter-count" id="browse-kind-count"></span>
+                    </div>
                 </div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -464,7 +456,7 @@
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by replication study year <span class="badge-wip">Experimental · WIP</span></h5>
+                        <h5>Outcomes by replication study year</h5>
                         <p>Grouped by the year of the <strong>replication</strong> itself, this view shows the growth of FLoRA's coverage and how outcome profiles have shifted over time as replication practice has matured.</p>
                         <p>The rightmost years may reflect ongoing data entry rather than a genuine decline in activity.</p>
                         <p class="trend-note">Replications without a recorded year are excluded.</p>
@@ -492,7 +484,7 @@
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by replication journal <span class="badge-wip">Experimental · WIP</span></h5>
+                        <h5>Outcomes by replication journal</h5>
                         <p>Where replication studies are themselves being published. Each bar shows the outcome breakdown of replications appearing in a given journal.</p>
                         <p>This view highlights the venues that publish replication research most actively, including journals dedicated to replications and registered reports.</p>
                         <p class="trend-note">Annotation of replication-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
@@ -511,7 +503,7 @@
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by field <span class="badge-wip">Experimental · WIP</span></h5>
+                        <h5>Outcomes by field</h5>
                         <p>A bird's-eye view grouping studies by research discipline. Each bar shows the outcome breakdown of replication and reproduction attempts targeting work originally published in journals from that field.</p>
                         <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">data/disciplines.json</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
                         <p class="trend-note">Coverage is still growing. Many journals are not yet classified, so some fields may be under-represented and <em>Uncategorized</em> may dominate. The dictionary is straightforward to extend.</p>

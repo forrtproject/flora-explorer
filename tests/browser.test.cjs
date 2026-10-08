@@ -31,6 +31,7 @@ test('desktop/mobile search, DOI URLs, empty results, shared view and evidence a
   assert.equal(await p.locator('.study-details').first().getAttribute('aria-expanded'),'true');
   assert.ok(await p.locator('.detail-row').first().isVisible());
   await p.setViewportSize({width:390,height:844});assert.equal(await p.locator('.bm-card').count(),4);
+  assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await p.locator('.bm-evidence summary').first().click();assert.ok(await p.locator('.bm-evidence[open] .detail-row').isVisible());
   assert.deepEqual(await browseRows(p),expected);
   await p.reload();await p.waitForFunction(()=>getChartData().length===4);assert.deepEqual(await browseRows(p),expected);
@@ -39,6 +40,7 @@ test('desktop/mobile search, DOI URLs, empty results, shared view and evidence a
     assert.equal(await p.locator('.bm-card').count(),3);
   }
   const downloadEvent=p.waitForEvent('download');await p.click('#export-browse');const download=await downloadEvent;
+  assert.equal(download.suggestedFilename(),'flora-filtered-reference-pairs.csv');
   const exported=fs.readFileSync(await download.path(),'utf8');
   const exportedRows=await p.evaluate(text=>Papa.parse(text,{header:true}).data,exported);
   assert.equal(exportedRows.length,3);assert.match(exportedRows[0]['Export context'],/Unit: reference pair/);
@@ -46,6 +48,33 @@ test('desktop/mobile search, DOI URLs, empty results, shared view and evidence a
   assert.equal(await p.locator('.bm-card').count(),0);
   assert.equal(await p.evaluate(()=>Chart.getChart('browse-outcome-chart').data.datasets.reduce((n,d)=>n+d.data[0],0)),0);
   assert.match(await p.locator('#browse-outcome-chart-data').textContent(),/No matching assessed outcomes/);
+  await p.fill('#browse-mobile-input','');await p.click('.browse-kind-btn[data-kind="all"]');
+  await p.waitForFunction(()=>getChartData().length===fullRowData.length);
+  assert.equal(await p.locator('#export-browse').innerText(),'Download full CSV');
+  const fullDownloadEvent=p.waitForEvent('download');await p.click('#export-browse');
+  assert.equal((await fullDownloadEvent).suggestedFilename(),'flora-reference-pairs.csv');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('chart data and the current browse link copy to the clipboard',async()=>{
+  const p=await page('?tab=overview');
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  assert.equal(await p.locator('.wip-ribbon,.badge-wip').count(),0);
+  assert.equal(await p.locator('.chart-export').count(),0);
+  assert.equal(await p.locator('#overview-computational-chart-data-copy').isVisible(),true);
+  await p.click('#overview-computational-chart-data-copy');
+  const csv=await p.evaluate(()=>navigator.clipboard.readText());
+  assert.match(csv,/Category,|"Category"/);
+  assert.match(csv,/Included in the plot:/);
+  assert.doesNotMatch(csv,/Included: \d+ reference pairs/);
+  await p.evaluate(()=>{window.originalClipboardWrite=navigator.clipboard.writeText.bind(navigator.clipboard);navigator.clipboard.writeText=()=>Promise.reject(new Error('Clipboard unavailable'));});
+  await p.click('#overview-computational-chart-data-copy');
+  assert.equal(await p.locator('#overview-computational-chart-data-copy-status').textContent(),'Could not copy chart CSV');
+  await p.evaluate(()=>{navigator.clipboard.writeText=window.originalClipboardWrite;delete window.originalClipboardWrite;});
+  await p.click('#browse-tab');
+  await p.fill('#browse-mobile-input','power posing');
+  await p.waitForFunction(()=>location.search.includes('q=power'));
+  await p.click('#share-view');
+  assert.match(await p.evaluate(()=>navigator.clipboard.readText()),/tab=browse.*q=power/);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('Mean Citedness clears stale models and all distribution outcomes reconcile',async()=>{

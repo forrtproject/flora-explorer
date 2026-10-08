@@ -6,10 +6,13 @@ window.FloraCharts = (() => {
     const comparisonIds = new Set(['ao-chart', 'rr-chart', 'pub-chart', 'ls-chart']);
     const modes = new Map();
     const originals = new Map();
-    function download(name, headers, rows, notes = '') {
+    function csvText(headers, rows, notes = '') {
         // Prefix formula-like text so spreadsheet programs treat it as data.
         const cell = v => '"' + (typeof v === 'number' ? String(v) : String(v ?? '').replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
-        const text = [notes ? ['Export context', ...headers] : headers, ...rows.map(row => notes ? [notes,...row] : row)].map(row => row.map(cell).join(',')).join('\r\n');
+        return [notes ? ['Export context', ...headers] : headers, ...rows.map(row => notes ? [notes,...row] : row)].map(row => row.map(cell).join(',')).join('\r\n');
+    }
+    function download(name, headers, rows, notes = '') {
+        const text = csvText(headers, rows, notes);
         const link = document.createElement('a');
         const url = URL.createObjectURL(new Blob(['\ufeff' + text], {type:'text/csv;charset=utf-8'}));
         link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -29,9 +32,38 @@ window.FloraCharts = (() => {
             anchor.insertAdjacentElement('afterend', details);
         }
         const wasOpen = details.open;
-        details.innerHTML = `<summary>View chart data and export CSV</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><button type="button" class="chart-export">Download chart CSV</button><div class="table-scroll" tabindex="0" role="region" aria-label="Chart values"><table><caption>${escape(el.getAttribute('aria-label') || 'Chart data')}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v))}</td>` : `<th scope="row">${escape(fmt(v))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        details.innerHTML = `<summary>View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="Chart values"><table><caption>${escape(el.getAttribute('aria-label') || 'Chart data')}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v))}</td>` : `<th scope="row">${escape(fmt(v))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         details.open = wasOpen;
-        details.querySelector('button').onclick = () => download(el.id + '.csv', headers, rows, summary + '\n' + context(el));
+        const label = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label') || el.closest('.trend-block')?.querySelector('.trend-desc h5');
+        let action = document.getElementById(id + '-copy');
+        if (!action) {
+            action = document.createElement('button');
+            action.id = id + '-copy'; action.type = 'button'; action.className = 'chart-copy icon-action';
+            action.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
+            if (label) label.append(action);
+            else details.before(action);
+        }
+        let status = document.getElementById(id + '-copy-status');
+        if (!status) {
+            status = document.createElement('span');
+            status.id = id + '-copy-status'; status.className = 'visually-hidden'; status.setAttribute('role', 'status');
+            action.after(status);
+        }
+        action.setAttribute('aria-label', 'Copy chart CSV for ' + (el.getAttribute('aria-label') || el.id));
+        action.title = 'Copy chart CSV';
+        action.onclick = async () => {
+            status.textContent = '';
+            try {
+                await navigator.clipboard.writeText(csvText(headers, rows, summary + '\n' + context(el)));
+                action.title = 'Chart CSV copied';
+                action.setAttribute('aria-label', 'Chart CSV copied');
+                status.textContent = 'Chart CSV copied';
+                setTimeout(() => { action.title = 'Copy chart CSV'; action.setAttribute('aria-label', 'Copy chart CSV for ' + (el.getAttribute('aria-label') || el.id)); }, 2000);
+            } catch {
+                action.title = 'Could not copy chart CSV';
+                status.textContent = 'Could not copy chart CSV';
+            }
+        };
         el.setAttribute('aria-describedby', id);
     }
     function chart(ctx, config) {
@@ -43,7 +75,7 @@ window.FloraCharts = (() => {
         const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
         const isOutcome = /outcome|computational|robustness/.test(el.id);
         const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
-        const sample = `Included in the plot: ${total}; excluded from this selection: ${Math.max(0,eligible-total)} reference pairs. ` + (isOutcome ? `Included: ${total} reference pairs. ${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
+        const sample = `Included in the plot: ${total}; excluded from this selection: ${Math.max(0,eligible-total)} reference pairs. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
         table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
         return new Chart(ctx, config);
