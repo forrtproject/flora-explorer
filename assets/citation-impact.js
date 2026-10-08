@@ -11,8 +11,12 @@
         loaded: false, loading: false
     };
 
+    // Resolved from CSS tokens at render time so plots follow the theme.
     const OUTCOME_COLORS = {
-        failed: '#b3331e', successful: '#2f8f4f', mixed: '#d49b1d', all: '#8b1a4a'
+        get failed()     { return FloraCharts.token('--color-chart-failed'); },
+        get successful() { return FloraCharts.token('--color-chart-successful'); },
+        get mixed()      { return FloraCharts.token('--color-chart-mixed'); },
+        get all()        { return FloraCharts.token('--color-primary'); },
     };
 
     let ciKind = 'replication';
@@ -53,16 +57,7 @@
         return initials ? `${family}, ${initials}` : family;
     }
 
-    function plotlyTheme() {
-        const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-        return {
-            paper: dark ? '#1d1e29' : '#ffffff',
-            plot:  dark ? '#1d1e29' : '#ffffff',
-            grid:  dark ? '#2d2e3d' : '#eeeaef',
-            font:  dark ? '#e8e6ee' : '#2a2330',
-            muted: dark ? '#9793a4' : '#6f7686'
-        };
-    }
+    const plotlyTheme = () => FloraCharts.theme();
 
     function plotlyReady(timeoutMs = 15000) {
         return new Promise((resolve, reject) => {
@@ -271,7 +266,7 @@
         if (desc.event_time && desc.n_units && desc.n_units.length) {
             traces.push({
                 x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines',
-                line: { color: '#bbb', width: 1, dash: 'dot' },
+                line: { color: plotlyTheme().rule, width: 1, dash: 'dot' },
                 name: 'N (right axis)', yaxis: 'y2',
                 hovertemplate: 't=%{x}: N=%{y}<extra></extra>'
             });
@@ -314,10 +309,10 @@
                 title: 'N studies', overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
                 tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
             },
-            shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: '#8b1a4a', width: 1.5, dash: 'dash' } }],
-            annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: '#8b1a4a' } }],
+            shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: t.primary, width: 1.5, dash: 'dash' } }],
+            annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: t.primary } }],
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-            font: { family: 'Inter, sans-serif', size: 12, color: t.font },
+            font: { family: t.fontFamily, size: 12, color: t.font },
             legend: { orientation: 'h', y: -0.22, font: { color: t.font } }
         };
         FloraCharts.plot(divId, traces, layout, { displayModeBar: false, responsive: true });
@@ -524,6 +519,7 @@
         if (closeBtn) closeBtn.focus();
         // Reflect the open chart in the address bar so it's directly shareable.
         history.replaceState(null, '', citationLink(s.doi));
+        CI.openStudy = s;
         drawStudyTimeline(s);
     }
 
@@ -553,19 +549,19 @@
         }
         const years = tl.map(t => t.year);
         const traces = [
-            { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: '#9ca3af' } },
+            { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: FloraCharts.token('--color-chart-neutral') } },
             { x: years, y: tl.map(t => t.with_failed),     name: 'Co-cites failed rep',    type: 'bar', marker: { color: OUTCOME_COLORS.failed } },
             { x: years, y: tl.map(t => t.with_mixed),      name: 'Co-cites mixed rep',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
             { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } },
-            { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Co-cites multiple outcome categories', type: 'bar', marker: {color:'#7851a9'} }
+            { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Co-cites multiple outcome categories', type: 'bar', marker: {color: FloraCharts.token('--color-chart-qualified')} }
         ];
+        const t = plotlyTheme();
         const shapes = []; const annotations = [];
         (s.replications || []).forEach((r, i) => {
             if (!r.year) return;
-            shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || '#8b1a4a', width: 2, dash: 'dash' } });
-            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - (i % 3) * 0.06, text: `${r.outcome} rep ${r.year}`, showarrow: false, font: { size: 10, color: OUTCOME_COLORS[r.outcome] || '#8b1a4a' }, bgcolor: 'rgba(255,255,255,0.85)' });
+            shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || t.primary, width: 2, dash: 'dash' } });
+            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - (i % 3) * 0.06, text: `${r.outcome} rep ${r.year}`, showarrow: false, font: { size: 10, color: OUTCOME_COLORS[r.outcome] || t.primary }, bgcolor: t.paper });
         });
-        const t = plotlyTheme();
         const layout = {
             barmode: 'stack', margin: { t: 50, r: 10, b: 40, l: 50 },
             xaxis: { title: 'Year', gridcolor: t.grid, color: t.font },
@@ -573,7 +569,7 @@
             shapes, annotations,
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
-            font: { family: 'Inter, sans-serif', size: 12, color: t.font }
+            font: { family: t.fontFamily, size: 12, color: t.font }
         };
         FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true });
     }
@@ -700,6 +696,9 @@
         if (CI.loaded) {
             // Tiny delay to let CSS variables update
             setTimeout(() => { renderAggregate(); }, 50);
+        }
+        if (CI.openStudy && !document.getElementById('ci-modal').hidden) {
+            setTimeout(() => drawStudyTimeline(CI.openStudy), 50);
         }
     });
 })();
