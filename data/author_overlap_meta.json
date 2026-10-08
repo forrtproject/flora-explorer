@@ -1,9 +1,9 @@
 {
-  "last_updated": "2026-09-14T06:33:59Z",
+  "last_updated": "2026-10-08T06:20:13Z",
   "n_total": {
-    "replication": 2446,
-    "reproduction-numerical": 280,
-    "reproduction-robustness": 163
+    "replication": 2581,
+    "reproduction-numerical": 287,
+    "reproduction-robustness": 215
   },
   "source": "scripts/compute_author_overlap.py"
 }
