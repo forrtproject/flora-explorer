@@ -417,7 +417,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
    with an ellipsis (full value in the link, its tooltip and the evidence row). */
 .browse-desktop #flora-table td, .browse-desktop #flora-table th { overflow-wrap: break-word; }
 /* Narrow desktop widths: the short Type and outcome labels hyphenate instead of breaking mid-syllable. */
-.browse-desktop #flora-table td.type-cell, .browse-desktop #flora-table .badge { hyphens: auto; }
+.browse-desktop #flora-table td.type-cell, .browse-desktop #flora-table .badge { -webkit-hyphens: auto; hyphens: auto; }
 .browse-desktop #flora-table th { overflow-wrap: normal; }
 .browse-desktop #flora-table td.link-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The link itself carries the ellipsis so its focus ring can sit inside the clipped cell. */
