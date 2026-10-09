@@ -90,8 +90,29 @@
     --color-plot-rule: rgba(100, 100, 100, .4);         /* reference lines */
     --color-plot-rule-label: rgba(100, 100, 100, .6);
 
+    /* Chart series colours (FLoRA explorer). Light values keep the
+       established outcome palette; dark values below keep series marks
+       at >= 3:1 against --color-surface-raised, except --color-chart-not-coded,
+       which stays deliberately faint (2.6:1) for unassessed rows. */
+    --color-chart-successful: #2f8f4f;
+    --color-chart-failed: #b3331e;
+    --color-chart-mixed: #d49b1d;
+    --color-chart-inconclusive: #6f7686;
+    --color-chart-qualified: #7851a9;
+    --color-chart-other: #707782;
+    --color-chart-technical-failure: #7a1f1f;
+    --color-chart-not-checked: #8a8f9c;
+    --color-chart-not-coded: #c3c7ce;   /* deliberately faint: unassessed */
+    --color-chart-neutral: #9ca3af;     /* cites original only */
+
     /* Channel triplet, for rgb(… / α) tinting on dark chrome */
     --color-white-rgb: 255 255 255;
+
+    /* FLoRA explorer extensions: links, card shadows and callout emphasis. */
+    --color-link: #2563eb;              /* 5.17:1 on white */
+    --color-shadow: rgba(0, 0, 0, .06);
+    --color-shadow-hover: rgba(0, 0, 0, .12);
+    --color-callout-accent: #9c4221;    /* on --color-warning-bg */
 
     /* ---------------------------------------------------------
        TYPE
@@ -261,11 +282,27 @@
 
     --color-scrim: rgba(8, 6, 9, .62);
 
+    --color-link: #93b4fd;
+    --color-shadow: rgba(0, 0, 0, .35);
+    --color-shadow-hover: rgba(0, 0, 0, .55);
+    --color-callout-accent: #f0c070;
+
     --color-plot-band: rgba(217, 139, 166, .18);
     --color-plot-band-original: rgba(147, 180, 253, .18);
     --color-plot-point: rgba(210, 210, 220, .2);
     --color-plot-rule: rgba(200, 200, 210, .45);
     --color-plot-rule-label: rgba(200, 200, 210, .6);
+
+    --color-chart-successful: #4ade80;
+    --color-chart-failed: #f08a7c;
+    --color-chart-mixed: #e0b040;
+    --color-chart-inconclusive: #a3a9b6;
+    --color-chart-qualified: #c0a8fa;
+    --color-chart-other: #9a9099;
+    --color-chart-technical-failure: #d9645a;
+    --color-chart-not-checked: #7f8590;
+    --color-chart-not-coded: #5a5f69;
+    --color-chart-neutral: #8b919c;
 
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, .35);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, .45);
