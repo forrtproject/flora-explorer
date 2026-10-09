@@ -4,6 +4,18 @@ window.FloraCharts = (() => {
     const plain = s => String(s ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     const fmt = v => typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Number(v.toFixed(5)).toString()) : plain(v);
     const comparisonIds = new Set(['ao-chart', 'rr-chart', 'pub-chart', 'ls-chart']);
+    // Chart colours resolve from CSS tokens at render time, so every chart follows the theme.
+    const token = (name, fallback = '') => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+    function theme() {
+        return {
+            paper: token('--color-surface-raised', '#fff'), plot: token('--color-surface-raised', '#fff'),
+            grid: token('--color-border-light', '#e0e1e1'), font: token('--color-text', '#2c2c2c'),
+            tick: token('--color-text-secondary', '#4a4a4a'), muted: token('--color-muted-fg', '#6b7280'),
+            primary: token('--color-primary', '#853953'), band: token('--color-plot-band'),
+            point: token('--color-plot-point'), rule: token('--color-plot-rule'), ruleLabel: token('--color-plot-rule-label'),
+            fontFamily: token('--font-body', 'sans-serif'),
+        };
+    }
     const modes = new Map();
     const originals = new Map();
     function csvText(headers, rows, notes = '') {
@@ -84,6 +96,8 @@ window.FloraCharts = (() => {
         const el = typeof target === 'string' ? document.getElementById(target) : target;
         if (!el) return Promise.resolve();
         const id = el.id;
+        // Every Plotly chart uses the page font unless a renderer sets one.
+        layout = {...layout, font: {family: theme().fontFamily, ...layout.font}};
         // Size a plot only after its analysis card is visible. Hidden cards otherwise
         // give Plotly a zero-width container and trigger its 700px fallback.
         const card = el.closest('.mc-chart-card');
@@ -159,5 +173,5 @@ window.FloraCharts = (() => {
             if(el)d.querySelector('.chart-context').textContent=context(el);
         });
     }
-    return {chart,plot,download,updateContexts};
+    return {chart,plot,download,updateContexts, token, theme};
 })();

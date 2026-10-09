@@ -31,13 +31,15 @@ const DISCIPLINES_URL = 'data/disciplines.json';
 const CITATION_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/CITATION.cff';
 const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora_faq.md';
 
+// Getters read --color-chart-* tokens at render time so charts follow the theme.
+const chartToken = key => FloraCharts.token('--color-chart-' + key);
 const OUTCOME_COLORS = {
-    successful:   '#2f8f4f',
-    failed:       '#b3331e',
-    mixed:        '#d49b1d',
-    inconclusive: '#6f7686',
-    qualified:    '#7851a9',
-    other:        '#707782'
+    get successful()   { return chartToken('successful'); },
+    get failed()       { return chartToken('failed'); },
+    get mixed()        { return chartToken('mixed'); },
+    get inconclusive() { return chartToken('inconclusive'); },
+    get qualified()    { return chartToken('qualified'); },
+    get other()        { return chartToken('other'); },
 };
 
 // Filled at runtime from data/disciplines.json
@@ -50,12 +52,8 @@ function disciplineForJournal(journalName) {
 }
 
 function themeAxisColors() {
-    const dark = currentTheme() === 'dark';
-    return {
-        grid:   dark ? '#2d2e3d' : '#dfd8e5',
-        tick:   dark ? '#b8b5c4' : '#4e4858',
-        legend: dark ? '#e8e6ee' : '#2a2330'
-    };
+    const t = FloraCharts.theme();
+    return { grid: t.grid, tick: t.tick, legend: t.font };
 }
 
 // ----- State -----
@@ -351,13 +349,13 @@ function updateOverviewStats(data) {
 // Muted grays for "not yet coded"/"not checked" - distinct from the successful/failed/
 // mixed palette so an unassessed reproduction never reads as an outcome.
 const REPRODUCTION_COLORS = {
-    successful:        OUTCOME_COLORS.successful,
-    issues:            OUTCOME_COLORS.failed,
-    technical_failure: '#7a1f1f',
-    robust:            OUTCOME_COLORS.successful,
-    challenges:        OUTCOME_COLORS.failed,
-    not_checked:       '#8a8f9c',
-    not_coded:         '#c3c7ce'
+    get successful()        { return chartToken('successful'); },
+    get issues()            { return chartToken('failed'); },
+    get technical_failure() { return chartToken('technical-failure'); },
+    get robust()            { return chartToken('successful'); },
+    get challenges()        { return chartToken('failed'); },
+    get not_checked()       { return chartToken('not-checked'); },
+    get not_coded()         { return chartToken('not-coded'); },
 };
 
 // Builds the {datasets, total} for one of the three outcome dimensions shown on the
@@ -1112,16 +1110,6 @@ window._rerenderAllCharts = function() {
 // ===== Mean Citedness tab =====
 window._mcData = null;
 
-function mcPlotlyTheme() {
-    const dark = currentTheme() === 'dark';
-    return {
-        paper: dark ? '#1d1e29' : '#ffffff',
-        plot:  dark ? '#1d1e29' : '#ffffff',
-        grid:  dark ? '#2d2e3d' : '#eeeaef',
-        font:  dark ? '#e8e6ee' : '#2a2330',
-    };
-}
-
 // Overview-stat key and histogram-bucket key for a Mean Citedness dimension. The
 // replication path's overview keys are R's original naming (n_success, not
 // n_successful) while its histogram keys are "successful" - inconsistent with each
@@ -1177,9 +1165,7 @@ function renderMcCharts() {
     if (distCard) distCard.style.display = '';
     if (gamCard) gamCard.style.display = '';
 
-    const t = mcPlotlyTheme();
-    const primary = getComputedStyle(document.documentElement)
-        .getPropertyValue('--flora-primary').trim() || '#8b1a4a';
+    const t = FloraCharts.theme();
     const buckets = mcBucketConfig(mcKind);
 
     // ── Overview grid ─────────────────────────────────────────────────────
@@ -1208,15 +1194,13 @@ function renderMcCharts() {
         xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         yaxis: { title: 'Number of studies',             gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-        font: { family: 'Inter, sans-serif', size: 12, color: t.font },
+        font: { family: t.fontFamily, size: 12, color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
         height: 320,
     }, { displayModeBar: false, responsive: true });
 
     const st = d.stats || {};
     const gc = Array.isArray(d.gam_curve) ? d.gam_curve : [];
-    const isDark = currentTheme() === 'dark';
-    const lineColor = isDark ? '#e0a5c0' : primary;
 
     // ── GAM chart (Plotly) ────────────────────────────────────────────────
     const gamDiv = document.getElementById('mc-gam-chart');
@@ -1240,13 +1224,13 @@ function renderMcCharts() {
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
         { x: gc.map(p => p.omc), y: gc.map(p => p.p_hi), type: 'scatter', mode: 'lines',
-          fill: 'tonexty', fillcolor: isDark ? 'rgba(224,165,192,0.18)' : 'rgba(139,26,74,0.12)',
+          fill: 'tonexty', fillcolor: t.band,
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_hi' },
         { x: gc.map(p => p.omc), y: gc.map(p => p.p), type: 'scatter', mode: 'lines',
-          line: { color: lineColor, width: 2.5 }, name: 'Smooth fit',
+          line: { color: t.primary, width: 2.5 }, name: 'Smooth fit',
           hovertemplate: 'OMC = %{x:.2f}<br>P(success) = %{y:.1%}<extra>Smooth fit</extra>' },
         { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), type: 'scatter', mode: 'markers',
-          marker: { color: isDark ? 'rgba(210,210,220,0.20)' : 'rgba(80,80,80,0.15)', size: 5, line: { width: 0 } },
+          marker: { color: t.point, size: 5, line: { width: 0 } },
           name: 'Studies', text: jitter2.map(p => p.lbl),
           hovertemplate: 'OMC = %{x:.2f}<br>%{text}<extra></extra>' },
     ];
@@ -1257,18 +1241,18 @@ function renderMcCharts() {
         yaxis: { title: 'P(success | successful or failed)', range: [-0.08, 1.08],
                  tickformat: '.0%', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-        font: { family: 'Inter, sans-serif', size: 12, color: t.font },
+        font: { family: t.fontFamily, size: 12, color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
         shapes: [{
             type: 'line', xref: 'paper', x0: 0, x1: 1,
             yref: 'y', y0: 0.5, y1: 0.5,
-            line: { color: isDark ? 'rgba(200,200,210,0.45)' : 'rgba(100,100,100,0.4)', width: 1.5, dash: 'dash' },
+            line: { color: t.rule, width: 1.5, dash: 'dash' },
         }],
         annotations: [{
             xref: 'paper', x: 1, xanchor: 'right',
             yref: 'y', y: 0.5, yanchor: 'bottom',
             text: '50% reference', showarrow: false,
-            font: { size: 11, color: isDark ? 'rgba(200,200,210,0.6)' : 'rgba(100,100,100,0.6)' },
+            font: { size: 11, color: t.ruleLabel },
         }],
     };
     FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true });
@@ -1324,16 +1308,6 @@ document.getElementById('mc-tab').addEventListener('shown.bs.tab', loadMeanCited
 // ===== Authorship Overlap tab =====
 window._aoData = null;
 
-function aoPlotlyTheme() {
-    const dark = currentTheme() === 'dark';
-    return {
-        paper: dark ? '#1d1e29' : '#ffffff',
-        plot:  dark ? '#1d1e29' : '#ffffff',
-        grid:  dark ? '#2d2e3d' : '#eeeaef',
-        font:  dark ? '#e8e6ee' : '#2a2330',
-    };
-}
-
 function renderOverlapCharts() {
     if (typeof Plotly === "undefined") { chartLibUnavailable("ao-chart", "Plotly", renderOverlapCharts); return; }
     const d = window._aoData && window._aoData[aoKind];
@@ -1354,7 +1328,7 @@ function renderOverlapCharts() {
     }
     if (insufficientEl) insufficientEl.style.display = 'none';
 
-    const th = aoPlotlyTheme();
+    const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
     const kindNoun = aoKind === 'replication' ? 'Replications' : 'Reproductions';
@@ -1479,7 +1453,7 @@ function renderRRCharts() {
     }
     if (insufficientEl) insufficientEl.style.display = 'none';
 
-    const th = aoPlotlyTheme();
+    const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
     const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
@@ -1624,7 +1598,7 @@ function renderPubStatusCharts() {
     }
     if (insufficientEl) insufficientEl.style.display = 'none';
 
-    const th = aoPlotlyTheme();
+    const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
     const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
@@ -1760,7 +1734,7 @@ function renderLargeScaleCharts() {
     }
     if (insufficientEl) insufficientEl.style.display = 'none';
 
-    const th = aoPlotlyTheme();
+    const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
     const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
