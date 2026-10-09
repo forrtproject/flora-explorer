@@ -307,7 +307,7 @@ h1, .serif, .card-header, .stats-card .number,
 /* Shared outlined button: card background, hairline border, page font. */
 .citation-box .copy-btn, .trend-filter-btn, .refresh-btn, .bm-page-btn, .pagination button, .ci-share-btn {
     background: var(--flora-card-bg); border: 1px solid var(--flora-border); border-radius: 6px;
-    cursor: pointer; font-family: var(--font-sans); transition: all 0.15s ease;
+    cursor: pointer; font-family: var(--font-sans);
 }
 .citation-box .copy-btn { position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.3rem 0.6rem; font-size: 0.75rem; color: var(--flora-muted); }
 .citation-box .copy-btn:hover { background: var(--flora-primary); color: white; border-color: var(--flora-primary); }
@@ -384,7 +384,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 /* Trends filter */
 .trend-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1.5rem; background: var(--flora-card-bg); border: 1px solid var(--flora-border); border-radius: 10px; box-shadow: 0 1px 2px var(--flora-shadow); }
 .trend-filter-label { font-weight: 600; color: var(--flora-muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 0.25rem; }
-.trend-filter-btn { background: transparent; color: var(--flora-text); padding: 0.4rem 0.85rem; font-size: 0.88rem; font-weight: 500; }
+.trend-filter-btn { background: transparent; color: var(--flora-text); padding: 0.4rem 0.85rem; font-size: 0.88rem; font-weight: 500; transition: all 0.15s ease; }
 .trend-filter-btn:hover { border-color: var(--flora-primary); color: var(--flora-primary); }
 [data-theme="dark"] .trend-filter-btn:hover { color: var(--flora-primary-dark-accent); border-color: var(--flora-primary-dark-accent); }
 .trend-filter-btn.active { background: var(--flora-primary); border-color: var(--flora-primary); color: #fff; }
@@ -412,7 +412,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 @media (max-width: 600px) { .footer-bar > span { display: none; } .footer-bar { justify-content: center; } }
 
 /* Refresh button */
-.refresh-btn { color: var(--flora-link); padding: 0.35rem 0.75rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; }
+.refresh-btn { color: var(--flora-link); padding: 0.35rem 0.75rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; transition: all 0.2s ease; }
 .refresh-btn:hover { background: var(--flora-primary); color: white; border-color: var(--flora-primary); }
 
 /* Browse mobile */
@@ -439,7 +439,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .bm-tag-type { background: var(--flora-subtle-bg); color: var(--flora-text-soft); border: 1px solid var(--flora-border); border-radius: 4px; padding: 0.15em 0.55em; font-size: 0.74rem; font-weight: 500; }
 .bm-empty { text-align: center; color: var(--flora-muted); padding: 2rem 1rem; font-style: italic; }
 .browse-mobile-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; gap: 0.5rem; }
-.bm-page-btn { border-color: var(--flora-border-strong); color: var(--flora-text); padding: 0.5rem 0.9rem; font-size: 0.88rem; font-weight: 500; min-width: 80px; }
+.bm-page-btn { border-color: var(--flora-border-strong); color: var(--flora-text); padding: 0.5rem 0.9rem; font-size: 0.88rem; font-weight: 500; min-width: 80px; transition: all 0.15s ease; }
 .bm-page-btn:hover:not(:disabled) { border-color: var(--flora-primary); color: var(--flora-primary); }
 .bm-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .bm-page-info { font-size: 0.85rem; color: var(--flora-muted); text-align: center; flex: 1; }
