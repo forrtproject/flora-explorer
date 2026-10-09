@@ -331,7 +331,7 @@ const retryAllTrends = () => { if (trendsInitialized) renderAllTrends(); };
 function chartLibMissing(elId, lib) {
     const el = document.getElementById(elId);
     if (!el) return;
-    const msg = `<div class="chart-unavailable" style="padding:24px;text-align:center;color:var(--flora-muted);font-size:0.85rem;">Chart unavailable — ${lib} could not be loaded.</div>`;
+    const msg = `<div class="chart-unavailable" style="padding:24px;text-align:center;color:var(--color-muted-fg);font-size:0.85rem;">Chart unavailable — ${lib} could not be loaded.</div>`;
     if (el.tagName === 'CANVAS') { if (el.parentElement) el.parentElement.innerHTML = msg; }
     else el.innerHTML = msg;
 }
@@ -542,7 +542,7 @@ async function loadCitation() {
         box.dataset.plain = plainParts.join(' ');
     } catch (err) {
         console.error('Citation load failed:', err);
-        const errHtml = '<span style="color: var(--flora-muted);">Could not load live citation. Please see the <a href="' + CITATION_URL + '" target="_blank" class="doi-link">CITATION.cff file</a>.</span>';
+        const errHtml = '<span style="color: var(--color-muted-fg);">Could not load live citation. Please see the <a href="' + CITATION_URL + '" target="_blank" class="doi-link">CITATION.cff file</a>.</span>';
         box.innerHTML = errHtml;
         ['citation-text-top', 'citation-text-browse'].forEach(function(id) {
             var el = document.getElementById(id); if (el) el.innerHTML = errHtml;
@@ -1207,7 +1207,7 @@ function renderMcCharts() {
     const hasGam = gc.length > 0 && st && st.n_model >= 30;
     if (!hasGam) {
         if (gamDiv.data) Plotly.purge(gamDiv);
-        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--flora-muted);font-size:0.9rem;text-align:center;padding:2rem">' + (mcKind === 'replication' ? 'No fitted model is available for this snapshot. A model requires at least 30 eligible successful/failed pairs and sufficient variation.' : 'No model has been fitted for reproductions. The distribution above is descriptive.') + '</div>';
+        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--color-muted-fg);font-size:0.9rem;text-align:center;padding:2rem">' + (mcKind === 'replication' ? 'No fitted model is available for this snapshot. A model requires at least 30 eligible successful/failed pairs and sufficient variation.' : 'No model has been fitted for reproductions. The distribution above is descriptive.') + '</div>';
         return;
     }
     // Jitter is computed once per data load and cached so scatter points stay
