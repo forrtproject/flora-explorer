@@ -734,12 +734,12 @@ function initDataTable(data) {
         order: [[4, 'desc']],
         language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)..." },
         columnDefs: [
-            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '30px' },
+            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '3%' },
             { targets: [1, 3], width: '22%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: [2, 4], width: '5%' },
             { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
-            { targets: 6, width: '8%' },
-            { targets: [7, 8], width: '14%', className: 'link-cell', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
+            { targets: 6, width: '8%', className: 'type-cell' },
+            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
         ],
         createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
