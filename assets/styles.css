@@ -331,7 +331,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 
 /* Footer - the system pairs the dark top bar with a matching dark footer */
 .footer-bar {
-    background: var(--color-neutral); color: rgba(243,233,237,0.5);
+    background: var(--color-neutral); color: rgba(243,233,237,0.62);
     padding: 0.6rem 1.25rem; font-size: 0.8rem; flex-shrink: 0;
     display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
 }
@@ -570,6 +570,9 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .rr-studies-count { font-weight: 400; color: var(--color-muted-fg); font-size: 0.85em; }
 
 :root {--bs-body-font-size:var(--text-md);}
+a {color:var(--color-link);}
+a:hover {color:var(--color-link);}
+code {color:var(--color-primary);}
 body {font-family:var(--font-body);font-size:var(--text-md);line-height:1.6;}
 h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .card-header {font-size:1.15rem;margin:0;}
