@@ -468,6 +468,7 @@
         const entry = CI.index && CI.index.find(s => s.doi === doi);
         if (!entry) return;
         CI.currentDoi = doi;
+        CI.openStudy = null;
         CI.lastFocus = document.activeElement;
         const body = document.getElementById('ci-modal-body');
         body.innerHTML = `<div class="modal-body">${modalHeader(entry)}
@@ -697,8 +698,10 @@
             // Tiny delay to let CSS variables update
             setTimeout(() => { renderAggregate(); }, 50);
         }
-        if (CI.openStudy && !document.getElementById('ci-modal').hidden) {
-            setTimeout(() => drawStudyTimeline(CI.openStudy), 50);
+        // Redraw only the rendered timeline of the study currently shown.
+        const shown = CI.openStudy;
+        if (shown && shown.doi === CI.currentDoi && document.getElementById('study-plot')) {
+            setTimeout(() => { if (CI.openStudy === shown) drawStudyTimeline(shown); }, 50);
         }
     });
 })();

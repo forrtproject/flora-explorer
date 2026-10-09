@@ -91,8 +91,9 @@
     --color-plot-rule-label: rgba(100, 100, 100, .6);
 
     /* Chart series colours (FLoRA explorer). Light values keep the
-       established outcome palette; dark values below keep every series
-       mark at >= 3:1 against --color-surface-raised. */
+       established outcome palette; dark values below keep series marks
+       at >= 3:1 against --color-surface-raised, except --color-chart-not-coded,
+       which stays deliberately faint (2.6:1) for unassessed rows. */
     --color-chart-successful: #2f8f4f;
     --color-chart-failed: #b3331e;
     --color-chart-mixed: #d49b1d;
