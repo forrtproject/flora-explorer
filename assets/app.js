@@ -257,7 +257,11 @@ function formatUrlOrDoi(url, doi) {
     if (href) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link">${escapeHtml(truncateText(url,40))}</a>`;
     return formatDOI(doi,true);
 }
-function formatUrlOrDoiShort(url, doi) { return formatUrlOrDoi(url,doi); }
+function formatUrlOrDoiShort(url, doi) {
+    const href = safeHref(url);
+    if (href) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(url.replace(/^https?:\/\/(www\.)?/i, ''))}</a>`;
+    return formatDOI(doi, true);
+}
 
 function formatAuthors(authorData) {
     if (!authorData) return '-';
@@ -718,22 +722,22 @@ function initDataTable(data) {
         row.year_r || '-',
         { display: getOutcomeBadgeShort(row.outcome), search: `${row.outcome || ''} ${row.outcome_quote || ''}` },
         truncateText(row.type, 15) || '-',
-        { display: formatDOI(row.doi_o), search: row.doi_o || '' },
+        { display: formatDOI(row.doi_o, true), search: row.doi_o || '' },
         { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: `${row.url_r || ''} ${row.doi_r || ''}` }
     ]);
 
     dataTable = $('#flora-table').DataTable({
-        data: tableData, responsive: false, pageLength: 25, dom: 'lrtip',
+        data: tableData, responsive: false, autoWidth: false, pageLength: 25, dom: 'lrtip',
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
         order: [[4, 'desc']],
         language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)..." },
         columnDefs: [
-            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '30px' },
-            { targets: [1, 3], width: '20%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
+            { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '3%' },
+            { targets: [1, 3], width: '22%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: [2, 4], width: '5%' },
             { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
-            { targets: 6, width: '6%' },
-            { targets: [7, 8], width: '12%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
+            { targets: 6, width: '8%', className: 'type-cell' },
+            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
         ],
         createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
