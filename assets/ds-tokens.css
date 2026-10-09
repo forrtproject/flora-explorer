@@ -93,6 +93,12 @@
     /* Channel triplet, for rgb(… / α) tinting on dark chrome */
     --color-white-rgb: 255 255 255;
 
+    /* FLoRA explorer extensions: links, card shadows and callout emphasis. */
+    --color-link: #2563eb;              /* 5.17:1 on white */
+    --color-shadow: rgba(0, 0, 0, .06);
+    --color-shadow-hover: rgba(0, 0, 0, .12);
+    --color-callout-accent: #9c4221;    /* on --color-warning-bg */
+
     /* ---------------------------------------------------------
        TYPE
        The serif marks scholarly content — a paper title, a reference,
@@ -260,6 +266,11 @@
     --color-study-replication-border: #4c3d81;
 
     --color-scrim: rgba(8, 6, 9, .62);
+
+    --color-link: #93b4fd;
+    --color-shadow: rgba(0, 0, 0, .35);
+    --color-shadow-hover: rgba(0, 0, 0, .55);
+    --color-callout-accent: #f0c070;
 
     --color-plot-band: rgba(217, 139, 166, .18);
     --color-plot-band-original: rgba(147, 180, 253, .18);
