@@ -196,19 +196,19 @@
     // showPlaceholder on failure. Mirrors the mc-loading/ao-loading patterns.
     function showLoading() {
         const kpis = document.getElementById('kpis');
-        if (kpis) kpis.innerHTML = `<div style="padding:24px;text-align:center;color:var(--flora-muted);grid-column:1 / -1">⏳ Loading citation data…</div>`;
+        if (kpis) kpis.innerHTML = `<div style="padding:24px;text-align:center;color:var(--color-muted-fg);grid-column:1 / -1">⏳ Loading citation data…</div>`;
         ['plot-cit', 'plot-cocit'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--flora-muted)">Loading…</div>';
+            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--color-muted-fg)">Loading…</div>';
         });
         const tbody = document.querySelector('#originals-table tbody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--flora-muted)">Loading…</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--color-muted-fg)">Loading…</td></tr>';
     }
 
     function showPlaceholder() {
         const msg = `
-            <div style="padding:24px;background:var(--flora-card-bg);border:1px solid var(--flora-border);
-                        border-radius:8px;text-align:center;color:var(--flora-muted);grid-column:1 / -1">
+            <div style="padding:24px;background:var(--color-surface-raised);border:1px solid var(--color-border);
+                        border-radius:8px;text-align:center;color:var(--color-muted-fg);grid-column:1 / -1">
               ⏳ <strong>Citation data not yet available.</strong><br>
               The first weekly refresh has not completed yet (or the workflow secrets are not set).
               This panel will populate automatically once the GitHub Action
@@ -217,10 +217,10 @@
         const kpis = document.getElementById('kpis'); if (kpis) kpis.innerHTML = msg;
         ['plot-cit', 'plot-cocit'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--flora-muted)">No data yet</div>';
+            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--color-muted-fg)">No data yet</div>';
         });
         const tbody = document.querySelector('#originals-table tbody');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--flora-muted)">No data yet. First refresh in progress.</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--color-muted-fg)">No data yet. First refresh in progress.</td></tr>';
     }
 
     function renderKPIs() {
@@ -301,7 +301,7 @@
         }
 
         if (traces.length === 0) {
-            document.getElementById(divId).innerHTML = '<div style="padding:60px;text-align:center;color:var(--flora-muted)">No data for this filter</div>';
+            document.getElementById(divId).innerHTML = '<div style="padding:60px;text-align:center;color:var(--color-muted-fg)">No data for this filter</div>';
             return;
         }
 
@@ -548,7 +548,7 @@
         if (typeof Plotly === 'undefined') { chartLibUnavailable('study-plot', 'Plotly', () => drawStudyTimeline(s)); return; }
         const tl = s.timeline || [];
         if (tl.length === 0) {
-            document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--flora-muted)">No citation data available</div>';
+            document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--color-muted-fg)">No citation data available</div>';
             return;
         }
         const years = tl.map(t => t.year);
