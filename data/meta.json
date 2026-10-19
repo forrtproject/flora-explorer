@@ -1,19 +1,26 @@
 {
-  "last_updated": "2026-10-12T04:31:38.187988+00:00",
-  "n_originals": 2270,
-  "n_replications": 2428,
+  "last_updated": "2026-10-19T06:52:19.444651+00:00",
+  "n_originals": 2236,
+  "n_replications": 2429,
   "outcome_counts": {
     "successful": 982,
     "failed": 876,
-    "mixed": 570
+    "mixed": 571
   },
   "pub_status_counts": {
-    "individual": 1982,
+    "individual": 1983,
     "large_project": 446
   },
   "partial_run": true,
-  "fetch_errors": 0,
-  "fetch_error_dois": [],
-  "originals_errored": 0,
-  "originals_skipped": 1
+  "fetch_errors": 6,
+  "fetch_error_dois": [
+    "10.1126/science.aac4716",
+    "10.1126/science.aac4716",
+    "10.1126/science.aac4716",
+    "10.1126/science.aac4716",
+    "10.1126/science.aac4716",
+    "10.1126/science.aac4716"
+  ],
+  "originals_errored": 6,
+  "originals_skipped": 30
 }
