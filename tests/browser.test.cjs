@@ -375,11 +375,40 @@ test('narrow citation timelines number replication events to match the list',asy
   }
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   await p.getByRole('button',{name:'Copy link to this chart',exact:true}).click();
+  await p.getByRole('button',{name:'Link copied',exact:true}).waitFor({state:'visible'});
   assert.ok(await p.getByRole('button',{name:'Link copied',exact:true}).isVisible());
+  assert.equal(await p.evaluate(()=>navigator.clipboard.readText()),p.url());
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
-test('Mean Citedness omits empty KPI tiles and balances its rows',async()=>{
+test('citation timeline redraws wait for 120 ms without another resize',async()=>{
+  const p=await page('?tab=citations&doi=10.1126%2Fscience.7455683',390,p=>p.clock.install({time:new Date('2026-10-21T00:00:00Z')}));
+  await p.waitForFunction(()=>document.getElementById('study-plot')?.layout?.annotations?.length>0);
+  await p.clock.pauseAt(new Date('2026-10-21T01:00:00Z'));
+  await p.evaluate(()=>{
+    const plot=FloraCharts.plot;
+    window.timelineDraws=0;
+    FloraCharts.plot=function(target,...args){
+      if(target==='study-plot') window.timelineDraws++;
+      return plot.call(this,target,...args);
+    };
+    for(let i=0;i<5;i++) window.dispatchEvent(new Event('resize'));
+  });
+  await p.clock.runFor(119);
+  assert.equal(await p.evaluate(()=>window.timelineDraws),0);
+  await p.evaluate(()=>window.dispatchEvent(new Event('resize')));
+  await p.clock.runFor(119);
+  assert.equal(await p.evaluate(()=>window.timelineDraws),0,'a later resize restarts the delay');
+  await p.clock.runFor(1);
+  assert.equal(await p.evaluate(()=>window.timelineDraws),1,'the burst produces one redraw');
+  await p.evaluate(()=>window.dispatchEvent(new Event('resize')));
+  await p.keyboard.press('Escape');
+  await p.clock.runFor(120);
+  assert.equal(await p.evaluate(()=>window.timelineDraws),1,'a closed modal is not redrawn');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Mean Citedness omits empty KPI tiles and avoids a lone tile on the last row',async()=>{
   const p=await page('?tab=mean-citedness');await p.waitForSelector('#mc-overview .mc-stat');
   for(const kind of ['replication','reproduction-numerical','reproduction-robustness']){
     await p.click(`#mc-study-type [data-value="${kind}"]`);
@@ -389,6 +418,33 @@ test('Mean Citedness omits empty KPI tiles and balances its rows',async()=>{
       const rows=await p.locator('#mc-overview .mc-stat').evaluateAll(els=>Object.values(els.reduce((rows,el)=>{const y=el.getBoundingClientRect().top;rows[y]=(rows[y]||0)+1;return rows;},{})));
       assert.ok(rows.length===1||rows.at(-1)>1,`${kind} orphan at ${width}px: ${rows}`);
     }
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('seven Mean Citedness tiles fill desktop rows as 1 + 3 + 3',async()=>{
+  // Give one outcome an empty count so the real renderer produces seven tiles.
+  const p=await page('?tab=mean-citedness',1280,p=>p.route('**/data/impact_factor_data.json',route=>{
+    const data=JSON.parse(fs.readFileSync('data/impact_factor_data.json','utf8'));
+    data.overview.n_success+=data.overview.n_qualified;
+    data.overview.n_qualified=0;
+    data.histogram.forEach(bin=>{bin.successful+=bin.qualified;bin.qualified=0;});
+    return route.fulfill({json:data});
+  }));
+  await p.waitForSelector('#mc-overview .mc-stat');
+  assert.equal(await p.locator('#mc-overview .mc-stat').count(),7);
+  for(const width of [1280,1024,768,390,1280]){
+    await p.setViewportSize({width,height:900});
+    const rows=await p.locator('#mc-overview').evaluate(grid=>{
+      const bounds=grid.getBoundingClientRect();
+      return Object.values([...grid.children].reduce((rows,el)=>{
+        const r=el.getBoundingClientRect();
+        (rows[r.top]??=[]).push({left:r.left,right:r.right});
+        return rows;
+      },{})).map(row=>({count:row.length,filled:Math.abs(row[0].left-bounds.left)<1&&Math.abs(row.at(-1).right-bounds.right)<1}));
+    });
+    assert.deepEqual(rows.map(row=>row.count),width<768?[1,2,2,2]:[1,3,3],`row counts at ${width}px`);
+    assert.ok(rows.every(row=>row.filled),`each row fills the grid at ${width}px`);
   }
   assert.deepEqual(p.errors,[]);await p.close();
 });
