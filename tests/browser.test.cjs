@@ -126,13 +126,22 @@ test('Mean Citedness clears stale models and all distribution outcomes reconcile
   assert.match(await p.locator('#mc-gam-chart').textContent(),/50% reference/);
   assert.deepEqual(p.errors,[]);await p.close();
 });
-test('citation deep links, exclusive counts, model intervals and modal keyboard focus',async()=>{
+test('citation deep links, exclusive counts, CSV context and modal keyboard focus',async()=>{
   const p=await page('?tab=citations&doi=10.1177%2F0956797610383437');
   await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length>0);
   assert.equal(await p.locator('#ci-modal').getAttribute('role'),'dialog');
   assert.equal(await p.evaluate(()=>document.activeElement.id),'ci-modal-close');
   const total=await p.evaluate(()=>document.getElementById('study-plot').data.reduce((n,t)=>n+t.y.reduce((a,b)=>a+b,0),0));assert.equal(total,JSON.parse(fs.readFileSync('data/originals.json')).studies['10.1177/0956797610383437'].n_citations);
-  assert.ok(await p.evaluate(()=>document.getElementById('plot-cit-model').data[0].error_y.array.some(n=>n>0)));
+  assert.equal(await p.locator('#plot-cit, #plot-cocit, #plot-cit-model, #att-callout, #outcome-chips').count(),0);
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  await p.click('#study-plot-data-copy');
+  const exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
+  assert.match(exported[0]['Export context'],/Original DOI: 10.1177\/0956797610383437/);
+  assert.ok(exported[0]['Export context'].includes(JSON.parse(fs.readFileSync('data/meta.json')).last_updated));
+  assert.match(exported[0]['Export context'],/Unit: distinct citing works per calendar year/);
+  assert.equal(exported.find(r=>r['Calendar year']==='2026')['Calendar-year coverage'],'Incomplete calendar year');
+  assert.equal(exported.reduce((n,r)=>n+['Cites original only','Co-cites failed rep','Co-cites mixed rep','Co-cites successful rep','Co-cites multiple outcome categories'].reduce((sum,k)=>sum+Number(r[k]),0),0),total);
+  await p.locator('#ci-modal-close').focus();
   await p.keyboard.press('Shift+Tab');assert.ok(await p.evaluate(()=>document.getElementById('ci-modal').contains(document.activeElement)));
   await p.keyboard.press('Tab');assert.equal(await p.evaluate(()=>document.activeElement.id),'ci-modal-close');
   await p.keyboard.press('Escape');assert.ok(await p.locator('#ci-modal').isHidden());
@@ -140,12 +149,62 @@ test('citation deep links, exclusive counts, model intervals and modal keyboard 
   await p.keyboard.press('Escape');assert.ok(await p.evaluate(()=>document.activeElement.classList.contains('timeline-open')));
   assert.deepEqual(p.errors,[]);await p.close();
 });
-test('shared citation outcome filters restore before asynchronous loading finishes',async()=>{
-  const p=await page('?tab=citations&ci-outcome=failed');
-  await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length>0);
-  const expected=JSON.parse(fs.readFileSync('data/aggregate.json')).failed.citations_model.att.toFixed(3);
-  assert.ok((await p.locator('#att-callout').innerText()).includes(expected));
-  assert.equal(await p.locator('#outcome-chips [data-value="failed"]').getAttribute('aria-pressed'),'true');
+test('retired citation outcomes never fetch or recreate aggregate content',async()=>{
+  let requests=[];
+  const oldAggregate={all:{citations_model:{att:0.2393,estimate:[0.2],ci_low:[0.1],ci_high:[0.3]}}};
+  const p=await page('?tab=citations&ci-outcome=failed&filter-outcome=mixed&search-input=Bem',1280,async p=>{
+    await p.route(/\/data\/(aggregate|fect_results)\.json/,route=>{
+      requests.push(route.request().url());return route.fulfill({json:oldAggregate});
+    });
+  });
+  async function absent(){
+    await p.waitForSelector('.timeline-open');
+    assert.equal(new URL(p.url()).searchParams.has('ci-outcome'),false);
+    assert.equal(await p.locator('#plot-cit, #plot-cocit, #plot-cit-model, #plot-cocit-model, #outcome-chips, #att-callout, [id^="plot-cit-data"], [id^="plot-cocit-data"]').count(),0);
+    assert.doesNotMatch(await p.locator('#ci-content').innerText(),/Aggregate impact|Adjusted post-replication association|OLS coefficient/);
+    assert.deepEqual(requests,[]);
+  }
+  await absent();
+  assert.equal(await p.inputValue('#filter-outcome'),'mixed');assert.equal(await p.inputValue('#search-input'),'Bem');
+  assert.deepEqual(await p.locator('#kpis .kpi-label').allTextContents(),['Original reports with citation data','Eligible replication reference pairs','Eligible pairs: failed','Eligible pairs: successful','Eligible pairs: mixed']);
+  await p.reload();await absent();
+  for(const value of ['all','successful','mixed','unexpected']){
+    await p.evaluate(value=>{const url=new URL(location.href);url.searchParams.set('ci-outcome',value);history.pushState(null,'',url);dispatchEvent(new PopStateEvent('popstate'));},value);
+    await absent();
+  }
+  await p.goBack();await absent();await p.goForward();await absent();
+  await p.click('#ci-study-type [data-value="reproduction-numerical"]');
+  assert.ok(await p.locator('#ci-trends-note').isHidden());
+  await p.click('#ci-study-type [data-value="replication"]');
+  assert.ok(await p.locator('#ci-trends-note').isVisible());
+  await p.click('#theme-toggle');
+  for(const width of [390,768,1280]){await p.setViewportSize({width,height:900});await absent();}
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  await p.locator('.timeline-open').first().click();
+  await p.waitForSelector('.ci-share-btn');
+  await p.click('.ci-share-btn');
+  const shared=new URL(await p.evaluate(()=>navigator.clipboard.readText()));
+  assert.equal(shared.searchParams.has('ci-outcome'),false);assert.equal(shared.searchParams.get('filter-outcome'),'mixed');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('citation table loads without Plotly and DOI links select replication mode',async()=>{
+  const table=await browser.newPage();
+  await table.route('**/plotly-*.js',route=>route.abort());
+  await table.goto(base+'?tab=citations&ci-outcome=failed');
+  await table.waitForSelector('.timeline-open');
+  assert.equal(await table.evaluate(()=>typeof Plotly),'undefined');
+  assert.equal(await table.locator('#kpis .kpi').count(),5);
+  assert.equal(await table.inputValue('#filter-outcome'),'');
+  assert.equal(new URL(table.url()).searchParams.has('ci-outcome'),false);
+  await table.close();
+  const p=await page('?tab=citations');
+  await p.goto(base+'?tab=citations&ci-kind=reproduction-robustness&ci-outcome=failed&doi=10.1177%2F0956797610383437');
+  await p.waitForSelector('#ci-modal:not([hidden])');
+  assert.equal(await p.locator('#ci-study-type [data-value="replication"]').getAttribute('aria-pressed'),'true');
+  assert.equal(new URL(p.url()).searchParams.get('ci-kind'),'replication');
+  assert.equal(new URL(p.url()).searchParams.has('ci-outcome'),false);
+  await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length);
+  assert.equal(await p.locator('#analysis-feedback').textContent(),'');
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('all seven tabs, percentages, venue evidence, responsive redraws and chart alternatives',async()=>{
@@ -250,7 +309,7 @@ test('tab changes reset the content scroll; definitions are described and dismis
 });
 test('citation content reflows at 320px after loading on desktop', async()=>{
   const p=await page('?tab=citations');
-  await p.waitForFunction(()=>document.querySelector('#citation-impact .js-plotly-plot'));
+  await p.waitForSelector('.timeline-open');
   await p.setViewportSize({width:320,height:844});
   await p.waitForTimeout(500);
   assert.ok(await p.locator('#mobile-navigation').evaluate(el=>el.clientWidth>=140));
@@ -469,15 +528,11 @@ test('comparison N labels and Plotly axis titles stay clear of legends and ticks
     assert.deepEqual(clippedTitles,[],`comparison axis titles clipped at ${width}px`);
   }
   await p.setViewportSize({width:390,height:900});
-  await p.selectOption('#mobile-navigation','citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length);
-  for(const width of [390,320]){
-    await p.setViewportSize({width,height:900});await p.waitForTimeout(700);
-    const issues=await p.evaluate(()=>['plot-cit','plot-cocit'].flatMap(id=>{
-      const el=document.getElementById(id), r=el.getBoundingClientRect();
-      const titles=[...el.querySelectorAll('.g-ytitle,.g-y2title')];
-      return titles.filter(t=>{const b=t.getBoundingClientRect();return b.left<r.left||b.right>r.right||[...el.querySelectorAll('.ytick,.y2tick')].some(tick=>{const a=tick.getBoundingClientRect();return a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;});}).map(t=>[id,t.textContent]);
-    }));
-    assert.deepEqual(issues,[],`axis titles clipped/overlapped at ${width}px`);
+  await p.selectOption('#mobile-navigation','citation-tab');await p.waitForSelector('.timeline-open');
+  for(const width of [390,320,768]){
+    await p.setViewportSize({width,height:900});await p.waitForTimeout(200);
+    assert.ok(await p.evaluate(()=>document.querySelector('.app-main').scrollWidth<=document.querySelector('.app-main').clientWidth+1),`citation overflow at ${width}px`);
+    assert.equal(await p.locator('#plot-cit, #plot-cocit').count(),0);
   }
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -619,20 +674,21 @@ test('history restores absent defaults, active controls and closes citation dial
   assert.ok(await p.locator('#ci-modal').isHidden());
   assert.equal(new URL(p.url()).searchParams.has('q'),false);
   assert.equal(new URL(p.url()).searchParams.has('doi'),false);
-  await p.click('#outcome-chips [data-value="failed"]');
+  await p.selectOption('#filter-outcome','failed');
   await p.fill('#search-input','Carney');
   await p.waitForFunction(()=>new URL(location.href).searchParams.get('ci-q')==='Carney');
-  assert.deepEqual([...new URL(p.url()).searchParams.keys()].sort(),['ci-outcome','ci-q','tab']);
+  assert.deepEqual([...new URL(p.url()).searchParams.keys()].sort(),['ci-q','filter-outcome','tab']);
   await p.click('#mc-tab');await p.goBack();
   await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='citation-impact');
   assert.equal(await p.locator('#search-input').inputValue(),'Carney');
-  assert.equal(await p.locator('#outcome-chips [data-value="failed"]').getAttribute('aria-pressed'),'true');
+  assert.equal(await p.inputValue('#filter-outcome'),'failed');
   // Missing values must reset controls, rather than retaining the previous entry's values.
   await p.goBack();await p.goForward();
   await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='citation-impact');
   await p.evaluate(()=>{history.pushState(null,'','?tab=citations');dispatchEvent(new PopStateEvent('popstate'));});
   assert.equal(await p.locator('#search-input').inputValue(),'');
-  assert.equal(await p.locator('#outcome-chips [data-value="all"]').getAttribute('aria-pressed'),'true');
+  assert.equal(await p.inputValue('#filter-outcome'),'');
+  assert.equal(new URL(p.url()).searchParams.has('ci-outcome'),false);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -726,7 +782,7 @@ test('touch swipes scroll over every Plotly view while preserving chart ranges a
     assert.ok(after.scroll>before.scroll+30,`${selector} should scroll ${scroller}: ${before.scroll} → ${after.scroll}`);
     assert.deepEqual(after.ranges,before.ranges,selector+' ranges');
   }
-  for(const [tab,ids] of [['mc-tab',['mc-dist-chart','mc-gam-chart']],['overlap-tab',['ao-chart']],['pub-tab',['pub-chart','rr-chart','ls-chart']],['citation-tab',['plot-cit','plot-cit-model','plot-cocit','plot-cocit-model']]]){
+  for(const [tab,ids] of [['mc-tab',['mc-dist-chart','mc-gam-chart']],['overlap-tab',['ao-chart']],['pub-tab',['pub-chart','rr-chart','ls-chart']]]){
     await p.selectOption('#mobile-navigation',tab);
     for(const id of ids){
       await p.waitForFunction(id=>document.getElementById(id)?.data,id);
@@ -735,7 +791,10 @@ test('touch swipes scroll over every Plotly view while preserving chart ranges a
       await swipe('#'+id,'.app-main');
     }
   }
+  await p.selectOption('#mobile-navigation','citation-tab');await p.waitForSelector('.timeline-open');
+  assert.equal(await p.locator('#plot-cit, #plot-cocit, #plot-cit-model, #plot-cocit-model').count(),0);
   await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>document.getElementById('study-plot')?.data);
+  assert.deepEqual(await p.locator('#study-plot').evaluate(el=>({dragmode:el._fullLayout.dragmode,axes:Object.entries(el._fullLayout).filter(([k])=>/^[xy]axis\d*$/.test(k)).every(([,a])=>a.fixedrange),scrollZoom:el._context.scrollZoom,doubleClick:el._context.doubleClick,hovermode:el._fullLayout.hovermode})),{dragmode:false,axes:true,scrollZoom:false,doubleClick:false,hovermode:'closest'});
   await swipe('#study-plot','.modal-card');
   await p.evaluate(()=>document.querySelector('.modal-card').scrollTop=10000);
   const close=await p.locator('#ci-modal-close').boundingBox();assert.ok(close.width>=44&&close.height>=44&&close.y>=0&&close.y+close.height<844);
@@ -784,9 +843,10 @@ test('copy follows each study type and preserves complete rendered sentences',as
       const text=await p.locator(pane).innerText();
       assert.doesNotMatch(text,/a journal's the|Not enough (Numerical|Robustness|Replications)|split by the selected outcome|\bRRDB\b|\bjournal_r\b|outcome chips|straightforward to extend|data\/disciplines\.json/);
       // Check assembled prose around substitutions, including empty variants in Mean Citedness.
-      const paragraphs=await p.locator(`${pane} p:has([data-kind-text])`).allTextContents();
+      const paragraphs=await p.locator(`${pane} p[data-kind-text], ${pane} p:has([data-kind-text])`).allTextContents();
       assert.ok(paragraphs.length>0);
       assert.ok(paragraphs.every(s=>!/(?:a|the)\s+(?:a|the)\b/i.test(s)));
+      if(tab==='citation-tab') assert.equal(await p.locator('.ci-lede').textContent(),await p.locator('.ci-lede').evaluate((el,kind)=>el.dataset.kindText.split('|')[['replication','reproduction-numerical','reproduction-robustness'].indexOf(kind)],kind));
       if(tab==='trends-tab')assert.match(text,new RegExp(`Frequency shows where ${kind==='replication'?'replication':'reproduction'} effort has gone, not how ${kind==='replication'?'replicable':kind==='reproduction-numerical'?'reproducible':'robust'} a journal's research is\\.`));
     }
   }
@@ -893,10 +953,22 @@ test('small stacked citation timelines and study denominators have integer ticks
   });
   await p.waitForFunction(()=>document.getElementById('study-plot')?._fullLayout);
   await assertIntegerCountTicks(p,'study-plot','yaxis');
-  await assertIntegerCountTicks(p,'plot-cit','yaxis2');
-  await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
-  // The raw means are continuous quantities and must retain fractional ticks.
-  assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout.yaxis.dtick<1));
+  assert.equal(await p.locator('#plot-cit, #plot-cocit').count(),0);
+  // Exercise secondary count axes and continuous means in the shared renderer:
+  // these fixture charts are test-only; the dashboard never recreates aggregates.
+  await p.evaluate(async data=>{
+    for(const [id,field] of [['fixture-counts','mean_citations'],['fixture-rates','mean_cocitations']]){
+      const el=document.createElement('div');el.id=id;el.style.height='380px';document.getElementById('ci-modal-body').append(el);
+      await FloraCharts.plot(id,[
+        {x:data.event_time,y:data[field],type:'scatter',name:'Mean'},
+        {x:data.event_time,y:data.n_units,type:'scatter',name:'N',yaxis:'y2'}
+      ],{yaxis2:{...FloraCharts.countAxis(2),overlaying:'y',side:'right'},margin:{t:20,b:50,l:50,r:50}});
+    }
+  },aggregate.all.descriptive);
+  await assertIntegerCountTicks(p,'fixture-counts','yaxis2');
+  await assertIntegerCountTicks(p,'fixture-rates','yaxis2');
+  // Continuous quantities must retain fractional ticks.
+  assert.ok(await p.evaluate(()=>document.getElementById('fixture-rates')._fullLayout.yaxis.dtick<1));
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -916,7 +988,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     assert.match(await row.locator('td').nth(4).locator('span[title]').getAttribute('title'),/1,234 of 5,678/);
     assert.equal(await row.locator('.rep-count').textContent(),'1,234');
     assert.match(await row.locator('.rep-bar-wrap').getAttribute('title'),/1,234 successful/);
-    assert.match(await p.locator('#att-callout').textContent(),/1,234 originals contribute at peak/);
+    assert.equal(await p.locator('#att-callout, #plot-cit, #plot-cocit').count(),0);
     const meta=JSON.parse(fs.readFileSync('data/meta.json'));
     assert.equal(await p.locator('#kpis .kpi-value').first().textContent(),meta.n_originals.toLocaleString('en-GB'));
     const breakdown=JSON.parse(fs.readFileSync('data/cocit_breakdown.json'));
@@ -936,7 +1008,6 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   const pub=JSON.parse(fs.readFileSync('data/pub_status_data.json')).replication.overview;
   const ao=JSON.parse(fs.readFileSync('data/author_overlap_data.json')).replication.overview;
   const model=JSON.parse(fs.readFileSync('data/impact_factor_data.json'));
-  const aggregate=JSON.parse(fs.readFileSync('data/aggregate.json')).all;
   const p=await page('?tab=overview',1280,p=>p.on('request',r=>requests.push(r.url())));
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   const qualified=await p.evaluate(()=>fullRowData.filter(r=>classifyKind(r)==='replication'&&classifyOutcome(r.outcome)==='qualified').length);
@@ -974,20 +1045,26 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
     assert.equal(+curve[i][key],+model.gam_curve[i][field].toFixed(5));
     assert.doesNotMatch(curve[i][key],/\.\d{6}/);
   }
-  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length);
-  assert.ok(!requests.some(url=>url.endsWith('/fect_results.json')));
-  assert.doesNotMatch(await p.locator('#plot-cit,#plot-cocit').allTextContents().then(t=>t.join(' ')),/Loading…/);
-  assert.ok((await p.locator('#att-callout').textContent()).includes(`based on ${aggregate.citations_model.n_units.toLocaleString('en-GB')} originals`));
-  assert.match(await p.locator('#att-callout').textContent(),/95% CI −?\d+\.\d{3} to −?\d+\.\d{3}/);
-  await p.evaluate(()=>{const plot=document.getElementById('plot-cit-model');Plotly.Fx.hover(plot,[{curveNumber:0,pointNumber:plot.data[0].x.indexOf(-5)}]);});
-  const hover=(await p.locator('#plot-cit-model .hoverlayer tspan.line').allTextContents()).join('\n');
-  assert.match(hover,/Years from first replication: −5/);assert.match(hover,/Coefficient: −?\d+\.\d{3}/);assert.match(hover,/95% CI:/);
-  assert.doesNotMatch(hover,/\d\.\d{4}|\+0\./);
-  const nPoint=aggregate.descriptive.event_time.indexOf(-5);
-  await p.evaluate(i=>Plotly.Fx.hover('plot-cit',[{curveNumber:1,pointNumber:i}]),nPoint);
-  assert.ok((await p.locator('#plot-cit .hoverlayer').textContent()).includes('Original reports: '+aggregate.descriptive.n_units[nPoint].toLocaleString('en-GB')));
-  await p.evaluate(()=>Plotly.Fx.hover('plot-cocit',[{curveNumber:0,pointNumber:0}]));
-  assert.match(await p.locator('#plot-cocit .hoverlayer').textContent(),/Mean co-citations per year: \d+\.\d{2}/);
+  await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
+  assert.ok(!requests.some(url=>/\/(aggregate|fect_results)\.json$/.test(url)));
+  assert.doesNotMatch(await p.locator('#originals-table').textContent(),/Loading…/);
+  assert.equal(await p.locator('#att-callout, #plot-cit, #plot-cocit, #plot-cit-model, #plot-cocit-model').count(),0);
+  assert.match(await p.locator('#ci-trends-note').innerText(),/re-estimat/);
+  // Signed values and intervals still use the shared formatter after aggregate withdrawal.
+  assert.deepEqual(await p.evaluate(()=>[-5,-0.0331234,-0.054321,0.012345].map((v,i)=>FloraCharts.number(v,i?3:0))),['−5','−0.033','−0.054','0.012']);
+  await p.locator('.timeline-open').first().click();
+  await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length);
+  const point=await p.evaluate(()=>{
+    const plot=document.getElementById('study-plot');
+    const curveNumber=plot.data.findIndex(t=>t.y.some(n=>n>0));
+    const pointNumber=plot.data[curveNumber].y.findIndex(n=>n>0);
+    Plotly.Fx.hover(plot,[{curveNumber,pointNumber}]);
+    return {year:plot.data[curveNumber].x[pointNumber],count:plot.data[curveNumber].y[pointNumber]};
+  });
+  const hover=await p.locator('#study-plot .hoverlayer').textContent();
+  assert.ok(hover.includes('Year: '+point.year));
+  assert.ok(hover.includes('Citations: '+point.count.toLocaleString('en-GB')));
+  assert.doesNotMatch(hover,/Citations: [\d,]+\.\d/);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -1014,7 +1091,7 @@ test('small-sample and unavailable-data messages use reader-facing words',async(
     }
   }
   assert.deepEqual(p.errors,[]);await p.close();
-  const missing=await page('?tab=citations',1280,p=>p.route('**/data/aggregate.json',route=>route.fulfill({status:404,body:'Missing'})));
+  const missing=await page('?tab=citations',1280,p=>p.route('**/data/meta.json',route=>route.fulfill({status:404,body:'Missing'})));
   await missing.waitForSelector('#kpis strong');
   assert.match(await missing.locator('#kpis').innerText(),/Citation data could not be loaded. Please try again later/);
   assert.doesNotMatch(await missing.locator('#kpis').innerText(),/workflow|secrets|GitHub|refresh-data/);

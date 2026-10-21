@@ -7,7 +7,7 @@ A static dashboard for the [FORRT Library of Reproduction and Replication Attemp
 | Overview | Reference-pair counts and separate replication, computational and robustness outcomes | Daily |
 | Browse Studies | Shared desktop/mobile search, full evidence, outcome quotations, links and filtered CSV export | Daily |
 | Years & Disciplines | Outcome counts by year, venue and discipline | Daily |
-| Citation Impact | Citation trajectories, adjusted associations, co-citation rates and individual timelines | Weekly |
+| Citation Impact | Individual citation records, descriptive co-citation rates and timelines | Weekly |
 | Mean Citedness | Journal-level citation metric distributions and a conditional replication-success model | Weekly |
 | Authorship Overlap | Within-group outcome percentages based on surname overlap | Daily |
 | Publication Type | Recorded venue categories, Registered Reports matching and reports with multiple original targets | Daily / weekly |
@@ -32,7 +32,7 @@ Open <http://127.0.0.1:8876/>. Third-party browser libraries load from their CDN
 - **Registered Reports:** matching uses the [RRDB CSV](https://github.com/LukasRoeseler/RRDB/blob/main/zotero_registered_reports.csv). A non-match is not evidence that a report was not registered.
 - **Report size:** more than three distinct original targets defines a multiple-target report. This does not establish the number of laboratories or membership of a coordinated project. Charts count pairs; evidence lists count reports. Different snapshots/cohorts can have different coverage.
 - **Citation timelines:** stacked categories are mutually exclusive. A work citing replications from multiple outcome categories appears once in a separate segment. Outcome-specific rate tables overlap and must not be summed.
-- **Citation models:** coefficient plots show OLS estimates and 95% intervals on the `log(1 + count)` scale, relative to year −1, separately from raw trajectories. The model adjusts for original and calendar-year effects. These are adjusted associations, not established causal effects or percentage changes in raw counts. Outcome groups use the earliest recorded replication year; same-year ties follow stored record order.
+- **Citation trends:** aggregate trend charts and model estimates are temporarily unavailable pending re-estimation. The previous model could not uniquely separate trends from replication timing, and the raw curves compared changing groups of originals. Retained records, timelines and co-citation rates are descriptive and do not establish whether failed replications change citations.
 - **Mean Citedness:** OpenAlex's two-year journal-level metric is retrieved at enrichment time, not matched to the original publication year. The logistic smooth conditions on unqualified successful/failed outcomes with matched OMC below 35. The histogram retains other outcomes. The 50% line is a reference, not a chance baseline.
 
 The data are not representative of all research. Shared reports, repeated targets, journals and projects create dependence. Read the coverage and matching caveats alongside each view.
@@ -41,7 +41,7 @@ The data are not representative of all research. Shared reports, repeated target
 
 - `index.html`: seven tab panels and evidence dialog.
 - `assets/app.js`: shared search, outcome presentation, chart data and tab loaders.
-- `assets/citation-impact.js`: citation index, models and timelines loaded on demand.
+- `assets/citation-impact.js`: citation index, descriptive rates and timelines loaded on demand.
 - `assets/chart-accessibility.js`: chart rendering, readable data tables, percentages and CSV exports.
 - `assets/view-controls.js`: URL state, navigation and filtered exports.
 - `assets/styles.css`, `assets/ds-tokens.css`: responsive components and FORRT design tokens.
@@ -81,7 +81,7 @@ To recalculate the existing citation cohort from its committed cache, without ne
 python scripts/rebuild_cached_citations.py
 ```
 
-This validates cache availability, recomputes the timelines and models, and writes the compact index and individual records. The original coverage date stays unchanged; a separate recalculation date records the computation. It does not expand the citation cohort. `scripts/run_fect.R` is retained as an optional research analysis and is not part of the deployed OLS figures or scheduled workflows.
+This validates cache availability, recomputes the descriptive timelines and rates, emits withheld model payloads, and writes the compact index and individual records. The original coverage date stays unchanged; a separate recalculation date records the computation. It preserves the original eligibility counts and metadata and does not expand the citation cohort. To withdraw model payloads alone without recalculating records or changing coverage dates, run `python scripts/rebuild_cached_citations.py --withhold-models-only`. `scripts/run_fect.R` is retained as an optional research analysis and does not supply dashboard estimates or run in scheduled workflows.
 
 ## Validate changes
 
@@ -92,7 +92,7 @@ npm ci
 npm test
 ```
 
-Browser tests start their own local server and use installed Chrome by default. For Playwright's bundled Chromium, run `npx playwright install chromium` and set `BROWSER_CHANNEL=chromium`. Tests cover desktop/mobile search, shared views, stale model state, keyboard evidence access, model intervals, responsive redraws, accessible tables and reconciliation of generated counts.
+Browser tests start their own local server and use installed Chrome by default. For Playwright's bundled Chromium, run `npx playwright install chromium` and set `BROWSER_CHANNEL=chromium`. Tests cover desktop/mobile search, shared views, stale model state, keyboard evidence access, withheld citation models, responsive redraws, accessible tables and reconciliation of generated counts.
 
 [Validation notes](docs/review-validation.md) record the current acceptance results and data coverage. Contributions of additional views are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 

@@ -7,14 +7,14 @@
     const initial = new URL(location.href);
     // A DOI-only share link targets Citation Impact even before its data arrives.
     if (!initial.searchParams.has('tab') && initial.searchParams.get('doi')) initial.searchParams.set('tab','citations');
-    const selectGroups = {'mc-study-type':['mc-kind','mc-tab','replication'],'ao-study-type':['ao-kind','overlap-tab','replication'],'pubtype-study-type':['pub-kind','pub-tab','replication'],'ci-study-type':['ci-kind','citation-tab','replication'],'outcome-chips':['ci-outcome','citation-tab','all']};
+    const selectGroups = {'mc-study-type':['mc-kind','mc-tab','replication'],'ao-study-type':['ao-kind','overlap-tab','replication'],'pubtype-study-type':['pub-kind','pub-tab','replication'],'ci-study-type':['ci-kind','citation-tab','replication']};
     const controls = {'journal-top-n':['journal-top-n','trends-tab','15'],'rep-journal-top-n':['rep-journal-top-n','trends-tab','15'],'filter-outcome':['filter-outcome','citation-tab',''],'search-input':['ci-q','citation-tab','']};
     function recordState() {
         if (restoring || !ready) return;
         const url = new URL(location.href), tab = document.querySelector('#floraTabs .active').id;
         const put = (key,value,fallback) => { if(String(value)!==String(fallback))url.searchParams.set(key,value); };
         // Remove known state first: a shared URL contains only the active view's choices.
-        for (const key of ['tab','q','kind','sort','page','page-size','mobile-page','trends-kind','search-input',...Object.values(selectGroups).map(v=>v[0]),...Object.values(controls).map(v=>v[0])]) url.searchParams.delete(key);
+        for (const key of ['ci-outcome','tab','q','kind','sort','page','page-size','mobile-page','trends-kind','search-input',...Object.values(selectGroups).map(v=>v[0]),...Object.values(controls).map(v=>v[0])]) url.searchParams.delete(key);
         put('tab',TAB_ID_TO_PARAM[tab],'overview');
         if (tab !== 'citation-tab') url.searchParams.delete('doi');
         if (tab === 'browse-tab') {
@@ -42,6 +42,8 @@
             // Back/forward always dismisses a timeline, including its shareable DOI.
             url.searchParams.delete('doi');
         }
+        url.searchParams.delete('ci-outcome');
+        if (url.searchParams.has('doi')) url.searchParams.set('ci-kind','replication');
         browseKind=normalizeBrowseKind(url.searchParams.get('kind'));
         browseQuery=url.searchParams.get('q') || '';document.getElementById('browse-mobile-input').value=browseQuery;
         document.querySelectorAll('.browse-kind-btn').forEach(b=>b.classList.toggle('active',b.dataset.kind===browseKind));
@@ -84,7 +86,7 @@
         if(chip) {
             pressed();recordState();
             // Announce user choices by their group label; state restored from the URL stays silent.
-            const group = chip.closest('#ci-study-type, #outcome-chips, #mc-study-type, #ao-study-type, #pubtype-study-type');
+            const group = chip.closest('#ci-study-type, #mc-study-type, #ao-study-type, #pubtype-study-type');
             if (group && !restoring) document.getElementById('analysis-feedback').textContent = group.getAttribute('aria-label') + ': ' + chip.textContent.trim() + ' selected.';
         }
     });

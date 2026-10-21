@@ -1,12 +1,12 @@
 /* FLoRA Explorer: Citation Impact tab
-   Loads weekly-refreshed OpenCitations data and renders KPIs, event-study
-   plots, and a browsable per-original table. Adapted from flora-citations. */
+   Loads weekly-refreshed OpenCitations data and renders KPIs, descriptive
+   co-citation rates, and a browsable per-original table. Adapted from flora-citations. */
 
 (function() {
     const CI = {
-        meta: null, agg: null, index: null, cocitBreakdown: null,
+        meta: null, index: null, cocitBreakdown: null,
         studyCache: {}, currentDoi: null,
-        outcome: ['all','failed','mixed','successful'].includes(new URLSearchParams(location.search).get('ci-outcome')) ? new URLSearchParams(location.search).get('ci-outcome') : 'all', page: 1, perPage: 20,
+        page: 1, perPage: 20,
         sortCol: 'n_citations', sortDir: 'desc',
         loaded: false, loading: false
     };
@@ -16,7 +16,6 @@
         get failed()     { return FloraCharts.token('--color-chart-failed'); },
         get successful() { return FloraCharts.token('--color-chart-successful'); },
         get mixed()      { return FloraCharts.token('--color-chart-mixed'); },
-        get all()        { return FloraCharts.token('--color-primary'); },
     };
 
     let ciKind = 'replication';
@@ -98,14 +97,12 @@
         CI.loading = true;
         showLoading();
         try {
-            const [metaRes, aggRes, idxRes] = await Promise.all([
+            const [metaRes, idxRes] = await Promise.all([
                 fetch('data/meta.json'),
-                fetch('data/aggregate.json'),
                 fetch('data/originals_index.json')
             ]);
-            if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
+            if (!metaRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
-            CI.agg = await aggRes.json();
             CI.index = buildSearchIndex(await idxRes.json());
 
             // Optional: co-citation breakdown by pub status / outcome (may not exist on first run)
@@ -121,12 +118,8 @@
                 if (reproRes.ok) CI.repro = await reproRes.json();
             } catch (_) {}
 
-            // The Plotly script tag near the end of <body> may still be loading when a
-            // deep link opens this tab; the data fetches above are small enough to win that race.
-            await plotlyReady();
-            renderKPIs(); renderAggregate(); renderTable(); renderCocitBreakdown(); bindEvents();
+            renderKPIs(); renderTable(); renderCocitBreakdown(); bindEvents();
             renderCiKindGate(ciKind);
-            document.querySelectorAll('#outcome-chips .chip').forEach(b=>{b.classList.toggle('active',b.dataset.value===CI.outcome);b.setAttribute('aria-pressed',String(b.dataset.value===CI.outcome));});
             CI.loaded = true;
         } catch (e) {
             console.error('Citation Impact load failed:', e);
@@ -155,12 +148,12 @@
 
     function renderCiKindGate(kind) {
         applyKindText(document.querySelector('#citation-impact .ci-intro'), kind);
+        document.getElementById('ci-trends-note').hidden = kind !== 'replication';
         const contentEl = document.getElementById('ci-content');
         const reproEl = document.getElementById('ci-repro-content');
         const placeholderEl = document.getElementById('ci-placeholder');
         if (kind === 'replication') {
             if (contentEl) contentEl.style.display = '';
-            if (CI.loaded) renderAggregate();
             if (reproEl) reproEl.style.display = 'none';
             if (placeholderEl) placeholderEl.style.display = 'none';
             return;
@@ -198,16 +191,12 @@
         }
     }
 
-    // Immediate "Loading…" state shown on init, before the three fetches resolve.
-    // Cleared by renderKPIs/renderAggregate/renderTable on success, or replaced by
+    // Immediate "Loading…" state shown on init, before the fetches resolve.
+    // Cleared by renderKPIs/renderTable on success, or replaced by
     // showPlaceholder on failure. Mirrors the mc-loading/ao-loading patterns.
     function showLoading() {
         const kpis = document.getElementById('kpis');
         if (kpis) kpis.innerHTML = `<div style="padding:24px;text-align:center;color:var(--color-muted-fg);grid-column:1 / -1">⏳ Loading citation data…</div>`;
-        ['plot-cit', 'plot-cocit'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--color-muted-fg)">Loading…</div>';
-        });
         const tbody = document.querySelector('#originals-table tbody');
         if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--color-muted-fg)">Loading…</td></tr>';
     }
@@ -220,10 +209,6 @@
               Citation data could not be loaded. Please try again later.
             </div>`;
         const kpis = document.getElementById('kpis'); if (kpis) kpis.innerHTML = msg;
-        ['plot-cit', 'plot-cocit'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.innerHTML = '<div style="padding:80px 20px;text-align:center;color:var(--color-muted-fg)">No data yet</div>';
-        });
         const tbody = document.querySelector('#originals-table tbody');
         if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--color-muted-fg)">No data yet. First refresh in progress.</td></tr>';
     }
@@ -232,104 +217,12 @@
         const c = (CI.meta && CI.meta.outcome_counts) || {};
         const fmt = n => (n == null ? '—' : FloraCharts.number(n));
         document.getElementById('kpis').innerHTML = `
-            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Original reports with complete citation data</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Original reports with citation data</div></div>
             <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_replications)}</div><div class="kpi-label">Eligible replication reference pairs</div></div>
             <div class="kpi"><div class="kpi-value">${fmt(c.failed)}</div><div class="kpi-label">Eligible pairs: failed</div></div>
             <div class="kpi"><div class="kpi-value">${fmt(c.successful)}</div><div class="kpi-label">Eligible pairs: successful</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(c.mixed)}</div><div class="kpi-label">Eligible pairs: mixed</div></div>
             <p class="muted kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</p>`;
-    }
-
-    function renderAggregate() {
-        const data = CI.agg[CI.outcome]; if (!data) return;
-        drawAggregatePlot('plot-cit', data, 'mean_citations', 'citations_model', 'Mean citations per year', CI.outcome);
-        drawAggregatePlot('plot-cocit', data, 'mean_cocitations', 'cocitations_model', 'Mean co-citations per year', CI.outcome);
-
-        const model = data.citations_model || {}; const desc = data.descriptive || {};
-        let html;
-        const hasModel = model.att != null && Number.isFinite(model.att);
-        if (hasModel) {
-            const interval = model.att_ci || [];
-            const ci = interval.length === 2 && interval.every(Number.isFinite) ? ` (95% CI ${FloraCharts.number(interval[0],3)} to ${FloraCharts.number(interval[1],3)})` : '';
-            html = `<strong>Adjusted post-replication association:</strong> ${FloraCharts.number(model.att,3)} log(1 + citations) units${ci}, based on ${FloraCharts.number(model.n_units)} originals. This is not a percentage change in raw citations or evidence that replication caused the change.`;
-        } else if (desc.n_units && desc.n_units.length) {
-            const maxN = Math.max(...desc.n_units);
-            html = `<strong>Descriptive trajectory shown.</strong>
-                <span class="muted">${FloraCharts.number(maxN)} originals contribute at peak. Each line shows the average citation count by years relative to the first replication.</span>`;
-        } else {
-            html = `<strong>Insufficient data</strong> for the selected outcome group.`;
-        }
-        document.getElementById('att-callout').innerHTML = html;
-    }
-
-    function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome) {
-        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome)); return; }
-        const desc = data.descriptive || {}; const model = data[modelField] || {};
-        const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
-        const traces = [];
-
-        if (desc.event_time && desc.event_time.length) {
-            traces.push({
-                x: desc.event_time, y: desc[descField], type: 'scatter', mode: 'lines+markers',
-                line: { color, width: 2.5 }, marker: { color, size: 7 },
-                name: 'Mean (raw)', text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>${ylabel}: ${FloraCharts.number(desc[descField][i],2)}`),
-                hovertemplate: '%{text}<extra></extra>'
-            });
-        }
-        if (desc.event_time && desc.n_units && desc.n_units.length) {
-            traces.push({
-                x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines',
-                line: { color: plotlyTheme().rule, width: 1, dash: 'dot' },
-                name: 'N (right axis)', yaxis: 'y2',
-                text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>Original reports: ${FloraCharts.number(desc.n_units[i])}`),
-                hovertemplate: '%{text}<extra></extra>'
-            });
-        }
-        const modelId = divId + '-model';
-        let modelEl = document.getElementById(modelId);
-        if (!modelEl) {
-            modelEl = document.createElement('div'); modelEl.id = modelId; modelEl.className = 'coefficient-plot';
-            document.getElementById(divId).insertAdjacentElement('afterend', modelEl);
-        }
-        const valid = (model.event_time || []).map((x,i) => ({x, y:model.estimate?.[i], lo:model.ci_low?.[i], hi:model.ci_high?.[i]}))
-            .filter(p => [p.y,p.lo,p.hi].every(v => typeof v === 'number' && Number.isFinite(v)));
-        if (valid.length) {
-            const t = plotlyTheme();
-            FloraCharts.plot(modelId, [{name:'OLS coefficient (95% CI)', x:valid.map(p=>p.x), y:valid.map(p=>p.y),
-                type:'scatter', mode:'markers', text:valid.map(p=>`Years from first replication: ${FloraCharts.number(p.x)}<br>Coefficient: ${FloraCharts.number(p.y,3)}<br>95% CI: ${FloraCharts.number(p.lo,3)} to ${FloraCharts.number(p.hi,3)}`),
-                hovertemplate:'%{text}<extra></extra>', error_y:{type:'data', symmetric:false,
-                    array:valid.map(p=>p.hi-p.y), arrayminus:valid.map(p=>p.y-p.lo)}, marker:{color:t.font}}], {
-                title:{text:'Adjusted association: log(1 + count)', font:{size:14}}, height:340,
-                xaxis:{title:'Years from first replication', automargin:true, color:t.font},
-                yaxis:{title:'Coefficient (reference: year −1)', zeroline:true, zerolinecolor:t.font, automargin:true, color:t.font},
-                margin:{t:45,r:20,b:60,l:65}, plot_bgcolor:t.plot,paper_bgcolor:t.paper,font:{color:t.font},
-            }, {responsive:true,displayModeBar:false});
-        } else {
-            if (modelEl.data) Plotly.purge(modelEl);
-            modelEl.textContent = 'No fitted model for this selection.';
-            document.getElementById(modelId+'-data')?.remove();
-        }
-
-        if (traces.length === 0) {
-            document.getElementById(divId).innerHTML = '<div style="padding:60px;text-align:center;color:var(--color-muted-fg)">No data for this filter</div>';
-            return;
-        }
-
-        const t = plotlyTheme();
-        const layout = {
-            margin: { t: 30, r: 50, b: 50, l: 60 },
-            xaxis: { title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font },
-            yaxis: { title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero' },
-            yaxis2: {
-                title: 'N studies', ...FloraCharts.countAxis(Math.max(0,...(desc.n_units || []))), overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
-                tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
-            },
-            shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: t.primary, width: 1.5, dash: 'dash' } }],
-            annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: t.primary } }],
-            plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-            font: { family: t.fontFamily, size: 12, color: t.font },
-            legend: { orientation: 'h', y: -0.22, font: { color: t.font } }
-        };
-        FloraCharts.plot(divId, traces, layout, { displayModeBar: false, responsive: true });
     }
 
     function renderOutcomeBar(outcomeMix, nReplications) {
@@ -512,7 +405,7 @@
 
         let s;
         try {
-            s = await loadStudy(entry);
+            [s] = await Promise.all([loadStudy(entry), plotlyReady()]);
         } catch (e) {
             console.error('Citation timeline load failed:', e);
             if (CI.currentDoi === doi) {
@@ -526,7 +419,7 @@
         renderStudy(s);
     }
 
-    // Sort a copy for display; stored order still defines ties in the aggregate model.
+    // Sort a copy for chronological display without changing the stored record.
     const chronologicalReplications = s => [...(s.replications || [])].sort((a,b)=>(Number(a.year) || Infinity)-(Number(b.year) || Infinity));
 
     function renderStudy(s) {
@@ -641,17 +534,16 @@
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
             font: { family: t.fontFamily, size: 12, color: t.font }
         };
-        FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true });
+        FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true }, {
+            table: {
+                headers: ['Calendar year', 'Cites original only', 'Co-cites failed rep', 'Co-cites mixed rep', 'Co-cites successful rep', 'Co-cites multiple outcome categories', 'Calendar-year coverage'],
+                rows: tl.map(t => [t.year, t.only, t.with_failed, t.with_mixed, t.with_successful, t.with_multiple || 0, t.year === partialYear ? 'Incomplete calendar year' : 'Complete calendar year']),
+                summary: `Original DOI: ${s.doi}. Citation snapshot: ${CI.meta.last_updated}. Unit: distinct citing works per calendar year. ${partialYear}: incomplete calendar year. Timeline segments are mutually exclusive.`,
+            }
+        });
     }
 
     function bindEvents() {
-        document.querySelectorAll('#outcome-chips .chip').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('#outcome-chips .chip').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                CI.outcome = btn.dataset.value; renderAggregate();
-            });
-        });
         const input = document.getElementById('search-input');
         let searchTimer;
         input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { CI.page = 1; renderTable(); }, 200); });
@@ -732,7 +624,7 @@
     // Build the shareable ?tab=citations&doi=… URL on the main page, relative
     // so it works under the GitHub Pages project path (/flora-explorer/).
     function citationLink(doi) {
-        const url = new URL(location.href); url.searchParams.set('tab','citations');url.searchParams.set('doi',doi);return url.href;
+        const url = new URL(location.href); url.searchParams.delete('ci-outcome');url.searchParams.set('tab','citations');url.searchParams.set('ci-kind','replication');url.searchParams.set('doi',doi);return url.href;
     }
 
     // Switch to the Citation Impact tab, ensure data is loaded, then open the
@@ -740,6 +632,9 @@
     async function openStudyByDoi(doi) {
         await ensureInit();
         if (normalizeDoi(new URLSearchParams(location.search).get('doi')) !== normalizeDoi(doi)) return false;
+        // URL restoration normally selects this already; avoid announcing a
+        // redundant programmatic click as though the reader changed the filter.
+        if (ciKind !== 'replication') document.querySelector('#ci-study-type [data-value="replication"]').click();
         const matchDoi = findStudyDoi(doi);
         if (!matchDoi) return false;
         const tabBtn = document.getElementById('citation-tab');
@@ -768,13 +663,10 @@
 
     // Open a study popup straight away if arrived via /citations/?doi=…
     handleDeepLink();
+    window.addEventListener('popstate', handleDeepLink);
 
     // Re-theme Plotly plots on dark-mode toggle
     document.getElementById('theme-toggle').addEventListener('click', () => {
-        if (CI.loaded) {
-            // Tiny delay to let CSS variables update
-            setTimeout(() => { renderAggregate(); }, 50);
-        }
         // Redraw only the rendered timeline of the study currently shown.
         const shown = CI.openStudy;
         if (shown && shown.doi === CI.currentDoi && document.getElementById('study-plot')) {

@@ -988,6 +988,13 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
     }
 
 
+def withheld_model() -> dict:
+    """Keep legacy keys without publishing estimates pending re-estimation."""
+    return {"event_time": [], "estimate": [], "ci_low": [], "ci_high": [],
+            "att": None, "att_ci": None, "n_units": None,
+            "status": "withheld_pending_reestimation"}
+
+
 def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     if not studies:
         raise RuntimeError("No complete originals; retaining the previous citation outputs")
@@ -1001,8 +1008,8 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     ]:
         aggregate[label] = {
             "descriptive":       descriptive_trajectory(panel, outcomes),
-            "citations_model":   event_study(panel, outcomes, "n_cit"),
-            "cocitations_model": event_study(panel, outcomes, "n_cocit"),
+            "citations_model":   withheld_model(),
+            "cocitations_model": withheld_model(),
         }
 
     originals_index = []
