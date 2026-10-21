@@ -70,6 +70,29 @@
         });
     }
 
+    function buildSearchIndex(index) {
+        // The citation snapshot's display names stop after six authors. The
+        // already-loaded FLoRA pairs retain full names; collect all records for
+        // each original and keep the snapshot names as a fallback.
+        const authorsByDoi = new Map();
+        for (const row of fullRowData) {
+            const doi = normalizeDoi(row.doi_o);
+            const names = searchAuthorNames(row.author_o);
+            if (!doi || !names) continue;
+            if (!authorsByDoi.has(doi)) authorsByDoi.set(doi, new Set());
+            authorsByDoi.get(doi).add(names);
+        }
+        return index.map(s => {
+            // Denominator is citations since the first replication, not lifetime
+            // citations — citing works published before any replication existed
+            // could never have co-cited one.
+            const cocit_prop = s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0;
+            const authors = [...(authorsByDoi.get(normalizeDoi(s.doi)) || [])];
+            const searchText = normalizedQuery([s.title, searchAuthorNames(s.author), ...authors, s.year, s.venue, s.doi].filter(Boolean).join(' | '));
+            return { ...s, cocit_prop, searchText };
+        });
+    }
+
     async function init() {
         if (CI.loaded || CI.loading) return;
         CI.loading = true;
@@ -83,13 +106,7 @@
             if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
             CI.agg = await aggRes.json();
-            CI.index = (await idxRes.json()).map(s => {
-                // Denominator is citations since the first replication, not lifetime
-                // citations — citing works published before any replication existed
-                // could never have co-cited one.
-                const cocit_prop = s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0;
-                return { ...s, cocit_prop };
-            });
+            CI.index = buildSearchIndex(await idxRes.json());
 
             // Optional: ETWFE results (may not exist on first run)
             try {
@@ -386,14 +403,12 @@
     }
 
     function renderTable() {
-        const q = (document.getElementById('search-input').value || '').toLowerCase();
+        const q = document.getElementById('search-input').value || '';
+        const tokens = searchTokens(q);
         const outFilter = document.getElementById('filter-outcome').value;
 
         let rows = CI.index.filter(s => {
-            if (q) {
-                const hay = `${s.title} ${s.author} ${s.doi}`.toLowerCase();
-                if (!hay.includes(q)) return false;
-            }
+            if (!matchesSearchTokens(s.searchText, tokens)) return false;
             if (outFilter && !(s.outcome_mix && s.outcome_mix[outFilter])) return false;
             return true;
         });
@@ -416,6 +431,10 @@
         });
 
         const total = rows.length;
+        const empty = document.getElementById('ci-search-empty');
+        empty.hidden = total > 0;
+        document.getElementById('ci-search-empty-message').textContent = q.trim() ? `No originals match “${q.trim()}” with the current outcome selection.` : 'No originals match the current outcome selection.';
+        document.getElementById('ci-clear-search').hidden = !q.trim();
         const pages = Math.max(1, Math.ceil(total / CI.perPage));
         if (CI.page > pages) CI.page = 1;
         const start = (CI.page - 1) * CI.perPage;
@@ -438,6 +457,7 @@
         }).join('');
 
         const pag = document.getElementById('pagination');
+        if (!total) { pag.innerHTML = ''; return; }
         const winSize = 5;
         const winStart = Math.max(1, CI.page - Math.floor(winSize / 2));
         const winEnd = Math.min(pages, winStart + winSize - 1);
@@ -604,7 +624,12 @@
                 CI.outcome = btn.dataset.value; renderAggregate();
             });
         });
-        document.getElementById('search-input').addEventListener('input', () => { CI.page = 1; renderTable(); });
+        const input = document.getElementById('search-input');
+        let searchTimer;
+        input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { CI.page = 1; renderTable(); }, 200); });
+        document.getElementById('ci-clear-search').addEventListener('click', () => {
+            clearTimeout(searchTimer); input.value = ''; input.dispatchEvent(new Event('input')); input.focus();
+        });
         document.getElementById('filter-outcome').addEventListener('change', () => { CI.page = 1; renderTable(); });
         function sortBy(col) {
             if (CI.sortCol === col) {
@@ -707,6 +732,13 @@
 
     // Lazy-load when the user opens the tab
     document.getElementById('citation-tab').addEventListener('shown.bs.tab', ensureInit);
+
+    // A DOI deep link can load citation data before the main CSV finishes.
+    document.addEventListener('flora-ready', () => {
+        if (!CI.index) return;
+        CI.index = buildSearchIndex(CI.index);
+        if (CI.loaded) renderTable();
+    });
 
     setupStudyTypeSelect('ci-study-type', kind => { ciKind = kind; renderCiKindGate(kind); });
 
