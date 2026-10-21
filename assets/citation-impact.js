@@ -496,8 +496,10 @@
     }
 
     function renderStudy(s) {
-        const reps = (s.replications || []).map(r => `
+        // Each replication is numbered; the same number marks its event line in the timeline.
+        const reps = (s.replications || []).map((r, i) => `
             <li>
+                <span class="rep-marker" role="img" style="color:${OUTCOME_COLORS[r.outcome] || 'inherit'}" aria-label="Marker ${i + 1}">${i + 1}</span>
                 <span class="outcome-badge ${r.outcome}">${r.outcome}</span>
                 <strong>${escapeHtml(formatAuthors(r.author, 2))} (${r.year || '?'})</strong>
                 ${r.title ? '— ' + escapeHtml(r.title) : ''}
@@ -541,6 +543,14 @@
         CI.lastFocus = null;
     }
 
+    const TIMELINE_NARROW = 600;
+    // Label style depends on width, so redraw an open timeline when it crosses the breakpoint.
+    window.addEventListener('resize', () => {
+        const shown = CI.openStudy;
+        if (!shown || shown.doi !== CI.currentDoi || !document.getElementById('study-plot')) return;
+        if ((window.innerWidth < TIMELINE_NARROW) !== CI.timelineNarrow) drawStudyTimeline(shown);
+    });
+
     function drawStudyTimeline(s) {
         if (typeof Plotly === 'undefined') { chartLibUnavailable('study-plot', 'Plotly', () => drawStudyTimeline(s)); return; }
         const tl = s.timeline || [];
@@ -558,10 +568,19 @@
         ];
         const t = plotlyTheme();
         const shapes = []; const annotations = [];
+        const narrow = window.innerWidth < TIMELINE_NARROW;
+        CI.timelineNarrow = narrow;
+        // Labels in the same year stack in their own rows; otherwise rows cycle so neighbouring years alternate.
+        const sameYear = new Map();
         (s.replications || []).forEach((r, i) => {
             if (!r.year) return;
             shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || t.primary, width: 2, dash: 'dash' } });
-            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - (i % 3) * 0.06, text: `${r.outcome} rep ${r.year}`, showarrow: false, font: { size: 10, color: OUTCOME_COLORS[r.outcome] || t.primary }, bgcolor: t.paper });
+            // Narrow screens show only the number, so labels for nearby years do not collide.
+            const label = narrow ? String(i + 1) : `${i + 1} · ${r.outcome} ${r.year}`;
+            const seen = sameYear.get(r.year);
+            const row = seen ? seen.base + seen.count : i % 3;
+            sameYear.set(r.year, seen ? { base: seen.base, count: seen.count + 1 } : { base: row, count: 1 });
+            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - row * 0.06, text: label, showarrow: false, font: { size: narrow ? 11 : 10, color: OUTCOME_COLORS[r.outcome] || t.primary }, bgcolor: t.paper });
         });
         const layout = {
             barmode: 'stack', margin: { t: 50, r: 10, b: 40, l: 50 },

@@ -28,7 +28,7 @@ body {
 }
 
 h1, .serif, .card-header, .stats-card .number,
-.intro-text h4, .trend-desc h5, .detail-row h6 {
+.intro-text h3, .trend-desc h3, .detail-row h6 {
     font-family: var(--font-display);
     font-weight: 600;
     letter-spacing: -0.005em;
@@ -194,8 +194,8 @@ h1, .serif, .card-header, .stats-card .number,
 
 /* Overview intro */
 .intro-text { font-size: var(--text-md); line-height: 1.7; color: var(--color-text); }
-.intro-text h4 { color: var(--color-primary); font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.75rem; font-size: 1.3rem; }
-.intro-text h4:first-child { margin-top: 0; }
+.intro-text h3 { color: var(--color-primary); font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.75rem; font-size: 1.3rem; }
+.intro-text h3:first-child { margin-top: 0; }
 .intro-text ul { padding-left: 1.5rem; }
 .intro-text li { margin-bottom: 0.35rem; }
 .key-distinction { background: var(--color-warning-bg); border-left: 4px solid var(--color-warning); padding: 0.9rem 1.1rem; border-radius: 0 8px 8px 0; margin: 1.25rem 0; font-size: var(--text-md); }
@@ -322,12 +322,15 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .trend-filter-btn.active:hover { background: var(--color-primary-dark); border-color: var(--color-primary-dark); color: var(--color-on-primary); }
 .trend-filter-count { margin-left: auto; color: var(--color-muted-fg); font-size: 0.85rem; font-style: italic; }
 
-.trend-block { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
+.trend-block { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
+/* minmax(0, …) lets the columns shrink below a chart's last drawn width when the viewport narrows. */
+.trend-block > * { min-width: 0; }
 .trend-block .trend-desc { padding-top: 0.35rem; }
-.trend-block .trend-desc h5 { color: var(--color-primary); font-weight: 600; margin-bottom: 0.85rem; font-size: 1.3rem; }
+.trend-block .trend-title { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.85rem; }
+.trend-block .trend-desc h3 { color: var(--color-primary); font-weight: 600; margin: 0; font-size: 1.3rem; }
 .trend-block .trend-desc p { color: var(--color-text-secondary); font-size: var(--text-md); line-height: 1.65; margin-bottom: 0.8rem; }
 .trend-block .trend-desc .trend-note { color: var(--color-muted-fg); font-size: 0.82rem; font-style: italic; margin-top: 0.5rem; }
-@media (max-width: 900px) { .trend-block { grid-template-columns: 1fr; gap: 1.25rem; } }
+@media (max-width: 900px) { .trend-block { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; } }
 
 /* Footer - the system pairs the dark top bar with a matching dark footer */
 .footer-bar {
@@ -604,7 +607,7 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .browse-download {display:inline-flex;align-items:center;justify-content:center;gap:.4rem;white-space:nowrap;cursor:pointer;}
 .chart-copy {display:flex;width:28px;height:28px;margin:.35rem 0 .35rem auto;}
 .outcome-chart-label .chart-copy {margin:0;}
-.trend-desc h5 .chart-copy {display:inline-flex;margin:0 0 0 .35rem;vertical-align:middle;}
+.trend-title .chart-copy {display:inline-flex;margin:0;flex-shrink:0;}
 #view-feedback:not(:empty) {display:block;font-size:.82rem;color:var(--color-muted-fg);margin-top:.3rem;}
 @media(max-width:600px) {.browse-search-row {flex-wrap:wrap;} .browse-search-row input {flex-basis:100%;} .browse-download {flex:1;}}
 :focus-visible {outline:3px solid var(--color-primary);outline-offset:3px;}
@@ -677,3 +680,18 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .note-label { font-weight: 500; margin-right: 0.5rem; }
 .note-detail { display: block; margin-top: 0.4rem; font-size: 0.8rem; color: var(--color-text); word-break: break-all; }
 .top-n-select { max-width: 160px; font-size: 0.9rem; }
+
+/* Placeholders carry instructions, so they keep at least 4.5:1 contrast in both themes. */
+.form-control::placeholder, #search-input::placeholder { color: var(--color-muted-fg); opacity: 1; }
+.search-label { display: block; font-weight: 600; margin: 0.75rem 0 -0.35rem; }
+
+/* Browse: zero-result explanation and recovery actions; mobile sort control. */
+#browse-chart-hint { margin: 0.6rem 0 0; }
+.browse-empty { margin: 0 0 1.5rem; padding: 1rem; background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 10px; }
+.browse-empty p { margin: 0 0 0.75rem; }
+.browse-empty-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.bm-sort { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-size: 0.88rem; font-weight: 600; }
+.bm-sort select { width: auto; flex: 1; max-width: 16rem; font-size: 0.88rem; }
+
+/* Citation timeline: numbered event markers match the numbered replication list. */
+.rep-marker { display: inline-flex; align-items: center; justify-content: center; min-width: 1.4rem; height: 1.4rem; margin-right: 0.4rem; border-radius: 50%; font-size: 0.75rem; font-weight: 700; border: 1.5px solid currentColor; }
