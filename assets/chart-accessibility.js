@@ -1,8 +1,13 @@
 /* Every chart exposes the same plotted values as a keyboard-accessible table and CSV. */
 window.FloraCharts = (() => {
     const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const plain = s => String(s ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    const fmt = v => typeof v === 'number' ? (Number.isInteger(v) ? String(v) : Number(v.toFixed(5)).toString()) : plain(v);
+    const plain = s => (Array.isArray(s) ? s.join(' ') : String(s ?? '')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const number = (v, digits = 0) => Number(v).toLocaleString('en-GB', {minimumFractionDigits:digits,maximumFractionDigits:digits}).replace(/-/g, '−');
+    const percent = (n, total, digits = 0) => {
+        const share = total > 0 ? 100 * (n || 0) / total : 0;
+        return share > 0 && share < 1 ? '<1' : number(share, digits);
+    };
+    const fmt = (v, header = '') => typeof v === 'number' ? v.toLocaleString('en-GB', {useGrouping:!/year|X \/ category/i.test(header),maximumFractionDigits:5}).replace(/-/g, '−') : plain(v);
     const comparisonIds = new Set(['ao-chart', 'rr-chart', 'pub-chart', 'ls-chart']);
     // Chart colours resolve from CSS tokens at render time, so every chart follows the theme.
     const token = (name, fallback = '') => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -30,7 +35,7 @@ window.FloraCharts = (() => {
     });
     function csvText(headers, rows, notes = '') {
         // Prefix formula-like text so spreadsheet programs treat it as data.
-        const cell = v => '"' + (typeof v === 'number' ? String(v) : String(v ?? '').replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
+        const cell = v => '"' + (typeof v === 'number' ? String(Number(v.toFixed(5))) : (Array.isArray(v) ? plain(v) : String(v ?? '')).replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
         return [notes ? ['Export context', ...headers] : headers, ...rows.map(row => notes ? [notes,...row] : row)].map(row => row.map(cell).join(',')).join('\r\n');
     }
     function download(name, headers, rows, notes = '') {
@@ -76,7 +81,7 @@ window.FloraCharts = (() => {
             anchor.insertAdjacentElement('afterend', details);
         }
         const wasOpen = details.open;
-        details.innerHTML = `<summary>View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="Chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v))}</td>` : `<th scope="row">${escape(fmt(v))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        details.innerHTML = `<summary>View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="Chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v, headers[i]))}</td>` : `<th scope="row">${escape(fmt(v, headers[i]))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         details.open = wasOpen;
         const label = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label') || el.closest('.trend-block')?.querySelector('.trend-title');
         let action = document.getElementById(id + '-copy');
@@ -118,7 +123,7 @@ window.FloraCharts = (() => {
         const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
         const isOutcome = /outcome|computational|robustness/.test(el.id);
         const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
-        const sample = `Included in the plot: ${total}; excluded from this selection: ${Math.max(0,eligible-total)} reference pairs. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
+        const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
         table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
         if (config.options.plugins?.legend) config.options.plugins.legend.reverse = false;
@@ -156,14 +161,14 @@ window.FloraCharts = (() => {
             originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config]);
             const nGroups = traces[0]?.x?.length || 0;
             const totals = Array.from({length:nGroups}, (_,i)=>traces.reduce((sum,t)=>sum+(Number(t.y?.[i])||0),0));
-            display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '')+`<br>N=${totals[i]}`),
+            display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '')+`<br>N=${number(totals[i])}`),
                 y:t.y.map((v,i)=>counts ? v : totals[i] ? 100*v/totals[i] : 0),
-                customdata:t.y.map((v,i)=>[v,totals[i]]),
-                hovertemplate:counts ? '%{x}<br>%{y} reference pairs<extra>%{fullData.name}</extra>' : '%{x}<br>%{y:.1f}% (%{customdata[0]} pairs)<extra>%{fullData.name}</extra>'}));
+                customdata:t.y.map((v,i)=>[v,totals[i], escape(percent(v,totals[i],1))]),
+                hovertemplate:counts ? '%{x}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>' : '%{x}<br>%{customdata[2]}% (%{customdata[0]:,.0f} pairs)<extra>%{fullData.name}</extra>'}));
             layout.barmode = counts ? 'group' : 'stack';
             layout.xaxis = {...layout.xaxis,tickangle:0};
-            layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, range:counts ? undefined : [0,100]};
-            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing author/RR metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
+            layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, tickformat:counts ? ',d' : '.0f', range:counts ? undefined : [0,100]};
+            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
             let toggle = document.getElementById(id+'-mode');
             if (!toggle) {
                 toggle=document.createElement('button');toggle.id=id+'-mode';toggle.type='button';toggle.className='chart-mode';el.before(toggle);
@@ -204,6 +209,8 @@ window.FloraCharts = (() => {
         layout.dragmode = false;
         for (const key of Object.keys(layout)) if (/^[xy]axis\d*$/.test(key)) layout[key] = {...layout[key],fixedrange:true};
         config = {...config,scrollZoom:false,doubleClick:false};
+        // Initial loading messages are not Plotly-owned nodes and otherwise survive react().
+        if (!el.data) el.replaceChildren();
         const title = layout.title ? plain(layout.title.text || layout.title) : visibleTitle(el);
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
         if (comparisonIds.has(id)) {
@@ -211,7 +218,7 @@ window.FloraCharts = (() => {
             traces.forEach(t => (t.x || []).forEach((group, i) => {
                 const count = Number(t.y?.[i]) || 0;
                 const denominator = traces.reduce((n, series) => n + (Number(series.y?.[i]) || 0), 0);
-                rows.push([plain(group), plain(t.name), count, denominator, denominator ? Number((100 * count / denominator).toFixed(1)) : 'Not available']);
+                rows.push([plain(group), plain(t.name), count, denominator, denominator ? count > 0 && 100 * count / denominator < 1 ? '<1' : Number((100 * count / denominator).toFixed(1)) : 'Not available']);
             }));
             table(el, rows, ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], summary);
             return Plotly.react(el, display, layout, config);
@@ -236,5 +243,5 @@ window.FloraCharts = (() => {
             if(el)d.querySelector('.chart-context').textContent=context(el);
         });
     }
-    return {chart,plot,clear,download,updateContexts, token, theme};
+    return {chart,plot,clear,download,updateContexts, token, theme, number, percent};
 })();
