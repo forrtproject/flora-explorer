@@ -59,7 +59,7 @@ window.FloraCharts = (() => {
             || el.closest('.trend-block')?.querySelector('.trend-desc h3')
             || el.closest('.mc-chart-card, .plot-card')?.querySelector('.mc-chart-title, h3')
             || el.closest('.modal-body')?.querySelector('h3');
-        const prefix = el.id.startsWith('browse-') ? 'Browse results: ' : '';
+        const prefix = el.id.startsWith('browse-') ? 'Browse results: ' : /^plot-(cit|cocit)/.test(el.id) ? (el.id.endsWith('-model') ? 'Adjusted association: ' : 'Raw trajectory: ') : '';
         return heading ? prefix + plain(heading.textContent) : el.id.replace(/-/g, ' ');
     }
     // Removes a chart together with everything that describes or exports it, so an
@@ -84,7 +84,7 @@ window.FloraCharts = (() => {
             anchor.insertAdjacentElement('afterend', details);
         }
         const wasOpen = details.open;
-        details.innerHTML = `<summary>View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="Chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v, headers[i]))}</td>` : `<th scope="row">${escape(fmt(v, headers[i]))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        details.innerHTML = `<summary aria-label="View chart data for ${escape(visibleTitle(el))}">View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="${escape(visibleTitle(el))}: chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v, headers[i]))}</td>` : `<th scope="row">${escape(fmt(v, headers[i]))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         details.open = wasOpen;
         const label = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label') || el.closest('.trend-block')?.querySelector('.trend-title');
         let action = document.getElementById(id + '-copy');
@@ -108,7 +108,7 @@ window.FloraCharts = (() => {
             try {
                 await navigator.clipboard.writeText(csvText(headers, rows, summary + '\n' + context(el)));
                 action.title = 'Chart CSV copied';
-                action.setAttribute('aria-label', 'Chart CSV copied');
+                action.setAttribute('aria-label', 'Chart CSV copied for ' + visibleTitle(el));
                 status.textContent = 'Chart CSV copied';
                 setTimeout(() => { action.title = 'Copy chart CSV'; action.setAttribute('aria-label', 'Copy chart CSV for ' + visibleTitle(el)); }, 2000);
             } catch {
@@ -130,6 +130,8 @@ window.FloraCharts = (() => {
         table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
         if (config.options.plugins?.legend) config.options.plugins.legend.reverse = false;
+        Chart.defaults.font.family = theme().fontFamily;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) config.options.animation = false;
         return new Chart(ctx, config);
     }
     // options.table = {headers, rows, summary} replaces the generic per-trace table, for
@@ -179,6 +181,7 @@ window.FloraCharts = (() => {
                 toggle.onclick=()=>{modes.set(id,modes.get(id)==='count'?'percent':'count');const args=originals.get(id);plot(el,...args);};
             }
             toggle.textContent=counts?'Show percentages':'Show counts';
+            toggle.setAttribute('aria-label', toggle.textContent + ' for ' + visibleTitle(el));
         }
         if (window.innerWidth < 600) {
             layout.margin={...layout.margin,l:60,r:layout.yaxis2 ? 65 : 20,b:100};

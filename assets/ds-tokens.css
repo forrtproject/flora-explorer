@@ -88,12 +88,14 @@
     --color-plot-band-original: rgba(37, 99, 235, .15); /* study-original band */
     --color-plot-point: rgba(80, 80, 80, .15);          /* jittered observations */
     --color-plot-rule: rgba(100, 100, 100, .4);         /* reference lines */
-    --color-plot-rule-label: rgba(100, 100, 100, .6);
+    --color-plot-rule-label: #6b7280;
 
     /* Chart series colours (FLoRA explorer). Light values keep the
        established outcome palette; dark values below keep series marks
        at >= 3:1 against --color-surface-raised, except --color-chart-not-coded,
        which stays deliberately faint (2.6:1) for unassessed rows. */
+    --color-badge-successful: #246f3d;
+    --color-badge-on-outcome: #fff;
     --color-chart-successful: #2f8f4f;
     --color-chart-failed: #b3331e;
     --color-chart-mixed: #d49b1d;
@@ -291,10 +293,13 @@
     --color-plot-band-original: rgba(147, 180, 253, .18);
     --color-plot-point: rgba(210, 210, 220, .2);
     --color-plot-rule: rgba(200, 200, 210, .45);
-    --color-plot-rule-label: rgba(200, 200, 210, .6);
+    --color-plot-rule-label: #c3bac0;
 
-    --color-chart-successful: #4ade80;
-    --color-chart-failed: #f08a7c;
+    /* Lightness separates success and failure under red/green colour-vision loss. */
+    --color-badge-successful: var(--color-chart-successful);
+    --color-badge-on-outcome: #17131a;
+    --color-chart-successful: #86efac;
+    --color-chart-failed: #ed7465;
     --color-chart-mixed: #e0b040;
     --color-chart-inconclusive: #a3a9b6;
     --color-chart-qualified: #c0a8fa;

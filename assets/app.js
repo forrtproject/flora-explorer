@@ -873,13 +873,13 @@ function bmRender() {
     const total = bmFiltered.length;
     if (total === 0) {
         list.innerHTML = '<div class="bm-empty">No matching reference pairs.</div>';
-        meta.textContent = '0 reference pairs'; pager.style.display = 'none'; return;
+        meta.textContent = BROWSE_KIND_LABELS[browseKind] + ': 0 reference pairs'; pager.style.display = 'none'; return;
     }
     const totalPages = Math.max(1, Math.ceil(total / BM_PAGE_SIZE));
     if (bmPage >= totalPages) bmPage = totalPages - 1;
     const start = bmPage * BM_PAGE_SIZE; const end = Math.min(total, start + BM_PAGE_SIZE);
     list.innerHTML = bmFiltered.slice(start, end).map(bmCardHtml).join('');
-    meta.innerHTML = `Showing <strong>${(start + 1).toLocaleString('en-GB')}–${end.toLocaleString('en-GB')}</strong> of <strong>${total.toLocaleString()}</strong> reference ${total === 1 ? "pair" : "pairs"}`;
+    meta.innerHTML = `<span class="visually-hidden">${BROWSE_KIND_LABELS[browseKind]}: </span>Showing <strong>${(start + 1).toLocaleString('en-GB')}–${end.toLocaleString('en-GB')}</strong> of <strong>${total.toLocaleString()}</strong> reference ${total === 1 ? "pair" : "pairs"}`;
     info.textContent = `Page ${bmPage + 1} of ${totalPages}`;
     prev.disabled = bmPage === 0; next.disabled = bmPage >= totalPages - 1;
     pager.style.display = totalPages > 1 ? 'flex' : 'none';
@@ -892,8 +892,14 @@ function setupBrowseMobile(data) {
     const next = document.getElementById('bm-next');
     let debounceTimer;
     input.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => bmApplySearch(input.value), 200); });
-    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); syncBrowseUrl(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); } });
-    next.addEventListener('click', () => { bmPage++; bmRender(); syncBrowseUrl(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); });
+    function showPage(delta) {
+        bmPage += delta; bmRender(); syncBrowseUrl();
+        const heading = document.getElementById('browse-results-heading');
+        heading.focus({preventScroll:true});
+        heading.scrollIntoView({block:'start', behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+    }
+    prev.addEventListener('click', () => { if (bmPage > 0) showPage(-1); });
+    next.addEventListener('click', () => { if (!next.disabled) showPage(1); });
     input.value = browseQuery; bmApplySearch(browseQuery);
 }
 
@@ -961,7 +967,11 @@ function syncBrowseUrl() {
 }
 
 // ===== Browse kind filter =====
-let browseKind = new URLSearchParams(location.search).get('kind') || 'all';
+const BROWSE_KIND_LABELS = {all: 'All studies', replication: 'Replications', reproduction: 'Reproductions', 'reproduction-numerical': 'Numerical Reproductions', 'reproduction-robustness': 'Robustness Reproductions'};
+function normalizeBrowseKind(kind) {
+    return Object.hasOwn(BROWSE_KIND_LABELS, kind) ? kind : 'all';
+}
+let browseKind = normalizeBrowseKind(new URLSearchParams(location.search).get('kind'));
 let browseQuery = new URLSearchParams(location.search).get('q') || '';
 let browseOutcomeChart = null;
 let browseComputationalChart = null;
@@ -1002,7 +1012,7 @@ function renderBrowseOutcomeCharts() {
 
 // Zero matches get a visible explanation and recovery actions instead of an empty table and
 // chart. FLoRA is incomplete, so absence here is not evidence that no repetition exists.
-const BROWSE_KIND_NOUNS = {all: 'reference pairs', replication: 'replications', 'reproduction-numerical': 'numerical reproductions', 'reproduction-robustness': 'robustness reproductions'};
+const BROWSE_KIND_NOUNS = {all: 'reference pairs', replication: 'replications', reproduction: 'reproductions', 'reproduction-numerical': 'numerical reproductions', 'reproduction-robustness': 'robustness reproductions'};
 function renderBrowseEmpty(n) {
     const el = document.getElementById('browse-empty'); if (!el) return;
     el.hidden = n > 0;
@@ -1056,7 +1066,8 @@ function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
 function updateTrendsCount() {
     const el = document.getElementById('trend-filter-count'); if (!el) return;
     const n = trendsFilteredData().length; const total = fullRowData.length;
-    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference ${total === 1 ? "pair" : "pairs"}`;
+    const count = trendsKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference ${total === 1 ? "pair" : "pairs"}`;
+    el.innerHTML = `<span class="visually-hidden">${BROWSE_KIND_LABELS[trendsKind]}: </span>${count}`;
 }
 
 // Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
@@ -1346,7 +1357,7 @@ function renderMcCharts() {
     const statCards = buckets.filter(b => ov[b.overviewKey] > 0).map(b => {
         const n = ov[b.overviewKey] || 0;
         const pct = FloraCharts.percent(n, ov.n_total);
-        return `<div class="mc-stat"><span class="mc-stat-value" style="color:${b.color}">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${escapeHtml(pct)}%)</span></div>`;
+        return `<div class="mc-stat"><span class="mc-stat-value">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${escapeHtml(pct)}%)</span></div>`;
     }).join('');
     document.getElementById('mc-overview').innerHTML = `
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Reference pairs with OMC</span></div>

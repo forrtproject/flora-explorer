@@ -32,10 +32,12 @@
 </head>
 <body>
 
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
     <!-- Dark top bar (FORRT-style) -->
-    <div class="top-bar">
-        <div class="top-bar-inner">
-            <a class="brand-mark" href="?tab=overview" aria-label="FLoRA Explorer overview">
+    <header class="top-bar">
+        <nav class="top-bar-inner" aria-label="Explorer views">
+            <a class="brand-mark" href="?tab=overview" aria-label="FLoRA Replication Explorer overview">
                 <span class="brand-icon"><img src="assets/logo.svg" alt=""></span>
                 <span class="brand-name">
                     <strong>FLoRA</strong>
@@ -72,10 +74,11 @@
                 <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                 <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
             </button>
-        </div>
-    </div>
+        </nav>
+    </header>
 
-    <main class="app-main">
+    <main class="app-main" id="main-content" tabindex="-1">
+    <span id="analysis-feedback" class="visually-hidden" role="status"></span>
     <div class="container">
         <div id="global-loading" class="loading-spinner">
             <div class="spinner-border" role="status"></div>
@@ -111,7 +114,7 @@
                         <div class="outcome-chart-row">
                             <div class="outcome-chart-label">
                                 <span>Computational Reproducibility</span>
-                                <span class="info-icon" tabindex="0" aria-label="Info about computational reproducibility">
+                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about computational reproducibility">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Covers <strong>reproductions only</strong>: were the original results obtained? Reproduction coverage is still small, so this chart will fill in as more are added.</span>
                                 </span>
@@ -124,7 +127,7 @@
                         <div class="outcome-chart-row">
                             <div class="outcome-chart-label">
                                 <span>Robustness</span>
-                                <span class="info-icon" tabindex="0" aria-label="Info about robustness">
+                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about robustness">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Covers <strong>reproductions only</strong>: do results hold under alternative analysis choices? Not every reproduction has a robustness check yet.</span>
                                 </span>
@@ -137,7 +140,7 @@
                         <div class="outcome-chart-row">
                             <div class="outcome-chart-label">
                                 <span>Replicability</span>
-                                <span class="info-icon" tabindex="0" aria-label="Info about replicability">
+                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about replicability">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Currently, this distribution covers <strong>replications only</strong>. Reproductions are shown separately above, since they're coded along different dimensions.</span>
                                 </span>
@@ -310,13 +313,13 @@
                     <div class="card-body">
                         <p class="mb-2 note">If you use the underlying dataset, please cite it as:</p>
                         <div class="citation-box" id="citation-box">
-                            <button class="copy-btn" id="citation-copy-btn">Copy</button>
+                            <button class="copy-btn" id="citation-copy-btn" aria-label="Copy dataset citation">Copy</button>
                             <div id="citation-text">Loading citation…</div>
                         </div>
 
                         <p class="mt-4 mb-2 note">If you report results based on this website, please cite it as:</p>
                         <div class="citation-box" id="website-citation-box">
-                            <button class="copy-btn" id="website-citation-copy-btn">Copy</button>
+                            <button class="copy-btn" id="website-citation-copy-btn" aria-label="Copy website citation">Copy</button>
                             <div id="website-citation-text">
                                 Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a>
                             </div>
@@ -327,6 +330,7 @@
 
             <!-- ============================ BROWSE ============================ -->
             <div class="tab-pane fade" id="browse" role="tabpanel">
+                <h1 class="visually-hidden">Browse Studies</h1>
                 <div class="data-stamp" data-stamp-source="flora"></div>
                 <div class="browse-filter-panel">
                     <div class="browse-search"><label for="browse-mobile-input">Find a reference pair</label><div class="browse-search-row"><input type="search" id="browse-mobile-input" class="form-control" placeholder="Title, author, year, DOI or DOI URL" autocomplete="off"><button type="button" id="share-view" class="icon-action" aria-label="Copy current view link" title="Copy current view link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><button type="button" id="export-browse" class="browse-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg><span>Download full CSV</span></button></div><span id="view-feedback" role="status"></span></div>
@@ -354,7 +358,7 @@
                         <div class="outcome-chart-row" id="browse-computational-row" style="display:none;">
                             <div class="outcome-chart-label">
                                 <span>Computational Reproducibility</span>
-                                <span class="info-icon" tabindex="0" aria-label="Info about computational reproducibility">
+                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about computational reproducibility">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Reflects the reproductions in the table below: were the original results obtained?</span>
                                 </span>
@@ -367,7 +371,7 @@
                         <div class="outcome-chart-row" id="browse-robustness-row" style="display:none;">
                             <div class="outcome-chart-label">
                                 <span>Robustness</span>
-                                <span class="info-icon" tabindex="0" aria-label="Info about robustness">
+                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about robustness">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Reflects the reproductions in the table below: do results hold under alternative analysis choices?</span>
                                 </span>
@@ -380,7 +384,7 @@
                         <div class="outcome-chart-row" id="browse-replicability-row" style="display:none;">
                             <div class="outcome-chart-label">
                                 <span>Replicability</span>
-                                <span class="info-icon" tabindex="0" aria-label="Info about replicability">
+                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about replicability">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are shown separately when their filter is selected.</span>
                                 </span>
@@ -394,13 +398,13 @@
                 </div>
 
                 <div class="card">
-                    <h2 class="card-header">Studies Database</h2>
+                    <h2 class="card-header" id="browse-results-heading" tabindex="-1">Studies Database</h2>
                     <div class="card-body">
                         <div class="browse-desktop">
                             <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
                                 <thead>
                                     <tr>
-                                        <th></th>
+                                        <th scope="col"><span class="visually-hidden">Study evidence</span></th>
                                         <th>Original Study</th>
                                         <th>Year</th>
                                         <th><span data-browse-report-kind>Replication or reproduction</span> study</th>
@@ -424,11 +428,11 @@
                                 <option value="1:asc">Original title, A–Z</option>
                                 <option value="custom" disabled hidden>Order set in desktop table</option>
                             </select></label>
-                            <div id="browse-mobile-meta" class="browse-mobile-meta"></div>
+                            <div id="browse-mobile-meta" class="browse-mobile-meta" role="status"></div>
                             <div id="browse-mobile-list" class="browse-mobile-list"></div>
                             <div class="browse-mobile-pager" id="browse-mobile-pager">
                                 <button class="bm-page-btn" id="bm-prev" type="button" aria-label="Previous page">‹ Prev</button>
-                                <span class="bm-page-info" id="bm-page-info"></span>
+                                <span class="bm-page-info" id="bm-page-info" aria-current="page"></span>
                                 <button class="bm-page-btn" id="bm-next" type="button" aria-label="Next page">Next ›</button>
                             </div>
                         </div>
@@ -438,7 +442,8 @@
 
             <!-- ============================ TRENDS ============================ -->
             <div class="tab-pane fade" id="trends" role="tabpanel">
-                <h2 class="visually-hidden">Years &amp; Disciplines</h2>
+                <h1 class="visually-hidden">Years &amp; Disciplines</h1>
+                <h2 class="visually-hidden">Outcome summaries</h2>
                 <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -451,7 +456,7 @@
                     <button type="button" class="trend-filter-btn active" data-kind="replication" aria-pressed="true">Replications only</button>
                     <button type="button" class="trend-filter-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                     <button type="button" class="trend-filter-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
-                    <span class="trend-filter-count" id="trend-filter-count"></span>
+                    <span class="trend-filter-count" id="trend-filter-count" role="status"></span>
                 </div>
 
                 <div id="trends-placeholder" class="coming-soon-placeholder" style="display:none;">
@@ -531,6 +536,7 @@
 
             <!-- ============================ CITATION IMPACT ============================ -->
             <div class="tab-pane fade" id="citation-impact" role="tabpanel">
+                <h1 class="visually-hidden">Citation Impact</h1>
                 <div class="data-stamp" data-stamp-source="citations"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -540,7 +546,7 @@
 
                 <div class="ci-intro">
                     <h2 class="ci-h2" data-kind-text="Citation patterns around the first replication|Citation counts for numerical reproductions|Citation counts for robustness reproductions">Citation patterns around the first replication</h2>
-                    <div class="chip-group study-type-select" id="ci-study-type">
+                    <div class="chip-group study-type-select" id="ci-study-type" role="group" aria-label="Citation Impact study type">
                         <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                         <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                         <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
@@ -566,7 +572,7 @@
                             <table class="table table-striped table-hover" id="ci-repro-table" style="width:100%;">
                                 <thead>
                                     <tr>
-                                        <th></th>
+                                        <th scope="col"><span class="visually-hidden">Outcome</span></th>
                                         <th>Originals</th>
                                         <th>Citations to original</th>
                                         <th>Citations to reproduction</th>
@@ -592,7 +598,7 @@
 
                         <div class="filters">
                             <span class="filter-label">Replication outcome</span>
-                            <div class="chip-group" id="outcome-chips">
+                            <div class="chip-group" id="outcome-chips" role="group" aria-label="Replication outcome">
                                 <button class="chip active" data-value="all" aria-pressed="true">All</button>
                                 <button class="chip" data-value="failed" aria-pressed="false">Failed</button>
                                 <button class="chip" data-value="successful" aria-pressed="false">Successful</button>
@@ -650,23 +656,23 @@
 
                         <div id="ci-search-empty" class="browse-empty" role="status" hidden><p id="ci-search-empty-message"></p><button type="button" id="ci-clear-search" class="browse-download">Clear search</button></div>
                         <div class="table-wrap">
-                            <table id="originals-table">
+                            <table id="originals-table" tabindex="-1">
                                 <thead>
                                     <tr>
                                         <th>Original</th>
-                                        <th class="sortable" data-sort="year">Year</th>
-                                        <th class="sortable" data-sort="n_replications">Replications</th>
-                                        <th class="sortable" data-sort="n_citations">Citations, all years</th>
-                                        <th class="cocit-th">Co-citations since first recorded replication <span class="cocit-sort-toggle">
+                                        <th class="sortable" data-sort="year" scope="col"><button type="button" class="table-sort" data-sort="year">Year</button></th>
+                                        <th class="sortable" data-sort="n_replications" scope="col"><button type="button" class="table-sort" data-sort="n_replications">Replications</button></th>
+                                        <th class="sortable" data-sort="n_citations" scope="col"><button type="button" class="table-sort" data-sort="n_citations">Citations, all years</button></th>
+                                        <th class="cocit-th" scope="col">Co-citations since first recorded replication <span class="cocit-sort-toggle">
                                             <button type="button" class="cocit-sort-btn" data-sort="n_cocitations" title="Sort by co-citation count" aria-label="Sort by co-citation count">#</button><button type="button" class="cocit-sort-btn" data-sort="cocit_prop" title="Sort by co-citation share" aria-label="Sort by co-citation percentage">%</button>
                                         </span></th>
-                                        <th></th>
+                                        <th scope="col"><span class="visually-hidden">Timeline</span></th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
                             </table>
                         </div>
-                        <div class="pagination" id="pagination"></div>
+                        <nav class="pagination" id="pagination" aria-label="Pagination"></nav>
                     </div>
                 </div>
 
@@ -697,6 +703,7 @@
 
             <!-- ============================ MEAN CITEDNESS ============================ -->
             <div class="tab-pane fade" id="mean-citedness" role="tabpanel">
+                <h1 class="visually-hidden">Mean Citedness</h1>
                 <div class="data-stamp" data-stamp-source="impact_factor"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -711,7 +718,7 @@
                             <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal<span data-kind-text=" predicts replication success||"> predicts replication success</span>. OMC is a proxy for the Journal Impact Factor.
                             Mean Citedness is a journal-level measure from OpenAlex: the mean citations to its works published in the previous two years. It is retrieved at enrichment time, not matched to the original publication year, and is not the original article’s citation count. The update stamp identifies the analysis snapshot. Any fitted model describes an association.
                         </p>
-                        <div class="chip-group study-type-select" id="mc-study-type">
+                        <div class="chip-group study-type-select" id="mc-study-type" role="group" aria-label="Mean Citedness study type">
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                             <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                             <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
@@ -743,6 +750,7 @@
 
             <!-- ==================== AUTHORSHIP OVERLAP ==================== -->
             <div class="tab-pane fade" id="authorship-overlap" role="tabpanel">
+                <h1 class="visually-hidden">Authorship Overlap</h1>
                 <div class="data-stamp" data-stamp-source="author_overlap"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -760,7 +768,7 @@
                             This may produce <strong>false positives</strong> for common family names when two
                             unrelated researchers share a surname.
                         </p>
-                        <div class="chip-group study-type-select" id="ao-study-type">
+                        <div class="chip-group study-type-select" id="ao-study-type" role="group" aria-label="Authorship Overlap study type">
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                             <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                             <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
@@ -794,11 +802,12 @@
 
             <!-- ==================== PUBLICATION TYPE ==================== -->
             <div class="tab-pane fade" id="publication-type" role="tabpanel">
+                <h1 class="visually-hidden">Publication Type</h1>
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
                     <div class="tab-cite-block-label">How to cite</div>
                     <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
 
-                <div class="chip-group study-type-select" id="pubtype-study-type">
+                <div class="chip-group study-type-select" id="pubtype-study-type" role="group" aria-label="Publication Type study type (all three comparisons)">
                     <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                     <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                     <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
@@ -996,13 +1005,13 @@
     </div>
     </main>
 
-    <div class="footer-bar">
+    <footer class="footer-bar">
         <span>FLoRA &middot; Tracking reproductions and replications across the sciences and humanities</span>
         <div>
             <a href="https://github.com/forrtproject/FReD-data" target="_blank" rel="noopener noreferrer">FORRT FLoRA Project</a>
             <a href="https://forrt.org/replication-hub/" target="_blank" rel="noopener noreferrer">FORRT Replication Hub</a>
         </div>
-    </div>
+    </footer>
 
     <!-- Per-study modal (Citation Impact) -->
     <div class="modal-backdrop" id="ci-modal" role="dialog" aria-modal="true" aria-label="Citation timeline and replication evidence" hidden>
