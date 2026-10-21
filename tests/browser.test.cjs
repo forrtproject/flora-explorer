@@ -578,3 +578,141 @@ test('search input is debounced, Show all draws once and Citation Impact offers 
   assert.ok(!new URL(p.url()).searchParams.has('search-input'));
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+test('overflowing navigation offers every tab and follows the active tab',async()=>{
+  const p=await page('?tab=publication-type',1024);
+  assert.ok(await p.locator('#mobile-navigation').isVisible());
+  assert.equal(await p.locator('#mobile-navigation').inputValue(),'pub-tab');
+  for(const [option,pane] of [['browse-tab','browse'],['citation-tab','citation-impact'],['pub-tab','publication-type']]){
+    await p.selectOption('#mobile-navigation',option);
+    await p.waitForFunction(id=>document.querySelector('.tab-pane.active').id===id,pane);
+    assert.equal(await p.locator('#mobile-navigation').inputValue(),option);
+  }
+  await p.setViewportSize({width:1800,height:900});
+  await p.waitForFunction(()=>document.getElementById('floraTabs').getClientRects().length>0);
+  const bounds=await p.locator('#floraTabs').evaluate(el=>({width:el.clientWidth,content:el.scrollWidth}));
+  assert.ok(bounds.content<=bounds.width+1);
+  assert.ok(await p.locator('#pub-tab').isVisible());
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('history restores absent defaults, active controls and closes citation dialogs',async()=>{
+  const p=await page('');
+  await p.click('#browse-tab');await p.fill('#browse-mobile-input','power posing');
+  await p.waitForFunction(()=>location.search.includes('q=power'));
+  await p.goBack();await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='overview');
+  assert.equal(new URL(p.url()).search,'');
+  await p.goForward();await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='browse');
+  assert.equal(await p.locator('#browse-mobile-input').inputValue(),'power posing');
+  assert.deepEqual([...new URL(p.url()).searchParams.keys()].sort(),['q','tab']);
+  await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
+  await p.locator('.timeline-open').first().click();await p.waitForSelector('#ci-modal:not([hidden])');
+  await p.goBack();await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='browse');
+  assert.ok(await p.locator('#ci-modal').isHidden());
+  assert.ok(await p.locator('.app-main').evaluate(el=>!el.inert));
+  assert.equal(await p.locator('#browse-mobile-input').inputValue(),'power posing');
+  // Forward may retain a timeline DOI in history, but always dismisses the dialog.
+  await p.goForward();await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='citation-impact');
+  assert.ok(await p.locator('#ci-modal').isHidden());
+  assert.equal(new URL(p.url()).searchParams.has('q'),false);
+  assert.equal(new URL(p.url()).searchParams.has('doi'),false);
+  await p.click('#outcome-chips [data-value="failed"]');
+  await p.fill('#search-input','Carney');
+  await p.waitForFunction(()=>new URL(location.href).searchParams.get('ci-q')==='Carney');
+  assert.deepEqual([...new URL(p.url()).searchParams.keys()].sort(),['ci-outcome','ci-q','tab']);
+  await p.click('#mc-tab');await p.goBack();
+  await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='citation-impact');
+  assert.equal(await p.locator('#search-input').inputValue(),'Carney');
+  assert.equal(await p.locator('#outcome-chips [data-value="failed"]').getAttribute('aria-pressed'),'true');
+  // Missing values must reset controls, rather than retaining the previous entry's values.
+  await p.goBack();await p.goForward();
+  await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='citation-impact');
+  await p.evaluate(()=>{history.pushState(null,'','?tab=citations');dispatchEvent(new PopStateEvent('popstate'));});
+  assert.equal(await p.locator('#search-input').inputValue(),'');
+  assert.equal(await p.locator('#outcome-chips [data-value="all"]').getAttribute('aria-pressed'),'true');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('old shared citation links and Browse pagination restore with compact URLs',async()=>{
+  const p=await page('?tab=citation-impact&search-input=Carney&ci-kind=replication&ci-outcome=all&mc-kind=replication&sort=4:desc');
+  await p.waitForSelector('.timeline-open');
+  assert.equal(await p.locator('#search-input').inputValue(),'Carney');
+  assert.deepEqual([...new URL(p.url()).searchParams.entries()],[['tab','citations'],['ci-q','Carney']]);
+  assert.match(await p.locator('#originals-table tbody').innerText(),/Carney/);
+  await p.goto(base+'?tab=browse&page=2&page-size=10&sort=2:asc');
+  await p.waitForFunction(()=>typeof dataTable!=='undefined'&&dataTable?.page.info().page===1);
+  assert.equal(await p.evaluate(()=>dataTable.page.len()),10);
+  assert.deepEqual(await p.evaluate(()=>dataTable.order()[0]),[2,'asc']);
+  await p.click('#mc-tab');await p.goBack();
+  await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='browse');
+  assert.equal(await p.evaluate(()=>dataTable.page()),1);assert.equal(await p.evaluate(()=>dataTable.page.len()),10);
+  await p.evaluate(()=>dataTable.page('next').draw('page'));
+  await p.waitForFunction(()=>new URL(location.href).searchParams.get('page')==='3');
+  await p.reload();await p.waitForFunction(()=>typeof dataTable!=='undefined'&&dataTable?.page()===2);
+  await p.setViewportSize({width:390,height:844});
+  await p.click('#bm-next');await p.waitForFunction(()=>new URL(location.href).searchParams.get('mobile-page')==='2');
+  await p.reload();await p.waitForFunction(()=>document.getElementById('bm-page-info').textContent.startsWith('Page 2 '));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('touch swipes scroll over every Plotly view while preserving chart ranges and hover',async()=>{
+  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+  const p=await context.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
+  await p.goto(base+'?tab=mean-citedness');
+  await p.waitForFunction(()=>document.getElementById('mc-gam-chart')?.data);
+  const cdp=await context.newCDPSession(p);
+  async function swipe(selector,scroller){
+    await p.locator(selector).scrollIntoViewIfNeeded();
+    const box=await p.locator(selector).boundingBox();
+    const y=Math.min(box.y+box.height-30,650),x=Math.min(box.x+box.width/2,350);
+    const before=await p.evaluate(({selector,scroller})=>({scroll:document.querySelector(scroller).scrollTop,ranges:Object.entries(document.querySelector(selector)._fullLayout).filter(([k])=>/^[xy]axis\d*$/.test(k)).map(([k,a])=>[k,a.range])}),{selector,scroller});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+    for(let i=1;i<=8;i++){
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:y-i*20}]});await p.waitForTimeout(25);
+    }
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await p.waitForTimeout(250);
+    const after=await p.evaluate(({selector,scroller})=>({scroll:document.querySelector(scroller).scrollTop,ranges:Object.entries(document.querySelector(selector)._fullLayout).filter(([k])=>/^[xy]axis\d*$/.test(k)).map(([k,a])=>[k,a.range])}),{selector,scroller});
+    assert.ok(after.scroll>before.scroll+30,`${selector} should scroll ${scroller}: ${before.scroll} → ${after.scroll}`);
+    assert.deepEqual(after.ranges,before.ranges,selector+' ranges');
+  }
+  for(const [tab,ids] of [['mc-tab',['mc-dist-chart','mc-gam-chart']],['overlap-tab',['ao-chart']],['pub-tab',['pub-chart','rr-chart','ls-chart']],['citation-tab',['plot-cit','plot-cit-model','plot-cocit','plot-cocit-model']]]){
+    await p.selectOption('#mobile-navigation',tab);
+    for(const id of ids){
+      await p.waitForFunction(id=>document.getElementById(id)?.data,id);
+      const settings=await p.locator('#'+id).evaluate(el=>({dragmode:el._fullLayout.dragmode,axes:Object.entries(el._fullLayout).filter(([k])=>/^[xy]axis\d*$/.test(k)).every(([,a])=>a.fixedrange),scrollZoom:el._context.scrollZoom,doubleClick:el._context.doubleClick,hovermode:el._fullLayout.hovermode}));
+      assert.deepEqual(settings,{dragmode:false,axes:true,scrollZoom:false,doubleClick:false,hovermode:'closest'});
+      await swipe('#'+id,'.app-main');
+    }
+  }
+  await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>document.getElementById('study-plot')?.data);
+  await swipe('#study-plot','.modal-card');
+  await p.evaluate(()=>document.querySelector('.modal-card').scrollTop=10000);
+  const close=await p.locator('#ci-modal-close').boundingBox();assert.ok(close.width>=44&&close.height>=44&&close.y>=0&&close.y+close.height<844);
+  assert.deepEqual(errors,[]);await context.close();
+  const desktop=await page('?tab=mean-citedness');
+  await desktop.waitForFunction(()=>document.getElementById('mc-gam-chart')?.data);
+  await desktop.locator('#mc-gam-chart').scrollIntoViewIfNeeded();
+  const point=await desktop.locator('#mc-gam-chart .scatterlayer .points path.point').first().boundingBox();
+  await desktop.mouse.move(point.x+point.width/2,point.y+point.height/2);
+  await desktop.waitForSelector('#mc-gam-chart .hoverlayer .hovertext');
+  assert.match(await desktop.locator('#mc-gam-chart .hoverlayer').textContent(),/OMC =/);
+  assert.deepEqual(desktop.errors,[]);await desktop.close();
+});
+
+test('originals and Publication Type tables expose their last columns at phone and tablet widths',async()=>{
+  const p=await page('?tab=citations',390);await p.waitForSelector('.timeline-open');
+  async function reachable(id){
+    const result=await p.locator('#'+id).evaluate(table=>{const wrap=table.closest('.table-wrap');wrap.scrollLeft=wrap.scrollWidth;const last=table.querySelector('tbody tr td:last-child').getBoundingClientRect(),bounds=wrap.getBoundingClientRect();return {overflow:getComputedStyle(wrap).overflowX,reachable:last.right<=bounds.right+1&&last.right>bounds.left,documentFits:document.documentElement.scrollWidth<=innerWidth};});
+    assert.equal(result.overflow,'auto',id);assert.ok(result.reachable,id+' final column');assert.ok(result.documentFits,id+' document width');
+  }
+  for(const width of [390,768]){
+    await p.setViewportSize({width,height:844});
+    await p.selectOption('#mobile-navigation','citation-tab');await reachable('originals-table');
+    await p.selectOption('#mobile-navigation','pub-tab');await p.waitForFunction(()=>document.querySelector('#pub-studies-table tbody tr'));
+    for(const [details,table] of [['pub-studies-card','pub-studies-table'],['rr-studies-card','rr-studies-table'],['ls-studies-card','ls-studies-table']]){
+      await p.locator('#'+details).evaluate(el=>el.open=true);await reachable(table);
+    }
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});

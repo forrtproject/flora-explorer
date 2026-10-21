@@ -555,18 +555,21 @@
         document.querySelectorAll('body > .top-bar, body > main, body > .footer-bar').forEach(el => el.inert = value);
     }
 
-    function closeModal() {
+    function closeModal(updateUrl = true) {
         const modal = document.getElementById('ci-modal');
         if (modal.hidden) return;
         modal.hidden = true;
         setBackgroundInert(false);
         CI.currentDoi = null;
         // Drop ?doi= but keep the user on the Citation Impact tab.
-        const url = new URL(location.href);url.searchParams.delete('doi');url.searchParams.set('tab','citations');history.replaceState(null,'',url);
+        if (updateUrl) {
+            const url = new URL(location.href);url.searchParams.delete('doi');history.replaceState(null,'',url);
+        }
         // Return focus to whatever opened the modal.
         if (CI.lastFocus && typeof CI.lastFocus.focus === 'function') CI.lastFocus.focus();
         CI.lastFocus = null;
     }
+    document.addEventListener('flora-history', () => closeModal(false));
 
     const TIMELINE_NARROW = 600;
     // Label style and collision spacing depend on the current chart width.
@@ -731,6 +734,7 @@
     // study's chart popup. Returns true if a matching study was found.
     async function openStudyByDoi(doi) {
         await ensureInit();
+        if (normalizeDoi(new URLSearchParams(location.search).get('doi')) !== normalizeDoi(doi)) return false;
         const matchDoi = findStudyDoi(doi);
         if (!matchDoi) return false;
         const tabBtn = document.getElementById('citation-tab');

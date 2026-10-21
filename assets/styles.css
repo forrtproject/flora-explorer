@@ -447,7 +447,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 #search-input:focus { outline: none; border-color: var(--color-primary); }
 #filter-outcome, #sort-by { padding: 0.55rem 0.7rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.9rem; background: var(--color-surface-raised); color: var(--color-text); }
 
-.table-wrap { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; }
+.table-wrap { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 8px; overflow-x: auto; }
 #originals-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 #originals-table thead { background: var(--color-surface-subtle); }
 #originals-table th, #originals-table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--color-border); }
@@ -506,11 +506,13 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .modal-backdrop[hidden] { display: none; }
 .modal-card {
     background: var(--color-surface-raised); color: var(--color-text);
-    border-radius: 10px; padding: 1.75rem 2rem; max-width: 1000px;
+    border-radius: 10px; padding: 0; max-width: 1000px; max-height: calc(100dvh - 80px); overflow-y: auto;
     width: 100%; position: relative; box-shadow: var(--shadow-lg);
 }
+.modal-toolbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.5rem 1rem; background: var(--color-surface-raised); border-bottom: 1px solid var(--color-border); }
+#ci-modal-body { padding: 0.75rem 1rem; }
 .modal-close {
-    position: absolute; top: 12px; right: 16px; background: none; border: none;
+    min-width: 44px; min-height: 44px; background: none; border: none;
     font-size: 1.75rem; cursor: pointer; color: var(--color-muted-fg);
 }
 .modal-close:hover { color: var(--color-text); }
@@ -637,6 +639,9 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .badge-other,.badge-unknown,.badge-inconclusive {background:#626875!important;color:#fff!important;}
 .bm-evidence {margin-top:.8rem;}
 .mobile-navigation {display:none;}
+.top-bar.navigation-collapsed .mobile-navigation {display:flex;gap:.5rem;align-items:center;color:white;flex:1;min-width:0;}
+.mobile-navigation select {max-width:100%;min-width:0;width:100%;padding:.4rem;background:#333;color:white;border:1px solid #aaa;border-radius:.3rem;}
+.top-bar.navigation-collapsed .nav-tabs {display:none;}
 .coefficient-plot {min-height:340px;margin-top:1rem;}
 .tab-cite-block {margin:1rem 0;}
 .tab-cite-block:not([open]) {padding:.6rem 1rem;}
