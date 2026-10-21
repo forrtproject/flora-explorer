@@ -517,9 +517,12 @@
         renderStudy(s);
     }
 
+    // Sort a copy for display; stored order still defines ties in the aggregate model.
+    const chronologicalReplications = s => [...(s.replications || [])].sort((a,b)=>(Number(a.year) || Infinity)-(Number(b.year) || Infinity));
+
     function renderStudy(s) {
         // Each replication is numbered; the same number marks its event line in the timeline.
-        const reps = (s.replications || []).map((r, i) => `
+        const reps = chronologicalReplications(s).map((r, i) => `
             <li>
                 <span class="rep-marker" role="img" style="color:${OUTCOME_COLORS[r.outcome] || 'inherit'}" aria-label="Marker ${i + 1}">${i + 1}</span>
                 <span class="outcome-badge ${r.outcome}">${r.outcome}</span>
@@ -530,9 +533,9 @@
         document.getElementById('ci-modal-body').innerHTML = `
             <div class="modal-body">
                 ${modalHeader(s)}
-                <button type="button" class="ci-share-btn" data-doi="${escapeHtml(s.doi)}">🔗 Copy link to this chart</button>
+                <button type="button" class="ci-share-btn" data-doi="${escapeHtml(s.doi)}">Copy link to this chart</button>
                 <h3 style="margin-top:18px">Citation timeline</h3>
-                ${s.cocit_conflated ? `<p class="cocit-warning">⚠️ Co-citation can't be measured for ${s.cocit_conflated > 1 ? 'some replications of ' : ''}this study: OpenCitations groups the original and ${s.cocit_conflated > 1 ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p>` : ''}
+                ${s.cocit_conflated ? `<p class="cocit-warning">Co-citation can't be measured for ${s.cocit_conflated > 1 ? 'some replications of ' : ''}this study: OpenCitations groups the original and ${s.cocit_conflated > 1 ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p>` : ''}
                 <div id="study-plot" style="width:100%;height:380px"></div>
                 <h3 style="margin-top:18px">Replications (${s.n_replications})</h3>
                 <ul class="rep-list">${reps}</ul>
@@ -566,11 +569,15 @@
     }
 
     const TIMELINE_NARROW = 600;
-    // Label style depends on width, so redraw an open timeline when it crosses the breakpoint.
+    // Label style and collision spacing depend on the current chart width.
+    let timelineResizeTimer;
     window.addEventListener('resize', () => {
-        const shown = CI.openStudy;
-        if (!shown || shown.doi !== CI.currentDoi || !document.getElementById('study-plot')) return;
-        if ((window.innerWidth < TIMELINE_NARROW) !== CI.timelineNarrow) drawStudyTimeline(shown);
+        clearTimeout(timelineResizeTimer);
+        timelineResizeTimer = setTimeout(() => {
+            const shown = CI.openStudy;
+            if (!shown || shown.doi !== CI.currentDoi || !document.getElementById('study-plot')) return;
+            drawStudyTimeline(shown);
+        }, 120);
     });
 
     function drawStudyTimeline(s) {
@@ -587,28 +594,36 @@
             { x: years, y: tl.map(t => t.with_mixed),      name: 'Co-cites mixed rep',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
             { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } },
             { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Co-cites multiple outcome categories', type: 'bar', marker: {color: FloraCharts.token('--color-chart-qualified')} }
-        ];
+        ].filter(trace=>trace.y.some(v=>v>0));
+        // The coverage year stays partial even if this snapshot is viewed in a later year.
+        const partialYear = Number((CI.meta?.last_updated || '').slice(0,4)) || new Date().getFullYear();
+        traces.forEach(trace=>{
+            trace.marker.opacity = years.map(year=>year===partialYear ? 0.45 : 1);
+            trace.hovertemplate = '%{x}<br>%{y} citing works<extra>%{fullData.name}</extra>';
+        });
         const t = plotlyTheme();
         const shapes = []; const annotations = [];
         const narrow = window.innerWidth < TIMELINE_NARROW;
-        CI.timelineNarrow = narrow;
-        // Labels in the same year stack in their own rows; otherwise rows cycle so neighbouring years alternate.
-        const sameYear = new Map();
-        (s.replications || []).forEach((r, i) => {
+        // Place nearby events in separate pixel-spaced lanes, including same-year ties.
+        const lanes = [];
+        const width = document.getElementById('study-plot').clientWidth - (narrow ? 80 : 60);
+        const minYear = Math.min(...years), span = Math.max(...years)-minYear+1;
+        chronologicalReplications(s).forEach((r, i) => {
             if (!r.year) return;
             shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || t.primary, width: 2, dash: 'dash' } });
-            // Narrow screens show only the number, so labels for nearby years do not collide.
             const label = narrow ? String(i + 1) : `${i + 1} · ${r.outcome} ${r.year}`;
-            const seen = sameYear.get(r.year);
-            const row = seen ? seen.base + seen.count : i % 3;
-            sameYear.set(r.year, seen ? { base: seen.base, count: seen.count + 1 } : { base: row, count: 1 });
-            annotations.push({ x: r.year, yref: 'paper', y: 1.02 - row * 0.06, text: label, showarrow: false, font: { size: narrow ? 11 : 10, color: OUTCOME_COLORS[r.outcome] || t.primary }, bgcolor: t.paper });
+            const x = (r.year-minYear)*width/span, half = label.length*(narrow ? 3.5 : 3)+5;
+            let row = lanes.findIndex(end=>end+6 < x-half);
+            if (row < 0) row = lanes.length;
+            lanes[row] = x+half;
+            annotations.push({ name:'replication-event', x: r.year, yref: 'paper', y: 1.02, yshift: -row*22, text: label, showarrow: false, borderpad:2, font: { size: narrow ? 11 : 10, color: OUTCOME_COLORS[r.outcome] || t.primary }, bgcolor: t.paper });
         });
+        if (years.includes(partialYear)) annotations.push({name:'partial-year',x:partialYear,xref:'x',yref:'paper',y:1.14,xanchor:'right',text:`${partialYear}: partial year`,showarrow:false,font:{size:11,color:t.muted}});
         const layout = {
             barmode: 'stack', margin: { t: 50, r: 10, b: 40, l: 50 },
             xaxis: { title: 'Year', gridcolor: t.grid, color: t.font },
             yaxis: { title: 'Citing preprints / papers', gridcolor: t.grid, color: t.font },
-            shapes, annotations,
+            shapes, annotations, hoverlabel:{namelength:-1},
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
             font: { family: t.fontFamily, size: 12, color: t.font }
@@ -662,7 +677,7 @@
             const link = citationLink(btn.dataset.doi);
             navigator.clipboard.writeText(link).then(() => {
                 const orig = btn.textContent;
-                btn.textContent = '✓ Link copied';
+                btn.textContent = 'Link copied';
                 setTimeout(() => { btn.textContent = orig; }, 1500);
             }).catch(() => window.prompt('Copy this link:', link));
         });

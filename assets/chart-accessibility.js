@@ -18,6 +18,16 @@ window.FloraCharts = (() => {
     }
     const modes = new Map();
     const originals = new Map();
+    const plots = new Map();
+    const heights = new Map();
+    let resizeTimer;
+    window.addEventListener('resize',()=>{
+        clearTimeout(resizeTimer);
+        resizeTimer=setTimeout(()=>plots.forEach((args,id)=>{
+            const el=document.getElementById(id);
+            if (id !== 'study-plot' && el?.getClientRects().length) plot(el,...args);
+        }),120);
+    });
     function csvText(headers, rows, notes = '') {
         // Prefix formula-like text so spreadsheet programs treat it as data.
         const cell = v => '"' + (typeof v === 'number' ? String(v) : String(v ?? '').replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
@@ -53,6 +63,7 @@ window.FloraCharts = (() => {
         for (const suffix of ['', '-copy', '-copy-status']) document.getElementById(id + suffix)?.remove();
         // A comparison toggle would otherwise replot the saved traces into the cleared chart.
         document.getElementById(el.id + '-mode')?.remove(); originals.delete(el.id);
+        plots.delete(el.id);
         el.removeAttribute('aria-describedby'); el.removeAttribute('role'); el.removeAttribute('aria-label');
         if (typeof Plotly !== 'undefined' && el.data) Plotly.purge(el);
     }
@@ -110,6 +121,7 @@ window.FloraCharts = (() => {
         const sample = `Included in the plot: ${total}; excluded from this selection: ${Math.max(0,eligible-total)} reference pairs. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
         table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
+        if (config.options.plugins?.legend) config.options.plugins.legend.reverse = false;
         return new Chart(ctx, config);
     }
     // options.table = {headers, rows, summary} replaces the generic per-trace table, for
@@ -118,6 +130,9 @@ window.FloraCharts = (() => {
         const el = typeof target === 'string' ? document.getElementById(target) : target;
         if (!el) return Promise.resolve();
         const id = el.id;
+        plots.set(id,[traces,layout,config,options]);
+        if (!heights.has(id)) heights.set(id,el.style.height);
+        el.style.height = heights.get(id);
         // Every Plotly chart uses the page font unless a renderer sets one.
         layout = {...layout, font: {family: theme().fontFamily, ...layout.font}};
         // Size a plot only after its analysis card is visible. Hidden cards otherwise
@@ -130,19 +145,24 @@ window.FloraCharts = (() => {
             return Promise.resolve();
         }
         let display = traces.map(t=>({...t}));
-        layout = {...layout, autosize:true, xaxis:{...layout.xaxis,automargin:true}, yaxis:{...layout.yaxis,automargin:true}};
+        layout = {...layout, autosize:true, legend:{...layout.legend,traceorder:'normal'}};
+        for (const key of Object.keys(layout).filter(k=>/^[xy]axis\d*$/.test(k))) {
+            const axis = layout[key], title = typeof axis.title === 'string' ? {text:axis.title} : axis.title;
+            layout[key] = {...axis,automargin:true,title:{...title,standoff:12}};
+        }
+        const counts = modes.get(id) === 'count';
         let summary = 'Values below include every plotted series; interval limits are shown where available.';
         if (comparisonIds.has(id)) {
             originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config]);
             const nGroups = traces[0]?.x?.length || 0;
             const totals = Array.from({length:nGroups}, (_,i)=>traces.reduce((sum,t)=>sum+(Number(t.y?.[i])||0),0));
-            const counts = modes.get(id) === 'count';
-            display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>')+`<br>N=${totals[i]}`),
+            display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '')+`<br>N=${totals[i]}`),
                 y:t.y.map((v,i)=>counts ? v : totals[i] ? 100*v/totals[i] : 0),
                 customdata:t.y.map((v,i)=>[v,totals[i]]),
                 hovertemplate:counts ? '%{x}<br>%{y} reference pairs<extra>%{fullData.name}</extra>' : '%{x}<br>%{y:.1f}% (%{customdata[0]} pairs)<extra>%{fullData.name}</extra>'}));
             layout.barmode = counts ? 'group' : 'stack';
-            layout.yaxis = {...layout.yaxis,title:counts ? 'Reference pairs' : 'Within-group percentage', range:counts ? undefined : [0,100]};
+            layout.xaxis = {...layout.xaxis,tickangle:0};
+            layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, range:counts ? undefined : [0,100]};
             summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing author/RR metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
             let toggle = document.getElementById(id+'-mode');
             if (!toggle) {
@@ -152,7 +172,7 @@ window.FloraCharts = (() => {
             toggle.textContent=counts?'Show percentages':'Show counts';
         }
         if (window.innerWidth < 600) {
-            layout.margin={...layout.margin,l:55,r:20,b:100};
+            layout.margin={...layout.margin,l:60,r:layout.yaxis2 ? 65 : 20,b:100};
             layout.legend={...layout.legend,orientation:'h',y:-0.32,font:{...layout.legend?.font,size:10}};
             layout.height=Math.max(layout.height || 380,420);
             layout.font={...layout.font,size:11};
@@ -162,11 +182,24 @@ window.FloraCharts = (() => {
                     hovertemplate:t.hovertemplate.replace(/%\{x\}/g,'%{category}').replace(/%\{y/g,'%{x').replace(/%\{category\}/g,'%{y}')}));
                 layout.xaxis={...layout.yaxis,automargin:true};
                 layout.yaxis={title:'',automargin:true,autorange:'reversed',type:'category',tickangle:0};
+                layout.xaxis.title={...layout.xaxis.title,text:counts ? 'Reference pairs' : 'Within-group<br>percentage'};
                 layout.margin={...layout.margin,l:110,b:140};
                 layout.legend={...layout.legend,y:-0.25};
                 layout.height=Math.max(440,(display[0]?.y.length || 0)*65+200);
             }
         }
+        // Reserve separate space for category labels, axis titles and the legend.
+        // Paper-relative legend positions otherwise sit on wrapped labels (including N).
+        const horizontal = display[0]?.orientation === 'h';
+        const labelLines = comparisonIds.has(id) && !horizontal ? Math.max(...display[0].x.map(v=>v.split('<br>').length)) : 1;
+        const axisSpace = labelLines * 17 + (layout.xaxis?.title?.text ? 45 : 15);
+        const legendItems = display.filter(t=>t.showlegend !== false).length;
+        const legendRows = Math.ceil(legendItems / (window.innerWidth < 600 ? 1 : 4));
+        const legendSpace = legendItems > 1 ? legendRows * 20 + 15 : 0;
+        layout.margin={...layout.margin,b:Math.max(layout.margin?.b || 0,axisSpace + legendSpace)};
+        const plotHeight = (layout.height || el.clientHeight || 380) - (layout.margin.t || 0) - layout.margin.b;
+        layout.legend={...layout.legend,yanchor:'top',y:-axisSpace/Math.max(100,plotHeight)};
+        el.style.height = layout.height ? layout.height+'px' : heights.get(id);
         const title = layout.title ? plain(layout.title.text || layout.title) : visibleTitle(el);
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
         if (comparisonIds.has(id)) {
