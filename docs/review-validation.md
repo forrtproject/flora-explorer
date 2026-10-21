@@ -58,14 +58,14 @@ The source histories combined were `forrtproject/flora-explorer` at `7fa9750` an
 
 ## 21 October 2026 usability review: technical fixes
 
-The agent-led review (simulated newcomer, researcher and accessibility perspectives; no recruited participants) recorded findings F01–F20 against the 3,059-pair snapshot. Each was checked against the source and, for interactive claims, in a rendered browser. This section covers behaviour and accessibility fixes that change no analytical wording; copy, labelling and axis changes are reviewed separately.
+The agent-led review (simulated newcomer, researcher and accessibility perspectives; no recruited participants) recorded findings F01–F20 against the 3,059-pair snapshot. Each was checked against the source and, for interactive claims, in a rendered browser. This section covers behaviour and accessibility fixes. Its only copy changes are the zero-result messages, the citation search label and chart captions taken from visible titles; analytical wording, outcome labels and axis changes are reviewed separately.
 
 - F01: after switching Mean Citedness to a reproduction dimension, the orphaned copy button still copied all 1,250 replication-model rows, labelled with the reproduction selection. Removing a chart now removes its table, copy action, status region and `aria-describedby` together; reproductions show the existing descriptive note in place of an empty model card.
 - F13: the model table lists one row per curve point with its estimate and 95% interval, then the 800-pair display sample with raw OMC and 0/1 outcomes. Jittered positions and the internal `_lo`/`_hi` traces are no longer exported. The sample has no pair identifiers.
 - F02: Trends columns use `minmax(0, 1fr)`, so charts and text reflow after a desktop-to-narrow resize without changing tabs.
-- F03: placeholders use the muted-text token: at least 4.5:1 against both theme surfaces.
+- F03: placeholders use `--color-muted-fg`: at least 4.5:1 against the input background (`--color-surface-raised`) in both themes.
 - F05, F06, F16: Browse explains zero results, does not claim absence of evidence, and offers clear-search, all-types, Atlas and submission actions. With All studies selected, the empty outcome card is hidden, so a four-result search shows its first row in a 1633×830 viewport.
 - F04: narrow citation timelines number each replication event to match the numbered list.
-- F14, F15, F20: the citation search has a visible label; FAQ Markdown renders in questions; captions and accessible names use visible titles; heading levels are sequential and copy actions sit outside headings; mobile cards have a sort control.
+- F14, F15, F20: the citation search has a visible label; FAQ Markdown renders in questions; captions and accessible names use the visible title where the chart has one (otherwise its ID); tab-level headings are sequential (Browse detail rows still use `<h6>`) and copy actions sit outside headings; mobile cards have a sort control.
 
 The browser suite's readiness check now consumes its HTTP response; previously an unconsumed stream intermittently raised an uncaught `assert(!this.paused)` after the `before` hook.
