@@ -751,6 +751,7 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
     .rep-bar { border: 1px solid CanvasText; }
     .rep-seg { forced-color-adjust: none; background: Canvas !important; border-right: 1px solid CanvasText; }
     .rep-seg.failed { background: CanvasText !important; }
+    .rep-seg.successful { background: repeating-linear-gradient(90deg, Canvas 0 2px, CanvasText 2px 3px) !important; }
     .rep-seg.mixed { background: repeating-linear-gradient(45deg, Canvas 0 2px, CanvasText 2px 4px) !important; }
     :focus-visible { outline-color: Highlight; }
 }

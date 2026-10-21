@@ -1024,6 +1024,7 @@ test('small-sample and unavailable-data messages use reader-facing words',async(
 test('keyboard landmarks, citation sorting and paging retain focus and expose state',async()=>{
   const p=await page('?tab=citations');
   await p.waitForSelector('#pagination [aria-current="page"]');
+  assert.equal(await p.getByRole('navigation',{name:'Pagination',exact:true}).getAttribute('id'),'pagination');
   assert.equal(await p.locator('header nav[aria-label="Explorer views"]').count(),1);
   assert.equal(await p.locator('footer').count(),1);
   await p.locator('.skip-link').focus();await p.keyboard.press('Enter');
@@ -1061,7 +1062,7 @@ test('mobile paging focuses the results heading; counts and chip changes have on
   const position=await p.locator('#browse-results-heading').boundingBox();
   await p.waitForFunction(()=>document.getElementById('browse-results-heading').getBoundingClientRect().top<150);
   assert.ok(position);
-  assert.equal(await p.locator('#browse-kind-count[role="status"], #browse-empty[role="status"]').count(),0);
+  assert.equal(await p.locator('#browse-kind-count[role="status"]').count(),0);
   await p.selectOption('#mobile-navigation','trends-tab');
   await p.locator('#trends .trend-filter-btn[data-kind="reproduction-numerical"]').click();
   assert.equal(await p.locator('#trend-filter-count').getAttribute('role'),'status');
@@ -1077,7 +1078,52 @@ test('mobile paging focuses the results heading; counts and chip changes have on
   await p.evaluate(()=>document.querySelector('.app-main').scrollTop+=100);
   await p.waitForFunction(()=>document.querySelector('#overview .info-icon').classList.contains('tip-dismissed'));
   assert.equal(await tip.locator('.info-tip').evaluate(el=>getComputedStyle(el).pointerEvents),'none');
+  assert.ok(await tip.evaluate(el=>el===document.activeElement));
+  // A touch activation must reopen the definition even when focus has not changed.
+  await tip.dispatchEvent('click');
+  await p.waitForFunction(()=>getComputedStyle(document.querySelector('#overview .info-tip')).opacity==='1',null,{timeout:2000});
+  await p.keyboard.press('Escape');
+  assert.ok(await tip.evaluate(el=>el.classList.contains('tip-dismissed')));
+  await tip.dispatchEvent('focus');
+  assert.ok(await tip.evaluate(el=>!el.classList.contains('tip-dismissed')));
   assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Browse empty results announce the explanation on desktop and mobile',async()=>{
+  const p=await page('?tab=browse');
+  for(const width of [1280,390]) {
+    await p.setViewportSize({width,height:844});
+    await p.fill('#browse-mobile-input','no-matching-flora-reference-zzzz');
+    await p.waitForFunction(()=>getChartData().length===0);
+    const empty=p.locator('#browse-empty');
+    assert.ok(await empty.isVisible());
+    assert.equal(await empty.getAttribute('role'),'status');
+    assert.match(await empty.innerText(),/No reference pairs match/);
+    await empty.getByRole('button',{name:'Clear search',exact:true}).click();
+    assert.ok(await empty.isHidden());
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Browse URL kinds and zero-result announcements match the filtered studies',async()=>{
+  for(const [kind,label,expectedKind] of [
+    ['all','All studies','all'],
+    ['replication','Replications','replication'],
+    ['reproduction','Reproductions','reproduction'],
+    ['reproduction-numerical','Numerical Reproductions','reproduction-numerical'],
+    ['reproduction-robustness','Robustness Reproductions','reproduction-robustness'],
+    ['unknown','All studies','all'],
+  ]) {
+    const p=await page('?tab=browse&kind='+kind,390);
+    assert.equal(await p.evaluate(()=>browseKind),expectedKind,kind);
+    assert.equal(await p.locator('#browse-mobile-meta .visually-hidden').textContent(),label+': ',kind);
+    const counts=await p.evaluate(kind=>[getChartData().length,filterByKind(fullRowData,kind).length],expectedKind);
+    assert.ok(counts[0]>0,kind);assert.equal(counts[0],counts[1],kind);
+    await p.fill('#browse-mobile-input','no-matching-flora-reference-zzzz');
+    await p.waitForFunction(()=>getChartData().length===0);
+    assert.equal(await p.locator('#browse-mobile-meta').textContent(),label+': 0 reference pairs',kind);
+    assert.deepEqual(p.errors,[]);await p.close();
+  }
 });
 
 test('chart alternatives and actions have distinct names; motion and forced colours respect preferences',async()=>{
@@ -1092,6 +1138,7 @@ test('chart alternatives and actions have distinct names; motion and forced colo
   await p.waitForSelector('#ls-chart-data');
   for(const selector of ['.chart-copy','.chart-data summary','.chart-data [role="region"]','.chart-mode']) {
     const names=await p.locator(selector).evaluateAll(els=>els.map(e=>e.getAttribute('aria-label')));
+    assert.ok(names.length>0,`${selector}: no controls found`);
     assert.ok(names.every(Boolean),selector);assert.equal(new Set(names).size,names.length,`${selector}: ${names}`);
   }
   await p.emulateMedia({forcedColors:'active'});
@@ -1100,8 +1147,16 @@ test('chart alternatives and actions have distinct names; motion and forced colo
   assert.equal(await p.locator('#pub-tab').evaluate(el=>getComputedStyle(el).borderBottomStyle),'double');
   await p.click('#citation-tab');
   await p.waitForSelector('.rep-seg');
-  const fills=await p.locator('.rep-seg').evaluateAll(els=>Object.fromEntries(els.map(e=>[e.className,getComputedStyle(e).backgroundColor+' '+getComputedStyle(e).backgroundImage])));
-  assert.ok(new Set(Object.values(fills)).size>=2);
+  const fills={};
+  for(const outcome of ['successful','failed','mixed']) {
+    // Filtering to an outcome guarantees its segment is present on this page.
+    await p.selectOption('#filter-outcome',outcome);
+    const segment=p.locator('.rep-seg.'+outcome).first();
+    assert.ok(await segment.isVisible(),outcome);
+    fills[outcome]=await segment.evaluate(el=>getComputedStyle(el).backgroundColor+' '+getComputedStyle(el).backgroundImage);
+  }
+  assert.equal(new Set(Object.values(fills)).size,3);
+  assert.match(fills.successful,/repeating-linear-gradient/);
   assert.ok(await p.locator('.rep-seg').first().evaluate(el=>getComputedStyle(el).forcedColorAdjust==='none'));
   assert.deepEqual(p.errors,[]);await p.close();
 });

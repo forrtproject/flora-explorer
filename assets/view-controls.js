@@ -42,8 +42,7 @@
             // Back/forward always dismisses a timeline, including its shareable DOI.
             url.searchParams.delete('doi');
         }
-        const kinds=['all','replication','reproduction-numerical','reproduction-robustness'];
-        const kind=url.searchParams.get('kind') || 'all';browseKind=kinds.includes(kind)?kind:'all';
+        browseKind=normalizeBrowseKind(url.searchParams.get('kind'));
         browseQuery=url.searchParams.get('q') || '';document.getElementById('browse-mobile-input').value=browseQuery;
         document.querySelectorAll('.browse-kind-btn').forEach(b=>b.classList.toggle('active',b.dataset.kind===browseKind));
         const sort=url.searchParams.get('sort')?.split(':');
@@ -151,10 +150,12 @@
             tip.setAttribute('role', 'tooltip');
             trigger.setAttribute('aria-describedby', tip.id);
             trigger.addEventListener('focus', () => {
+                trigger.classList.remove('tip-dismissed');
                 // Focusing an off-screen definition scrolls it into view before paint.
                 openingTip = trigger;
                 requestAnimationFrame(() => requestAnimationFrame(() => { if (openingTip === trigger) openingTip = null; }));
             });
+            trigger.addEventListener('click', () => trigger.classList.remove('tip-dismissed'));
             trigger.addEventListener('mouseleave', () => trigger.classList.remove('tip-dismissed'));
             trigger.addEventListener('blur', () => trigger.classList.remove('tip-dismissed'));
         });
