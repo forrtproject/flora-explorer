@@ -639,7 +639,7 @@
 
                         <label for="search-input" class="search-label">Search originals</label>
                         <div class="search-row">
-                            <input id="search-input" type="search" placeholder="Title, author or DOI" />
+                            <input id="search-input" type="search" placeholder="Title, author, year, journal, DOI or DOI URL" />
                             <select id="filter-outcome" aria-label="Filter originals by any recorded replication outcome">
                                 <option value="">All outcomes</option>
                                 <option value="failed">Has failed replication</option>
@@ -648,6 +648,7 @@
                             </select>
                         </div>
 
+                        <div id="ci-search-empty" class="browse-empty" role="status" hidden><p id="ci-search-empty-message"></p><button type="button" id="ci-clear-search" class="browse-download">Clear search</button></div>
                         <div class="table-wrap">
                             <table id="originals-table">
                                 <thead>

@@ -26,6 +26,18 @@ async function page(query, width=1280, setup){
   return p;
 }
 async function browseRows(p){return p.evaluate(()=>getChartData().map(r=>[r.title_o,r.title_r,r.outcome]));}
+async function citationSearch(p,q){
+  await p.evaluate(()=>{
+    window.citationRenderFinished=false;
+    const observer=new MutationObserver(()=>{observer.disconnect();window.citationRenderFinished=true;});
+    observer.observe(document.querySelector('#originals-table tbody'),{childList:true});
+    // The message is updated even when both the previous and next result sets are empty.
+    observer.observe(document.getElementById('ci-search-empty-message'),{childList:true});
+  });
+  await p.fill('#search-input',q);
+  await p.waitForFunction(()=>window.citationRenderFinished);
+  return p.locator('#originals-table tbody tr[data-doi]').evaluateAll(rows=>rows.map(r=>r.dataset.doi));
+}
 test('desktop/mobile search, DOI URLs, empty results, shared view and evidence agree',async()=>{
   const p=await page('?tab=browse&kind=replication&q=power+posing',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
   await p.waitForFunction(()=>getChartData().length===4);
@@ -344,5 +356,102 @@ test('narrow citation timelines number replication events to match the list',asy
   // Every replication of this study is dated, so each list entry has exactly one marker, in order.
   assert.ok(marks.length>=2);
   assert.deepEqual(marks,list);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Browse and Citation Impact share accent, quote, token and DOI search rules',async()=>{
+  const p=await page('?tab=browse');
+  async function browseSearch(q){
+    await p.fill('#browse-mobile-input',q);
+    await p.waitForFunction(q=>browseQuery===q,q);
+    return p.evaluate(()=>getChartData().map(r=>r.doi_o));
+  }
+  for(const [q,doi] of [['Bem 2011','10.1037/a0021524'],['Strack 1988','10.1037/0022-3514.54.5.768']]){
+    const rows=await browseSearch(q);assert.ok(rows.length>0,q);assert.ok(rows.includes(doi),q);
+  }
+  for(const [a,b] of [['Müller','Muller'],["O'Brien",'O’Brien'],['"power posing"','“power posing”']]){
+    const rows=await browseSearch(a);assert.ok(rows.length>0,a);assert.deepEqual(await browseSearch(b),rows,b);
+  }
+  for(const q of ['family','given','sequence']) assert.ok((await browseSearch(q)).length<100,`${q} must not match author JSON keys`);
+  // Search every author's name, including given-only and group names, without metadata.
+  assert.deepEqual(await p.evaluate(()=>{
+    const row={author_o:JSON.stringify([{given:'Zoë',family:'Müller',ORCID:'metadata-only'},{given:'Søren'},{name:'Research collective'}]),outcome:'raw_outcome_code',url_r:'https://url-only.invalid',outcome_quote:'A distinctive quotation'};
+    return ['Zoe Muller','Søren','Research collective','metadata-only','raw_outcome_code','url-only.invalid','distinctive quotation'].map(q=>matchesBrowseQuery(row,q));
+  }),[true,true,true,false,false,false,true]);
+  await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
+  for(const [q,doi] of [['Bem  2011','10.1037/a0021524'],['Strack 1988','10.1037/0022-3514.54.5.768'],['"Feeling the Future"','10.1037/a0021524'],['“Feeling the Future”','10.1037/a0021524'],['https://doi.org/10.1037/a0021524','10.1037/a0021524'],['doi: 10.1037/a0021524','10.1037/a0021524']]){
+    assert.ok((await citationSearch(p,q)).includes(doi),q);
+  }
+  for(const [a,b] of [['Müller','Muller'],["O'Brien",'O’Brien']]){
+    const rows=await citationSearch(p,a);assert.ok(rows.length>0,a);assert.deepEqual(await citationSearch(p,b),rows,b);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('citation search waits for rendering even when the debounce fires late',async()=>{
+  const p=await page('?tab=citations');await p.waitForSelector('.timeline-open');
+  await p.evaluate(()=>{
+    const original=window.setTimeout;
+    window.setTimeout=(fn,delay,...args)=>original(fn,delay===200?800:delay,...args);
+  });
+  assert.deepEqual(await citationSearch(p,'Bem 2011'),['10.1037/a0021524']);
+  // Both an empty render and a second empty render must finish before the helper returns.
+  assert.deepEqual(await citationSearch(p,'zz-no-original'),[]);
+  assert.deepEqual(await citationSearch(p,'zz-another-missing-original'),[]);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Citation Impact searches full author lists, including after an early DOI deep link',async()=>{
+  const doi='10.1037/a0021524', fallbackDoi='10.1037/0022-3514.54.5.768';
+  const index=JSON.parse(fs.readFileSync('data/originals_index.json'));
+  const authors=['Firstauthor','Secondauthor','Thirdauthor','Fourthauthor','Fifthauthor','Sixthauthor','Lastauthor'].map((family,i)=>({family,given:i===6?'Zoë':'A',ORCID:'metadata-only'}));
+  const row={doi_o:'https://doi.org/10.1037/A0021524',title_o:'Feeling the Future',author_o:JSON.stringify(authors),journal_o:'Journal of Personality and Social Psychology',year_o:2011,doi_r:'10.test/replication',title_r:'Replication',author_r:'Other researcher',year_r:2015,type:'replication',outcome:'failed'};
+  const csv=[Object.keys(row),Object.values(row)].map(fields=>fields.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const compact=[{...index.find(s=>s.doi===doi),author:authors.slice(0,6).map(a=>`${a.family}, A.`).join('; ')+', … (+1)'},{...index.find(s=>s.doi===fallbackDoi),author:'Fallbackauthor, F.'}];
+  for(const early of [false,true]){
+    const p=await page('?tab=citations'+(early?'&doi='+encodeURIComponent(doi):''),1280,async p=>{
+      await p.route('**/data/originals_index.json',route=>route.fulfill({json:compact}));
+      await p.route('**/data/flora.csv',async route=>{
+        // Force the citation index to load before the full author records on a deep link.
+        if(early) await p.waitForSelector('#ci-modal:not([hidden])');
+        await route.fulfill({contentType:'text/csv',body:csv});
+      });
+    });
+    await p.waitForSelector('.timeline-open');
+    if(early) await p.keyboard.press('Escape');
+    assert.deepEqual(await citationSearch(p,'Zoe Lastauthor'),[doi],`seventh author, early=${early}`);
+    assert.deepEqual(await citationSearch(p,'Firstauthor'),[doi]);
+    assert.deepEqual(await citationSearch(p,'metadata-only'),[]);
+    assert.deepEqual(await citationSearch(p,'Fallbackauthor'),[fallbackDoi]);
+    assert.match(await p.locator('#search-input').getAttribute('placeholder'),/journal/i);
+    assert.deepEqual(p.errors,[]);await p.close();
+  }
+});
+test('search input is debounced, Show all draws once and Citation Impact offers empty-state recovery',async()=>{
+  const p=await page('?tab=browse');
+  // deferRender creates only the first page until more rows are requested.
+  assert.ok(await p.evaluate(()=>dataTable.rows().nodes().length<fullRowData.length));
+  await p.evaluate(()=>{window.searchDraws=0;dataTable.on('draw.dt',()=>searchDraws++);dataTable.page.len(-1).draw();});
+  assert.equal(await p.evaluate(()=>searchDraws),1);
+  assert.equal(await p.locator('#flora-table tbody tr').count(),await p.evaluate(()=>fullRowData.length));
+  const immediate=await p.evaluate(()=>{
+    searchDraws=0;const el=document.getElementById('browse-mobile-input');
+    for(const q of ['B','Bem','Bem 2011']){el.value=q;el.dispatchEvent(new Event('input'));}
+    return searchDraws;
+  });
+  assert.equal(immediate,0);await p.waitForFunction(()=>browseQuery==='Bem 2011');
+  assert.equal(await p.evaluate(()=>searchDraws),1);
+  await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
+  await p.evaluate(()=>{
+    window.citationRenders=0;new MutationObserver(()=>citationRenders++).observe(document.querySelector('#originals-table tbody'),{childList:true});
+    const el=document.getElementById('search-input');for(const q of ['z','zz','zz-no-such-original']){el.value=q;el.dispatchEvent(new Event('input'));}
+  });
+  assert.ok(await p.locator('.timeline-open').count()>0);
+  await p.waitForSelector('#ci-search-empty:not([hidden])');
+  assert.equal(await p.evaluate(()=>citationRenders),1);
+  assert.match(await p.locator('#ci-search-empty').innerText(),/No originals match/);
+  assert.equal(await p.locator('#pagination button').count(),0);
+  await p.locator('#ci-clear-search').focus();await p.keyboard.press('Enter');
+  await p.waitForSelector('.timeline-open');assert.ok(await p.locator('#ci-search-empty').isHidden());
+  assert.equal(await p.inputValue('#search-input'),'');assert.equal(await p.evaluate(()=>document.activeElement.id),'search-input');
+  assert.ok(!new URL(p.url()).searchParams.has('search-input'));
   assert.deepEqual(p.errors,[]);await p.close();
 });
