@@ -194,6 +194,17 @@ function studyTypeOutcomeBuckets(kind) {
     ];
 }
 
+// Static copy that depends on the selected study type carries its three variants in
+// data-kind-text="replication|numerical|robustness"; the markup is authored, not data.
+const KIND_TEXT_INDEX = {replication: 0, 'reproduction-numerical': 1, 'reproduction-robustness': 2};
+function applyKindText(root, kind) {
+    const i = KIND_TEXT_INDEX[kind]; if (i === undefined || !root) return;
+    root.querySelectorAll('[data-kind-text]').forEach(el => {
+        const variants = el.dataset.kindText.split('|');
+        el.innerHTML = variants[i] ?? variants[0];
+    });
+}
+
 function studyTypeLabel(kind) {
     if (kind === 'reproduction-numerical') return 'Numerical Reproductions';
     if (kind === 'reproduction-robustness') return 'Robustness Reproductions';
@@ -206,10 +217,11 @@ let aoKind = 'replication';
 // project plot live together on the merged "Publication Type" tab and share one filter.
 let pubTypeKind = 'replication';
 
-setupStudyTypeSelect('mc-study-type', kind => { mcKind = kind; renderMcCharts(); });
-setupStudyTypeSelect('ao-study-type', kind => { aoKind = kind; renderOverlapCharts(); });
+setupStudyTypeSelect('mc-study-type', kind => { mcKind = kind; applyKindText(document.getElementById('mean-citedness'), kind); renderMcCharts(); });
+setupStudyTypeSelect('ao-study-type', kind => { aoKind = kind; applyKindText(document.getElementById('authorship-overlap'), kind); renderOverlapCharts(); });
 setupStudyTypeSelect('pubtype-study-type', kind => {
     pubTypeKind = kind;
+    applyKindText(document.getElementById('publication-type'), kind);
     renderPubStatusCharts();
     renderRRCharts();
     renderLargeScaleCharts();
@@ -399,6 +411,22 @@ function computeKindChartData(data, kind) {
     };
 }
 
+// Visible caption giving each outcome chart's denominator, exclusions and counts, so
+// readers need not open the data table to see what the bar is a share of.
+function kindChartCaption(data, kind) {
+    const { datasets, total } = computeKindChartData(data, kind);
+    const pct = n => total ? Math.round(100 * n / total) : 0;
+    const counts = datasets.map(d => `${d.label} ${d.data[0].toLocaleString()} (${pct(d.data[0])}%)`).join(' · ');
+    if (kind === 'replicability') return `${total.toLocaleString()} replication ${total === 1 ? 'pair' : 'pairs'}: ${counts}.`;
+    const eligible = data.filter(r => classifyKind(r) === 'reproduction').length;
+    const dimension = kind === 'computational' ? 'a computational verdict' : 'a robustness verdict';
+    const scope = total === eligible
+        ? `${total.toLocaleString()} reproduction ${total === 1 ? 'pair has' : 'pairs have'} ${dimension}`
+        : `${total.toLocaleString()} of ${eligible.toLocaleString()} reproduction pairs have ${dimension}; ${(eligible - total).toLocaleString()} not checked or not coded`;
+    return `${scope}. ${total ? counts + '. ' : ''}A reference pair can contribute to both dimensions.`;
+}
+function setCaption(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+
 // Shared horizontal-stacked-bar renderer for all 6 outcome-dimension charts (3 on
 // Overview, 3 on Browse Studies). Returns the new Chart.js instance so callers can keep
 // tracking their own module-level "existing chart" variable for destroy/rebuild.
@@ -436,6 +464,9 @@ function renderOverviewChart(data) {
     overviewComputationalChart = renderKindStackedBar('overview-computational-chart', overviewComputationalChart, data, 'computational', 'Reproductions', retryOverviewCharts);
     overviewRobustnessChart = renderKindStackedBar('overview-robustness-chart', overviewRobustnessChart, data, 'robustness', 'Reproductions', retryOverviewCharts);
     overviewChart = renderKindStackedBar('overview-outcome-chart', overviewChart, data, 'replicability', 'Replications', retryOverviewCharts);
+    setCaption('overview-computational-caption', kindChartCaption(data, 'computational'));
+    setCaption('overview-robustness-caption', kindChartCaption(data, 'robustness'));
+    setCaption('overview-outcome-caption', kindChartCaption(data, 'replicability'));
 }
 
 function studyLink(doi, url, innerHtml, extraClass = '') {
@@ -908,6 +939,7 @@ function renderBrowseOutcomeCharts() {
     const hint = document.getElementById('browse-chart-hint');
     if (hint) hint.style.display = active ? 'none' : '';
     Object.entries(rows).forEach(([dimension, el]) => { if (el) el.style.display = active === dimension ? '' : 'none'; });
+    if (active) setCaption(`browse-${active === 'replicability' ? 'outcome' : active}-caption`, kindChartCaption(data, active));
 }
 
 // Zero matches get a visible explanation and recovery actions instead of an empty table and
@@ -919,7 +951,8 @@ function renderBrowseEmpty(n) {
     if (n > 0) { el.innerHTML = ''; return; }
     const query = browseQuery.trim();
     const noun = BROWSE_KIND_NOUNS[browseKind] || BROWSE_KIND_NOUNS.all;
-    el.innerHTML = `<p><strong>No ${noun} ${query ? `match “${escapeHtml(query)}”` : 'are recorded yet'}.</strong> FLoRA is not comprehensive, so this does not show that a study has never been replicated or reproduced.</p>
+    const none = {'reproduction-numerical': 'No reference pairs have a recorded computational verdict', 'reproduction-robustness': 'No reference pairs have a recorded robustness verdict'}[browseKind] || `No ${noun} are recorded yet`;
+    el.innerHTML = `<p><strong>${query ? `No ${noun} match “${escapeHtml(query)}”` : none}.</strong> FLoRA is not comprehensive, so this does not show that a study has never been replicated or reproduced.</p>
         <div class="browse-empty-actions">${query ? '<button type="button" class="browse-download" data-browse-action="clear-search">Clear search</button>' : ''}${browseKind !== 'all' ? '<button type="button" class="browse-download" data-browse-action="all-kinds">Show all study types</button>' : ''}<a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Look up an original in the Replication Atlas</a><a href="https://forrt.org/replication-hub/submit/" target="_blank" rel="noopener noreferrer">Submit a missing study</a></div>`;
 }
 document.getElementById('browse-empty')?.addEventListener('click', e => {
@@ -1007,7 +1040,10 @@ function aggregateStackedCounts(data, keyFn, kind) {
     return Array.from(groups.values());
 }
 
-function aggregateByYear(data, yearField, kind) {
+// Records before this year are sparse (16 replication pairs across 1880–1959), so the
+// original-year chart pools them into one leading column instead of 80 mostly empty years.
+const TREND_POOL_BEFORE = 1960;
+function aggregateByYear(data, yearField, kind, poolBefore = null) {
     const yearKey = row => {
         const yRaw = row[yearField]; if (!yRaw) return null;
         const match = String(yRaw).match(/\d{4}/); if (!match) return null;
@@ -1015,9 +1051,28 @@ function aggregateByYear(data, yearField, kind) {
         if (!y || y < 1800 || y > 2100) return null;
         return String(y);
     };
+    // Fill every calendar year between the first and last observation with zero counts, so a
+    // 55-year gap takes 55 slots on the category axis rather than one.
     const out = aggregateStackedCounts(data, yearKey, kind);
-    out.sort((a, b) => parseInt(a.key, 10) - parseInt(b.key, 10));
-    return out;
+    if (!out.length) return out;
+    const buckets = trendOutcomeBuckets(kind);
+    const empty = key => ({ key, counts: Object.fromEntries(buckets.map(b => [b.key, 0])), total: 0 });
+    const byYear = new Map(out.map(g => [parseInt(g.key, 10), g]));
+    const years = [...byYear.keys()];
+    let start = Math.min(...years);
+    const filled = [];
+    if (poolBefore && start < poolBefore) {
+        const pooled = empty(`Before ${poolBefore}`);
+        pooled.pooled = true;
+        for (const [y, g] of byYear) if (y < poolBefore) {
+            buckets.forEach(b => { pooled.counts[b.key] += g.counts[b.key]; });
+            pooled.total += g.total;
+        }
+        filled.push(pooled);
+        start = poolBefore;
+    }
+    for (let y = start; y <= Math.max(...years); y++) filled.push(byYear.get(y) || empty(String(y)));
+    return filled;
 }
 
 function aggregateByJournal(data, field, topN, kind) {
@@ -1056,6 +1111,17 @@ function renderStackedCountChart(canvasId, agg, orientation, existing, buckets, 
     const ac = themeAxisColors();
     const wrapLabels = !!opts.wrapLabels;
     const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, window.innerWidth < 600 ? 18 : 38) : r.key);
+    // A dashed rule sets a pooled leading column apart from the year-by-year axis.
+    const pooledSeparator = {
+        id: 'pooledSeparator',
+        afterDatasetsDraw(chart) {
+            if (!agg[0]?.pooled || agg.length < 2) return;
+            const x = chart.scales.x, area = chart.chartArea, c = chart.ctx;
+            const between = (x.getPixelForValue(0) + x.getPixelForValue(1)) / 2;
+            c.save(); c.strokeStyle = ac.tick; c.setLineDash([4, 3]); c.lineWidth = 1;
+            c.beginPath(); c.moveTo(between, area.top); c.lineTo(between, area.bottom); c.stroke(); c.restore();
+        },
+    };
     if (isHorizontal) ctx.canvas.parentElement.style.height = Math.max(400, labels.reduce((n,l)=>n+(Array.isArray(l)?l.length:1)*15+15,70)) + 'px';
     const datasets = buckets.map(b => ({
         label: b.label,
@@ -1079,12 +1145,18 @@ function renderStackedCountChart(canvasId, agg, orientation, existing, buckets, 
                 y: { stacked: true, grid: { color: ac.grid, display: !isHorizontal }, ticks: { color: ac.tick, autoSkip: false, font: { size: isHorizontal ? 11 : 12 } } }
             },
             layout: isHorizontal ? { padding: { left: 6 } } : {}
-        }
+        },
+        plugins: [pooledSeparator],
     });
 }
 
 function renderTrendOrigYear() {
-    trendOrigYearChart = renderStackedCountChart('trend-orig-year', aggregateByYear(trendsFilteredData(), 'year_o', trendsKind), 'vertical', trendOrigYearChart, trendOutcomeBuckets(trendsKind));
+    const agg = aggregateByYear(trendsFilteredData(), 'year_o', trendsKind, TREND_POOL_BEFORE);
+    const note = document.getElementById('trend-orig-year-axis-note');
+    if (note) note.textContent = agg[0]?.pooled
+        ? `Pairs with original studies published before ${TREND_POOL_BEFORE} are sparse and are pooled into the first column, set apart by a dashed line. From ${TREND_POOL_BEFORE} the axis runs year by year, so years without any recorded pair appear as gaps.`
+        : 'The axis runs year by year, so years without any recorded pair appear as gaps and elapsed time keeps its scale.';
+    trendOrigYearChart = renderStackedCountChart('trend-orig-year', agg, 'vertical', trendOrigYearChart, trendOutcomeBuckets(trendsKind));
 }
 function renderTrendRepYear() {
     trendRepYearChart = renderStackedCountChart('trend-rep-year', aggregateByYear(trendsFilteredData(), 'year_r', trendsKind), 'vertical', trendRepYearChart, trendOutcomeBuckets(trendsKind));
@@ -1114,6 +1186,7 @@ function renderAllTrends() {
     if (chartsEl) chartsEl.style.display = show ? '' : 'none';
     if (placeholderEl) placeholderEl.style.display = show ? 'none' : '';
     if (!show) return;
+    applyKindText(document.getElementById('trends-charts'), trendsKind);
     renderTrendOrigYear(); renderTrendRepYear();
     renderTrendJournal(); renderTrendRepJournal();
     renderTrendField();
@@ -1217,7 +1290,7 @@ function renderMcCharts() {
         return `<div class="mc-stat"><span class="mc-stat-value" style="color:${b.color}">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${pct}%)</span></div>`;
     }).join('');
     document.getElementById('mc-overview').innerHTML = `
-        <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Studies with OMC</span></div>
+        <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Reference pairs with OMC</span></div>
         ${statCards}
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_journals.toLocaleString()}</span><span class="mc-stat-label">Journals matched</span></div>
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines}</span><span class="mc-stat-label">Disciplines</span></div>`;
@@ -1225,7 +1298,7 @@ function renderMcCharts() {
     // ── Distribution chart (Plotly stacked bar) ───────────────────────────
     const bins  = d.histogram || [];
     const xMids = bins.map(b => +((b.bin_lo + b.bin_hi) / 2).toFixed(2));
-    const hTpl  = 'OMC %{x:.2f}<br>%{y} studies<extra>%{fullData.name}</extra>';
+    const hTpl  = 'OMC %{x:.2f}<br>%{y} reference pairs<extra>%{fullData.name}</extra>';
     FloraCharts.plot('mc-dist-chart', buckets.map(b => ({
         x: xMids, y: bins.map(row => row[b.histKey] || 0), name: b.label, type: 'bar',
         marker: { color: b.color }, hovertemplate: hTpl,
@@ -1233,7 +1306,7 @@ function renderMcCharts() {
         barmode: 'stack', bargap: 0.05,
         margin: { t: 10, r: 10, b: 50, l: 55 },
         xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
-        yaxis: { title: 'Number of studies',             gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
+        yaxis: { title: 'Reference pairs',               gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
         font: { family: t.fontFamily, size: 12, color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
@@ -1392,7 +1465,7 @@ function renderOverlapCharts() {
         ovEl.innerHTML =
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + kindNoun + ' included</div>' +
+                '<div class="mc-stat-label">' + (aoKind === 'replication' ? 'Replication' : 'Reproduction') + ' pairs included</div>' +
             '</div>' +
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_overlap || 0).toLocaleString() + '</div>' +
@@ -1517,7 +1590,7 @@ function renderRRCharts() {
         ovEl.innerHTML =
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + kindNoun + ' checked</div>' +
+                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' pairs checked</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_rr || 0).toLocaleString() + '</div>' +
@@ -1797,7 +1870,7 @@ function renderLargeScaleCharts() {
         overviewEl.innerHTML =
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + kindNoun + ' checked</div>' +
+                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' pairs checked</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_individual || 0).toLocaleString() + '</div>' +
