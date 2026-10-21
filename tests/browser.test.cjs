@@ -103,7 +103,7 @@ test('Mean Citedness clears stale models and all distribution outcomes reconcile
   assert.ok(curve.every(r=>r['95% CI lower']!==''&&r['95% CI upper']!==''&&+r['95% CI lower']<=+r['Estimated P(success)']&&+r['Estimated P(success)']<=+r['95% CI upper']));
   assert.ok(points.every(r=>['0','1'].includes(r['Observed outcome (1 = successful, 0 = failed)'])));
   assert.equal(exported.filter(r=>/^_(lo|hi)$/.test(r['Row type'])).length,0);
-  assert.match(await p.locator('#mc-gam-chart-data caption').textContent(),/Mean Citedness/);
+  assert.match(await p.locator('#mc-gam-chart-data caption').textContent(),/Success probability among successful \/ failed replications/);
   const result=await p.evaluate(()=>({total:window._mcData.replication.overview.n_total, plotted:document.getElementById('mc-dist-chart').data.reduce((n,t)=>n+t.y.reduce((a,b)=>a+b,0),0)}));
   assert.equal(result.total,result.plotted);
   assert.match(await p.locator('#mc-gam-chart').textContent(),/50% reference/);
@@ -314,7 +314,8 @@ test('narrow citation timelines number replication events to match the list',asy
   await p.waitForFunction(()=>document.getElementById('study-plot')?.layout?.annotations?.length>0);
   const marks=await p.evaluate(()=>document.getElementById('study-plot').layout.annotations.map(a=>a.text));
   const list=await p.locator('.rep-list .rep-marker').allInnerTexts();
+  // Every replication of this study is dated, so each list entry has exactly one marker, in order.
   assert.ok(marks.length>=2);
-  assert.ok(marks.every(m=>/^\d+$/.test(m)&&list.includes(m)),JSON.stringify({marks,list}));
+  assert.deepEqual(marks,list);
   assert.deepEqual(p.errors,[]);await p.close();
 });

@@ -51,6 +51,8 @@ window.FloraCharts = (() => {
         if (!el) return;
         const id = el.id + '-data';
         for (const suffix of ['', '-copy', '-copy-status']) document.getElementById(id + suffix)?.remove();
+        // A comparison toggle would otherwise replot the saved traces into the cleared chart.
+        document.getElementById(el.id + '-mode')?.remove(); originals.delete(el.id);
         el.removeAttribute('aria-describedby'); el.removeAttribute('role'); el.removeAttribute('aria-label');
         if (typeof Plotly !== 'undefined' && el.data) Plotly.purge(el);
     }
