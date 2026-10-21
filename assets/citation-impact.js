@@ -486,7 +486,7 @@
                     <a href="https://doi.org/${escapeHtml(entry.doi)}" target="_blank">${escapeHtml(entry.doi)}</a></p>`;
     }
 
-    async function showStudy(doi) {
+    async function showStudy(doi, fromDeepLink = false) {
         const entry = CI.index && CI.index.find(s => s.doi === doi);
         if (!entry) return;
         CI.currentDoi = doi;
@@ -498,8 +498,9 @@
         document.getElementById('ci-modal').hidden = false;
         setBackgroundInert(true);
         document.getElementById('ci-modal-close').focus();
-        // Reflect the open chart in the address bar so it's directly shareable.
-        history.replaceState(null, '', citationLink(doi));
+        // Add a closable history entry for user opens; keep initial share links in place.
+        if (fromDeepLink) history.replaceState(null, '', citationLink(doi));
+        else history.pushState(null, '', citationLink(doi));
 
         let s;
         try {
@@ -565,8 +566,8 @@
         if (updateUrl) {
             const url = new URL(location.href);url.searchParams.delete('doi');history.replaceState(null,'',url);
         }
-        // Return focus to whatever opened the modal.
-        if (CI.lastFocus && typeof CI.lastFocus.focus === 'function') CI.lastFocus.focus();
+        // History restoration focuses the destination pane after switching tabs.
+        if (updateUrl && CI.lastFocus && typeof CI.lastFocus.focus === 'function') CI.lastFocus.focus();
         CI.lastFocus = null;
     }
     document.addEventListener('flora-history', () => closeModal(false));
@@ -739,7 +740,7 @@
         if (!matchDoi) return false;
         const tabBtn = document.getElementById('citation-tab');
         if (tabBtn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-        await showStudy(matchDoi);
+        await showStudy(matchDoi, true);
         return true;
     }
 

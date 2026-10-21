@@ -5,6 +5,8 @@
         document.querySelectorAll('.chip, .trend-filter-btn').forEach(b => b.setAttribute('aria-pressed',String(b.classList.contains('active'))));
     }
     const initial = new URL(location.href);
+    // A DOI-only share link targets Citation Impact even before its data arrives.
+    if (!initial.searchParams.has('tab') && initial.searchParams.get('doi')) initial.searchParams.set('tab','citations');
     const selectGroups = {'mc-study-type':['mc-kind','mc-tab','replication'],'ao-study-type':['ao-kind','overlap-tab','replication'],'pubtype-study-type':['pub-kind','pub-tab','replication'],'ci-study-type':['ci-kind','citation-tab','replication'],'outcome-chips':['ci-outcome','citation-tab','all']};
     const controls = {'journal-top-n':['journal-top-n','trends-tab','15'],'rep-journal-top-n':['rep-journal-top-n','trends-tab','15'],'filter-outcome':['filter-outcome','citation-tab',''],'search-input':['ci-q','citation-tab','']};
     function recordState() {
@@ -34,6 +36,7 @@
     window.FloraView = {recordState};
     function restore(url, fromHistory = false) {
         restoring = true;
+        const hadOpenTimeline = !document.getElementById('ci-modal').hidden;
         if(fromHistory) {
             document.dispatchEvent(new Event('flora-history'));
             // Back/forward always dismisses a timeline, including its shareable DOI.
@@ -70,6 +73,10 @@
         }
         history.replaceState(null,'',url);
         applyTabFromUrl();pressed();restoring=false;ready=true;recordState();
+        if (fromHistory && hadOpenTimeline) {
+            const pane = document.querySelector('.tab-pane.active');
+            pane.setAttribute('tabindex','-1');pane.focus({preventScroll:true});
+        }
         document.getElementById('mobile-navigation').value=document.querySelector('#floraTabs .active').id;
     }
     document.addEventListener('flora-ready',()=>restore(initial),{once:true});
