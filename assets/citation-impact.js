@@ -486,7 +486,7 @@
                     <a href="https://doi.org/${escapeHtml(entry.doi)}" target="_blank">${escapeHtml(entry.doi)}</a></p>`;
     }
 
-    async function showStudy(doi) {
+    async function showStudy(doi, fromDeepLink = false) {
         const entry = CI.index && CI.index.find(s => s.doi === doi);
         if (!entry) return;
         CI.currentDoi = doi;
@@ -498,8 +498,9 @@
         document.getElementById('ci-modal').hidden = false;
         setBackgroundInert(true);
         document.getElementById('ci-modal-close').focus();
-        // Reflect the open chart in the address bar so it's directly shareable.
-        history.replaceState(null, '', citationLink(doi));
+        // Add a closable history entry for user opens; keep initial share links in place.
+        if (fromDeepLink) history.replaceState(null, '', citationLink(doi));
+        else history.pushState(null, '', citationLink(doi));
 
         let s;
         try {
@@ -555,18 +556,21 @@
         document.querySelectorAll('body > .top-bar, body > main, body > .footer-bar').forEach(el => el.inert = value);
     }
 
-    function closeModal() {
+    function closeModal(updateUrl = true) {
         const modal = document.getElementById('ci-modal');
         if (modal.hidden) return;
         modal.hidden = true;
         setBackgroundInert(false);
         CI.currentDoi = null;
         // Drop ?doi= but keep the user on the Citation Impact tab.
-        const url = new URL(location.href);url.searchParams.delete('doi');url.searchParams.set('tab','citations');history.replaceState(null,'',url);
-        // Return focus to whatever opened the modal.
-        if (CI.lastFocus && typeof CI.lastFocus.focus === 'function') CI.lastFocus.focus();
+        if (updateUrl) {
+            const url = new URL(location.href);url.searchParams.delete('doi');history.replaceState(null,'',url);
+        }
+        // History restoration focuses the destination pane after switching tabs.
+        if (updateUrl && CI.lastFocus && typeof CI.lastFocus.focus === 'function') CI.lastFocus.focus();
         CI.lastFocus = null;
     }
+    document.addEventListener('flora-history', () => closeModal(false));
 
     const TIMELINE_NARROW = 600;
     // Label style and collision spacing depend on the current chart width.
@@ -731,11 +735,12 @@
     // study's chart popup. Returns true if a matching study was found.
     async function openStudyByDoi(doi) {
         await ensureInit();
+        if (normalizeDoi(new URLSearchParams(location.search).get('doi')) !== normalizeDoi(doi)) return false;
         const matchDoi = findStudyDoi(doi);
         if (!matchDoi) return false;
         const tabBtn = document.getElementById('citation-tab');
         if (tabBtn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
-        await showStudy(matchDoi);
+        await showStudy(matchDoi, true);
         return true;
     }
 

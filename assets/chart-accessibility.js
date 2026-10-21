@@ -200,6 +200,10 @@ window.FloraCharts = (() => {
         const plotHeight = (layout.height || el.clientHeight || 380) - (layout.margin.t || 0) - layout.margin.b;
         layout.legend={...layout.legend,yanchor:'top',y:-axisSpace/Math.max(100,plotHeight)};
         el.style.height = layout.height ? layout.height+'px' : heights.get(id);
+        // Charts keep hover details, while page swipes and drags never zoom or pan.
+        layout.dragmode = false;
+        for (const key of Object.keys(layout)) if (/^[xy]axis\d*$/.test(key)) layout[key] = {...layout[key],fixedrange:true};
+        config = {...config,scrollZoom:false,doubleClick:false};
         const title = layout.title ? plain(layout.title.text || layout.title) : visibleTitle(el);
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
         if (comparisonIds.has(id)) {
