@@ -851,6 +851,8 @@ test('FAQ venue correction warns when the upstream heading changes',async()=>{
 });
 
 async function assertIntegerCountTicks(p,id,axisName){
+  // Debounced re-layouts briefly leave _fullLayout without a tick step; wait for a settled axis.
+  await p.waitForFunction(({id,axisName})=>document.getElementById(id)?._fullLayout?.[axisName]?.dtick!==undefined,{id,axisName}).catch(()=>{});
   const ticks=await p.evaluate(({id,axisName})=>{
     const plot=document.getElementById(id),axis=plot._fullLayout[axisName];
     const labelClass=axisName==='yaxis2'?'y2':axisName[0];
