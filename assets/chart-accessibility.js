@@ -3,6 +3,9 @@ window.FloraCharts = (() => {
     const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const plain = s => (Array.isArray(s) ? s.join(' ') : String(s ?? '')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     const number = (v, digits = 0) => Number(v).toLocaleString('en-GB', {minimumFractionDigits:digits,maximumFractionDigits:digits}).replace(/-/g, '−');
+    // Integer formatting alone rounds fractional auto-ticks into repeated labels.
+    // Keep small count axes integral; let Plotly choose readable steps for larger counts.
+    const countAxis = max => ({tickformat:',d', dtick:max <= 10 ? 1 : undefined});
     const percent = (n, total, digits = 0) => {
         const share = total > 0 ? 100 * (n || 0) / total : 0;
         return share > 0 && share < 1 ? '<1' : number(share, digits);
@@ -167,7 +170,8 @@ window.FloraCharts = (() => {
                 hovertemplate:counts ? '%{x}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>' : '%{x}<br>%{customdata[2]}% (%{customdata[0]:,.0f} pairs)<extra>%{fullData.name}</extra>'}));
             layout.barmode = counts ? 'group' : 'stack';
             layout.xaxis = {...layout.xaxis,tickangle:0};
-            layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, tickformat:counts ? ',d' : '.0f', range:counts ? undefined : [0,100]};
+            const maxCount = Math.max(0,...traces.flatMap(t=>t.y));
+            layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, ...(counts ? countAxis(maxCount) : {tickformat:'.0f',dtick:undefined}), range:counts ? undefined : [0,100]};
             summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
             let toggle = document.getElementById(id+'-mode');
             if (!toggle) {
@@ -243,5 +247,5 @@ window.FloraCharts = (() => {
             if(el)d.querySelector('.chart-context').textContent=context(el);
         });
     }
-    return {chart,plot,clear,download,updateContexts, token, theme, number, percent};
+    return {chart,plot,clear,download,updateContexts, token, theme, number, percent, countAxis};
 })();

@@ -832,6 +832,103 @@ The plugin tags replication outcomes as Successful, Failed, or Mixed, based on t
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
+test('FAQ venue correction warns when the upstream heading changes',async()=>{
+  const warnings=[];
+  const p=await page('?tab=overview',1280,async p=>{
+    p.on('console',msg=>{if(msg.type()==='warning')warnings.push(msg.text());});
+    await p.route('**/flora_faq.md',route=>route.fulfill({contentType:'text/markdown',body:'## Coding\n### How do you determine peer review?\nUpstream answer.\n'}));
+  });
+  await p.waitForSelector('.faq-question');
+  assert.ok(warnings.some(w=>w.includes('FAQ venue-status correction')&&w.includes('expected heading')));
+  const matched=await p.evaluate(()=>{
+    const warnings=[];const warn=console.warn;console.warn=(...args)=>warnings.push(args.join(' '));
+    try{return {items:parseFaqMarkdown('### How is the peer review status determined?\nOld answer.'),warnings};}
+    finally{console.warn=warn;}
+  });
+  assert.deepEqual(matched.warnings,[]);
+  assert.match(matched.items[0].body.join(' '),/Missing venue information remains unknown/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+async function assertIntegerCountTicks(p,id,axisName){
+  const ticks=await p.evaluate(({id,axisName})=>{
+    const plot=document.getElementById(id),axis=plot._fullLayout[axisName];
+    const labelClass=axisName==='yaxis2'?'y2':axisName[0];
+    return {step:axis.dtick,values:axis._vals.map(t=>t.x),labels:[...plot.querySelectorAll(`.${labelClass}tick text`)].map(t=>t.textContent)};
+  },{id,axisName});
+  assert.ok(ticks.step>=1,`${id} ${axisName} tick step: ${ticks.step}`);
+  assert.ok(ticks.values.every(Number.isInteger),`${id} fractional ticks: ${ticks.values}`);
+  assert.ok(ticks.labels.length>=2,`${id} should show count labels`);
+  assert.equal(new Set(ticks.labels).size,ticks.labels.length,`${id} repeated labels: ${ticks.labels}`);
+}
+
+test('small comparison counts have distinct integer ticks on desktop and mobile',async()=>{
+  const data=JSON.parse(fs.readFileSync('data/author_overlap_data.json'));
+  for(const group of Object.values(data.replication.by_outcome))for(const key of Object.keys(group))group[key]=['successful','failed','mixed'].includes(key)?1:0;
+  const p=await page('?tab=authorship-overlap',1280,p=>p.route('**/data/author_overlap_data.json',route=>route.fulfill({json:data})));
+  await p.waitForSelector('#ao-chart-mode');await p.click('#ao-chart-mode');
+  await assertIntegerCountTicks(p,'ao-chart','yaxis');
+  await p.setViewportSize({width:390,height:844});
+  await p.click('#ao-chart-mode');
+  await p.waitForFunction(()=>document.getElementById('ao-chart').data[0].orientation==='h');
+  assert.deepEqual(await p.evaluate(()=>document.getElementById('ao-chart').layout.xaxis.range),[0,100]);
+  await p.click('#ao-chart-mode');
+  await assertIntegerCountTicks(p,'ao-chart','xaxis');
+  await p.evaluate(()=>{window._aoData.replication.by_outcome.overlap.successful=1000;renderOverlapCharts();});
+  await p.waitForFunction(()=>document.getElementById('ao-chart')._fullLayout.xaxis.dtick>1);
+  await assertIntegerCountTicks(p,'ao-chart','xaxis');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('small stacked citation timelines and study denominators have integer ticks',async()=>{
+  const entry=JSON.parse(fs.readFileSync('data/originals_index.json'))[0];
+  const study={...entry,replications:[],timeline:[0,1,2].map((n,i)=>({year:2020+i,only:n?1:0,with_failed:n===2?1:0,with_successful:0,with_mixed:0,with_multiple:0}))};
+  const aggregate={all:{descriptive:{event_time:[0,1,2],mean_citations:[0,0.5,1],mean_cocitations:[0,0.1,0.2],n_units:[0,1,2]}}};
+  const p=await page('?tab=citations&doi='+encodeURIComponent(entry.doi),1280,async p=>{
+    await p.route('**/data/originals_index.json',route=>route.fulfill({json:[entry]}));
+    await p.route('**/data/originals/*',route=>route.fulfill({json:study}));
+    await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
+  });
+  await p.waitForFunction(()=>document.getElementById('study-plot')?._fullLayout);
+  await assertIntegerCountTicks(p,'study-plot','yaxis');
+  await assertIntegerCountTicks(p,'plot-cit','yaxis2');
+  await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
+  // The raw means are continuous quantities and must retain fractional ticks.
+  assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout.yaxis.dtick<1));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('citation counts use the same grouping under a non-English browser locale',async()=>{
+  const entry={...JSON.parse(fs.readFileSync('data/originals_index.json'))[0],n_citations:12345,n_cocitations:1234,n_citations_post_first_rep:5678,n_replications:1234,outcome_mix:{successful:1234}};
+  const aggregate={all:{descriptive:{event_time:[0,1],mean_citations:[1,2],mean_cocitations:[0.1,0.2],n_units:[1234,1234]}}};
+  const p=await browser.newPage({locale:'de-DE'});const errors=[];p.on('pageerror',e=>errors.push(e.message));
+  try{
+    await p.route('**/data/originals_index.json',route=>route.fulfill({json:[entry]}));
+    await p.route('**/data/originals/*',route=>route.fulfill({json:{...entry,replications:[],timeline:[]}}));
+    await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
+    await p.goto(base+'?tab=citations');await p.waitForSelector('#originals-table .timeline-open');
+    assert.equal(await p.evaluate(()=>navigator.language),'de-DE');
+    const row=p.locator('#originals-table tbody tr').first();
+    assert.equal(await row.locator('td').nth(3).textContent(),'12,345');
+    assert.match(await row.locator('td').nth(4).textContent(),/^1,234.*of 5,678/);
+    assert.match(await row.locator('td').nth(4).locator('span[title]').getAttribute('title'),/1,234 of 5,678/);
+    assert.equal(await row.locator('.rep-count').textContent(),'1,234');
+    assert.match(await row.locator('.rep-bar-wrap').getAttribute('title'),/1,234 successful/);
+    assert.match(await p.locator('#att-callout').textContent(),/1,234 originals contribute at peak/);
+    const meta=JSON.parse(fs.readFileSync('data/meta.json'));
+    assert.equal(await p.locator('#kpis .kpi-value').first().textContent(),meta.n_originals.toLocaleString('en-GB'));
+    const breakdown=JSON.parse(fs.readFileSync('data/cocit_breakdown.json'));
+    assert.equal(await p.locator('#cocit-breakdown tbody tr').first().locator('td').nth(1).textContent(),breakdown.pub_status.individual.n_originals.toLocaleString('en-GB'));
+    await row.locator('.timeline-open').click();await p.waitForSelector('#ci-modal-body .ci-share-btn');
+    assert.ok((await p.locator('#ci-modal-body h3').allTextContents()).includes('Replications (1,234)'));
+    await p.keyboard.press('Escape');
+    await p.click('#ci-study-type [data-value="reproduction-numerical"]');
+    const repro=JSON.parse(fs.readFileSync('data/reproduction_citations.json'))['reproduction-numerical'].successful;
+    assert.deepEqual((await p.locator('#ci-repro-table tbody tr').first().locator('td').allTextContents()).slice(1),['n_originals','n_citations_to_original','n_citations_to_reproduction','n_cocitations'].map(k=>repro[k].toLocaleString('en-GB')));
+    assert.deepEqual(errors,[]);
+  }finally{await p.close();}
+});
+
 test('counts, small shares, wrapped labels, rounded exports and citation hovers use readable copy',async()=>{
   const requests=[];
   const pub=JSON.parse(fs.readFileSync('data/pub_status_data.json')).replication.overview;

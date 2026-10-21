@@ -189,10 +189,10 @@
                 const row = data[b.key] || {};
                 return '<tr>' +
                     '<td>' + escapeHtml(b.label) + '</td>' +
-                    '<td>' + (row.n_originals || 0).toLocaleString() + '</td>' +
-                    '<td>' + (row.n_citations_to_original || 0).toLocaleString() + '</td>' +
-                    '<td>' + (row.n_citations_to_reproduction || 0).toLocaleString() + '</td>' +
-                    '<td>' + (row.n_cocitations || 0).toLocaleString() + '</td>' +
+                    '<td>' + FloraCharts.number(row.n_originals || 0) + '</td>' +
+                    '<td>' + FloraCharts.number(row.n_citations_to_original || 0) + '</td>' +
+                    '<td>' + FloraCharts.number(row.n_citations_to_reproduction || 0) + '</td>' +
+                    '<td>' + FloraCharts.number(row.n_cocitations || 0) + '</td>' +
                 '</tr>';
             }).join('');
         }
@@ -230,7 +230,7 @@
 
     function renderKPIs() {
         const c = (CI.meta && CI.meta.outcome_counts) || {};
-        const fmt = n => (n == null ? '—' : Number(n).toLocaleString());
+        const fmt = n => (n == null ? '—' : FloraCharts.number(n));
         document.getElementById('kpis').innerHTML = `
             <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Original reports with complete citation data</div></div>
             <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_replications)}</div><div class="kpi-label">Eligible replication reference pairs</div></div>
@@ -254,7 +254,7 @@
         } else if (desc.n_units && desc.n_units.length) {
             const maxN = Math.max(...desc.n_units);
             html = `<strong>Descriptive trajectory shown.</strong>
-                <span class="muted">${maxN.toLocaleString()} originals contribute at peak. Each line shows the average citation count by years relative to the first replication.</span>`;
+                <span class="muted">${FloraCharts.number(maxN)} originals contribute at peak. Each line shows the average citation count by years relative to the first replication.</span>`;
         } else {
             html = `<strong>Insufficient data</strong> for the selected outcome group.`;
         }
@@ -320,7 +320,7 @@
             xaxis: { title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font },
             yaxis: { title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero' },
             yaxis2: {
-                title: 'N studies', tickformat: ',d', overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
+                title: 'N studies', ...FloraCharts.countAxis(Math.max(0,...(desc.n_units || []))), overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
                 tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
             },
             shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: t.primary, width: 1.5, dash: 'dash' } }],
@@ -340,13 +340,13 @@
             const count = outcomeMix[o] || 0;
             if (!count) return '';
             const pct = (count / total * 100).toFixed(1);
-            const label = `${count.toLocaleString('en-GB')} ${o}`;
+            const label = `${FloraCharts.number(count)} ${o}`;
             return `<div class="rep-seg ${o}" style="width:${pct}%" title="${label}"></div>`;
         }).join('');
-        const tooltipParts = ORDERS.filter(o => outcomeMix[o]).map(o => `${outcomeMix[o].toLocaleString('en-GB')} ${o}`).join(', ');
+        const tooltipParts = ORDERS.filter(o => outcomeMix[o]).map(o => `${FloraCharts.number(outcomeMix[o])} ${o}`).join(', ');
         return `<div class="rep-bar-wrap" title="${tooltipParts}">
             <div class="rep-bar">${segments}</div>
-            <span class="rep-count">${total.toLocaleString('en-GB')}</span>
+            <span class="rep-count">${FloraCharts.number(total)}</span>
         </div>`;
     }
 
@@ -361,7 +361,7 @@
             const fmt = v => v == null ? '—' : escapeHtml(FloraCharts.percent(v,1,1)) + '%';
             return `<tr>
                 <td>${labels[key]}</td>
-                <td>${d.n_originals != null ? d.n_originals.toLocaleString() : '—'}</td>
+                <td>${d.n_originals != null ? FloraCharts.number(d.n_originals) : '—'}</td>
                 <td>${fmt(d.mean_rate)}</td>
                 <td>${fmt(d.median_rate)}</td>
                 <td>${fmt(d.grand_mean_rate)}</td>
@@ -392,9 +392,9 @@
         const denom = s.n_citations_post_first_rep;
         const pct = denom > 0 ? escapeHtml(FloraCharts.percent(s.cocit_prop,1,1)) + '%' : '—';
         const tooltip = denom
-            ? `${s.n_cocitations.toLocaleString()} of ${denom.toLocaleString()} citations since the first replication (${s.first_replication_year}) also cite a replication`
-            : `${s.n_cocitations.toLocaleString()} co-citations`;
-        return `<span title="${escapeHtml(tooltip)}">${s.n_cocitations.toLocaleString()}<span class="cocit-pct"> (${pct}${denom > 0 ? ` of ${denom.toLocaleString()}` : ""})</span></span>`;
+            ? `${FloraCharts.number(s.n_cocitations)} of ${FloraCharts.number(denom)} citations since the first replication (${s.first_replication_year}) also cite a replication`
+            : `${FloraCharts.number(s.n_cocitations)} co-citations`;
+        return `<span title="${escapeHtml(tooltip)}">${FloraCharts.number(s.n_cocitations)}<span class="cocit-pct"> (${pct}${denom > 0 ? ` of ${FloraCharts.number(denom)}` : ""})</span></span>`;
     }
 
     function renderTable() {
@@ -445,7 +445,7 @@
                     </td>
                     <td>${s.year || '—'}</td>
                     <td>${renderOutcomeBar(s.outcome_mix, s.n_replications)}</td>
-                    <td>${(s.n_citations || 0).toLocaleString()}</td>
+                    <td>${FloraCharts.number(s.n_citations || 0)}</td>
                     <td>${renderCocitCell(s)}</td>
                     <td><button type="button" class="timeline-open" aria-label="Open citation timeline for ${escapeHtml(s.title || s.doi)}">Timeline</button></td>
                 </tr>`;
@@ -533,7 +533,7 @@
                 <h3 style="margin-top:18px">Citation timeline</h3>
                 ${s.cocit_conflated ? `<p class="cocit-warning">Co-citation can't be measured for ${s.cocit_conflated > 1 ? 'some replications of ' : ''}this study: OpenCitations groups the original and ${s.cocit_conflated > 1 ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p>` : ''}
                 <div id="study-plot" style="width:100%;height:380px"></div>
-                <h3 style="margin-top:18px">Replications (${s.n_replications.toLocaleString('en-GB')})</h3>
+                <h3 style="margin-top:18px">Replications (${FloraCharts.number(s.n_replications)})</h3>
                 <ul class="rep-list">${reps}</ul>
             </div>`;
         // Remember what had focus so we can restore it when the modal closes.
@@ -600,6 +600,7 @@
             trace.marker.opacity = years.map(year=>year===partialYear ? 0.45 : 1);
             trace.hovertemplate = 'Year: %{x}<br>Citations: %{y:,.0f}<extra>%{fullData.name}</extra>';
         });
+        const maxYearlyCount = Math.max(0,...years.map((_,i)=>traces.reduce((n,trace)=>n+trace.y[i],0)));
         const t = plotlyTheme();
         const shapes = []; const annotations = [];
         const narrow = window.innerWidth < TIMELINE_NARROW;
@@ -621,7 +622,7 @@
         const layout = {
             barmode: 'stack', margin: { t: 50, r: 10, b: 40, l: 50 },
             xaxis: { title: 'Year', gridcolor: t.grid, color: t.font },
-            yaxis: { title: 'Citing preprints / papers', tickformat: ',d', gridcolor: t.grid, color: t.font },
+            yaxis: { title: 'Citing preprints / papers', ...FloraCharts.countAxis(maxYearlyCount), gridcolor: t.grid, color: t.font },
             shapes, annotations, hoverlabel:{namelength:-1},
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
