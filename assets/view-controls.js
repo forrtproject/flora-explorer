@@ -132,7 +132,7 @@
         const stamp=document.querySelector('#browse .data-stamp')?.textContent || '';
         const filtered=browseQuery.trim() || browseKind !== 'all';
         FloraCharts.download(filtered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv',keys,rows.map(row=>keys.map(k=>row[k])),
-            `Unit: reference pair\n${stamp}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nIncluded: ${rows.length}; excluded by filters: ${fullRowData.length-rows.length}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
+            `Unit: reference pair\n${stamp}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nIncluded: ${rows.length.toLocaleString('en-GB')}; excluded by filters: ${(fullRowData.length-rows.length).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
     };
     // Associate static and dynamically inserted glossary definitions with their triggers.
     let tipNumber = 0;
