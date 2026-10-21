@@ -577,8 +577,9 @@
             shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || t.primary, width: 2, dash: 'dash' } });
             // Narrow screens show only the number, so labels for nearby years do not collide.
             const label = narrow ? String(i + 1) : `${i + 1} · ${r.outcome} ${r.year}`;
-            const k = sameYear.get(r.year) || 0; sameYear.set(r.year, k + 1);
-            const row = k > 0 ? k : i % 3;
+            const seen = sameYear.get(r.year);
+            const row = seen ? seen.base + seen.count : i % 3;
+            sameYear.set(r.year, seen ? { base: seen.base, count: seen.count + 1 } : { base: row, count: 1 });
             annotations.push({ x: r.year, yref: 'paper', y: 1.02 - row * 0.06, text: label, showarrow: false, font: { size: narrow ? 11 : 10, color: OUTCOME_COLORS[r.outcome] || t.primary }, bgcolor: t.paper });
         });
         const layout = {
