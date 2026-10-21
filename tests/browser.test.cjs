@@ -4,9 +4,10 @@ const {chromium} = require('playwright');
 const {spawn} = require('node:child_process');
 const fs = require('node:fs');
 let browser, server;
-const base = 'http://127.0.0.1:8897/';
+const port = process.env.TEST_PORT || '8897';
+const base = `http://127.0.0.1:${port}/`;
 before(async()=>{
-  server=spawn(process.env.PYTHON || 'python3',['-m','http.server','8897','--bind','127.0.0.1'],{stdio:'ignore'});
+  server=spawn(process.env.PYTHON || 'python3',['-m','http.server',port,'--bind','127.0.0.1'],{stdio:'ignore'});
   // Consume the readiness response so its open stream does not outlive the hook.
   for(let i=0;i<50;i++){try{await (await fetch(base)).arrayBuffer();break;}catch{await new Promise(r=>setTimeout(r,100));}}
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
