@@ -607,6 +607,9 @@ test('history restores absent defaults, active controls and closes citation dial
   assert.deepEqual([...new URL(p.url()).searchParams.keys()].sort(),['q','tab']);
   await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
   await p.locator('.timeline-open').first().click();await p.waitForSelector('#ci-modal:not([hidden])');
+  await p.goBack();await p.waitForFunction(()=>document.getElementById('ci-modal').hidden);
+  assert.equal(await p.locator('.tab-pane.active').getAttribute('id'),'citation-impact');
+  assert.equal(new URL(p.url()).searchParams.has('doi'),false);
   await p.goBack();await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='browse');
   assert.ok(await p.locator('#ci-modal').isHidden());
   assert.ok(await p.locator('.app-main').evaluate(el=>!el.inert));
@@ -631,6 +634,53 @@ test('history restores absent defaults, active controls and closes citation dial
   assert.equal(await p.locator('#search-input').inputValue(),'');
   assert.equal(await p.locator('#outcome-chips [data-value="all"]').getAttribute('aria-pressed'),'true');
   assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('history closing a timeline never leaves focus in the hidden citation pane',async()=>{
+  const p=await page('');
+  await p.click('#browse-tab');await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
+  await p.locator('.timeline-open').first().click();await p.waitForSelector('#ci-modal:not([hidden])');
+  // Jump across the timeline and its parent tab, regardless of whether opening added an entry.
+  await p.evaluate(()=>{
+    window.historyFocusedOpener=false;
+    document.addEventListener('focusin',e=>{if(e.target.matches('.timeline-open'))window.historyFocusedOpener=true;});
+  });
+  await p.evaluate(()=>history.go(-2));
+  await p.waitForFunction(()=>document.getElementById('ci-modal').hidden && !document.getElementById('citation-impact').classList.contains('active'));
+  assert.equal(await p.evaluate(()=>window.historyFocusedOpener),false);
+  assert.ok(await p.evaluate(()=>document.activeElement.matches('.tab-pane.active')));
+  assert.ok(await p.evaluate(()=>document.activeElement.getClientRects().length>0));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('bare DOI deep links survive initial restoration without adding a history entry',async()=>{
+  const doi='10.1177/0956797610383437';
+  let releaseIndex;
+  const indexGate=new Promise(resolve=>releaseIndex=resolve);
+  const p=await page('?doi='+encodeURIComponent(doi),1280,p=>p.route('**/data/originals_index.json',async route=>{await indexGate;await route.continue();}));
+  const initialHistory=await p.evaluate(()=>history.length);
+  releaseIndex();
+  await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length>0,null,{timeout:10000});
+  assert.equal(new URL(p.url()).searchParams.get('doi'),doi);
+  assert.equal(new URL(p.url()).searchParams.get('tab'),'citations');
+  assert.equal(await p.evaluate(()=>history.length),initialHistory);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('navigating away cancels a deep link while citation data is loading',async()=>{
+  for(const query of ['?doi=10.1177%2F0956797610383437','?tab=citations&doi=10.1177%2F0956797610383437']){
+    let releaseIndex;
+    const indexGate=new Promise(resolve=>releaseIndex=resolve);
+    const p=await page(query,1280,p=>p.route('**/data/originals_index.json',async route=>{await indexGate;await route.continue();}));
+    await p.click('#browse-tab');releaseIndex();
+    await p.waitForFunction(()=>document.querySelector('.timeline-open'));
+    // Let the deep-link continuation run after the index has been rendered.
+    await p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    assert.equal(await p.locator('.tab-pane.active').getAttribute('id'),'browse');
+    assert.ok(await p.locator('#ci-modal').isHidden());
+    assert.equal(new URL(p.url()).searchParams.has('doi'),false);
+    assert.deepEqual(p.errors,[]);await p.close();
+  }
 });
 
 test('old shared citation links and Browse pagination restore with compact URLs',async()=>{
