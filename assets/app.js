@@ -747,18 +747,18 @@ function formatDetailRow(rowData) {
 function initDataTable(data) {
     const tableData = data.map(row => [
         null,
-        { display: truncateText(row.title_o || row.author_o, 50), search: `${row.title_o || ''} ${row.author_o || ''} ${row.journal_o || ''}` },
+        { display: truncateText(row.title_o || row.author_o, 50), search: `${row.title_o || ''} ${searchAuthorNames(row.author_o)} ${row.journal_o || ''}` },
         row.year_o || '-',
-        { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${row.author_r || ''} ${row.journal_r || ''}` },
+        { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
         row.year_r || '-',
-        { display: getOutcomeBadgeShort(row.outcome), search: `${row.outcome || ''} ${row.outcome_quote || ''}` },
+        { display: getOutcomeBadgeShort(row.outcome), search: row.outcome_quote || '' },
         truncateText(row.type, 15) || '-',
         { display: formatDOI(row.doi_o, true), search: row.doi_o || '' },
-        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: `${row.url_r || ''} ${row.doi_r || ''}` }
+        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '' }
     ]);
 
     dataTable = $('#flora-table').DataTable({
-        data: tableData, responsive: false, autoWidth: false, pageLength: 25, dom: 'lrtip',
+        data: tableData, responsive: false, autoWidth: false, deferRender: true, pageLength: 25, dom: 'lrtip',
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
         order: [[4, 'desc']],
         language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)...", zeroRecords: "No matching reference pairs", emptyTable: "No matching reference pairs" },
@@ -773,7 +773,7 @@ function initDataTable(data) {
         createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
 
-    dataTable.on('order.dt', () => { if (bmInitialized) updateBrowseResults(); syncBrowseUrl(); });
+    dataTable.on('order.dt', () => { if (bmInitialized) updateBrowseResults(false); syncBrowseUrl(); });
 
     $('#flora-table tbody').on('click', 'button.study-details', function() {
         const tr = $(this).closest('tr');
@@ -787,12 +787,19 @@ function initDataTable(data) {
 
 // ===== Browse mobile =====
 const BM_PAGE_SIZE = 20;
+const bmSortCollator = new Intl.Collator(undefined, {numeric:true});
 let bmFiltered = []; let bmPage = 0; let bmInitialized = false;
+const bmSearchText = new WeakMap();
 
 function bmSearchableText(row) {
-    return [row.title_o, row.author_o, row.journal_o, row.year_o, row.doi_o,
-            row.title_r, row.author_r, row.journal_r, row.year_r, row.doi_r, row.url_r,
-            row.outcome, row.outcome_quote, row.type].filter(Boolean).join(' | ').toLowerCase();
+    if (!bmSearchText.has(row)) {
+        // Keep quotations searchable, but omit raw outcome values and non-DOI URLs.
+        const urlDoi = /^https?:\/\/(?:dx\.)?doi\.org\//i.test(row.url_r || '') ? row.url_r : '';
+        bmSearchText.set(row, normalizedQuery([row.title_o, searchAuthorNames(row.author_o), row.journal_o, row.year_o, row.doi_o,
+            row.title_r, searchAuthorNames(row.author_r), row.journal_r, row.year_r, row.doi_r, urlDoi,
+            row.outcome_quote, row.type].filter(Boolean).join(' | ')));
+    }
+    return bmSearchText.get(row);
 }
 function bmHref(doi, url) { return doi ? safeHref(String(doi).startsWith('http') ? doi : 'https://doi.org/' + encodeURI(doi)) : safeHref(url); }
 function bmAuthorYear(authorData, year) { const a = shortAuthors(authorData); const y = year ? `(${year})` : ''; return [a, y].filter(Boolean).join(' '); }
@@ -851,30 +858,52 @@ function setupBrowseMobile(data) {
     const prev = document.getElementById('bm-prev');
     const next = document.getElementById('bm-next');
     let debounceTimer;
-    input.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => bmApplySearch(input.value), 150); });
+    input.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => bmApplySearch(input.value), 200); });
     prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); } });
     next.addEventListener('click', () => { bmPage++; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); });
     input.value = browseQuery; bmApplySearch(browseQuery);
 }
 
 function normalizedQuery(query) {
-    return String(query || '').toLowerCase().replace(/https?:\/\/(?:dx\.)?doi\.org\//g, '').replace(/\bdoi:\s*/g, '').trim();
+    return String(query || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+        .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+        .replace(/https?:\/\/(?:dx\.)?doi\.org\//g, '').replace(/\bdoi:\s*/g, '').replace(/\s+/g, ' ').trim();
+}
+// Search all names, without indexing Crossref keys, ORCIDs or affiliations.
+function searchAuthorNames(raw) {
+    if (!raw) return '';
+    try {
+        const authors = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        const name = a => typeof a === 'string' ? a : a && (a.name || [a.given, a.family].filter(Boolean).join(' ')) || '';
+        return (Array.isArray(authors) ? authors : [authors]).map(name).join(', ');
+    } catch { return String(raw); }
+}
+let lastSearchQuery, lastSearchTokens = [];
+function searchTokens(query) {
+    if (query !== lastSearchQuery) {
+        lastSearchQuery = query;
+        lastSearchTokens = (normalizedQuery(query).match(/"[^"\n]+"|\S+/g) || []).map(token => token.replace(/^"|"$/g, ''));
+    }
+    return lastSearchTokens;
+}
+function matchesSearchTokens(text, tokens) {
+    return tokens.every(token => text.includes(token));
 }
 function matchesBrowseQuery(row, query) {
-    const text = bmSearchableText(row);
-    const tokens = normalizedQuery(query).match(/"[^"\n]+"|\S+/g) || [];
-    return tokens.every(token => text.includes(token.replace(/^"|"$/g, '')));
+    const tokens = searchTokens(query);
+    return !tokens.length || matchesSearchTokens(bmSearchableText(row), tokens);
 }
 let updatingBrowse = false;
-function updateBrowseResults() {
+function updateBrowseResults(redraw = true) {
     if (updatingBrowse) return;
     updatingBrowse = true;
     bmFiltered = getChartData();
     if (dataTable) {
         const [column, direction] = dataTable.order()[0] || [4, 'desc'];
         const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o',8:'doi_r'}[column] || 'year_r';
-        bmFiltered.sort((a,b) => String(a[field] || '').localeCompare(String(b[field] || ''), undefined, {numeric:true}) * (direction === 'desc' ? -1 : 1));
-        dataTable.draw(false);
+        bmFiltered.sort((a,b) => bmSortCollator.compare(String(a[field] || ''), String(b[field] || '')) * (direction === 'desc' ? -1 : 1));
+        // order.dt also fires during a draw: refresh cards/charts without a second draw.
+        if (redraw) dataTable.draw(false);
     }
     bmPage = 0;
     if (bmInitialized) bmRender();

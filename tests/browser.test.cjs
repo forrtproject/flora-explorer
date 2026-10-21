@@ -346,3 +346,67 @@ test('narrow citation timelines number replication events to match the list',asy
   assert.deepEqual(marks,list);
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+test('Browse and Citation Impact share accent, quote, token and DOI search rules',async()=>{
+  const p=await page('?tab=browse');
+  async function browseSearch(q){
+    await p.fill('#browse-mobile-input',q);
+    await p.waitForFunction(q=>browseQuery===q,q);
+    return p.evaluate(()=>getChartData().map(r=>r.doi_o));
+  }
+  for(const [q,doi] of [['Bem 2011','10.1037/a0021524'],['Strack 1988','10.1037/0022-3514.54.5.768']]){
+    const rows=await browseSearch(q);assert.ok(rows.length>0,q);assert.ok(rows.includes(doi),q);
+  }
+  for(const [a,b] of [['Müller','Muller'],["O'Brien",'O’Brien'],['"power posing"','“power posing”']]){
+    const rows=await browseSearch(a);assert.ok(rows.length>0,a);assert.deepEqual(await browseSearch(b),rows,b);
+  }
+  for(const q of ['family','given','sequence']) assert.ok((await browseSearch(q)).length<100,`${q} must not match author JSON keys`);
+  // Search every author's name, including given-only and group names, without metadata.
+  assert.deepEqual(await p.evaluate(()=>{
+    const row={author_o:JSON.stringify([{given:'Zoë',family:'Müller',ORCID:'metadata-only'},{given:'Søren'},{name:'Research collective'}]),outcome:'raw_outcome_code',url_r:'https://url-only.invalid',outcome_quote:'A distinctive quotation'};
+    return ['Zoe Muller','Søren','Research collective','metadata-only','raw_outcome_code','url-only.invalid','distinctive quotation'].map(q=>matchesBrowseQuery(row,q));
+  }),[true,true,true,false,false,false,true]);
+  await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
+  async function citationSearch(q){
+    await p.fill('#search-input',q);
+    await p.waitForTimeout(300);
+    return p.locator('#originals-table tbody tr[data-doi]').evaluateAll(rows=>rows.map(r=>r.dataset.doi));
+  }
+  for(const [q,doi] of [['Bem  2011','10.1037/a0021524'],['Strack 1988','10.1037/0022-3514.54.5.768'],['"Feeling the Future"','10.1037/a0021524'],['“Feeling the Future”','10.1037/a0021524'],['https://doi.org/10.1037/a0021524','10.1037/a0021524'],['doi: 10.1037/a0021524','10.1037/a0021524']]){
+    assert.ok((await citationSearch(q)).includes(doi),q);
+  }
+  for(const [a,b] of [['Müller','Muller'],["O'Brien",'O’Brien']]){
+    const rows=await citationSearch(a);assert.ok(rows.length>0,a);assert.deepEqual(await citationSearch(b),rows,b);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('search input is debounced, Show all draws once and Citation Impact offers empty-state recovery',async()=>{
+  const p=await page('?tab=browse');
+  // deferRender creates only the first page until more rows are requested.
+  assert.ok(await p.evaluate(()=>dataTable.rows().nodes().length<fullRowData.length));
+  await p.evaluate(()=>{window.searchDraws=0;dataTable.on('draw.dt',()=>searchDraws++);dataTable.page.len(-1).draw();});
+  assert.equal(await p.evaluate(()=>searchDraws),1);
+  assert.equal(await p.locator('#flora-table tbody tr').count(),await p.evaluate(()=>fullRowData.length));
+  const immediate=await p.evaluate(()=>{
+    searchDraws=0;const el=document.getElementById('browse-mobile-input');
+    for(const q of ['B','Bem','Bem 2011']){el.value=q;el.dispatchEvent(new Event('input'));}
+    return searchDraws;
+  });
+  assert.equal(immediate,0);await p.waitForFunction(()=>browseQuery==='Bem 2011');
+  assert.equal(await p.evaluate(()=>searchDraws),1);
+  await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
+  await p.evaluate(()=>{
+    window.citationRenders=0;new MutationObserver(()=>citationRenders++).observe(document.querySelector('#originals-table tbody'),{childList:true});
+    const el=document.getElementById('search-input');for(const q of ['z','zz','zz-no-such-original']){el.value=q;el.dispatchEvent(new Event('input'));}
+  });
+  assert.ok(await p.locator('.timeline-open').count()>0);
+  await p.waitForSelector('#ci-search-empty:not([hidden])');
+  assert.equal(await p.evaluate(()=>citationRenders),1);
+  assert.match(await p.locator('#ci-search-empty').innerText(),/No originals match/);
+  assert.equal(await p.locator('#pagination button').count(),0);
+  await p.locator('#ci-clear-search').focus();await p.keyboard.press('Enter');
+  await p.waitForSelector('.timeline-open');assert.ok(await p.locator('#ci-search-empty').isHidden());
+  assert.equal(await p.inputValue('#search-input'),'');assert.equal(await p.evaluate(()=>document.activeElement.id),'search-input');
+  assert.ok(!new URL(p.url()).searchParams.has('search-input'));
+  assert.deepEqual(p.errors,[]);await p.close();
+});

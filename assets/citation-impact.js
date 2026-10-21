@@ -88,7 +88,8 @@
                 // citations — citing works published before any replication existed
                 // could never have co-cited one.
                 const cocit_prop = s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0;
-                return { ...s, cocit_prop };
+                const searchText = normalizedQuery([s.title, searchAuthorNames(s.author), s.year, s.venue, s.doi].filter(Boolean).join(' | '));
+                return { ...s, cocit_prop, searchText };
             });
 
             // Optional: ETWFE results (may not exist on first run)
@@ -386,14 +387,12 @@
     }
 
     function renderTable() {
-        const q = (document.getElementById('search-input').value || '').toLowerCase();
+        const q = document.getElementById('search-input').value || '';
+        const tokens = searchTokens(q);
         const outFilter = document.getElementById('filter-outcome').value;
 
         let rows = CI.index.filter(s => {
-            if (q) {
-                const hay = `${s.title} ${s.author} ${s.doi}`.toLowerCase();
-                if (!hay.includes(q)) return false;
-            }
+            if (!matchesSearchTokens(s.searchText, tokens)) return false;
             if (outFilter && !(s.outcome_mix && s.outcome_mix[outFilter])) return false;
             return true;
         });
@@ -416,6 +415,10 @@
         });
 
         const total = rows.length;
+        const empty = document.getElementById('ci-search-empty');
+        empty.hidden = total > 0;
+        document.getElementById('ci-search-empty-message').textContent = q.trim() ? `No originals match “${q.trim()}” with the current outcome selection.` : 'No originals match the current outcome selection.';
+        document.getElementById('ci-clear-search').hidden = !q.trim();
         const pages = Math.max(1, Math.ceil(total / CI.perPage));
         if (CI.page > pages) CI.page = 1;
         const start = (CI.page - 1) * CI.perPage;
@@ -438,6 +441,7 @@
         }).join('');
 
         const pag = document.getElementById('pagination');
+        if (!total) { pag.innerHTML = ''; return; }
         const winSize = 5;
         const winStart = Math.max(1, CI.page - Math.floor(winSize / 2));
         const winEnd = Math.min(pages, winStart + winSize - 1);
@@ -604,7 +608,12 @@
                 CI.outcome = btn.dataset.value; renderAggregate();
             });
         });
-        document.getElementById('search-input').addEventListener('input', () => { CI.page = 1; renderTable(); });
+        const input = document.getElementById('search-input');
+        let searchTimer;
+        input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { CI.page = 1; renderTable(); }, 200); });
+        document.getElementById('ci-clear-search').addEventListener('click', () => {
+            clearTimeout(searchTimer); input.value = ''; input.dispatchEvent(new Event('input')); input.focus();
+        });
         document.getElementById('filter-outcome').addEventListener('change', () => { CI.page = 1; renderTable(); });
         function sortBy(col) {
             if (CI.sortCol === col) {
