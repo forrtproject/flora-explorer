@@ -261,6 +261,7 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   assert.ok(firstRow<830,`first result ends at ${firstRow}px`);
   await p.click('.browse-kind-btn[data-kind="replication"]');
   assert.ok(await p.locator('#browse-outcome-card').isVisible());
+  assert.match(await p.locator('#browse-outcome-caption').innerText(),/^4 replication pairs: .*Failed 3 \(75%\).*Mixed 1 \(25%\)/);
   await p.fill('#browse-mobile-input','unicornzzzz');await p.waitForFunction(()=>getChartData().length===0);
   assert.match(await p.locator('#browse-empty').innerText(),/No replications match “unicornzzzz”/);
   await p.click('[data-browse-action="clear-search"]');
@@ -277,8 +278,12 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   assert.deepEqual(parsed,[...parsed].sort((a,b)=>a-b));
   assert.deepEqual(p.errors,[]);await p.close();
 });
-test('placeholders, labels, captions and headings stay legible',async()=>{
+test('Overview charts state denominators; placeholders, labels and headings stay legible',async()=>{
   const p=await page('?tab=overview',1280,p=>p.route('**/flora_faq.md',route=>route.fulfill({contentType:'text/markdown',body:'# FAQ title\n\n## Coding\n\n### What if a paper includes reproduction *and* replication?\n\nIt is listed twice.\n'})));
+  const expected=await p.evaluate(()=>{const repro=fullRowData.filter(r=>classifyKind(r)==='reproduction').length;const comp=fullRowData.filter(isComputationalAssessed).length;return {repro,comp};});
+  assert.match(await p.locator('#overview-computational-caption').innerText(),new RegExp(`^${expected.comp.toLocaleString('en-US')} of ${expected.repro.toLocaleString('en-US')} reproduction pairs have a computational verdict; ${(expected.repro-expected.comp).toLocaleString('en-US')} not checked`));
+  assert.ok(await p.locator('.coverage-caution').isVisible());
+  assert.ok(await p.locator('.coverage-caution').evaluate(el=>el.getBoundingClientRect().top<document.getElementById('overview-computational-chart').getBoundingClientRect().top));
   await p.waitForSelector('.faq-question');
   assert.equal(await p.locator('.faq-question em').textContent(),'and');
   assert.doesNotMatch(await p.locator('.faq-question').first().innerText(),/\*/);
@@ -300,13 +305,30 @@ test('placeholders, labels, captions and headings stay legible',async()=>{
   assert.deepEqual(await p.locator('#trends :is(h2,h3)').evaluateAll(hs=>hs.map(h=>h.tagName)),['H2','H3','H3','H3','H3','H3']);
   assert.deepEqual(p.errors,[]);await p.close();
 });
-test('Trends reflow after narrowing without changing tabs',async()=>{
+test('Trends follow the selected study type, keep calendar spacing and reflow after narrowing',async()=>{
   const p=await page('?tab=trends',1440);await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  const labels=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.labels);
+  // Sparse early years pool into one leading column; from 1960 every calendar year has a slot.
+  assert.equal(labels[0],'Before 1960');assert.equal(labels[1],'1960');
+  const years=labels.slice(1).map(Number);
+  assert.ok(years.every((y,i)=>i===0||y===years[i-1]+1),'original-year axis skips calendar years');
+  const pooled=await p.evaluate(()=>{const c=Chart.getChart('trend-orig-year');return c.data.datasets.reduce((n,d)=>n+d.data[0],0);});
+  assert.equal(pooled,await p.evaluate(()=>trendsFilteredData().filter(r=>{const m=String(r.year_o||'').match(/\d{4}/);return m&&+m[0]>=1800&&+m[0]<1960;}).length));
+  const plotted=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.datasets.reduce((n,d)=>n+d.data.reduce((a,b)=>a+b,0),0));
+  const withYear=await p.evaluate(()=>trendsFilteredData().filter(r=>{const m=String(r.year_o||'').match(/\d{4}/);return m&&+m[0]>=1800&&+m[0]<=2100;}).length);
+  assert.equal(plotted,withYear);
+  await p.click('#trends .trend-filter-btn[data-kind="reproduction-numerical"]');
+  assert.deepEqual(await p.locator('#trends h3').allInnerTexts(),['Outcomes by original study year','Outcomes by reproduction report year','Outcomes by original journal','Outcomes by recorded reproduction venue','Outcomes by field']);
+  assert.doesNotMatch(await p.locator('#trends-charts').innerText(),/\breplications?\b/i);
+  await p.click('#trends .trend-filter-btn[data-kind="replication"]');
   for(const width of [390,1440,390]){
     await p.setViewportSize({width,height:844});await p.waitForTimeout(700);
     const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, canvas')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
     assert.deepEqual(overflow,[],`clipped at ${width}px`);
   }
+  await p.click('#mobile-navigation');await p.selectOption('#mobile-navigation','citation-tab');
+  await p.click('#ci-study-type [data-value="reproduction-robustness"]');
+  assert.equal(await p.locator('.ci-h2').innerText(),'Citation counts for robustness reproductions');
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('narrow citation timelines number replication events to match the list',async()=>{
