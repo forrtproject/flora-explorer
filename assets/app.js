@@ -1062,217 +1062,301 @@ function setupBrowseKindFilter() {
 
 // ===== Trends =====
 let trendsKind = 'replication';
-function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
-function updateTrendsCount() {
-    const el = document.getElementById('trend-filter-count'); if (!el) return;
-    const n = trendsFilteredData().length; const total = fullRowData.length;
-    const count = trendsKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference ${total === 1 ? "pair" : "pairs"}`;
-    el.innerHTML = `<span class="visually-hidden">${BROWSE_KIND_LABELS[trendsKind]}: </span>${count}`;
-}
+let trendsMode = 'percent';
+let trendsYears = 5;
+let trendsExcludeMulti = false;
+const TREND_MIN_N = 20;
+const TREND_POOL_BEFORE = 1960;
+let trendReportTargets = new Map();
 
-// Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
-// stacked these by outcome, but for 'reproduction-numerical'/'reproduction-robustness' kinds
-// the label fell back to the row's full raw (compound) outcome string regardless of which
-// dimension was selected, so both dimensions showed up under either kind. Simple counts sidestep
-// that entirely and are also the more legible default for a "how many, by category" view.
-// Which outcome bucket (per studyTypeOutcomeBuckets/trendOutcomeBuckets) a row falls
-// into, for whichever study type is currently selected in the trend filter.
+// Match scripts/classification.py: DOI first, then the recorded URL. Missing
+// identifiers cannot establish distinct targets or multiple-target membership.
+function trendReferenceKey(doi, url) {
+    let key = String(doi || '').trim().toLowerCase();
+    if (['nan', 'na', 'none'].includes(key)) key = '';
+    key = key.replace(/^(https?:\/\/(dx\.)?doi\.org\/|doi:\s*)/, '').replace(/^[\/ ]+|[\/ ]+$/g, '');
+    if (!key) key = String(url || '').trim().toLowerCase();
+    return ['', 'nan', 'na', 'none', 'null'].includes(key) ? null : key;
+}
+function buildTrendReportIndex(data) {
+    trendReportTargets = new Map();
+    data.forEach(row => {
+        const report = trendReferenceKey(row.doi_r, row.url_r);
+        const target = trendReferenceKey(row.doi_o, row.url_o);
+        if (!report || !target) return;
+        if (!trendReportTargets.has(report)) trendReportTargets.set(report, new Set());
+        trendReportTargets.get(report).add(target);
+    });
+}
+function trendIsMulti(row) {
+    return (trendReportTargets.get(trendReferenceKey(row.doi_r, row.url_r))?.size || 0) > 3;
+}
+function trendsFilteredData() {
+    return filterByKind(fullRowData, trendsKind).filter(row => !trendsExcludeMulti || !trendIsMulti(row));
+}
+function updateTrendsCount() {
+    const selected = filterByKind(fullRowData, trendsKind);
+    const n = trendsFilteredData().length;
+    const reproduction = trendsKind.startsWith('reproduction-');
+    const count = reproduction
+        ? `${selected.length.toLocaleString()} assessed of ${filterByKind(fullRowData, 'reproduction').length.toLocaleString()} reproduction pairs; ${n.toLocaleString()} selected after exclusions`
+        : `${n.toLocaleString()} of ${fullRowData.length.toLocaleString()} reference pairs`;
+    document.getElementById('trend-filter-count').innerHTML = `<span class="visually-hidden">${BROWSE_KIND_LABELS[trendsKind]}: </span>${count}`;
+    const excluded = selected.filter(trendIsMulti);
+    document.getElementById('trends-exclusion-note').textContent = trendsExcludeMulti
+        ? `Excluded ${excluded.length} pairs from ${new Set(excluded.map(r => trendReferenceKey(r.doi_r, r.url_r))).size} known multiple-target reports.` : '';
+}
 function outcomeBucketKeyForRow(row, kind) {
+    if (kind === 'all') return classifyKind(row);
     if (kind === 'reproduction-numerical') return parseReproductionOutcome(row.outcome).computational || 'not_coded';
     if (kind === 'reproduction-robustness') return parseReproductionOutcome(row.outcome).robustness || 'not_coded';
     return classifyOutcome(row.outcome);
 }
-
-// Reproduction bucket lists already cover every row (not_checked/not_coded catch-all);
-// replications need an explicit "other" bucket added so unmatched outcomes still count
-// toward the bar's total height instead of silently vanishing from the stack.
 function trendOutcomeBuckets(kind) {
-    if (kind === 'reproduction-numerical' || kind === 'reproduction-robustness') return studyTypeOutcomeBuckets(kind);
+    if (kind === 'all') return [
+        {key: 'replication', label: 'Replication', color: FloraCharts.token('--color-study-replication')},
+        {key: 'reproduction', label: 'Reproduction', color: FloraCharts.token('--color-study-original')},
+        {key: 'unknown', label: 'Unknown study type', color: OUTCOME_COLORS.other},
+    ];
     return studyTypeOutcomeBuckets(kind);
 }
-
+function emptyTrendGroup(key, kind) {
+    return {key, counts: Object.fromEntries(trendOutcomeBuckets(kind).map(b => [b.key, 0])), total: 0,
+        reports: new Set(), unidentified: 0, multiPairs: 0, multiReports: new Set()};
+}
 function aggregateStackedCounts(data, keyFn, kind) {
-    const buckets = trendOutcomeBuckets(kind);
     const groups = new Map();
     data.forEach(row => {
-        const k = keyFn(row);
-        if (k === null || k === undefined || k === '') return;
-        if (!groups.has(k)) {
-            const counts = {};
-            buckets.forEach(b => { counts[b.key] = 0; });
-            groups.set(k, { key: k, counts, total: 0 });
-        }
-        const g = groups.get(k);
-        const bucketKey = outcomeBucketKeyForRow(row, kind);
-        if (g.counts[bucketKey] !== undefined) g.counts[bucketKey]++;
+        const key = keyFn(row);
+        if (key === null || key === undefined || key === '') return;
+        if (!groups.has(key)) groups.set(key, emptyTrendGroup(key, kind));
+        const g = groups.get(key);
+        g.counts[outcomeBucketKeyForRow(row, kind)]++;
         g.total++;
+        const report = trendReferenceKey(row.doi_r, row.url_r);
+        if (report) g.reports.add(report); else g.unidentified++;
+        if (trendIsMulti(row)) { g.multiPairs++; g.multiReports.add(report); }
     });
-    return Array.from(groups.values());
+    return [...groups.values()];
 }
-
-// Records before this year are sparse (16 replication pairs across 1880–1959), so the
-// original-year chart pools them into one leading column instead of 80 mostly empty years.
-const TREND_POOL_BEFORE = 1960;
+function trendYear(raw) {
+    const match = String(raw || '').match(/\d{4}/);
+    const year = match ? Number(match[0]) : 0;
+    return year >= 1800 && year <= 2100 ? year : null;
+}
 function aggregateByYear(data, yearField, kind, poolBefore = null) {
-    const yearKey = row => {
-        const yRaw = row[yearField]; if (!yRaw) return null;
-        const match = String(yRaw).match(/\d{4}/); if (!match) return null;
-        const y = parseInt(match[0], 10);
-        if (!y || y < 1800 || y > 2100) return null;
-        return String(y);
-    };
-    // Fill every calendar year between the first and last observation with zero counts, so a
-    // 55-year gap takes 55 slots on the category axis rather than one.
-    const out = aggregateStackedCounts(data, yearKey, kind);
-    if (!out.length) return out;
-    const buckets = trendOutcomeBuckets(kind);
-    const empty = key => ({ key, counts: Object.fromEntries(buckets.map(b => [b.key, 0])), total: 0 });
-    const byYear = new Map(out.map(g => [parseInt(g.key, 10), g]));
+    const step = trendsYears;
+    const out = aggregateStackedCounts(data, row => {
+        const year = trendYear(row[yearField]);
+        if (year === null) return null;
+        if (poolBefore && year < poolBefore) return `Before ${poolBefore}`;
+        return String(step * Math.floor(year / step));
+    }, kind);
+    const pooled = out.find(g => g.key === `Before ${poolBefore}`);
+    if (pooled) pooled.pooled = true;
+    const dated = out.filter(g => g !== pooled);
+    const filled = pooled ? [pooled] : [];
+    if (!dated.length) return filled;
+    const byYear = new Map(dated.map(g => [Number(g.key), g]));
     const years = [...byYear.keys()];
-    let start = Math.min(...years);
-    const filled = [];
-    if (poolBefore && start < poolBefore) {
-        const pooled = empty(`Before ${poolBefore}`);
-        pooled.pooled = true;
-        for (const [y, g] of byYear) if (y < poolBefore) {
-            buckets.forEach(b => { pooled.counts[b.key] += g.counts[b.key]; });
-            pooled.total += g.total;
-        }
-        filled.push(pooled);
-        start = poolBefore;
+    for (let year = pooled ? poolBefore : Math.min(...years); year <= Math.max(...years); year += step) {
+        const g = byYear.get(year) || emptyTrendGroup(String(year), kind);
+        g.key = step === 5 ? `${year}–${year + 4}` : String(year);
+        filled.push(g);
     }
-    for (let y = start; y <= Math.max(...years); y++) filled.push(byYear.get(y) || empty(String(y)));
     return filled;
 }
-
 function aggregateByJournal(data, field, topN, kind) {
-    const out = aggregateStackedCounts(data, row => (row[field] || '').trim() || null, kind);
-    out.sort((a, b) => b.total - a.total);
-    return out.slice(0, topN);
+    return aggregateStackedCounts(data, row => (row[field] || '').trim() || null, kind)
+        .sort((a, b) => b.total - a.total).slice(0, topN);
 }
-
 function aggregateByField(data, kind) {
     const out = aggregateStackedCounts(data, row => disciplineForJournal(row.journal_o), kind);
-    const mapped = out.filter(e => e.key !== 'Uncategorized').sort((a, b) => b.total - a.total);
-    const uncat = out.filter(e => e.key === 'Uncategorized');
-    return [...mapped, ...uncat];
+    return [...out.filter(g => g.key !== 'Uncategorized').sort((a, b) => b.total - a.total),
+        ...out.filter(g => g.key === 'Uncategorized')];
 }
-
 function wrapLabel(str, maxChars = 36) {
     if (!str) return '';
     if (str.length <= maxChars) return str;
-    const words = String(str).split(/\s+/);
     const lines = []; let line = '';
-    for (const w of words) {
-        if (!line) { line = w; continue; }
-        if ((line + ' ' + w).length <= maxChars) line += ' ' + w;
-        else { lines.push(line); line = w; }
+    for (const word of String(str).split(/\s+/)) {
+        if (line && (line + ' ' + word).length > maxChars) { lines.push(line); line = word; }
+        else line = line ? line + ' ' + word : word;
     }
     if (line) lines.push(line);
-
     return lines;
 }
-
+function trendPercentageStatus(g) {
+    if (trendsKind === 'all') return 'Count-only view';
+    if (!g.total) return 'No recorded pairs';
+    return g.total < TREND_MIN_N ? 'Percentage not shown: fewer than 20 pairs' : 'Shown';
+}
+function trendCategory(g) { return g.key === 'Uncategorized' ? 'Uncategorised' : g.key; }
+function trendCoverage(canvas, agg, opts) {
+    const selected = trendsFilteredData();
+    const represented = agg.reduce((sum, g) => sum + g.total, 0);
+    let text = `${represented} of ${selected.length} selected reference pairs are represented`;
+    if (opts.yearField) text += `; ${selected.filter(r => trendYear(r[opts.yearField]) === null).length} lack a valid year`;
+    if (opts.venueField) {
+        const missing = selected.filter(r => !(r[opts.venueField] || '').trim()).length;
+        text += `; ${missing} lack a recorded venue; ${selected.length - missing - represented} fall outside the selected top ${opts.topN}`;
+    }
+    const excluded = selected.length - represented;
+    text += `; excluded from this selection: ${FloraCharts.number(excluded)} reference ${excluded === 1 ? 'pair' : 'pairs'}.`;
+    let note = document.getElementById(canvas.id + '-coverage');
+    if (!note) { note = document.createElement('p'); note.id = canvas.id + '-coverage'; note.className = 'trend-coverage'; canvas.closest('.trend-block').querySelector('.trend-desc').after(note); }
+    note.textContent = text;
+    let empty = document.getElementById(canvas.id + '-empty');
+    if (!empty) { empty = document.createElement('p'); empty.id = canvas.id + '-empty'; empty.className = 'trend-empty'; note.after(empty); }
+    empty.textContent = trendsMode === 'percent' && !agg.some(g => g.total >= TREND_MIN_N)
+        ? 'No groups have at least 20 pairs. Choose Counts to view the available data.' : '';
+    if (opts.yearField) {
+        let axisNote = document.getElementById(canvas.id + '-axis-note');
+        if (!axisNote) { axisNote = document.createElement('p'); axisNote.id = canvas.id + '-axis-note'; axisNote.className = 'trend-coverage'; empty.after(axisNote); }
+        axisNote.textContent = (agg[0]?.pooled ? 'Original years before 1960 are pooled in the first group. ' : '')
+            + (trendsYears === 5 ? 'Fixed five-year bands' : 'Individual years') + ' include empty periods. Scroll horizontally to see all groups.';
+    }
+    return text;
+}
 function renderStackedCountChart(canvasId, agg, orientation, existing, buckets, opts = {}) {
     if (existing) existing.destroy();
     if (typeof Chart === 'undefined') { chartLibUnavailable(canvasId, 'Chart.js', retryAllTrends); return null; }
-    const ctx = document.getElementById(canvasId).getContext('2d');
-    const isHorizontal = orientation === 'horizontal';
+    const canvas = document.getElementById(canvasId), ctx = canvas.getContext('2d');
+    const horizontal = orientation === 'horizontal', percent = trendsMode === 'percent';
     const ac = themeAxisColors();
-    const wrapLabels = !!opts.wrapLabels;
-    const labels = agg.map(r => wrapLabels ? wrapLabel(r.key, window.innerWidth < 600 ? 18 : 38) : r.key);
-    // A dashed rule sets a pooled leading column apart from the year-by-year axis.
-    const pooledSeparator = {
-        id: 'pooledSeparator',
-        afterDatasetsDraw(chart) {
+    const coverage = trendCoverage(canvas, agg, opts);
+    const tickLabels = agg.map(g => {
+        const category = trendCategory(g) + (g.multiPairs ? '†' : '');
+        const name = wrapLabel(category, horizontal ? window.innerWidth < 600 ? 20 : 42 : 10);
+        const lines = [...(Array.isArray(name) ? name : [name]), `N=${g.total}`];
+        if (!g.total) lines.push('No recorded pairs');
+        else if (percent && g.total < TREND_MIN_N) lines.push(...(horizontal
+            ? ['Percentage not shown:', 'fewer than 20 pairs'] : ['Percentage', 'not shown:', 'fewer than', '20 pairs']));
+        return lines;
+    });
+    canvas.parentElement.style.height = horizontal
+        ? Math.max(400, tickLabels.reduce((sum, lines) => sum + lines.length * 15 + 16, 65)) + 'px' : '460px';
+    if (!horizontal) canvas.parentElement.style.width = Math.max(agg.length * 64 + 80, canvas.parentElement.parentElement.clientWidth) + 'px';
+    const datasets = buckets.filter(b => trendsKind !== 'all' || b.key !== 'unknown' || agg.some(g => g.counts.unknown)).map(b => ({
+        label: b.label,
+        data: agg.map(g => percent ? g.total >= TREND_MIN_N ? 100 * g.counts[b.key] / g.total : null : g.counts[b.key]),
+        backgroundColor: b.color,
+    }));
+    const rows = [];
+    agg.forEach(g => buckets.forEach(b => {
+        if (trendsKind === 'all' && !datasets.some(d => d.label === b.label)) return;
+        rows.push([trendCategory(g), b.label, g.counts[b.key], g.total,
+            trendsKind !== 'all' && g.total >= TREND_MIN_N ? 100 * g.counts[b.key] / g.total : '',
+            trendPercentageStatus(g), g.reports.size, g.unidentified, g.multiPairs, g.multiReports.size]);
+    }));
+    const summary = `${coverage} Study kind: ${trendsKind}; measure: ${trendsMode}; year grouping: ${trendsYears === 5 ? 'five-year bands' : 'individual years'}; exclude multiple-target reports: ${trendsExcludeMulti ? 'yes' : 'no'}; percentage minimum: ${TREND_MIN_N} reference pairs; top N: ${opts.topN || 'not applicable'}. ${document.getElementById('trend-filter-count').textContent}. ${document.getElementById('trends-exclusion-note').textContent} Report counts are distinct identified reports within each group; report metadata repeat for each series and must not be summed.`;
+    const valueAxis = {stacked: true, beginAtZero: true, min: 0, ...(percent ? {max: 100} : {}),
+        title: {display: true, text: percent ? 'Within-group percentage' : 'Reference pairs', color: ac.tick},
+        grid: {color: ac.grid}, ticks: {color: ac.tick}};
+    const categoryAxis = {stacked: true, grid: {display: false}, ticks: {color: ac.tick, autoSkip: false, maxRotation: 0, minRotation: 0,
+        font: {size: 11}, callback: (value, index) => tickLabels[index]}};
+    return FloraCharts.chart(ctx, {
+        type: 'bar', data: {labels: agg.map(trendCategory), datasets},
+        options: {
+            responsive: true, maintainAspectRatio: false, indexAxis: horizontal ? 'y' : 'x',
+            plugins: {
+                legend: {display: false},
+                tooltip: {callbacks: {
+                    title: items => { const g = agg[items[0].dataIndex]; return `${trendCategory(g)}${g.multiPairs ? ' †' : ''} (N=${g.total})`; },
+                    label: item => `${item.dataset.label}: ${percent ? item.raw.toFixed(1) + '%' : item.raw + ' reference pairs'}`,
+                    afterBody: items => {
+                        const g = agg[items[0].dataIndex];
+                        return [`${g.reports.size} distinct identified reports; ${g.unidentified} pairs without report ID`,
+                            `${g.multiPairs} multiple-target pairs from ${g.multiReports.size} reports`];
+                    },
+                }},
+            },
+            scales: {x: horizontal ? valueAxis : categoryAxis, y: horizontal ? categoryAxis : valueAxis},
+        },
+        plugins: [{id: 'pooledSeparator', afterDatasetsDraw(chart) {
             if (!agg[0]?.pooled || agg.length < 2) return;
             const x = chart.scales.x, area = chart.chartArea, c = chart.ctx;
             const between = (x.getPixelForValue(0) + x.getPixelForValue(1)) / 2;
             c.save(); c.strokeStyle = ac.tick; c.setLineDash([4, 3]); c.lineWidth = 1;
             c.beginPath(); c.moveTo(between, area.top); c.lineTo(between, area.bottom); c.stroke(); c.restore();
-        },
-    };
-    if (isHorizontal) ctx.canvas.parentElement.style.height = Math.max(400, labels.reduce((n,l)=>n+(Array.isArray(l)?l.length:1)*15+15,70)) + 'px';
-    const datasets = buckets.map(b => ({
-        label: b.label,
-        data: agg.map(r => r.counts[b.key] || 0),
-        backgroundColor: b.color,
-    }));
-
-    return FloraCharts.chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets },
-        options: {
-            responsive: true, maintainAspectRatio: false, indexAxis: isHorizontal ? 'y' : 'x',
-            plugins: {
-                legend: { display: true, position: 'bottom', labels: { color: ac.legend, boxWidth: 14, font: { size: 11 } } },
-                tooltip: { callbacks: {
-                    title: items => { const label = items[0].label; return Array.isArray(label) ? label.join(' ') : label; }
-                }}
-            },
-            scales: {
-                x: { stacked: true, grid: { color: ac.grid }, ticks: { color: ac.tick, autoSkip: !isHorizontal } },
-                y: { stacked: true, grid: { color: ac.grid, display: !isHorizontal }, ticks: { color: ac.tick, autoSkip: false, font: { size: isHorizontal ? 11 : 12 } } }
-            },
-            layout: isHorizontal ? { padding: { left: 6 } } : {}
-        },
-        plugins: [pooledSeparator],
-    });
+        }}],
+    }, {table: {headers: ['Category', 'Series', 'Reference pairs', 'Group denominator', 'Percentage (%)', 'Percentage status',
+        'Identified reports', 'Pairs without report ID', 'Multiple-target pairs', 'Multiple-target reports'], rows,
+        displayRows: rows.map(row => row.map((v, i) => i === 4 && typeof v === 'number' ? v.toFixed(1) : i === 0 && row[8] ? v + ' †' : v)), summary}});
 }
-
 function renderTrendOrigYear() {
-    const agg = aggregateByYear(trendsFilteredData(), 'year_o', trendsKind, TREND_POOL_BEFORE);
-    const note = document.getElementById('trend-orig-year-axis-note');
-    if (note) note.textContent = agg[0]?.pooled
-        ? `Pairs with original studies published before ${TREND_POOL_BEFORE} are sparse and are pooled into the first column, set apart by a dashed line. From ${TREND_POOL_BEFORE} the axis runs year by year, so years without any recorded pair appear as gaps.`
-        : 'The axis runs year by year, so years without any recorded pair appear as gaps and elapsed time keeps its scale.';
-    trendOrigYearChart = renderStackedCountChart('trend-orig-year', agg, 'vertical', trendOrigYearChart, trendOutcomeBuckets(trendsKind));
+    trendOrigYearChart = renderStackedCountChart('trend-orig-year', aggregateByYear(trendsFilteredData(), 'year_o', trendsKind, TREND_POOL_BEFORE),
+        'vertical', trendOrigYearChart, trendOutcomeBuckets(trendsKind), {yearField: 'year_o'});
 }
 function renderTrendRepYear() {
-    trendRepYearChart = renderStackedCountChart('trend-rep-year', aggregateByYear(trendsFilteredData(), 'year_r', trendsKind), 'vertical', trendRepYearChart, trendOutcomeBuckets(trendsKind));
+    trendRepYearChart = renderStackedCountChart('trend-rep-year', aggregateByYear(trendsFilteredData(), 'year_r', trendsKind),
+        'vertical', trendRepYearChart, trendOutcomeBuckets(trendsKind), {yearField: 'year_r'});
 }
 function renderTrendJournal() {
     const topN = parseInt(document.getElementById('journal-top-n').value, 10) || 15;
-    const agg = aggregateByJournal(trendsFilteredData(), 'journal_o', topN, trendsKind);
-    document.getElementById('trend-journal-container').style.height = Math.max(400, agg.length * 36) + 'px';
-    trendJournalChart = renderStackedCountChart('trend-journal', agg, 'horizontal', trendJournalChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
+    trendJournalChart = renderStackedCountChart('trend-journal', aggregateByJournal(trendsFilteredData(), 'journal_o', topN, trendsKind),
+        'horizontal', trendJournalChart, trendOutcomeBuckets(trendsKind), {venueField: 'journal_o', topN});
 }
 function renderTrendRepJournal() {
     const topN = parseInt(document.getElementById('rep-journal-top-n').value, 10) || 15;
-    const agg = aggregateByJournal(trendsFilteredData(), 'journal_r', topN, trendsKind);
-    document.getElementById('trend-rep-journal-container').style.height = Math.max(400, agg.length * 36) + 'px';
-    trendRepJournalChart = renderStackedCountChart('trend-rep-journal', agg, 'horizontal', trendRepJournalChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
+    trendRepJournalChart = renderStackedCountChart('trend-rep-journal', aggregateByJournal(trendsFilteredData(), 'journal_r', topN, trendsKind),
+        'horizontal', trendRepJournalChart, trendOutcomeBuckets(trendsKind), {venueField: 'journal_r', topN});
 }
 function renderTrendField() {
-    const agg = aggregateByField(trendsFilteredData(), trendsKind);
-    document.getElementById('trend-field-container').style.height = Math.max(360, agg.length * 44) + 'px';
-    trendFieldChart = renderStackedCountChart('trend-field', agg, 'horizontal', trendFieldChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
+    trendFieldChart = renderStackedCountChart('trend-field', aggregateByField(trendsFilteredData(), trendsKind),
+        'horizontal', trendFieldChart, trendOutcomeBuckets(trendsKind));
+}
+function syncTrendsControls() {
+    if (trendsKind === 'all') trendsMode = 'count';
+    document.getElementById('trends-mode').value = trendsMode;
+    document.querySelector('#trends-mode [value="percent"]').disabled = trendsKind === 'all';
+    document.getElementById('trends-years').value = String(trendsYears);
+    document.getElementById('trends-exclude-multi').checked = trendsExcludeMulti;
+    document.getElementById('trends-all-note').hidden = trendsKind !== 'all';
+    document.getElementById('trends-percent-note').hidden = trendsMode !== 'percent';
 }
 function renderAllTrends() {
-    updateTrendsCount();
-    const chartsEl = document.getElementById('trends-charts');
-    const placeholderEl = document.getElementById('trends-placeholder');
-    const show = trendsKind !== 'all';
-    if (chartsEl) chartsEl.style.display = show ? '' : 'none';
-    if (placeholderEl) placeholderEl.style.display = show ? 'none' : '';
-    if (!show) return;
-    applyKindText(document.getElementById('trends-charts'), trendsKind);
-    renderTrendOrigYear(); renderTrendRepYear();
-    renderTrendJournal(); renderTrendRepJournal();
-    renderTrendField();
+    syncTrendsControls(); updateTrendsCount();
+    const charts = document.getElementById('trends-charts');
+    applyKindText(charts, trendsKind === 'all' ? 'replication' : trendsKind);
+    if (trendsKind === 'all') charts.querySelectorAll('h3 [data-kind-text]').forEach(el => { el.textContent = 'replication or reproduction'; });
+    charts.querySelectorAll('h3').forEach(h => {
+        // Preserve the type-specific spans inside headings.
+        h.firstChild.textContent = h.firstChild.textContent.replace(/^(Outcomes|Reference pairs) by/, trendsKind === 'all' ? 'Reference pairs by' : 'Outcomes by');
+    });
+    document.getElementById('trends-kind-note').textContent = {
+        replication: 'Colours show recorded replication outcomes.',
+        'reproduction-numerical': 'Colours show computational reproducibility verdicts. Only assessed pairs are included.',
+        'reproduction-robustness': 'Colours show robustness verdicts. Only assessed pairs are included.',
+        all: 'Each reference pair is counted once by study type. The two assessed reproduction dimensions can overlap.',
+    }[trendsKind];
+    const buckets = trendOutcomeBuckets(trendsKind).filter(b => b.key !== 'unknown' || trendsFilteredData().some(r => classifyKind(r) === 'unknown'));
+    const legend = document.getElementById('trends-legend'); legend.replaceChildren();
+    buckets.forEach(b => {
+        const li = document.createElement('li'), swatch = document.createElement('span');
+        swatch.className = 'trend-swatch'; swatch.style.backgroundColor = b.color; swatch.setAttribute('aria-hidden', 'true');
+        li.append(swatch, document.createTextNode(b.label)); legend.append(li);
+    });
+    renderTrendOrigYear(); renderTrendRepYear(); renderTrendJournal(); renderTrendRepJournal(); renderTrendField();
 }
-
 document.getElementById('journal-top-n').addEventListener('change', renderTrendJournal);
 document.getElementById('rep-journal-top-n').addEventListener('change', renderTrendRepJournal);
+for (const id of ['trends-mode', 'trends-years', 'trends-exclude-multi']) {
+    document.getElementById(id).addEventListener('change', () => {
+        trendsMode = document.getElementById('trends-mode').value;
+        trendsYears = Number(document.getElementById('trends-years').value);
+        trendsExcludeMulti = document.getElementById('trends-exclude-multi').checked;
+        if (trendsInitialized) renderAllTrends();
+    });
+}
 document.querySelectorAll('#trends .trend-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('#trends .trend-filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        trendsKind = btn.dataset.kind || 'all';
+        btn.classList.add('active'); trendsKind = btn.dataset.kind || 'all';
+        syncTrendsControls();
         if (trendsInitialized && fullRowData.length) renderAllTrends();
     });
 });
-
 document.getElementById('trends-tab').addEventListener('shown.bs.tab', () => {
     if (!trendsInitialized && fullRowData.length) { trendsInitialized = true; renderAllTrends(); }
 });
@@ -2156,6 +2240,7 @@ async function loadData() {
         return row;
     });
     fullRowData = data;
+    buildTrendReportIndex(data);
 
     document.getElementById('global-loading').style.display = 'none';
     document.getElementById('floraTabsContent').style.display = 'block';
@@ -2169,7 +2254,6 @@ async function loadData() {
     loadCitation();
     loadFaqs();
     loadDataStamps();
-    applyTabFromUrl();
     document.dispatchEvent(new Event('flora-ready'));
 }
 

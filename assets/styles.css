@@ -322,15 +322,25 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .trend-filter-btn.active:hover { background: var(--color-primary-dark); border-color: var(--color-primary-dark); color: var(--color-on-primary); }
 .trend-filter-count { margin-left: auto; color: var(--color-muted-fg); font-size: 0.85rem; font-style: italic; }
 
-.trend-block { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
-/* minmax(0, …) lets the columns shrink below a chart's last drawn width when the viewport narrows. */
+.trend-block { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+/* Captions stay above the full-width charts at every viewport. */
 .trend-block > * { min-width: 0; }
 .trend-block .trend-desc { padding-top: 0.35rem; }
 .trend-block .trend-title { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.85rem; }
 .trend-block .trend-desc h3 { color: var(--color-primary); font-weight: 600; margin: 0; font-size: 1.3rem; }
 .trend-block .trend-desc p { color: var(--color-text-secondary); font-size: var(--text-md); line-height: 1.65; margin-bottom: 0.8rem; }
 .trend-block .trend-desc .trend-note { color: var(--color-muted-fg); font-size: 0.82rem; font-style: italic; margin-top: 0.5rem; }
-@media (max-width: 900px) { .trend-block { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; } }
+.trend-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.trend-controls label { display: flex; align-items: center; gap: 0.5rem; }
+.trend-controls select { width: auto; }
+.trend-exclusion { cursor: pointer; }
+.trends-legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.2rem; list-style: none; padding: 0; margin: 1rem 0 1.5rem; }
+.trends-legend li { display: flex; align-items: center; gap: 0.4rem; }
+.trend-swatch { width: 14px; height: 14px; flex-shrink: 0; }
+.trend-year-scroll { overflow-x: auto; max-width: 100%; }
+.trend-coverage, .trend-empty { color: var(--color-text-secondary); margin: 0; }
+.trend-block .chart-data { max-width: 100%; }
+
 
 /* Footer - the system pairs the dark top bar with a matching dark footer */
 .footer-bar {

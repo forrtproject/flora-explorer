@@ -75,16 +75,16 @@ window.FloraCharts = (() => {
         el.removeAttribute('aria-describedby'); el.removeAttribute('role'); el.removeAttribute('aria-label');
         if (typeof Plotly !== 'undefined' && el.data) Plotly.purge(el);
     }
-    function table(el, rows, headers, summary) {
+    function table(el, rows, headers, summary, displayRows = rows) {
         const id = el.id + '-data';
         let details = document.getElementById(id);
         if (!details) {
             details = document.createElement('details'); details.id = id; details.className = 'chart-data';
-            const anchor = el.tagName === 'CANVAS' ? el.parentElement : el;
+            const anchor = el.closest('.trend-year-scroll') || (el.tagName === 'CANVAS' ? el.parentElement : el);
             anchor.insertAdjacentElement('afterend', details);
         }
         const wasOpen = details.open;
-        details.innerHTML = `<summary aria-label="View chart data for ${escape(visibleTitle(el))}">View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="${escape(visibleTitle(el))}: chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v, headers[i]))}</td>` : `<th scope="row">${escape(fmt(v, headers[i]))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        details.innerHTML = `<summary aria-label="View chart data for ${escape(visibleTitle(el))}">View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="${escape(visibleTitle(el))}: chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${displayRows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v, headers[i]))}</td>` : `<th scope="row">${escape(fmt(v, headers[i]))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         details.open = wasOpen;
         const label = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label') || el.closest('.trend-block')?.querySelector('.trend-title');
         let action = document.getElementById(id + '-copy');
@@ -118,17 +118,24 @@ window.FloraCharts = (() => {
         };
         el.setAttribute('aria-describedby', id);
     }
-    function chart(ctx, config) {
+    // Supply source rows explicitly when plotted percentages or suppressed bars differ
+    // from the export values. displayRows can format the table without rounding CSVs.
+    function chart(ctx, config, options = {}) {
         const el = ctx.canvas || ctx;
         const datasets = config.data.datasets || [], labels = config.data.labels || [];
         el.setAttribute('role','img'); el.setAttribute('aria-label',visibleTitle(el) + '. Values in the following data table.');
-        const rows = labels.map((label,i) => [label,...datasets.map(d=>d.data[i] ?? 0)]);
-        const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
-        const isOutcome = /outcome|computational|robustness/.test(el.id);
-        const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
-        const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
-        table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
-        if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
+        if (options.table) {
+            const {rows, headers, summary, displayRows} = options.table;
+            table(el, rows, headers, summary, displayRows);
+        } else {
+            const rows = labels.map((label,i) => [label,...datasets.map(d=>d.data[i] ?? 0)]);
+            const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
+            const isOutcome = /outcome|computational|robustness/.test(el.id);
+            const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
+            const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
+            table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
+        }
+        if (!options.table && config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
         if (config.options.plugins?.legend) config.options.plugins.legend.reverse = false;
         Chart.defaults.font.family = theme().fontFamily;
         if (matchMedia('(prefers-reduced-motion: reduce)').matches) config.options.animation = false;

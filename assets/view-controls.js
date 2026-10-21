@@ -14,7 +14,7 @@
         const url = new URL(location.href), tab = document.querySelector('#floraTabs .active').id;
         const put = (key,value,fallback) => { if(String(value)!==String(fallback))url.searchParams.set(key,value); };
         // Remove known state first: a shared URL contains only the active view's choices.
-        for (const key of ['tab','q','kind','sort','page','page-size','mobile-page','trends-kind','search-input',...Object.values(selectGroups).map(v=>v[0]),...Object.values(controls).map(v=>v[0])]) url.searchParams.delete(key);
+        for (const key of ['tab','q','kind','sort','page','page-size','mobile-page','trends-kind','trends-mode','trends-years','trends-exclude-multi','search-input',...Object.values(selectGroups).map(v=>v[0]),...Object.values(controls).map(v=>v[0])]) url.searchParams.delete(key);
         put('tab',TAB_ID_TO_PARAM[tab],'overview');
         if (tab !== 'citation-tab') url.searchParams.delete('doi');
         if (tab === 'browse-tab') {
@@ -23,7 +23,12 @@
             put('page',dataTable.page()+1,1);put('page-size',dataTable.page.len(),25);
             put('mobile-page',bmPage+1,1);
         }
-        if (tab === 'trends-tab') put('trends-kind',trendsKind,'replication');
+        if (tab === 'trends-tab') {
+            put('trends-kind',trendsKind,'replication');
+            put('trends-mode',trendsMode,'percent');
+            put('trends-years',trendsYears,5);
+            put('trends-exclude-multi',trendsExcludeMulti ? '1' : '0','0');
+        }
         for (const [id,[key,owner,fallback]] of Object.entries(selectGroups)) {
             if(tab===owner) put(key,document.querySelector('#'+id+' .active')?.dataset.value || fallback,fallback);
         }
@@ -60,10 +65,18 @@
             const btn=buttons.find(b=>b.dataset.value===value) || buttons.find(b=>b.dataset.value===fallback);
             if(btn && !btn.classList.contains('active'))btn.click();
         }
-        const trend=url.searchParams.get('trends-kind') || 'replication';
-        const trendButtons=[...document.querySelectorAll('#trends .trend-filter-btn')];
-        const trendButton=trendButtons.find(b=>b.dataset.kind===trend) || trendButtons.find(b=>b.dataset.kind==='replication');
-        if(trendButton && !trendButton.classList.contains('active'))trendButton.click();
+        const trend=url.searchParams.get('trends-kind');
+        trendsKind=['all','replication','reproduction-numerical','reproduction-robustness'].includes(trend) ? trend : 'replication';
+        trendsMode=url.searchParams.get('trends-mode')==='count' || trendsKind==='all' ? 'count' : 'percent';
+        trendsYears=url.searchParams.get('trends-years')==='1' ? 1 : 5;
+        trendsExcludeMulti=url.searchParams.get('trends-exclude-multi')==='1';
+        syncTrendsControls();
+        document.querySelectorAll('#trends .trend-filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.kind===trendsKind));
+        // Restore all Trends settings before rendering, including top-N selection.
+        for (const id of ['journal-top-n','rep-journal-top-n']) {
+            const value=url.searchParams.get(id);
+            document.getElementById(id).value=['10','15','25','50'].includes(value) ? value : '15';
+        }
         for (const [id,[key,,fallback]] of Object.entries(controls)) {
             const el=document.getElementById(id);
             let value=url.searchParams.get(key) ?? (id==='search-input' ? url.searchParams.get('search-input') : null) ?? fallback;
@@ -71,6 +84,7 @@
             if(el.value!==value){el.value=value;el.dispatchEvent(new Event(id==='search-input'?'input':'change'));}
         }
         history.replaceState(null,'',url);
+        if (trendsInitialized) renderAllTrends();
         applyTabFromUrl();pressed();restoring=false;ready=true;recordState();
         if (fromHistory && hadOpenTimeline) {
             const pane = document.querySelector('.tab-pane.active');
@@ -88,7 +102,7 @@
             if (group && !restoring) document.getElementById('analysis-feedback').textContent = group.getAttribute('aria-label') + ': ' + chip.textContent.trim() + ' selected.';
         }
     });
-    document.addEventListener('change',e=>{if(Object.keys(controls).includes(e.target.id))recordState();});
+    document.addEventListener('change',e=>{if([...Object.keys(controls),'trends-mode','trends-years','trends-exclude-multi'].includes(e.target.id))recordState();});
     document.getElementById('search-input')?.addEventListener('input',recordState);
     document.getElementById('mobile-navigation').addEventListener('change',e=>bootstrap.Tab.getOrCreateInstance(document.getElementById(e.target.value)).show());
     const bar=document.querySelector('.top-bar'), tabs=document.getElementById('floraTabs'), mobile=document.querySelector('.mobile-navigation');
