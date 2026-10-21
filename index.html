@@ -151,12 +151,12 @@
                         <div class="card">
                             <h2 class="card-header">About FLoRA</h2>
                             <div class="card-body intro-text">
-                                <h4>What is the aim of this project?</h4>
+                                <h3>What is the aim of this project?</h3>
                                 <p>FLoRA tracks <strong>numerical reproductions</strong>, <strong>robustness reproductions</strong>, and <strong>replications</strong>, linking each one to the original publication it tests. The goal is to increase the findability of repetition attempts and to enable meta-research on the repeatability of scientific findings, across disciplines, journals, and time.</p>
 
                                 <p>FLoRA tracks attempts to repeatedly test published findings across the sciences and humanities. Unlike the <a href="https://forrt.org/FReD/" target="_blank" rel="noopener noreferrer" class="doi-link">FORRT Replication Database (FReD)</a>, FLoRA does not include statistical data. This lets it cover every field of research and allows much faster expansion.</p>
 
-                                <h4>What is a replication?</h4>
+                                <h3>What is a replication?</h3>
                                 <p>Replications intentionally repeat prior research to test whether the original findings hold. To be included in FLoRA, a study must:</p>
                                 <ul>
                                     <li>Self-identify as a replication <em>before</em> reporting results: replication must be an aim, not just a result</li>
@@ -165,7 +165,7 @@
                                 </ul>
                                 <p>Replications range from <strong>close/direct</strong> (same methods, same population) to <strong>conceptual</strong> (same hypothesis, different methods). Outcomes are tagged <strong>Successful</strong>, <strong>Failed</strong>, or <strong>Mixed</strong> based on how the replication authors characterise their results.</p>
 
-                                <h4>What is a reproduction?</h4>
+                                <h3>What is a reproduction?</h3>
                                 <p>Reproductions verify whether reported results can be obtained from the original study's data and methods. They are coded on two dimensions:</p>
                                 <ul>
                                     <li><strong>Computational success</strong>: were the original results obtained? (Computationally Successful, Computational Issues, or Technical Failure)</li>
@@ -177,10 +177,10 @@
                                     <strong>Key distinction:</strong> If new data are collected (e.g. an additional decade of observations), it's a <em>replication</em>. If the same data are re-analysed to verify the original results, it's a <em>reproduction</em>.
                                 </div>
 
-                                <h4>Structure of FLoRA</h4>
+                                <h3>Structure of FLoRA</h3>
                                 <p>FLoRA links each repetition reference to its original, and assigns a standardized outcome based on the repetition report. This simple structure lets us track replication rates across time, disciplines, and journals, and powers tools like the FLoRA Annotator, which lists replication and reproduction attempts for any reference you provide.</p>
 
-                                <h4>Is FLoRA representative and comprehensive?</h4>
+                                <h3>Is FLoRA representative and comprehensive?</h3>
                                 <p>Honestly — neither. We are still working on a systematic literature search, and several structural factors limit coverage:</p>
                                 <ul>
                                     <li>Some replications cannot be added because they do not self-identify as such in the metadata we can reach (e.g., the title and abstract).</li>
@@ -334,7 +334,9 @@
                         <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
                         <span class="trend-filter-count" id="browse-kind-count"></span>
                     </div>
+                    <p id="browse-chart-hint" class="study-type-note">Choose a study type to see its outcome breakdown.</p>
                 </div>
+                <div id="browse-empty" class="browse-empty" role="status" hidden></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
                     <div class="tab-cite-block-label">How to cite &amp; re-use guidelines</div>
@@ -342,12 +344,9 @@
                     <div class="cite-ref" id="citation-text-browse">Loading citation…</div>
                     <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
 
-                <div class="card">
+                <div class="card" id="browse-outcome-card" style="display:none;">
                     <h2 class="card-header">Outcome Breakdown</h2>
                     <div class="card-body">
-                        <div id="browse-chart-placeholder" class="coming-soon-placeholder" style="display:none;">
-                            Select "Replications only", "Numerical Reproductions", or "Robustness Reproductions" above to see its outcome breakdown.
-                        </div>
                         <div class="outcome-chart-row" id="browse-computational-row" style="display:none;">
                             <div class="outcome-chart-label">
                                 <span>Computational Reproducibility</span>
@@ -410,6 +409,14 @@
                         </div>
 
                         <div class="browse-mobile">
+                            <label class="bm-sort" for="bm-sort">Sort by <select id="bm-sort" class="form-select">
+                                <option value="4:desc">Newest repetition first</option>
+                                <option value="4:asc">Oldest repetition first</option>
+                                <option value="2:desc">Newest original first</option>
+                                <option value="2:asc">Oldest original first</option>
+                                <option value="1:asc">Original title, A–Z</option>
+                                <option value="custom" disabled hidden>Order set in desktop table</option>
+                            </select></label>
                             <div id="browse-mobile-meta" class="browse-mobile-meta"></div>
                             <div id="browse-mobile-list" class="browse-mobile-list"></div>
                             <div class="browse-mobile-pager" id="browse-mobile-pager">
@@ -424,6 +431,7 @@
 
             <!-- ============================ TRENDS ============================ -->
             <div class="tab-pane fade" id="trends" role="tabpanel">
+                <h2 class="visually-hidden">Years &amp; Disciplines</h2>
                 <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -446,7 +454,7 @@
                 <div id="trends-charts">
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by original study year</h5>
+                        <div class="trend-title"><h3>Outcomes by original study year</h3></div>
                         <p>How have the findings of studies from different eras fared when scientists have tried to replicate them? Each bar groups replication and reproduction attempts by the year the <strong>original</strong> study was published, split into Successful, Mixed, Failed, and other outcomes.</p>
                         <p>Use this to see how findings from different historical periods have held up in subsequent replication efforts.</p>
                         <p class="trend-note">Studies without a recorded original publication year are excluded.</p>
@@ -456,7 +464,7 @@
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by replication study year</h5>
+                        <div class="trend-title"><h3>Outcomes by replication study year</h3></div>
                         <p>Grouped by the year of the <strong>replication</strong> itself, this view shows the growth of FLoRA's coverage and how outcome profiles have shifted over time as replication practice has matured.</p>
                         <p>The rightmost years may reflect ongoing data entry rather than a genuine decline in activity.</p>
                         <p class="trend-note">Replications without a recorded year are excluded.</p>
@@ -466,7 +474,7 @@
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by original journal</h5>
+                        <div class="trend-title"><h3>Outcomes by original journal</h3></div>
                         <p>The journals whose articles have most frequently been the target of replication attempts. For each journal, the bar shows the outcome breakdown of those attempts.</p>
                         <p>Frequency here reflects where replication attention has been focused, not necessarily a journal's overall replicability.</p>
                         <div class="mt-3">
@@ -484,7 +492,7 @@
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by replication journal</h5>
+                        <div class="trend-title"><h3>Outcomes by replication journal</h3></div>
                         <p>Where replication studies are themselves being published. Each bar shows the outcome breakdown of replications appearing in a given journal.</p>
                         <p>This view highlights the venues that publish replication research most actively, including journals dedicated to replications and registered reports.</p>
                         <p class="trend-note">Annotation of replication-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
@@ -503,7 +511,7 @@
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
-                        <h5>Outcomes by field</h5>
+                        <div class="trend-title"><h3>Outcomes by field</h3></div>
                         <p>A bird's-eye view grouping studies by research discipline. Each bar shows the outcome breakdown of replication and reproduction attempts targeting work originally published in journals from that field.</p>
                         <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">data/disciplines.json</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
                         <p class="trend-note">Coverage is still growing. Many journals are not yet classified, so some fields may be under-represented and <em>Uncategorized</em> may dominate. The dictionary is straightforward to extend.</p>
@@ -622,8 +630,9 @@
                     <div class="card-body">
                         <p class="muted">Click any row to see its citation timeline with replication events marked.</p>
 
+                        <label for="search-input" class="search-label">Search originals</label>
                         <div class="search-row">
-                            <input id="search-input" type="search" placeholder="Search title, author, or DOI…" />
+                            <input id="search-input" type="search" placeholder="Title, author or DOI" />
                             <select id="filter-outcome" aria-label="Filter originals by any recorded replication outcome">
                                 <option value="">All outcomes</option>
                                 <option value="failed">Has failed replication</option>
@@ -709,11 +718,12 @@
                             <h3 class="mc-chart-title">Distribution of studies by journal Mean Citedness</h3>
                             <div class="mc-chart-wrap"><div id="mc-dist-chart"></div></div>
                         </div>
+                        <p id="mc-repro-note" class="mc-model-note" style="display:none;">Reproduction summaries are descriptive. No reproduction model has been fitted.</p>
                         <div id="mc-gam-card" class="mc-chart-card" style="display:none;">
                             <h3 class="mc-chart-title">P(successful replication) vs Mean Citedness — logistic smooth</h3>
                             <p id="mc-gam-stats" class="mc-model-note"></p>
                             <div class="mc-chart-wrap"><div id="mc-gam-chart"></div></div>
-                            <p class="mc-model-note" style="margin-top:0.6rem;">The model conditions on unqualified successful or failed outcomes. Other outcomes, including qualified success, are excluded. A low p-value does not imply strong prediction.</p>
+                            <p class="mc-model-note" style="margin-top:0.6rem;">The model conditions on unqualified successful or failed outcomes. Other outcomes, including qualified success, are excluded. A low p-value does not imply strong prediction. Association does not establish causation.</p>
                         </div>
                         <div id="mc-error" class="note" style="display:none;">
                             Failed to load analysis data.
