@@ -672,10 +672,15 @@ function renderFaqAnswer(lines) {
 function parseFaqMarkdown(md) {
     const lines = readerFaqCopy(md).replace(/\r\n/g, '\n').split('\n');
     const items = []; let currentQA = null; let currentSection = null;
+    const venueQuestion = 'How is the peer review status determined?';
+    let venueAnswerCorrected = false;
     const flushQA = () => { if (currentQA) {
-        if (currentQA.question === 'How is the peer review status determined?') currentQA.body = [
-            'The Publication Type tab groups reports by their recorded venue: repository or preprint, conference output, thesis or dissertation, other named venue, or unknown venue. A named venue does not confirm peer review. Missing venue information remains unknown.'
-        ];
+        if (currentQA.question === venueQuestion) {
+            currentQA.body = [
+                'The Publication Type tab groups reports by their recorded venue: repository or preprint, conference output, thesis or dissertation, other named venue, or unknown venue. A named venue does not confirm peer review. Missing venue information remains unknown.'
+            ];
+            venueAnswerCorrected = true;
+        }
         items.push(currentQA); currentQA = null;
     } };
     const flushSection = () => { if (currentSection) { items.push(currentSection); currentSection = null; } };
@@ -689,6 +694,7 @@ function parseFaqMarkdown(md) {
         else if (currentSection) currentSection.body.push(ln);
     }
     flushQA(); flushSection();
+    if (!venueAnswerCorrected) console.warn(`FAQ venue-status correction was not applied: expected heading "${venueQuestion}" was not found. Review the upstream FAQ.`);
     return items;
 }
 
