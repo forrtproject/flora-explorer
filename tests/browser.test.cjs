@@ -105,7 +105,7 @@ test('Mean Citedness clears stale models and all distribution outcomes reconcile
     assert.ok(await p.locator('#mc-gam-card').isHidden());
     for(const id of ['mc-gam-chart-data','mc-gam-chart-data-copy','mc-gam-chart-data-copy-status']) assert.equal(await p.locator('#'+id).count(),0,id);
     assert.equal(await p.locator('#mc-gam-chart').getAttribute('aria-describedby'),null);
-    assert.match(await p.locator('#mc-repro-note').innerText(),/No reproduction model has been fitted/);
+    assert.match(await p.locator('#mc-repro-note').innerText(),/This distribution is descriptive; no reproduction model is fitted/);
     assert.equal(await p.locator('#mean-citedness .chart-copy:visible').count(),1);
   }
   await p.click('#mc-study-type [data-value="replication"]');
@@ -302,12 +302,12 @@ test('Overview charts state denominators; placeholders, labels and headings stay
   const p=await page('?tab=overview',1280,p=>p.route('**/flora_faq.md',route=>route.fulfill({contentType:'text/markdown',body:'# FAQ title\n\n## Coding\n\n### What if a paper includes reproduction *and* replication?\n\nIt is listed twice.\n'})));
   const expected=await p.evaluate(()=>{const repro=fullRowData.filter(r=>classifyKind(r)==='reproduction').length;const comp=fullRowData.filter(isComputationalAssessed).length;return {repro,comp};});
   assert.match(await p.locator('#overview-computational-caption').innerText(),new RegExp(`^${expected.comp.toLocaleString('en-US')} of ${expected.repro.toLocaleString('en-US')} reproduction pairs have a computational verdict; ${(expected.repro-expected.comp).toLocaleString('en-US')} not checked`));
-  assert.ok(await p.locator('.coverage-caution').isVisible());
-  assert.ok(await p.locator('.coverage-caution').evaluate(el=>el.getBoundingClientRect().top<document.getElementById('overview-computational-chart').getBoundingClientRect().top));
+  assert.ok(await p.locator('#overview .coverage-caution').isVisible());
+  assert.ok(await p.locator('#overview .coverage-caution').evaluate(el=>el.getBoundingClientRect().top<document.getElementById('overview-computational-chart').getBoundingClientRect().top));
   await p.waitForSelector('.faq-question');
   assert.equal(await p.locator('.faq-question em').textContent(),'and');
   assert.doesNotMatch(await p.locator('.faq-question').first().innerText(),/\*/);
-  assert.deepEqual(await p.locator('#overview .chart-data caption').allTextContents(),['Computational Reproducibility','Robustness','Replicability']);
+  assert.deepEqual(await p.locator('#overview .chart-data caption').allTextContents(),['Replicability','Computational Reproducibility','Robustness']);
   // Placeholder instructions meet 4.5:1 in both themes.
   const contrast=async()=>p.evaluate(()=>{
     const rgb=c=>c.match(/[\d.]+/g).map(Number);
@@ -784,8 +784,12 @@ test('copy follows each study type and preserves complete rendered sentences',as
       const text=await p.locator(pane).innerText();
       assert.doesNotMatch(text,/a journal's the|Not enough (Numerical|Robustness|Replications)|split by the selected outcome|\bRRDB\b|\bjournal_r\b|outcome chips|straightforward to extend|data\/disciplines\.json/);
       // Check assembled prose around substitutions, including empty variants in Mean Citedness.
-      const paragraphs=await p.locator(`${pane} p:has([data-kind-text])`).allTextContents();
-      assert.ok(paragraphs.length>0);
+      const paragraphs=await p.locator(`${pane} p[data-kind-text], ${pane} p:has([data-kind-text]), ${pane} .key-distinction:has([data-kind-text])`).allTextContents();
+      if(tab==='mc-tab') {
+        assert.equal(paragraphs.length,0);
+        assert.match(text,/How do recorded outcomes vary with the citation rate/);
+        assert.doesNotMatch(text,/predicts replication success|without a fitted model|Any fitted model/);
+      } else assert.ok(paragraphs.length>0,`${tab}: ${kind}`);
       assert.ok(paragraphs.every(s=>!/(?:a|the)\s+(?:a|the)\b/i.test(s)));
       if(tab==='trends-tab')assert.match(text,new RegExp(`Frequency shows where ${kind==='replication'?'replication':'reproduction'} effort has gone, not how ${kind==='replication'?'replicable':kind==='reproduction-numerical'?'reproducible':'robust'} a journal's research is\\.`));
     }
@@ -895,8 +899,11 @@ test('small stacked citation timelines and study denominators have integer ticks
   await assertIntegerCountTicks(p,'study-plot','yaxis');
   await assertIntegerCountTicks(p,'plot-cit','yaxis2');
   await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
+  // Debounced re-layouts can temporarily clear this axis too; wait for its tick step.
+  await p.waitForFunction(()=>document.getElementById('plot-cocit')?._fullLayout?.yaxis?.dtick!==undefined);
   // The raw means are continuous quantities and must retain fractional ticks.
-  assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout.yaxis.dtick<1));
+  const meanStep=await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout.yaxis.dtick);
+  assert.ok(meanStep<1,`Co-citation mean tick step: ${meanStep}`);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -1105,6 +1112,101 @@ test('Browse empty results announce the explanation on desktop and mobile',async
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
+test('editorial openings, shared caveats and chart context retain the relevant scope',async()=>{
+  const p=await page('?tab=overview');
+  const ids=['overview-outcome-chart','overview-computational-chart','overview-robustness-chart'];
+  assert.deepEqual(await p.locator('#overview canvas').evaluateAll(nodes=>nodes.map(n=>n.id)),ids);
+  const positions=await p.locator('#overview canvas').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top));
+  assert.ok(positions[0]<positions[1]&&positions[1]<positions[2]);
+  await p.evaluate(()=>document.querySelectorAll('.chart-data').forEach(d=>d.open=true));
+  const overview=await p.locator('#overview').innerText();
+  assert.equal(overview.split('their totals must not be added.').length-1,1);
+  assert.doesNotMatch(overview,/Values and units correspond|two reproduction subsets overlap|contribute to both dimensions/);
+  for(const id of ids)assert.match(await p.locator('#'+id+'-data .chart-summary').textContent(),/Included in the plot: [\d,]+; excluded from this selection: [\d,]+ reference pairs/);
+  const views=[['browse-tab','browse','.browse-filter-panel','flora'],['trends-tab','trends','.trend-filter','flora'],['mc-tab','mean-citedness','#mc-study-type','impact_factor'],['overlap-tab','authorship-overlap','#ao-study-type','author_overlap'],['pub-tab','publication-type','#pubtype-study-type','pub_status'],['citation-tab','citation-impact','#ci-study-type','citations']];
+  for(const [tab,pane,controls,source] of views){
+    await p.click('#'+tab);
+    const order=await p.locator('#'+pane).evaluate((root,{controls,source})=>{
+      const heading=root.querySelector('h2'),purpose=root.querySelector('.tab-purpose, .ci-lede'),control=root.querySelector(controls),stamp=root.querySelector(`[data-stamp-source="${source}"]`);
+      return [heading,purpose,control,stamp].map(el=>el.getBoundingClientRect().top);
+    },{controls,source});
+    assert.ok(order.every((v,i)=>i===0||v>order[i-1]),`${pane}: ${order}`);
+    if(['trends','mean-citedness','authorship-overlap','publication-type'].includes(pane))assert.equal(await p.locator('#'+pane+' .coverage-caution').count(),1);
+  }
+  await p.waitForSelector('#pub-chart-data',{state:'attached'});
+  await p.click('#pub-tab');
+  await p.evaluate(()=>document.querySelectorAll('#publication-type .chart-data').forEach(d=>d.open=true));
+  assert.equal((await p.locator('#publication-type').innerText()).split('these observations are not independent.').length-1,1);
+  for(const [id,source,other] of [['pub-chart','Publication Status data','Registered Reports data'],['ls-chart','Publication Status data','Registered Reports data'],['rr-chart','Registered Reports data','Publication Status data']]){
+    const context=await p.locator('#'+id+'-data .chart-context').textContent();
+    assert.ok(context.includes(source));assert.ok(!context.includes(other));assert.match(context,/Selection: Replications/);
+  }
+  await p.click('#overlap-tab');await p.waitForSelector('#ao-chart-data',{state:'attached'});
+  assert.doesNotMatch(await p.locator('#ao-chart-data .chart-summary').textContent(),/Registered Report|not independent/);
+  await p.click('#citation-tab');await p.waitForSelector('#plot-cit-data',{state:'attached'});
+  assert.doesNotMatch(await p.locator('#plot-cit-data .chart-context').textContent(),/Reproduction citation coverage/);
+  assert.match(await p.locator('#citation-impact').textContent(),/Both reports must have a DOI\. Duplicate original–replication DOI pairs are removed\. There is no filter for direct or conceptual replication\./);
+  for(const [tab,pane,controls] of views.filter(v=>['mc-tab','overlap-tab','pub-tab','citation-tab'].includes(v[0]))){
+    await p.click('#'+tab);
+    assert.ok(await p.locator('#'+pane+' [data-reproduction-only]').isHidden());
+    await p.click(controls+' [data-value="reproduction-numerical"]');
+    assert.ok(await p.locator('#'+pane+' [data-reproduction-only]').isVisible());
+    await p.reload();await p.waitForFunction(()=>document.getElementById('floraTabsContent').style.display==='block');
+    await p.waitForSelector('#'+pane+' [data-reproduction-only]:visible');
+    if(tab==='citation-tab') assert.ok(await p.locator('#ci-replication-stamp').isHidden());
+    await p.click(controls+' [data-value="replication"]');
+    assert.ok(await p.locator('#'+pane+' [data-reproduction-only]').isHidden());
+  }
+  await p.click('#pub-tab');await p.click('#publication-type [data-coverage-link]');
+  await p.waitForFunction(()=>document.activeElement?.id==='flora-coverage');
+  assert.ok(await p.locator('#overview').isVisible());
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Browse shares describe matching records and quotation limits appear once',async()=>{
+  const p=await page('?tab=browse&kind=replication&q=psychological+science');
+  const selectedOutcomes=await p.evaluate(()=>getChartData().map(r=>r.outcome));
+  assert.ok(selectedOutcomes.length>0);
+  assert.ok(await p.locator('#browse-coverage-note').isVisible());
+  assert.match(await p.locator('#browse-coverage-note').textContent(),/a text search does not define a representative sample/);
+  const totals=await p.evaluate(()=>Chart.getChart('browse-outcome-chart').data.datasets.map(d=>[d.label,d.data[0]]));
+  assert.equal(totals.find(d=>d[0]==='Successful')[1],selectedOutcomes.filter(outcome=>outcome==='successful').length);
+  for(const kind of ['all','reproduction-numerical','reproduction-robustness','replication']){
+    await p.fill('#browse-mobile-input','');await p.click(`.browse-kind-btn[data-kind="${kind}"]`);
+    if(kind==='all')assert.ok(await p.locator('#browse-coverage-note').isHidden());
+    else assert.ok(await p.locator('#browse-coverage-note').isVisible());
+    assert.equal(await p.locator('#browse-assessment-note').isVisible(),kind.startsWith('reproduction'));
+  }
+  const evidence=await p.evaluate(()=>formatDetailRow({outcome:'failed',outcome_quote:'First finding',outcome_quote_source:'Report, page 2'})+formatDetailRow({outcome:'mixed',outcome_quote:'Second finding'}));
+  assert.match(evidence,/Source: Report, page 2/);assert.doesNotMatch(evidence,/excerpt may cover/);
+  assert.equal((await p.locator('#browse').textContent()).split('Recorded excerpts may cover only part').length-1,1);
+  await p.fill('#browse-mobile-input','no-matching-flora-reference-zzzz');
+  await p.waitForFunction(()=>getChartData().length===0);
+  assert.ok(await p.locator('#browse-coverage-note').isHidden());assert.ok(await p.locator('#browse-empty').isVisible());
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Mean Citedness details preserve diagnostics and distinguish association from prediction',async()=>{
+  const p=await page('?tab=mean-citedness');
+  const data=JSON.parse(fs.readFileSync('data/impact_factor_data.json'));
+  await p.waitForFunction(()=>document.getElementById('mc-model-count').textContent.includes('Fitted from'));
+  assert.equal(await p.locator('#mc-model-count').textContent(),`Fitted from ${data.stats.n_model.toLocaleString('en-GB')} successful or failed reference pairs.`);
+  const details=p.locator('#mc-gam-card details').filter({has:p.locator('summary', {hasText:'Model details'})});
+  assert.equal(await details.getAttribute('open'),null);await details.locator('summary').click();
+  const text=await details.innerText();
+  for(const phrase of ['smooth of log(1 + OMC)','displayed up to OMC 20','observations below 35','pointwise 95% intervals','do not account for clustering','not prediction accuracy','not a chance baseline'])assert.ok(text.includes(phrase),phrase);
+  assert.ok(text.includes(data.stats.r2.toFixed(3)));
+  for(const value of [data.stats.edf,data.stats.chi_sq,data.stats.n_model.toLocaleString('en-GB')])assert.ok(text.includes(String(value)));
+  assert.doesNotMatch(await p.locator('#mean-citedness').textContent(),/predicts replication success|proxy for the Journal Impact Factor|Any fitted model/);
+  await p.click('#mc-gam-chart-data summary');
+  assert.match(await p.locator('#mc-gam-chart-data').innerText(),/random sample.*raw OMC.*jitters/);
+  for(const kind of ['reproduction-numerical','reproduction-robustness']){
+    await p.click(`#mc-study-type [data-value="${kind}"]`);
+    assert.equal((await p.locator('#mean-citedness').innerText()).split('no reproduction model is fitted.').length-1,1);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
 test('Browse URL kinds and zero-result announcements match the filtered studies',async()=>{
   for(const [kind,label,expectedKind] of [
     ['all','All studies','all'],
@@ -1199,4 +1301,36 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal(await p.locator('#mc-study-type .chip.active').getAttribute('data-value'),'reproduction-numerical');
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
+});
+
+test('shared citation guidance preserves references, copying, keyboard access and live fallback',async()=>{
+  for(const width of [1280,390]){
+    const p=await page('?tab=overview',width,p=>p.route('**/CITATION.cff',route=>route.fulfill({body:'title: Test FLoRA dataset\ndate-released: 2026-01-01\nauthors:\n  - family-names: Example\n    given-names: A\ndoi: 10.1234/test\n',contentType:'text/plain'})));
+    await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+    assert.equal(await p.locator('.tab-cite-block').count(),1);
+    assert.equal(await p.locator('.tab-pane [data-cite-link]').count(),7);
+    assert.equal(await p.locator('#cite-and-reuse .cite-ref').count(),4);
+    assert.equal(await p.locator('#cite-and-reuse a[href="https://doi.org/10.17605/OSF.IO/WJGM3"]').count(),1);
+    assert.equal(await p.locator('#cite-and-reuse a[href="https://doi.org/10.17605/OSF.IO/VUR72"]').count(),1);
+    await p.waitForFunction(()=>document.getElementById('citation-text').textContent.includes('Test FLoRA dataset'));
+    for(const link of [p.locator('#overview [data-cite-link]'),p.locator('.footer-bar [data-cite-link]')]){
+      await p.evaluate(()=>document.getElementById('cite-and-reuse').open=false);
+      await link.focus();await p.keyboard.press('Enter');
+      assert.equal(await p.locator('#cite-and-reuse').getAttribute('open'),'');
+      assert.equal(await p.evaluate(()=>document.activeElement===document.querySelector('#cite-and-reuse > summary')),true);
+      const box=await p.locator('#cite-and-reuse > summary').boundingBox();assert.ok(box.y>=0&&box.y<900);
+      await p.keyboard.press('Enter');assert.equal(await p.locator('#cite-and-reuse').getAttribute('open'),null);
+    }
+    await p.locator('.footer-bar [data-cite-link]').click();
+    await p.click('#citation-copy-btn');assert.match(await p.evaluate(()=>navigator.clipboard.readText()),/Test FLoRA dataset.*10.1234\/test/);
+    await p.click('#website-citation-copy-btn');assert.match(await p.evaluate(()=>navigator.clipboard.readText()),/FLoRA Explorer.*2026|2026.*FLoRA Explorer/);
+    assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert.deepEqual(await p.evaluate(()=>{const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return ids.filter((id,i)=>ids.indexOf(id)!==i);}),[]);
+    assert.deepEqual(p.errors,[]);await p.close();
+  }
+  const p=await page('?tab=overview',390,p=>p.route('**/CITATION.cff',route=>route.fulfill({status:503,body:'Unavailable'})));
+  await p.waitForFunction(()=>document.getElementById('citation-text').textContent.includes('Could not load live citation'));
+  await p.locator('.footer-bar [data-cite-link]').click();
+  assert.equal(await p.locator('#citation-text a').textContent(),'CITATION.cff file');
+  assert.deepEqual(p.errors,[]);await p.close();
 });

@@ -49,9 +49,12 @@ window.FloraCharts = (() => {
     }
     function context(el) {
         const pane = el.closest('.tab-pane');
-        const stamp = (pane ? [...pane.querySelectorAll('.data-stamp')].map(s=>s.textContent.trim()).filter(Boolean).join('; ') : document.querySelector('#citation-impact .data-stamp')?.textContent.trim()) || 'Snapshot date: see tab update stamp';
+        const source = el.id.startsWith('overview-') || el.id.startsWith('browse-') || el.id.startsWith('trend-') ? 'flora'
+            : el.id.startsWith('mc-') ? 'impact_factor' : el.id === 'ao-chart' ? 'author_overlap'
+            : el.id === 'rr-chart' ? 'rr_status' : ['pub-chart', 'ls-chart'].includes(el.id) ? 'pub_status' : 'citations';
+        const stamp = document.querySelector(`[data-stamp-source="${source}"]`)?.textContent.trim() || 'Snapshot date: see tab update stamp';
         const filters = [...(pane?.querySelectorAll('.chip.active, .trend-filter-btn.active') || [])].map(e => e.textContent.trim()).join('; ');
-        return `${stamp}. ${filters ? 'Selection: ' + filters + '. ' : ''}Values and units correspond to the labelled series. Reference pairs can share reports; reproduction dimensions can overlap.`;
+        return `${stamp}. ${filters ? 'Selection: ' + filters + '.' : ''}`.trim();
     }
     // Captions and accessible names come from the chart's visible heading, not its element ID.
     function visibleTitle(el) {
@@ -126,7 +129,7 @@ window.FloraCharts = (() => {
         const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
         const isOutcome = /outcome|computational|robustness/.test(el.id);
         const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
-        const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
+        const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
         table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
         if (config.options.plugins?.legend) config.options.plugins.legend.reverse = false;
@@ -174,7 +177,7 @@ window.FloraCharts = (() => {
             layout.xaxis = {...layout.xaxis,tickangle:0};
             const maxCount = Math.max(0,...traces.flatMap(t=>t.y));
             layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, ...(counts ? countAxis(maxCount) : {tickformat:'.0f',dtick:undefined}), range:counts ? undefined : [0,100]};
-            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
+            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained.' + (id === 'ao-chart' ? ' Pairs without author metadata are excluded; their count is reported above.' : id === 'rr-chart' ? ' Pairs without a report DOI or title are excluded; their count is reported above.' : '');
             let toggle = document.getElementById(id+'-mode');
             if (!toggle) {
                 toggle=document.createElement('button');toggle.id=id+'-mode';toggle.type='button';toggle.className='chart-mode';el.before(toggle);
