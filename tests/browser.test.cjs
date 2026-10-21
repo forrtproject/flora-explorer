@@ -8,8 +8,12 @@ const port = process.env.TEST_PORT || '8897';
 const base = `http://127.0.0.1:${port}/`;
 before(async()=>{
   server=spawn(process.env.PYTHON || 'python3',['-m','http.server',port,'--bind','127.0.0.1'],{stdio:'ignore'});
+  // A server that exits early usually means the port is taken; fail rather than test another server's files.
+  let exited=false;server.on('exit',()=>{exited=true;});
   // Consume the readiness response so its open stream does not outlive the hook.
   for(let i=0;i<50;i++){try{await (await fetch(base)).arrayBuffer();break;}catch{await new Promise(r=>setTimeout(r,100));}}
+  await new Promise(r=>setTimeout(r,200));
+  if(exited) throw new Error(`Test server could not start on port ${port}; set TEST_PORT to a free port.`);
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
 });
 after(async()=>{await browser?.close();server?.kill();});
