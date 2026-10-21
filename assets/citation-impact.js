@@ -570,10 +570,14 @@
 
     const TIMELINE_NARROW = 600;
     // Label style and collision spacing depend on the current chart width.
+    let timelineResizeTimer;
     window.addEventListener('resize', () => {
-        const shown = CI.openStudy;
-        if (!shown || shown.doi !== CI.currentDoi || !document.getElementById('study-plot')) return;
-        drawStudyTimeline(shown);
+        clearTimeout(timelineResizeTimer);
+        timelineResizeTimer = setTimeout(() => {
+            const shown = CI.openStudy;
+            if (!shown || shown.doi !== CI.currentDoi || !document.getElementById('study-plot')) return;
+            drawStudyTimeline(shown);
+        }, 120);
     });
 
     function drawStudyTimeline(s) {
