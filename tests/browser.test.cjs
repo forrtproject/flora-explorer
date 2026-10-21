@@ -7,7 +7,8 @@ let browser, server;
 const base = 'http://127.0.0.1:8897/';
 before(async()=>{
   server=spawn(process.env.PYTHON || 'python3',['-m','http.server','8897','--bind','127.0.0.1'],{stdio:'ignore'});
-  for(let i=0;i<50;i++){try{await fetch(base);break;}catch{await new Promise(r=>setTimeout(r,100));}}
+  // Consume the readiness response so its open stream does not outlive the hook.
+  for(let i=0;i<50;i++){try{await (await fetch(base)).arrayBuffer();break;}catch{await new Promise(r=>setTimeout(r,100));}}
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
 });
 after(async()=>{await browser?.close();server?.kill();});
@@ -79,13 +80,30 @@ test('chart data and the current browse link copy to the clipboard',async()=>{
 });
 test('Mean Citedness clears stale models and all distribution outcomes reconcile',async()=>{
   const p=await page('?tab=mean-citedness');await p.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   for(const kind of ['reproduction-numerical','reproduction-robustness']){
     await p.click(`#mc-study-type [data-value="${kind}"]`);
     assert.equal((await p.locator('#mc-gam-stats').textContent()).trim(),'');
-    assert.match(await p.locator('#mc-gam-chart').innerText(),/No model has been fitted/);
-    assert.equal(await p.locator('#mc-gam-chart-data').count(),0);
+    // No model: the card, its table, copy action, status and ARIA reference all leave together.
+    assert.ok(await p.locator('#mc-gam-card').isHidden());
+    for(const id of ['mc-gam-chart-data','mc-gam-chart-data-copy','mc-gam-chart-data-copy-status']) assert.equal(await p.locator('#'+id).count(),0,id);
+    assert.equal(await p.locator('#mc-gam-chart').getAttribute('aria-describedby'),null);
+    assert.match(await p.locator('#mc-repro-note').innerText(),/No reproduction model has been fitted/);
+    assert.equal(await p.locator('#mean-citedness .chart-copy:visible').count(),1);
   }
   await p.click('#mc-study-type [data-value="replication"]');
+  assert.ok(await p.locator('#mc-repro-note').isHidden());
+  // The restored model exports only its own quantities, labelled with the active selection.
+  await p.click('#mc-gam-chart-data-copy');
+  const exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
+  assert.ok(exported.every(r=>/Selection: Replications\./.test(r['Export context'])));
+  const curve=exported.filter(r=>r['Row type']==='Fitted curve'), points=exported.filter(r=>r['Row type']==='Displayed pair');
+  const model=JSON.parse(fs.readFileSync('data/impact_factor_data.json'));
+  assert.equal(curve.length,model.gam_curve.length);assert.equal(points.length,model.jitter.length);
+  assert.ok(curve.every(r=>r['95% CI lower']!==''&&r['95% CI upper']!==''&&+r['95% CI lower']<=+r['Estimated P(success)']&&+r['Estimated P(success)']<=+r['95% CI upper']));
+  assert.ok(points.every(r=>['0','1'].includes(r['Observed outcome (1 = successful, 0 = failed)'])));
+  assert.equal(exported.filter(r=>/^_(lo|hi)$/.test(r['Row type'])).length,0);
+  assert.match(await p.locator('#mc-gam-chart-data caption').textContent(),/Mean Citedness/);
   const result=await p.evaluate(()=>({total:window._mcData.replication.overview.n_total, plotted:document.getElementById('mc-dist-chart').data.reduce((n,t)=>n+t.y.reduce((a,b)=>a+b,0),0)}));
   assert.equal(result.total,result.plotted);
   assert.match(await p.locator('#mc-gam-chart').textContent(),/50% reference/);
@@ -225,5 +243,78 @@ test('comparison tables identify counts, denominators and percentage units', asy
   const p=await page('?tab=authorship-overlap');
   await p.waitForSelector('#ao-chart-data');
   assert.deepEqual(await p.locator('#ao-chart-data thead th').allTextContents(),['Group','Outcome','Reference pairs','Group denominator','Percentage (%)']);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Browse explains empty selections, offers recovery and keeps results near the filters',async()=>{
+  const p=await page('?tab=browse&kind=reproduction-numerical&q=power+posing',1633,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
+  await p.waitForFunction(()=>getChartData().length===0);
+  assert.match(await p.locator('#browse-empty').innerText(),/No numerical reproductions match “power posing”[\s\S]*does not show that a study has never been replicated/);
+  assert.ok(await p.locator('#browse-outcome-card').isHidden());
+  await p.click('[data-browse-action="all-kinds"]');
+  await p.waitForFunction(()=>getChartData().length===4);
+  assert.ok(await p.locator('#browse-empty').isHidden());
+  // All studies has no outcome chart, so no empty card sits between filters and results.
+  assert.ok(await p.locator('#browse-outcome-card').isHidden());
+  await p.setViewportSize({width:1633,height:830});
+  const firstRow=await p.locator('#flora-table tbody tr').first().evaluate(e=>e.getBoundingClientRect().bottom);
+  assert.ok(firstRow<830,`first result ends at ${firstRow}px`);
+  await p.click('.browse-kind-btn[data-kind="replication"]');
+  assert.ok(await p.locator('#browse-outcome-card').isVisible());
+  await p.fill('#browse-mobile-input','unicornzzzz');await p.waitForFunction(()=>getChartData().length===0);
+  assert.match(await p.locator('#browse-empty').innerText(),/No replications match “unicornzzzz”/);
+  await p.click('[data-browse-action="clear-search"]');
+  await p.waitForFunction(()=>getChartData().length>0);
+  assert.equal(await p.inputValue('#browse-mobile-input'),'');
+  assert.ok(!new URL(p.url()).searchParams.has('q'));
+  // Mobile cards sort through the same DataTables order as the desktop headers.
+  await p.setViewportSize({width:390,height:844});
+  await p.click('.browse-kind-btn[data-kind="all"]');
+  await p.selectOption('#bm-sort','2:asc');
+  await p.waitForFunction(()=>new URL(location.href).searchParams.get('sort')==='2:asc');
+  const years=await p.locator('.bm-card .bm-row:first-child .bm-row-meta').allInnerTexts();
+  const parsed=years.map(t=>+(t.match(/\((\d{4})\)/)||[])[1]).filter(Boolean);
+  assert.deepEqual(parsed,[...parsed].sort((a,b)=>a-b));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('placeholders, labels, captions and headings stay legible',async()=>{
+  const p=await page('?tab=overview',1280,p=>p.route('**/flora_faq.md',route=>route.fulfill({contentType:'text/markdown',body:'# FAQ title\n\n## Coding\n\n### What if a paper includes reproduction *and* replication?\n\nIt is listed twice.\n'})));
+  await p.waitForSelector('.faq-question');
+  assert.equal(await p.locator('.faq-question em').textContent(),'and');
+  assert.doesNotMatch(await p.locator('.faq-question').first().innerText(),/\*/);
+  assert.deepEqual(await p.locator('#overview .chart-data caption').allTextContents(),['Computational Reproducibility','Robustness','Replicability']);
+  // Placeholder instructions meet 4.5:1 in both themes.
+  const contrast=async()=>p.evaluate(()=>{
+    const rgb=c=>c.match(/[\d.]+/g).map(Number);
+    const lum=([r,g,b])=>[r,g,b].map(v=>{v/=255;return v<=0.03928?v/12.92:((v+0.055)/1.055)**2.4;}).reduce((n,v,i)=>n+v*[0.2126,0.7152,0.0722][i],0);
+    return ['browse-mobile-input','search-input'].map(id=>{const el=document.getElementById(id);const [r,g,b,a=1]=rgb(getComputedStyle(el,'::placeholder').color);const bg=rgb(getComputedStyle(el).backgroundColor);const fg=[r,g,b].map((v,i)=>v*a+bg[i]*(1-a));const [l1,l2]=[lum(fg),lum(bg)].sort((x,y)=>y-x);return (l1+0.05)/(l2+0.05);});
+  });
+  for(const theme of ['light','dark']){
+    await p.evaluate(t=>document.documentElement.setAttribute('data-theme',t),theme);
+    for(const ratio of await contrast()) assert.ok(ratio>=4.5,`${theme} placeholder contrast ${ratio.toFixed(2)}`);
+  }
+  assert.equal(await p.getByLabel('Search originals').getAttribute('id'),'search-input');
+  // Actions stay outside headings, and Trends chart headings sit under a panel heading.
+  await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  assert.equal(await p.locator(':is(h1,h2,h3,h4,h5,h6) .chart-copy').count(),0);
+  assert.deepEqual(await p.locator('#trends :is(h2,h3)').evaluateAll(hs=>hs.map(h=>h.tagName)),['H2','H3','H3','H3','H3','H3']);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Trends reflow after narrowing without changing tabs',async()=>{
+  const p=await page('?tab=trends',1440);await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  for(const width of [390,1440,390]){
+    await p.setViewportSize({width,height:844});await p.waitForTimeout(700);
+    const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, canvas')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
+    assert.deepEqual(overflow,[],`clipped at ${width}px`);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('narrow citation timelines number replication events to match the list',async()=>{
+  const p=await page('?tab=citations&doi=10.1126%2Fscience.7455683',390);
+  await p.waitForFunction(()=>document.getElementById('study-plot')?.layout?.annotations?.length>0);
+  const marks=await p.evaluate(()=>document.getElementById('study-plot').layout.annotations.map(a=>a.text));
+  const list=await p.locator('.rep-list .rep-marker').allInnerTexts();
+  assert.ok(marks.length>=2);
+  assert.ok(marks.every(m=>/^\d+$/.test(m)&&list.includes(m)),JSON.stringify({marks,list}));
   assert.deepEqual(p.errors,[]);await p.close();
 });
