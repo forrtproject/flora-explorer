@@ -649,13 +649,13 @@ async function loadFaqs() {
         contentEl.innerHTML = items.map(it => {
             if (it.type === 'section') {
                 const intro = (it.body && it.body.some(l => l.trim())) ? `<div class="faq-section-intro">${renderFaqAnswer(it.body)}</div>` : '';
-                return `<div class="faq-section"><h4 class="faq-section-title">${escapeHtml(it.text)}</h4>${intro}</div>`;
+                return `<div class="faq-section"><h3 class="faq-section-title">${renderInlineMd(it.text)}</h3>${intro}</div>`;
             }
             return `
                 <div class="faq-item">
                     <button type="button" class="faq-question" aria-expanded="false">
                         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
-                        <span>${escapeHtml(it.question)}</span>
+                        <span>${renderInlineMd(it.question).replace(/<a [^>]*>|<\/a>/g, '')}</span>
                     </button>
                     <div class="faq-answer">${renderFaqAnswer(it.body)}</div>
                 </div>`;
@@ -730,7 +730,7 @@ function initDataTable(data) {
         data: tableData, responsive: false, autoWidth: false, pageLength: 25, dom: 'lrtip',
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
         order: [[4, 'desc']],
-        language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)..." },
+        language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)...", zeroRecords: "No matching reference pairs", emptyTable: "No matching reference pairs" },
         columnDefs: [
             { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '3%' },
             { targets: [1, 3], width: '22%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
@@ -801,7 +801,7 @@ function bmRender() {
     if (!list) return;
     const total = bmFiltered.length;
     if (total === 0) {
-        list.innerHTML = '<div class="bm-empty">No reference pairs match your search. Try fewer terms or select All.</div>';
+        list.innerHTML = '<div class="bm-empty">No matching reference pairs.</div>';
         meta.textContent = '0 reference pairs'; pager.style.display = 'none'; return;
     }
     const totalPages = Math.max(1, Math.ceil(total / BM_PAGE_SIZE));
@@ -849,8 +849,20 @@ function updateBrowseResults() {
     if (bmInitialized) bmRender();
     updateBrowseKindCount();
     renderBrowseOutcomeCharts();
+    renderBrowseEmpty(bmFiltered.length);
+    syncMobileSort();
     updatingBrowse = false;
 }
+// Mobile cards have no table headers to click, so a select drives the same DataTables order.
+function syncMobileSort() {
+    const select = document.getElementById('bm-sort'); if (!select || !dataTable) return;
+    const value = dataTable.order()[0]?.join(':');
+    select.value = [...select.options].some(o => o.value === value) ? value : 'custom';
+}
+document.getElementById('bm-sort')?.addEventListener('change', e => {
+    const [column, direction] = e.target.value.split(':');
+    if (dataTable && direction) dataTable.order([[Number(column), direction]]).draw();
+});
 function syncBrowseUrl() {
     const url = new URL(location.href);
     browseQuery ? url.searchParams.set('q', browseQuery) : url.searchParams.delete('q');
@@ -880,18 +892,41 @@ function renderBrowseOutcomeCharts() {
     browseRobustnessChart = renderKindStackedBar('browse-robustness-chart', browseRobustnessChart, data, 'robustness', 'Reproductions', renderBrowseOutcomeCharts);
     browseOutcomeChart = renderKindStackedBar('browse-outcome-chart', browseOutcomeChart, data, 'replicability', 'Replications', renderBrowseOutcomeCharts);
 
-    // Only the chart matching the active kind filter is shown; "All studies" shows none,
+    // Only the chart matching the active kind filter is shown. "All studies" shows none,
     // since mixing the replication and reproduction outcome vocabularies in one box reads
-    // as noise rather than signal.
-    const placeholderEl = document.getElementById('browse-chart-placeholder');
+    // as noise rather than signal; the card is then hidden so results follow the filters.
+    // An empty selection shows no axes or legend: the empty-state message explains it.
+    const dimensions = {replication: 'replicability', 'reproduction-numerical': 'computational', 'reproduction-robustness': 'robustness'};
     const rows = {
-        'reproduction-numerical': document.getElementById('browse-computational-row'),
-        'reproduction-robustness': document.getElementById('browse-robustness-row'),
-        replication: document.getElementById('browse-replicability-row')
+        computational: document.getElementById('browse-computational-row'),
+        robustness: document.getElementById('browse-robustness-row'),
+        replicability: document.getElementById('browse-replicability-row')
     };
-    if (placeholderEl) placeholderEl.style.display = browseKind === 'all' ? '' : 'none';
-    Object.entries(rows).forEach(([kind, el]) => { if (el) el.style.display = browseKind === kind ? '' : 'none'; });
+    const active = dimensions[browseKind];
+    const card = document.getElementById('browse-outcome-card');
+    if (card) card.style.display = active && data.length ? '' : 'none';
+    const hint = document.getElementById('browse-chart-hint');
+    if (hint) hint.style.display = active ? 'none' : '';
+    Object.entries(rows).forEach(([dimension, el]) => { if (el) el.style.display = active === dimension ? '' : 'none'; });
 }
+
+// Zero matches get a visible explanation and recovery actions instead of an empty table and
+// chart. FLoRA is incomplete, so absence here is not evidence that no repetition exists.
+const BROWSE_KIND_NOUNS = {all: 'reference pairs', replication: 'replications', 'reproduction-numerical': 'numerical reproductions', 'reproduction-robustness': 'robustness reproductions'};
+function renderBrowseEmpty(n) {
+    const el = document.getElementById('browse-empty'); if (!el) return;
+    el.hidden = n > 0;
+    if (n > 0) { el.innerHTML = ''; return; }
+    const query = browseQuery.trim();
+    const noun = BROWSE_KIND_NOUNS[browseKind] || BROWSE_KIND_NOUNS.all;
+    el.innerHTML = `<p><strong>No ${noun} ${query ? `match “${escapeHtml(query)}”` : 'are recorded yet'}.</strong> FLoRA is not comprehensive, so this does not show that a study has never been replicated or reproduced.</p>
+        <div class="browse-empty-actions">${query ? '<button type="button" class="browse-download" data-browse-action="clear-search">Clear search</button>' : ''}${browseKind !== 'all' ? '<button type="button" class="browse-download" data-browse-action="all-kinds">Show all study types</button>' : ''}<a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Look up an original in the Replication Atlas</a><a href="https://forrt.org/replication-hub/submit/" target="_blank" rel="noopener noreferrer">Submit a missing study</a></div>`;
+}
+document.getElementById('browse-empty')?.addEventListener('click', e => {
+    const action = e.target.closest('[data-browse-action]')?.dataset.browseAction;
+    if (action === 'clear-search') { document.getElementById('browse-mobile-input').value = ''; bmApplySearch(''); document.getElementById('browse-mobile-input').focus(); }
+    if (action === 'all-kinds') document.querySelector('.browse-kind-btn[data-kind="all"]')?.click();
+});
 
 function updateBrowseKindCount() {
     const el = document.getElementById('browse-kind-count'); if (!el) return;
@@ -1145,9 +1180,8 @@ function mcBucketConfig(kind) {
 function renderMcCharts() {
     if (typeof Plotly === "undefined") { chartLibUnavailable("mc-dist-chart", "Plotly", renderMcCharts); return; }
     document.getElementById('mc-gam-stats').textContent = '';
-    document.getElementById('mc-gam-chart-data')?.remove();
-    document.querySelector('#mc-gam-card h3').textContent = mcKind === 'replication' ? 'Success probability among successful / failed replications' : 'Model for ' + studyTypeLabel(mcKind);
-    document.querySelector('#mc-gam-card .mc-model-note:last-child').textContent = mcKind === 'replication' ? 'Conditional on unqualified successful or failed outcomes; other outcomes are excluded. Association does not establish causation.' : 'Reproduction summaries are descriptive. No reproduction model has been fitted.';
+    // The model, its table, copy action and status leave together; see FloraCharts.clear.
+    FloraCharts.clear('mc-gam-chart');
     const d = window._mcData && window._mcData[mcKind];
     const insufficientEl = document.getElementById('mc-placeholder');
     const overviewEl = document.getElementById('mc-overview');
@@ -1167,7 +1201,10 @@ function renderMcCharts() {
     if (insufficientEl) insufficientEl.style.display = 'none';
     if (overviewEl) overviewEl.style.display = '';
     if (distCard) distCard.style.display = '';
-    if (gamCard) gamCard.style.display = '';
+    // Reproductions have no fitted model: show one descriptive note instead of an empty card.
+    if (gamCard) gamCard.style.display = mcKind === 'replication' ? '' : 'none';
+    const reproNote = document.getElementById('mc-repro-note');
+    if (reproNote) reproNote.style.display = mcKind === 'replication' ? 'none' : '';
 
     const t = FloraCharts.theme();
     const buckets = mcBucketConfig(mcKind);
@@ -1208,12 +1245,13 @@ function renderMcCharts() {
 
     // ── GAM chart (Plotly) ────────────────────────────────────────────────
     const gamDiv = document.getElementById('mc-gam-chart');
+    if (mcKind !== 'replication') return;
     const hasGam = gc.length > 0 && st && st.n_model >= 30;
     if (!hasGam) {
-        if (gamDiv.data) Plotly.purge(gamDiv);
-        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--color-muted-fg);font-size:0.9rem;text-align:center;padding:2rem">' + (mcKind === 'replication' ? 'No fitted model is available for this snapshot. A model requires at least 30 eligible successful/failed pairs and sufficient variation.' : 'No model has been fitted for reproductions. The distribution above is descriptive.') + '</div>';
+        gamDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;min-height:180px;color:var(--color-muted-fg);font-size:0.9rem;text-align:center;padding:2rem">No fitted model is available for this snapshot. A model requires at least 30 eligible successful/failed pairs and sufficient variation.</div>';
         return;
     }
+    gamDiv.textContent = '';
     // Jitter is computed once per data load and cached so scatter points stay
     // put across re-renders (theme toggles, etc.) instead of jumping.
     if (!window._mcJitter) {
@@ -1259,7 +1297,18 @@ function renderMcCharts() {
             font: { size: 11, color: t.ruleLabel },
         }],
     };
-    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true });
+    // The data table lists model quantities, not plotting internals: one row per curve point
+    // with its interval, then the displayed sample's raw values (not the jittered positions).
+    const points = Array.isArray(d.jitter) ? d.jitter : [];
+    const modelTable = {
+        headers: ['Row type', 'OMC', 'Estimated P(success)', '95% CI lower', '95% CI upper', 'Observed outcome (1 = successful, 0 = failed)'],
+        rows: [
+            ...gc.map(p => ['Fitted curve', p.omc, p.p, p.p_lo, p.p_hi, '']),
+            ...points.map(p => ['Displayed pair', p.omc, '', '', '', p.outcome]),
+        ],
+        summary: `Fitted curve: logistic smooth with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs. Displayed pairs: a random sample of ${points.length.toLocaleString()} of these pairs, with their raw OMC and outcome; the chart jitters their positions for legibility. The sample has no pair identifiers.`,
+    };
+    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true }, { table: modelTable });
     const pNote = (st.p_val !== null && st.p_val !== undefined)
         ? (st.p_val < 0.001 ? 'p < .001' : 'p = ' + st.p_val.toFixed(3))
         : '';
@@ -1892,7 +1941,12 @@ async function loadDataStamps() {
             el.classList.toggle('stale', stale);
             const fmt = dt.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             el.innerHTML = `${label} last updated: <strong>${fmt}</strong>`;
-            if (meta.input_snapshot) el.innerHTML += ` · input snapshot: ${escapeHtml(String(meta.input_snapshot))}`;
+            // Machine timestamps are shown as a readable date; the exact identifier stays in the tooltip.
+            if (meta.input_snapshot) {
+                const snap = new Date(meta.input_snapshot);
+                const label = isNaN(snap) ? String(meta.input_snapshot) : snap.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                el.innerHTML += ` · <span title="${escapeHtml(String(meta.input_snapshot))}">input snapshot: ${escapeHtml(label)}</span>`;
+            }
             if (meta.recalculated_at) el.innerHTML += ` · recalculated: ${new Date(meta.recalculated_at).toLocaleDateString()}`;
             if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
             if (meta.source_url) el.innerHTML += ` · <a class="doi-link" href="${meta.source_url}" target="_blank">source</a>`;

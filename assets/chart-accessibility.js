@@ -35,6 +35,27 @@ window.FloraCharts = (() => {
         const filters = [...(pane?.querySelectorAll('.chip.active, .trend-filter-btn.active') || [])].map(e => e.textContent.trim()).join('; ');
         return `${stamp}. ${filters ? 'Selection: ' + filters + '. ' : ''}Values and units correspond to the labelled series. Reference pairs can share reports; reproduction dimensions can overlap.`;
     }
+    // Captions and accessible names come from the chart's visible heading, not its element ID.
+    function visibleTitle(el) {
+        const heading = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label > span:first-child')
+            || el.closest('.trend-block')?.querySelector('.trend-desc h3')
+            || el.closest('.mc-chart-card, .plot-card')?.querySelector('.mc-chart-title, h3')
+            || el.closest('.modal-body')?.querySelector('h3');
+        const prefix = el.id.startsWith('browse-') ? 'Browse results: ' : '';
+        return heading ? prefix + plain(heading.textContent) : el.id.replace(/-/g, ' ');
+    }
+    // Removes a chart together with everything that describes or exports it, so an
+    // unavailable chart never leaves a working copy action or a stale table behind.
+    function clear(target) {
+        const el = typeof target === 'string' ? document.getElementById(target) : target;
+        if (!el) return;
+        const id = el.id + '-data';
+        for (const suffix of ['', '-copy', '-copy-status']) document.getElementById(id + suffix)?.remove();
+        // A comparison toggle would otherwise replot the saved traces into the cleared chart.
+        document.getElementById(el.id + '-mode')?.remove(); originals.delete(el.id);
+        el.removeAttribute('aria-describedby'); el.removeAttribute('role'); el.removeAttribute('aria-label');
+        if (typeof Plotly !== 'undefined' && el.data) Plotly.purge(el);
+    }
     function table(el, rows, headers, summary) {
         const id = el.id + '-data';
         let details = document.getElementById(id);
@@ -44,9 +65,9 @@ window.FloraCharts = (() => {
             anchor.insertAdjacentElement('afterend', details);
         }
         const wasOpen = details.open;
-        details.innerHTML = `<summary>View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="Chart values"><table><caption>${escape(el.getAttribute('aria-label') || 'Chart data')}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v))}</td>` : `<th scope="row">${escape(fmt(v))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        details.innerHTML = `<summary>View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="Chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v))}</td>` : `<th scope="row">${escape(fmt(v))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         details.open = wasOpen;
-        const label = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label') || el.closest('.trend-block')?.querySelector('.trend-desc h5');
+        const label = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label') || el.closest('.trend-block')?.querySelector('.trend-title');
         let action = document.getElementById(id + '-copy');
         if (!action) {
             action = document.createElement('button');
@@ -61,7 +82,7 @@ window.FloraCharts = (() => {
             status.id = id + '-copy-status'; status.className = 'visually-hidden'; status.setAttribute('role', 'status');
             action.after(status);
         }
-        action.setAttribute('aria-label', 'Copy chart CSV for ' + (el.getAttribute('aria-label') || el.id));
+        action.setAttribute('aria-label', 'Copy chart CSV for ' + visibleTitle(el));
         action.title = 'Copy chart CSV';
         action.onclick = async () => {
             status.textContent = '';
@@ -70,7 +91,7 @@ window.FloraCharts = (() => {
                 action.title = 'Chart CSV copied';
                 action.setAttribute('aria-label', 'Chart CSV copied');
                 status.textContent = 'Chart CSV copied';
-                setTimeout(() => { action.title = 'Copy chart CSV'; action.setAttribute('aria-label', 'Copy chart CSV for ' + (el.getAttribute('aria-label') || el.id)); }, 2000);
+                setTimeout(() => { action.title = 'Copy chart CSV'; action.setAttribute('aria-label', 'Copy chart CSV for ' + visibleTitle(el)); }, 2000);
             } catch {
                 action.title = 'Could not copy chart CSV';
                 status.textContent = 'Could not copy chart CSV';
@@ -81,8 +102,7 @@ window.FloraCharts = (() => {
     function chart(ctx, config) {
         const el = ctx.canvas || ctx;
         const datasets = config.data.datasets || [], labels = config.data.labels || [];
-        const title = el.id.replace(/-/g, ' ');
-        el.setAttribute('role','img'); el.setAttribute('aria-label',title + '. Values in the following data table.');
+        el.setAttribute('role','img'); el.setAttribute('aria-label',visibleTitle(el) + '. Values in the following data table.');
         const rows = labels.map((label,i) => [label,...datasets.map(d=>d.data[i] ?? 0)]);
         const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
         const isOutcome = /outcome|computational|robustness/.test(el.id);
@@ -92,7 +112,9 @@ window.FloraCharts = (() => {
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
         return new Chart(ctx, config);
     }
-    function plot(target, traces, layout = {}, config = {}) {
+    // options.table = {headers, rows, summary} replaces the generic per-trace table, for
+    // charts whose plotted traces (interval bands, jittered points) are not the data.
+    function plot(target, traces, layout = {}, config = {}, options = {}) {
         const el = typeof target === 'string' ? document.getElementById(target) : target;
         if (!el) return Promise.resolve();
         const id = el.id;
@@ -103,7 +125,7 @@ window.FloraCharts = (() => {
         const card = el.closest('.mc-chart-card');
         if (card) card.style.display = '';
         if (typeof Plotly === 'undefined') {
-            if (document.readyState !== 'complete') window.addEventListener('load', () => plot(target,traces,layout,config), {once:true});
+            if (document.readyState !== 'complete') window.addEventListener('load', () => plot(target,traces,layout,config,options), {once:true});
             else el.textContent = 'Chart library unavailable. Reload to retry.';
             return Promise.resolve();
         }
@@ -145,7 +167,7 @@ window.FloraCharts = (() => {
                 layout.height=Math.max(440,(display[0]?.y.length || 0)*65+200);
             }
         }
-        const title = plain(layout.title?.text || layout.title || id.replace(/-/g,' '));
+        const title = layout.title ? plain(layout.title.text || layout.title) : visibleTitle(el);
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
         if (comparisonIds.has(id)) {
             const rows = [];
@@ -155,6 +177,10 @@ window.FloraCharts = (() => {
                 rows.push([plain(group), plain(t.name), count, denominator, denominator ? Number((100 * count / denominator).toFixed(1)) : 'Not available']);
             }));
             table(el, rows, ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], summary);
+            return Plotly.react(el, display, layout, config);
+        }
+        if (options.table) {
+            table(el, options.table.rows, options.table.headers, options.table.summary);
             return Plotly.react(el, display, layout, config);
         }
         const rows=[];
@@ -173,5 +199,5 @@ window.FloraCharts = (() => {
             if(el)d.querySelector('.chart-context').textContent=context(el);
         });
     }
-    return {chart,plot,download,updateContexts, token, theme};
+    return {chart,plot,clear,download,updateContexts, token, theme};
 })();
