@@ -81,7 +81,14 @@
     }
     document.addEventListener('flora-ready',()=>restore(initial),{once:true});
     document.addEventListener('click',e=>{
-        if(e.target.closest('.chip, .trend-filter-btn')) {pressed();recordState();}
+        const chip = e.target.closest('.chip, .trend-filter-btn');
+        if(chip) {
+            pressed();recordState();
+            if (chip.closest('#ci-study-type, #outcome-chips, #mc-study-type, #ao-study-type, #pubtype-study-type')) {
+                const pane = chip.closest('.tab-pane');
+                document.getElementById('analysis-feedback').textContent = pane.querySelector('h2')?.textContent.trim() + ': ' + chip.textContent.trim() + ' selected.';
+            }
+        }
     });
     document.addEventListener('change',e=>{if(Object.keys(controls).includes(e.target.id))recordState();});
     document.getElementById('search-input')?.addEventListener('input',recordState);
@@ -135,7 +142,7 @@
             `Unit: reference pair\n${stamp}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nIncluded: ${rows.length.toLocaleString('en-GB')}; excluded by filters: ${(fullRowData.length-rows.length).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
     };
     // Associate static and dynamically inserted glossary definitions with their triggers.
-    let tipNumber = 0;
+    let tipNumber = 0, openingTip = null;
     function describeTips() {
         document.querySelectorAll('.info-icon, .gloss').forEach(trigger => {
             const tip = trigger.querySelector('.info-tip, .gloss-tip');
@@ -143,6 +150,11 @@
             tip.id ||= 'flora-tip-' + (++tipNumber);
             tip.setAttribute('role', 'tooltip');
             trigger.setAttribute('aria-describedby', tip.id);
+            trigger.addEventListener('focus', () => {
+                // Focusing an off-screen definition scrolls it into view before paint.
+                openingTip = trigger;
+                requestAnimationFrame(() => requestAnimationFrame(() => { if (openingTip === trigger) openingTip = null; }));
+            });
             trigger.addEventListener('mouseleave', () => trigger.classList.remove('tip-dismissed'));
             trigger.addEventListener('blur', () => trigger.classList.remove('tip-dismissed'));
         });
@@ -151,6 +163,10 @@
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') document.querySelectorAll('.info-icon:hover, .info-icon:focus, .gloss:hover, .gloss:focus').forEach(el => el.classList.add('tip-dismissed'));
     });
+    document.addEventListener('scroll', event => {
+        if (!matchMedia('(max-width: 600px)').matches || event.target.closest?.('.info-tip, .gloss-tip')) return;
+        document.querySelectorAll('.info-icon:hover, .info-icon:focus, .gloss:hover, .gloss:focus').forEach(el => { if (el !== openingTip) el.classList.add('tip-dismissed'); });
+    }, true);
     describeTips();
     pressed();
 })();

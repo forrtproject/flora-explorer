@@ -368,7 +368,7 @@
             </tr>`;
         }).join('');
         return `<div class="cocit-breakdown-table" tabindex="0" role="region" aria-label="${escapeHtml(title)}">
-            <h4>${title}</h4>
+            <h3>${title}</h3>
             <table>
                 <thead><tr><th>Group</th><th>N originals</th><th>Per-paper mean</th><th>Median</th><th>Weighted mean</th></tr></thead>
                 <tbody>${rows}</tbody>
@@ -398,6 +398,11 @@
     }
 
     function renderTable() {
+        const focused = document.activeElement;
+        const pageAction = focused.closest('#pagination button')?.dataset.action;
+        const pageNumber = focused.closest('#pagination button')?.dataset.p;
+        const timelineRow = focused.closest('#originals-table tbody tr');
+        const rowIndex = timelineRow ? [...timelineRow.parentElement.children].indexOf(timelineRow) : -1;
         const q = document.getElementById('search-input').value || '';
         const tokens = searchTokens(q);
         const outFilter = document.getElementById('filter-outcome').value;
@@ -420,7 +425,13 @@
             th.classList.remove('sort-asc', 'sort-desc');
             if (th.dataset.sort === col) th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
         });
+        document.querySelectorAll('#originals-table th').forEach(th => {
+            const active = th.querySelector(`[data-sort="${col}"]`);
+            if (active) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending');
+            else th.removeAttribute('aria-sort');
+        });
         document.querySelectorAll('.cocit-sort-btn').forEach(btn => {
+            btn.setAttribute('aria-pressed', String(btn.dataset.sort === col));
             btn.classList.remove('sort-asc', 'sort-desc');
             if (btn.dataset.sort === col) btn.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
         });
@@ -457,10 +468,12 @@
         const winStart = Math.max(1, CI.page - Math.floor(winSize / 2));
         const winEnd = Math.min(pages, winStart + winSize - 1);
         let pHtml = '';
-        if (CI.page > 1) pHtml += `<button data-p="${CI.page - 1}">‹</button>`;
-        for (let i = winStart; i <= winEnd; i++) pHtml += `<button data-p="${i}" class="${i === CI.page ? 'active' : ''}">${i}</button>`;
-        if (CI.page < pages) pHtml += `<button data-p="${CI.page + 1}">›</button>`;
+        if (CI.page > 1) pHtml += `<button type="button" data-action="previous" data-p="${CI.page - 1}" aria-label="Previous page">‹</button>`;
+        for (let i = winStart; i <= winEnd; i++) pHtml += `<button type="button" data-p="${i}" ${i === CI.page ? 'aria-current="page"' : ''} class="${i === CI.page ? 'active' : ''}" aria-label="Page ${i}">${i}</button>`;
+        if (CI.page < pages) pHtml += `<button type="button" data-action="next" data-p="${CI.page + 1}" aria-label="Next page">›</button>`;
         pag.innerHTML = pHtml;
+        if (pageNumber) (pag.querySelector(pageAction ? `[data-action="${pageAction}"]` : `[data-p="${pageNumber}"]`) || pag.querySelector('[aria-current]'))?.focus({preventScroll:true});
+        else if (rowIndex >= 0) (tbody.rows[Math.min(rowIndex, tbody.rows.length - 1)]?.querySelector('.timeline-open') || document.getElementById('originals-table')).focus();
     }
 
     // Fetch one original's full record (citation timeline and replication list),
@@ -656,12 +669,7 @@
             CI.page = 1;
             renderTable();
         }
-        document.querySelectorAll('#originals-table thead th[data-sort]').forEach(th => {
-            th.tabIndex = 0; th.setAttribute('role','button');
-            th.addEventListener('click', () => sortBy(th.dataset.sort));
-            th.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') {e.preventDefault();sortBy(th.dataset.sort);} });
-        });
-        document.querySelectorAll('.cocit-sort-btn').forEach(btn => {
+        document.querySelectorAll('#originals-table button[data-sort]').forEach(btn => {
             btn.addEventListener('click', () => sortBy(btn.dataset.sort));
         });
         document.querySelector('#originals-table tbody').addEventListener('click', e => {

@@ -1020,3 +1020,121 @@ test('small-sample and unavailable-data messages use reader-facing words',async(
   assert.doesNotMatch(await missing.locator('#kpis').innerText(),/workflow|secrets|GitHub|refresh-data/);
   assert.deepEqual(missing.errors,[]);await missing.close();
 });
+
+test('keyboard landmarks, citation sorting and paging retain focus and expose state',async()=>{
+  const p=await page('?tab=citations');
+  await p.waitForSelector('#pagination [aria-current="page"]');
+  assert.equal(await p.locator('header nav[aria-label="Explorer views"]').count(),1);
+  assert.equal(await p.locator('footer').count(),1);
+  await p.locator('.skip-link').focus();await p.keyboard.press('Enter');
+  assert.equal(await p.evaluate(()=>document.activeElement.id),'main-content');
+  const year=p.locator('#originals-table .table-sort[data-sort="year"]');
+  await year.focus();await p.keyboard.press('Enter');
+  assert.equal(await year.locator('..').getAttribute('aria-sort'),'descending');
+  assert.equal(await p.locator('#originals-table th[role="button"]').count(),0);
+  await p.keyboard.press('Space');
+  assert.equal(await year.locator('..').getAttribute('aria-sort'),'ascending');
+  assert.equal(await p.evaluate(()=>document.activeElement.dataset.sort),'year');
+  await p.getByRole('button',{name:'Sort by co-citation percentage',exact:true}).click();
+  assert.equal(await p.locator('.cocit-th').getAttribute('aria-sort'),'descending');
+  assert.equal(await p.locator('.cocit-sort-btn[data-sort="cocit_prop"]').getAttribute('aria-pressed'),'true');
+  assert.equal(await year.locator('..').getAttribute('aria-sort'),null);
+  await p.locator('#pagination [data-action="next"]').click();
+  assert.equal(await p.locator('#pagination [aria-current]').textContent(),'2');
+  assert.equal(await p.evaluate(()=>document.activeElement.dataset.action),'next');
+  await p.locator('#pagination [data-action="previous"]').click();
+  assert.equal(await p.locator('#pagination [aria-current]').textContent(),'1');
+  assert.equal(await p.evaluate(()=>document.activeElement.getAttribute('aria-current')),'page');
+  await p.locator('#pagination button[data-p="3"]').click();
+  assert.equal(await p.evaluate(()=>document.activeElement.dataset.p),'3');
+  assert.equal(await p.locator('#originals-table th').last().innerText(),'Timeline');
+  for(const size of await p.locator('#originals-table button[data-sort]').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return [r.width,r.height];}))) assert.ok(size.every(v=>v>=24),`sort target ${size}`);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('mobile paging focuses the results heading; counts and chip changes have one announcement',async()=>{
+  const p=await page('?tab=browse',390);
+  await p.locator('#bm-next').click();
+  assert.equal(await p.evaluate(()=>document.activeElement.id),'browse-results-heading');
+  assert.match(await p.locator('#browse-mobile-meta').innerText(),/Showing 21–40/);
+  assert.equal(await p.locator('#browse-mobile-meta').getAttribute('role'),'status');
+  const position=await p.locator('#browse-results-heading').boundingBox();
+  await p.waitForFunction(()=>document.getElementById('browse-results-heading').getBoundingClientRect().top<150);
+  assert.ok(position);
+  assert.equal(await p.locator('#browse-kind-count[role="status"], #browse-empty[role="status"]').count(),0);
+  await p.selectOption('#mobile-navigation','trends-tab');
+  await p.locator('#trends .trend-filter-btn[data-kind="reproduction-numerical"]').click();
+  assert.equal(await p.locator('#trend-filter-count').getAttribute('role'),'status');
+  assert.match(await p.locator('#trend-filter-count').textContent(),/Numerical Reproductions/);
+  await p.selectOption('#mobile-navigation','mc-tab');
+  await p.waitForSelector('#mc-dist-chart-data');
+  await p.locator('#mc-study-type [data-value="reproduction-numerical"]').click();
+  assert.match(await p.locator('#analysis-feedback').textContent(),/Numerical Reproductions selected/);
+  await p.selectOption('#mobile-navigation','overview-tab');
+  const tip=p.locator('#overview .info-icon').first();await tip.focus();
+  assert.equal(await tip.getAttribute('role'),'img');
+  await p.waitForFunction(()=>getComputedStyle(document.querySelector('#overview .info-tip')).opacity==='1');
+  await p.evaluate(()=>document.querySelector('.app-main').scrollTop+=100);
+  await p.waitForFunction(()=>document.querySelector('#overview .info-icon').classList.contains('tip-dismissed'));
+  assert.equal(await tip.locator('.info-tip').evaluate(el=>getComputedStyle(el).pointerEvents),'none');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('chart alternatives and actions have distinct names; motion and forced colours respect preferences',async()=>{
+  const p=await page('?tab=overview',1280,p=>p.emulateMedia({reducedMotion:'reduce'}));
+  assert.equal(await p.evaluate(()=>Chart.getChart('overview-outcome-chart').options.animation),false);
+  assert.match(await p.evaluate(()=>Chart.defaults.font.family),/Source Sans 3/);
+  assert.notEqual(await p.locator('#citation-copy-btn').getAttribute('aria-label'),await p.locator('#website-citation-copy-btn').getAttribute('aria-label'));
+  for(const tab of ['browse','trends','citation','mc','overlap','pub']) {
+    await p.click('#'+tab+'-tab');await p.waitForTimeout(600);
+    assert.equal(await p.locator('.tab-pane.active h1').count(),1,tab);
+  }
+  await p.waitForSelector('#ls-chart-data');
+  for(const selector of ['.chart-copy','.chart-data summary','.chart-data [role="region"]','.chart-mode']) {
+    const names=await p.locator(selector).evaluateAll(els=>els.map(e=>e.getAttribute('aria-label')));
+    assert.ok(names.every(Boolean),selector);assert.equal(new Set(names).size,names.length,`${selector}: ${names}`);
+  }
+  await p.emulateMedia({forcedColors:'active'});
+  const selected=p.locator('#pubtype-study-type .chip.active');
+  assert.equal(await selected.evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
+  assert.equal(await p.locator('#pub-tab').evaluate(el=>getComputedStyle(el).borderBottomStyle),'double');
+  await p.click('#citation-tab');
+  await p.waitForSelector('.rep-seg');
+  const fills=await p.locator('.rep-seg').evaluateAll(els=>Object.fromEntries(els.map(e=>[e.className,getComputedStyle(e).backgroundColor+' '+getComputedStyle(e).backgroundImage])));
+  assert.ok(new Set(Object.values(fills)).size>=2);
+  assert.ok(await p.locator('.rep-seg').first().evaluate(el=>getComputedStyle(el).forcedColorAdjust==='none'));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('focus rings, small targets and the dark success/failure pair keep sufficient contrast',async()=>{
+  const p=await page('?tab=overview');
+  const linear=v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;};
+  const rgb=hex=>hex.match(/[a-f\d]{2}/gi).map(x=>parseInt(x,16));
+  const lum=c=>c.map(linear).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);
+  const contrast=(a,b)=>(Math.max(lum(a),lum(b))+.05)/(Math.min(lum(a),lum(b))+.05);
+  for(const theme of ['light','dark']) {
+    if(await p.evaluate(()=>currentTheme())!==theme) await p.click('#theme-toggle');
+    for(const selector of ['#theme-toggle','.brand-mark','#overview-tab']) {
+      await p.keyboard.press('Tab');await p.locator(selector).focus();
+      assert.equal(await p.locator(selector).evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
+      const colours=await p.locator(selector).evaluate(el=>[getComputedStyle(el).outlineColor,getComputedStyle(document.querySelector('.top-bar')).backgroundColor].map(c=>c.match(/[\d.]+/g).slice(0,3).map(Number)));
+      assert.ok(contrast(...colours)>=3,`${theme} ${selector}`);
+    }
+    await p.click('#citation-tab');await p.waitForSelector('#pagination button');
+    await p.locator('#search-input').focus();
+    const inputColours=await p.locator('#search-input').evaluate(el=>[getComputedStyle(el).outlineColor,getComputedStyle(el).backgroundColor].map(c=>c.match(/[\d.]+/g).slice(0,3).map(Number)));
+    assert.ok(contrast(...inputColours)>=3);
+    const small=await p.locator('.info-icon, .gloss, footer a, .modal-close, #originals-table button[data-sort]').evaluateAll(els=>els.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return [r.width,r.height];}));
+    assert.ok(small.every(s=>s.every(v=>v>=24)),JSON.stringify(small));
+    await p.click('#overview-tab');
+  }
+  const colours=await p.evaluate(()=>['--color-chart-successful','--color-chart-failed','--color-surface-raised'].map(t=>FloraCharts.token(t)));
+  const [success,failed,bg]=colours.map(rgb);assert.ok(contrast(success,bg)>=3&&contrast(failed,bg)>=3);
+  // Same full-severity Machado matrices and CIE76 Lab distance used by the review.
+  const lab=([r,g,b])=>{const f=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;return [116*f(.2126*r+.7152*g+.0722*b)-16,500*(f((.4124*r+.3576*g+.1805*b)/.95047)-f(.2126*r+.7152*g+.0722*b)),200*(f(.2126*r+.7152*g+.0722*b)-f((.0193*r+.1192*g+.9505*b)/1.08883))];};
+  for(const matrix of [[[.367322,.860646,-.227968],[.280085,.672501,.047413],[-.011820,.042940,.968881]],[[.152286,1.052583,-.204868],[.114503,.786281,.099216],[-.003882,-.048116,1.051998]]]) {
+    const simulated=c=>lab(matrix.map(row=>Math.max(0,Math.min(1,row.reduce((n,v,i)=>n+v*linear(c[i]),0)))));
+    const a=simulated(success),b=simulated(failed);const delta=Math.hypot(...a.map((v,i)=>v-b[i]));assert.ok(delta>=20,`simulated ΔE ${delta}`);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
