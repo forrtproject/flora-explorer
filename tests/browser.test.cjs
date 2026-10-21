@@ -144,7 +144,7 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
   await p.click('#pub-tab');await p.waitForFunction(()=>document.getElementById('pub-chart')?.data?.length>0);
   const sums=await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].x.map((_,i)=>t.reduce((n,s)=>n+s.y[i],0));});
   assert.ok(sums.every(s=>Math.abs(s-100)<1e-8));
-  const unknown=await p.evaluate(csv=>Papa.parse(csv,{header:true,skipEmptyLines:true}).data.filter(r=>r.type.toLowerCase().includes('replication')&&!r.type.toLowerCase().includes('reproduc')&&['','na','nan','none','null'].includes((r.journal_r||'').trim().toLowerCase())).length,fs.readFileSync('data/flora.csv','utf8'));
+  const unknown=JSON.parse(fs.readFileSync('data/pub_status_data.json')).replication.overview.n_unknown;
   assert.equal(Number(await p.locator('#pub-overview .mc-stat').filter({hasText:'Unknown venue'}).locator('.mc-stat-value').textContent()),unknown);
   await p.locator('#pub-studies-card summary').click();
   const thesis=p.locator('#pub-studies-table tbody tr').filter({hasText:'Digital Library of Theses'});
@@ -167,6 +167,56 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
     await p.click('#theme-toggle');await p.waitForTimeout(350);
     const missing=await p.evaluate(()=>[...document.querySelectorAll('canvas')].filter(c=>Chart.getChart(c)).filter(c=>!c.getAttribute('aria-label')||!document.getElementById(c.id+'-data')).map(c=>c.id));
     assert.deepEqual(missing,[]);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('recorded venue cards, chart values, CSV and evidence agree for all three selections',async()=>{
+  const p=await page('?tab=publication-status');
+  await p.waitForFunction(()=>document.getElementById('pub-chart')?.data?.length>0);
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  const data=JSON.parse(fs.readFileSync('data/pub_status_data.json'));
+  const labels={journal:'Other named venue',preprint:'Repository / preprint',conference:'Conference output',thesis:'Thesis / dissertation',unknown:'Unknown venue'};
+  const outcomes={successful:'Successful',failed:'Failed',mixed:'Mixed',inconclusive:'Inconclusive',qualified:'Successful but flawed',other:'Other / not coded',issues:'Computational issues',technical_failure:'Technical failure',robust:'Robust',challenges:'Robustness challenges'};
+  assert.match(await p.locator('#pub-caveat').textContent(),/Later journal publication may be missing/);
+  assert.doesNotMatch(await p.locator('#pub-caveat').textContent(),/journal_r/);
+  await p.locator('#pub-studies-card summary').click();
+  assert.match(await p.locator('#pub-studies-card summary').textContent(),/Reference pairs by recorded venue/);
+  assert.deepEqual(await p.locator('#pub-studies-table thead th').allTextContents(),['Report','Recorded venue name','Venue category','Year','Outcome','Report link']);
+  for(const [kind,d] of Object.entries(data)){
+    await p.click(`#pubtype-study-type [data-value="${kind}"]`);
+    await p.waitForFunction(total=>+document.querySelector('#pub-overview .mc-stat-value').textContent===total,d.overview.n_total);
+    const cards=await p.locator('#pub-overview .mc-stat').evaluateAll(nodes=>nodes.map(n=>[n.querySelector('.mc-stat-label').textContent,n.querySelector('.mc-stat-value').textContent]));
+    assert.equal(+cards[0][1],d.overview.n_total);
+    for(const [group,label] of Object.entries(labels)){
+      const [cardLabel,value]=cards.find(([text])=>text.startsWith(label));
+      const n=d.overview['n_'+group];assert.equal(+value,n);
+      assert.ok(cardLabel.endsWith(`(${(100*n/d.overview.n_total).toFixed(1)}%)`),cardLabel);
+    }
+    const rows=await p.locator('#pub-chart-data tbody tr').evaluateAll(nodes=>nodes.map(n=>[...n.children].map(c=>c.textContent)));
+    assert.equal(rows.length,Object.keys(labels).length*Object.keys(d.by_outcome.preprint).length);
+    const plotted=await p.evaluate(()=>document.getElementById('pub-chart').data.map(t=>({name:t.name,counts:t.customdata})));
+    for(const [group,label] of Object.entries(labels)){
+      const cells=rows.filter(r=>r[0]===label);
+      assert.equal(cells.reduce((n,r)=>n+(+r[2]),0),d.overview['n_'+group]);
+      for(const [bucket,count] of Object.entries(d.by_outcome[group])){
+        const cell=cells.find(r=>r[1]===outcomes[bucket]);assert.ok(cell,`${kind}: ${bucket}`);
+        assert.equal(+cell[2],count);assert.equal(+cell[3],d.overview['n_'+group]);
+        assert.equal(cell[4],+cell[3] ? String(Number((100*count/(+cell[3])).toFixed(1))) : 'Not available');
+        const trace=plotted.find(t=>t.name===outcomes[bucket]);
+        assert.deepEqual(trace.counts[Object.keys(labels).indexOf(group)],[count,d.overview['n_'+group]]);
+      }
+    }
+    await p.click('#pub-chart-data-copy');
+    const csv=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
+    assert.deepEqual(csv.map(r=>[r.Group,r.Outcome,r['Reference pairs'],r['Group denominator'],r['Percentage (%)']]),rows);
+    assert.equal(await p.locator('#pub-studies-table tbody tr').count(),d.overview.n_total);
+    const identifierRow=d.pub_studies.find(s=>s.pub_status==='preprint'&&s.venue_basis==='doi'&&!s.journal_r);
+    assert.ok(identifierRow,kind);
+    const evidence=await p.locator('#pub-studies-table tbody tr').evaluateAll((nodes,study)=>{
+      const row=nodes.find(n=>n.children[0].textContent===study.title_r&&n.children[5].querySelector('a')?.getAttribute('href')===(study.url_r||'https://doi.org/'+study.doi_r));
+      return row ? [row.children[1].textContent,row.children[2].textContent] : null;
+    },identifierRow);
+    assert.deepEqual(evidence,['','Repository / preprint']);
   }
   assert.deepEqual(p.errors,[]);await p.close();
 });

@@ -10,7 +10,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from classification import classify_outcome, classify_venue, REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS
+from classification import classify_outcome, classify_venue_evidence, REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS
 import pandas as pd
 
 ROOT     = Path(__file__).resolve().parents[1]
@@ -18,9 +18,6 @@ DATA_DIR = ROOT / "data"
 IN_CSV   = DATA_DIR / "flora.csv"
 OUT_DATA = DATA_DIR / "pub_status_data.json"
 OUT_META = DATA_DIR / "pub_status_meta.json"
-
-if not IN_CSV.exists():
-    raise SystemExit(f"{IN_CSV} not found.")
 
 from classification import parse_reproduction_outcome, reference_key
 
@@ -42,7 +39,10 @@ ROBUSTNESS_BUCKETS = ["robust", "challenges"]
 
 def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) -> dict:
     sub = sub.copy()
-    sub["pub_status"] = sub.get("journal_r", pd.Series(index=sub.index, dtype=str)).apply(classify_venue)
+    evidence = [classify_venue_evidence(row.get("journal_r"), row.get("doi_r"), row.get("url_r"))
+                for _, row in sub.iterrows()]
+    for column, key in [("pub_status", "category"), ("venue_basis", "basis"), ("venue_rule", "rule")]:
+        sub[column] = [item[key] for item in evidence]
     n_total = len(sub)
     counts = sub["pub_status"].value_counts().to_dict()
     n_journal, n_preprint, n_unknown = (int(counts.get(k, 0)) for k in ['journal','preprint','unknown'])
@@ -59,6 +59,8 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
             "doi_r": _clean(row.get("doi_r")),
             "url_r": _clean(row.get("url_r")),
             "pub_status": row["pub_status"],
+            "venue_basis": row["venue_basis"],
+            "venue_rule": row["venue_rule"],
         }
         for _, row in sub.iterrows()
     ]
@@ -83,9 +85,9 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
 LARGE_SCALE_THRESHOLD = MULTI_TARGET_THRESHOLD
 
 
-def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) -> dict:
+def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str], all_rows: pd.DataFrame) -> dict:
     sub = sub.copy()
-    n_originals_per_doi_r = df.groupby("report_key")["target_key"].nunique()
+    n_originals_per_doi_r = all_rows.groupby("report_key")["target_key"].nunique()
     # DOI or URL keys identify reports and targets; unknown identifiers are not evidence of a multi-target report.
     sub["n_originals_in_rep"] = sub["report_key"].map(n_originals_per_doi_r).fillna(0)
     sub["is_large_scale"] = sub["n_originals_in_rep"] > LARGE_SCALE_THRESHOLD
@@ -132,46 +134,59 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
     }
 
 
-# ── Load & split by study type ─────────────────────────────────────────────────
-df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
-for suffix, key in [("r", "report_key"), ("o", "target_key")]:
-    df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
-df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+def compute_results(source: pd.DataFrame) -> dict:
+    df = source.copy()
+    for suffix, key in [("r", "report_key"), ("o", "target_key")]:
+        df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
+    df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
+    df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 
-is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
-is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
-df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
+    is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
+    is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
+    df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
-repro_df = df[is_reproduction].copy()
-repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
-repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
-repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
+    repro_df = df[is_reproduction].copy()
+    repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+    repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
+    repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 
-repro_comp_df = repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)]
-repro_robust_df = repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)]
+    repro_comp_df = repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)]
+    repro_robust_df = repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)]
 
-result = {
-    "replication": compute_pub_status_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES),
-    "reproduction-numerical": compute_pub_status_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS),
-    "reproduction-robustness": compute_pub_status_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS),
-}
-result["replication"]["large_scale"] = compute_large_scale_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES)
-result["reproduction-numerical"]["large_scale"] = compute_large_scale_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS)
-result["reproduction-robustness"]["large_scale"] = compute_large_scale_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS)
+    result = {
+        "replication": compute_pub_status_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES),
+        "reproduction-numerical": compute_pub_status_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS),
+        "reproduction-robustness": compute_pub_status_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS),
+    }
+    result["replication"]["large_scale"] = compute_large_scale_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES, df)
+    result["reproduction-numerical"]["large_scale"] = compute_large_scale_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS, df)
+    result["reproduction-robustness"]["large_scale"] = compute_large_scale_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS, df)
 
-OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
-OUT_META.write_text(json.dumps({
-    "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
-    "source": "scripts/compute_pub_status.py",
-}, indent=2), encoding="utf-8")
+    return result
 
-for kind, r in result.items():
-    ov = r["overview"]
-    ls = r["large_scale"]["overview"]
-    print(f"{kind}: n_total={ov['n_total']}, journal={ov['n_journal']} ({ov['pct_journal']}%), "
-          f"preprint={ov['n_preprint']} ({ov['pct_preprint']}%); "
-          f"individual={ls['n_individual']} ({ls['pct_individual']}%), "
-          f"large_scale={ls['n_large_scale']} ({ls['pct_large_scale']}%)")
-print(f"Written: {OUT_DATA}")
+
+def main():
+    if not IN_CSV.exists():
+        raise SystemExit(f"{IN_CSV} not found.")
+    result = compute_results(pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"]))
+    OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
+    OUT_META.write_text(json.dumps({
+        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
+        "source": "scripts/compute_pub_status.py",
+        "venue_rules_version": 2,
+        "source_last_updated": json.loads((DATA_DIR / "flora_meta.json").read_text())["last_updated"],
+    }, indent=2), encoding="utf-8")
+
+    for kind, r in result.items():
+        ov = r["overview"]
+        ls = r["large_scale"]["overview"]
+        print(f"{kind}: n_total={ov['n_total']}, journal={ov['n_journal']} ({ov['pct_journal']}%), "
+              f"preprint={ov['n_preprint']} ({ov['pct_preprint']}%); "
+              f"individual={ls['n_individual']} ({ls['pct_individual']}%), "
+              f"large_scale={ls['n_large_scale']} ({ls['pct_large_scale']}%)")
+    print(f"Written: {OUT_DATA}")
+
+
+if __name__ == "__main__":
+    main()

@@ -63,7 +63,7 @@ Keep credentials in environment variables or Actions secrets, never in code, fix
 - Preserve qualified replication outcomes and unknown/not-coded values. Do not silently turn unknown values into failures or zeros, or include them in a binary model.
 - Computational reproducibility and robustness are separate assessed dimensions. Their subsets may overlap; do not add them as if they were disjoint.
 - Citation models describe adjusted associations. Preserve scale, comparison group, uncertainty, cohort rules, coverage dates, and limits on causal interpretation.
-- Missing venue information remains unknown. An RRDB non-match is recorded as non-RR when a DOI or title is available, but does not establish absence of registration or peer review. Reports with neither a DOI nor a title remain unknown.
+- Keep venue classification unknown when the recorded name, DOI and report link provide no recognised venue evidence. An RRDB non-match is recorded as non-RR when a DOI or title is available, but does not establish absence of registration or peer review. Reports with neither a DOI nor a title remain unknown.
 
 Use the README's **Data and interpretation** section and `scripts/classification.py` as the starting points. Explain any proposed change to these rules explicitly and include small synthetic tests for category and denominator behaviour.
 

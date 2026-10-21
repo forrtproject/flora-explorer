@@ -810,7 +810,7 @@
                     <h2 class="card-header">Recorded publication venue</h2>
                     <div class="card-body">
                         <p style="margin-bottom:0.75rem;">
-                            Venue names identify repositories/preprints, conference outputs, and theses where recognisable. Missing metadata remain unknown. All other names are labelled “other named venue”; this does not verify a journal article or peer review. Chart percentages use all selected reference pairs within each venue group; summary-card percentages use all selected reference pairs.
+                            Venue categories use the recorded report DOI, venue name and link. “Repository / preprint” includes repository deposits and registrations as well as preprints. “Other named venue” does not establish journal publication or peer review. “Unknown venue” means these fields do not identify a category. Chart percentages use reference pairs within each venue group; summary-card percentages use all selected reference pairs.
                         </p>
                         <div id="pub-placeholder" class="coming-soon-placeholder" style="display:none;"></div>
                         <div id="pub-content">
@@ -825,32 +825,22 @@
 
                         <div id="pub-caveat" style="display:none;margin-top:1.25rem;">
                             <div class="key-distinction">
-                                <strong>Interpretation caveat:</strong> Publication-venue status is derived from the
-                                <code>journal_r</code> field recorded in FLoRA, classified as above. Some studies
-                                currently classified as preprints may since have been formally published in a
-                                different venue without FLoRA yet reflecting that update. Any outcome
-                                differences between these groups should also not be read as caused by publication
-                                venue alone: constructive peer review, a tendency for more selective journals to
-                                accept more polished work, and publication-pressure effects — for example a bias
-                                toward reporting positive or successful results in order to get published, or
-                                conversely extra editorial scrutiny catching more issues before publication — could
-                                all plausibly produce real differences independent of, or entangled with, venue
-                                itself.
+                                <strong>Interpretation caveat:</strong> These categories describe the report recorded in this snapshot. Later journal publication may be missing. Reports can occur in several pairs, so observations are not independent. Differences between groups may reflect journal selectivity, publication bias or database coverage; they do not establish an effect of venue or peer review.
                             </div>
                         </div>
 
                         <details id="pub-studies-card" class="mc-chart-card rr-studies-details" style="display:none;margin-top:1.25rem;">
-                            <summary class="mc-chart-title">All studies with publication-status data <span id="pub-studies-count" class="rr-studies-count"></span></summary>
+                            <summary class="mc-chart-title">Reference pairs by recorded venue <span id="pub-studies-count" class="rr-studies-count"></span></summary>
                             <div class="table-wrap" style="margin-top:0.75rem;">
                                 <table class="table table-striped table-hover" id="pub-studies-table" style="width:100%;">
                                     <thead>
                                         <tr>
-                                            <th>Study</th>
-                                            <th>Journal</th>
-                                            <th>Status</th>
+                                            <th>Report</th>
+                                            <th>Recorded venue name</th>
+                                            <th>Venue category</th>
                                             <th>Year</th>
                                             <th>Outcome</th>
-                                            <th>DOI</th>
+                                            <th>Report link</th>
                                         </tr>
                                     </thead>
                                     <tbody></tbody>
