@@ -546,7 +546,7 @@
 
                 <div class="ci-intro">
                     <h2 class="ci-h2" data-kind-text="Citation patterns around the first replication|Citation counts for numerical reproductions|Citation counts for robustness reproductions">Citation patterns around the first replication</h2>
-                    <div class="chip-group study-type-select" id="ci-study-type">
+                    <div class="chip-group study-type-select" id="ci-study-type" role="group" aria-label="Citation Impact study type">
                         <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                         <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                         <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
@@ -598,7 +598,7 @@
 
                         <div class="filters">
                             <span class="filter-label">Replication outcome</span>
-                            <div class="chip-group" id="outcome-chips">
+                            <div class="chip-group" id="outcome-chips" role="group" aria-label="Replication outcome">
                                 <button class="chip active" data-value="all" aria-pressed="true">All</button>
                                 <button class="chip" data-value="failed" aria-pressed="false">Failed</button>
                                 <button class="chip" data-value="successful" aria-pressed="false">Successful</button>
@@ -718,7 +718,7 @@
                             <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal<span data-kind-text=" predicts replication success||"> predicts replication success</span>. OMC is a proxy for the Journal Impact Factor.
                             Mean Citedness is a journal-level measure from OpenAlex: the mean citations to its works published in the previous two years. It is retrieved at enrichment time, not matched to the original publication year, and is not the original article’s citation count. The update stamp identifies the analysis snapshot. Any fitted model describes an association.
                         </p>
-                        <div class="chip-group study-type-select" id="mc-study-type">
+                        <div class="chip-group study-type-select" id="mc-study-type" role="group" aria-label="Mean Citedness study type">
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                             <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                             <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
@@ -768,7 +768,7 @@
                             This may produce <strong>false positives</strong> for common family names when two
                             unrelated researchers share a surname.
                         </p>
-                        <div class="chip-group study-type-select" id="ao-study-type">
+                        <div class="chip-group study-type-select" id="ao-study-type" role="group" aria-label="Authorship Overlap study type">
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                             <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                             <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
@@ -807,7 +807,7 @@
                     <div class="tab-cite-block-label">How to cite</div>
                     <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
 
-                <div class="chip-group study-type-select" id="pubtype-study-type">
+                <div class="chip-group study-type-select" id="pubtype-study-type" role="group" aria-label="Publication Type study type (all three comparisons)">
                     <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                     <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                     <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>

@@ -1070,7 +1070,7 @@ test('mobile paging focuses the results heading; counts and chip changes have on
   await p.selectOption('#mobile-navigation','mc-tab');
   await p.waitForSelector('#mc-dist-chart-data');
   await p.locator('#mc-study-type [data-value="reproduction-numerical"]').click();
-  assert.match(await p.locator('#analysis-feedback').textContent(),/Numerical Reproductions selected/);
+  assert.equal(await p.locator('#analysis-feedback').textContent(),'Mean Citedness study type: Numerical Reproductions selected.');
   await p.selectOption('#mobile-navigation','overview-tab');
   const tip=p.locator('#overview .info-icon').first();await tip.focus();
   assert.equal(await tip.getAttribute('role'),'img');
@@ -1192,4 +1192,11 @@ test('focus rings, small targets and the dark success/failure pair keep sufficie
     const a=simulated(success),b=simulated(failed);const delta=Math.hypot(...a.map((v,i)=>v-b[i]));assert.ok(delta>=20,`simulated ΔE ${delta}`);
   }
   assert.deepEqual(p.errors,[]);await p.close();
+});
+test('filter state restored from a shared URL is not announced',async()=>{
+  const p=await page('?tab=mean-citedness&mc-kind=reproduction-numerical',390);
+  await p.waitForSelector('#mc-dist-chart-data');
+  assert.equal(await p.locator('#mc-study-type .chip.active').getAttribute('data-value'),'reproduction-numerical');
+  assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
+  await p.close();
 });

@@ -83,10 +83,9 @@
         const chip = e.target.closest('.chip, .trend-filter-btn');
         if(chip) {
             pressed();recordState();
-            if (chip.closest('#ci-study-type, #outcome-chips, #mc-study-type, #ao-study-type, #pubtype-study-type')) {
-                const pane = chip.closest('.tab-pane');
-                document.getElementById('analysis-feedback').textContent = pane.querySelector('h2')?.textContent.trim() + ': ' + chip.textContent.trim() + ' selected.';
-            }
+            // Announce user choices by their group label; state restored from the URL stays silent.
+            const group = chip.closest('#ci-study-type, #outcome-chips, #mc-study-type, #ao-study-type, #pubtype-study-type');
+            if (group && !restoring) document.getElementById('analysis-feedback').textContent = group.getAttribute('aria-label') + ': ' + chip.textContent.trim() + ' selected.';
         }
     });
     document.addEventListener('change',e=>{if(Object.keys(controls).includes(e.target.id))recordState();});
