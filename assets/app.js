@@ -773,6 +773,7 @@ function initDataTable(data) {
         createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
 
+    dataTable.on('draw.dt', syncBrowseUrl);
     dataTable.on('order.dt', () => { if (bmInitialized) updateBrowseResults(false); syncBrowseUrl(); });
 
     $('#flora-table tbody').on('click', 'button.study-details', function() {
@@ -859,8 +860,8 @@ function setupBrowseMobile(data) {
     const next = document.getElementById('bm-next');
     let debounceTimer;
     input.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(() => bmApplySearch(input.value), 200); });
-    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); } });
-    next.addEventListener('click', () => { bmPage++; bmRender(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); });
+    prev.addEventListener('click', () => { if (bmPage > 0) { bmPage--; bmRender(); syncBrowseUrl(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); } });
+    next.addEventListener('click', () => { bmPage++; bmRender(); syncBrowseUrl(); document.querySelector('.app-main').scrollTo({ top: 0, behavior: 'smooth' }); });
     input.value = browseQuery; bmApplySearch(browseQuery);
 }
 
@@ -924,11 +925,7 @@ document.getElementById('bm-sort')?.addEventListener('change', e => {
     if (dataTable && direction) dataTable.order([[Number(column), direction]]).draw();
 });
 function syncBrowseUrl() {
-    const url = new URL(location.href);
-    browseQuery ? url.searchParams.set('q', browseQuery) : url.searchParams.delete('q');
-    browseKind !== 'all' ? url.searchParams.set('kind', browseKind) : url.searchParams.delete('kind');
-    if (dataTable) url.searchParams.set('sort', dataTable.order()[0].join(':'));
-    history.replaceState(null, '', url);
+    window.FloraView?.recordState();
 }
 
 // ===== Browse kind filter =====
@@ -2158,27 +2155,9 @@ const TAB_ID_TO_PARAM = {
 // tab fires shown.bs.tab, which lazy-loads that tab's content as usual.
 function applyTabFromUrl() {
     const tab = (new URLSearchParams(window.location.search).get('tab') || '').toLowerCase();
-    if (!tab) return;
-    const btn = document.getElementById(TAB_PARAM_MAP[tab] || '');
+    const btn = document.getElementById(TAB_PARAM_MAP[tab] || 'overview-tab');
     if (btn && window.bootstrap) bootstrap.Tab.getOrCreateInstance(btn).show();
 }
-
-// Reflect the active tab in the address bar so it stays shareable as the user
-// navigates. Fires for both clicks and programmatic shows.
-function syncTabToUrl(tabId) {
-    const name = TAB_ID_TO_PARAM[tabId];
-    if (!name) return;
-    const params = new URLSearchParams(window.location.search);
-    if (name !== 'citations') params.delete('doi');   // doi only applies to Citation Impact
-    if (name === 'overview') params.delete('tab');     // keep the home URL clean
-    else params.set('tab', name);
-    const qs = params.toString();
-    history.replaceState(null, '', new URL('./' + (qs ? '?' + qs : ''), window.location.href).href);
-}
-Object.keys(TAB_ID_TO_PARAM).forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) btn.addEventListener('shown.bs.tab', () => syncTabToUrl(id));
-});
 
 // Called directly (not via $(document).ready) so the CSV fetch starts as soon as this
 // script runs, rather than waiting for the whole document - including later, lazily-used
