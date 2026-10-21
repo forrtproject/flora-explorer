@@ -64,9 +64,18 @@
     });
     window.addEventListener('popstate',()=>restore(new URL(location.href)));
     // In-page links to another tab switch tabs without reloading the data.
+    // Modified or non-primary clicks keep normal link behaviour (new tab or window).
     document.addEventListener('click',e=>{
         const link=e.target.closest('[data-tab-link]');if(!link)return;
-        e.preventDefault();bootstrap.Tab.getOrCreateInstance(document.getElementById(link.dataset.tabLink)).show();
+        if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+        e.preventDefault();
+        const tab=document.getElementById(link.dataset.tabLink);
+        bootstrap.Tab.getOrCreateInstance(tab).show();
+        // Focus would otherwise stay on the link inside the now-hidden pane. On narrow
+        // screens the tab buttons are hidden, so focus the destination panel instead.
+        const pane=document.querySelector(tab.dataset.bsTarget);
+        if(tab.offsetParent) tab.focus();
+        else if(pane){pane.setAttribute('tabindex','-1');pane.focus({preventScroll:true});}
     });
     document.getElementById('share-view').onclick=async()=>{
         syncBrowseUrl();recordState();
