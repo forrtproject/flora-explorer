@@ -206,9 +206,9 @@ function applyKindText(root, kind) {
 }
 
 function studyTypeLabel(kind) {
-    if (kind === 'reproduction-numerical') return 'Numerical Reproductions';
-    if (kind === 'reproduction-robustness') return 'Robustness Reproductions';
-    return 'Replications';
+    if (kind === 'reproduction-numerical') return 'numerical reproductions';
+    if (kind === 'reproduction-robustness') return 'robustness reproductions';
+    return 'replications';
 }
 
 let mcKind = 'replication';
@@ -415,7 +415,7 @@ function computeKindChartData(data, kind) {
 // readers need not open the data table to see what the bar is a share of.
 function kindChartCaption(data, kind) {
     const { datasets, total } = computeKindChartData(data, kind);
-    const pct = n => total ? Math.round(100 * n / total) : 0;
+    const pct = n => FloraCharts.percent(n, total);
     const counts = datasets.map(d => `${d.label} ${d.data[0].toLocaleString()} (${pct(d.data[0])}%)`).join(' · ');
     if (kind === 'replicability') return `${total.toLocaleString()} replication ${total === 1 ? 'pair' : 'pairs'}: ${counts}.`;
     const eligible = data.filter(r => classifyKind(r) === 'reproduction').length;
@@ -446,7 +446,7 @@ function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel
             plugins: {
                 legend: { position: 'bottom', labels: { color: ac.legend, boxWidth: 14, padding: 14, font: { size: 12 } } },
                 tooltip: { callbacks: { label: ctx => {
-                    const v = ctx.parsed.x; const pct = total ? ((v / total) * 100).toFixed(1) : 0;
+                    const v = ctx.parsed.x; const pct = FloraCharts.percent(v, total, 1);
                     return `${ctx.dataset.label}: ${v.toLocaleString()} (${pct}%)`;
                 }}}
             },
@@ -500,7 +500,7 @@ function renderRandomExamples(data) {
             ${origMeta ? `<span class="ex-line-meta">${escapeHtml(origMeta)}</span>` : ''}
         `;
         const repInner = `
-            <span class="ex-line-label">Replication</span>
+            <span class="ex-line-label">${reportKindLabel(r)}</span>
             <span class="ex-line-title">${escapeHtml(truncateText(repTitle, 110))}</span>
             ${repMeta ? `<span class="ex-line-meta">${escapeHtml(repMeta)}</span>` : ''}
         `;
@@ -608,7 +608,7 @@ document.getElementById('website-citation-copy-btn').addEventListener('click', (
 
 // ===== FAQ =====
 function renderInlineMd(text) {
-    let s = escapeHtml(text);
+    let s = escapeHtml(text.replace(/\\([#_\-])/g, '$1'));
     s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
     s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => {
         // Strict allow-list: the whole trimmed URL must start with an allowed
@@ -617,11 +617,32 @@ function renderInlineMd(text) {
         // javascript: — renders as plain text.
         const clean = u.trim();
         const safe = /^(https?:|mailto:)/i.test(clean);
-        return safe ? `<a href="${clean}" target="_blank" rel="noopener">${t}</a>` : `${t} (${u})`;
+        const label = /^here$/i.test(t) && clean.includes('forrt-replications.shinyapps.io/fred_explorer/') ? 'FORRT Replication Database explorer' : t;
+        return safe ? `<a href="${clean}" target="_blank" rel="noopener">${label}</a>` : `${t} (${u})`;
     });
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
     return s;
+}
+
+// The live FAQ is shared with other tools. Correct reader-facing copy here without
+// changing the upstream coding guidance or exposing its spreadsheet column names.
+function readerFaqCopy(md) {
+    return md.replace(/\\([#_\-])/g, '$1')
+        .replace(/computational reproducible/g, 'computationally reproducible')
+        .replace(/This we would code as/g, 'We would code this as')
+        .replace(/versionising/g, 'versioning').replace(/Pubmed/g, 'PubMed').replace(/Google docs/g, 'Google Docs')
+        .replace(/regularly-updated/g, 'regularly updated')
+        .replace('click [here](https://forrt-replications.shinyapps.io/fred_explorer/)', 'visit the [FORRT Replication Database explorer](https://forrt-replications.shinyapps.io/fred_explorer/)')
+        .replace('in alt_id_o and alt_id_r columns', 'as alternative identifiers for the original and repetition reports')
+        .replace('will have the specific published version in doi_r and the other alt_id_r', 'use the specific published version as the main repetition reference and keep the other version as an alternative identifier')
+        .replace('and the individual reports or preprints as doi_r', 'and the individual reports or preprints as alternative identifiers')
+        .replace(/\bjournal_r\b/g, 'the repetition report’s venue')
+        .replace(/\bdoi_r\b/g, 'the repetition report’s main DOI')
+        .replace(/\bdoi_o\b/g, 'the original report’s main DOI')
+        .replace(/\balt_id_r\b/g, 'the repetition report’s alternative identifiers')
+        .replace(/\balt_id_o\b/g, 'the original report’s alternative identifiers')
+        .replace('The plugin tags replication outcomes as Successful, Failed, or Mixed,', 'Most replication outcomes are coded as Successful, Failed, or Mixed,');
 }
 
 function renderFaqAnswer(lines) {
@@ -649,9 +670,19 @@ function renderFaqAnswer(lines) {
 }
 
 function parseFaqMarkdown(md) {
-    const lines = md.replace(/\r\n/g, '\n').split('\n');
+    const lines = readerFaqCopy(md).replace(/\r\n/g, '\n').split('\n');
     const items = []; let currentQA = null; let currentSection = null;
-    const flushQA = () => { if (currentQA) { items.push(currentQA); currentQA = null; } };
+    const venueQuestion = 'How is the peer review status determined?';
+    let venueAnswerCorrected = false;
+    const flushQA = () => { if (currentQA) {
+        if (currentQA.question === venueQuestion) {
+            currentQA.body = [
+                'The Publication Type tab groups reports by their recorded venue: repository or preprint, conference output, thesis or dissertation, other named venue, or unknown venue. A named venue does not confirm peer review. Missing venue information remains unknown.'
+            ];
+            venueAnswerCorrected = true;
+        }
+        items.push(currentQA); currentQA = null;
+    } };
     const flushSection = () => { if (currentSection) { items.push(currentSection); currentSection = null; } };
     for (const ln of lines) {
         const h1 = /^#\s+(.+)$/.exec(ln);
@@ -663,6 +694,7 @@ function parseFaqMarkdown(md) {
         else if (currentSection) currentSection.body.push(ln);
     }
     flushQA(); flushSection();
+    if (!venueAnswerCorrected) console.warn(`FAQ venue-status correction was not applied: expected heading "${venueQuestion}" was not found. Review the upstream FAQ.`);
     return items;
 }
 
@@ -847,7 +879,7 @@ function bmRender() {
     if (bmPage >= totalPages) bmPage = totalPages - 1;
     const start = bmPage * BM_PAGE_SIZE; const end = Math.min(total, start + BM_PAGE_SIZE);
     list.innerHTML = bmFiltered.slice(start, end).map(bmCardHtml).join('');
-    meta.innerHTML = `Showing <strong>${start + 1}–${end}</strong> of <strong>${total.toLocaleString()}</strong> reference ${total === 1 ? "pair" : "pairs"}`;
+    meta.innerHTML = `Showing <strong>${(start + 1).toLocaleString('en-GB')}–${end.toLocaleString('en-GB')}</strong> of <strong>${total.toLocaleString()}</strong> reference ${total === 1 ? "pair" : "pairs"}`;
     info.textContent = `Page ${bmPage + 1} of ${totalPages}`;
     prev.disabled = bmPage === 0; next.disabled = bmPage >= totalPages - 1;
     pager.style.display = totalPages > 1 ? 'flex' : 'none';
@@ -990,7 +1022,8 @@ document.getElementById('browse-empty')?.addEventListener('click', e => {
 function updateBrowseKindCount() {
     const el = document.getElementById('browse-kind-count'); if (!el) return;
     const n = getChartData().length; const total = fullRowData.length;
-    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
+    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference ${total === 1 ? "pair" : "pairs"}`;
+    document.querySelectorAll('[data-browse-report-kind]').forEach(el => { el.textContent = browseKind === 'all' ? 'Replication or reproduction' : browseKind === 'replication' ? 'Replication' : 'Reproduction'; });
     document.querySelector('#export-browse span').textContent = browseQuery.trim() || browseKind !== 'all' ? 'Download filtered CSV' : 'Download full CSV';
 }
 
@@ -1023,7 +1056,7 @@ function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
 function updateTrendsCount() {
     const el = document.getElementById('trend-filter-count'); if (!el) return;
     const n = trendsFilteredData().length; const total = fullRowData.length;
-    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference pairs`;
+    el.textContent = trendsKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference ${total === 1 ? "pair" : "pairs"}`;
 }
 
 // Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
@@ -1312,19 +1345,19 @@ function renderMcCharts() {
     const ov = d.overview;
     const statCards = buckets.filter(b => ov[b.overviewKey] > 0).map(b => {
         const n = ov[b.overviewKey] || 0;
-        const pct = ov.n_total ? Math.round(100 * n / ov.n_total) : 0;
-        return `<div class="mc-stat"><span class="mc-stat-value" style="color:${b.color}">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${pct}%)</span></div>`;
+        const pct = FloraCharts.percent(n, ov.n_total);
+        return `<div class="mc-stat"><span class="mc-stat-value" style="color:${b.color}">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${escapeHtml(pct)}%)</span></div>`;
     }).join('');
     document.getElementById('mc-overview').innerHTML = `
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Reference pairs with OMC</span></div>
         ${statCards}
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_journals.toLocaleString()}</span><span class="mc-stat-label">Journals matched</span></div>
-        <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines}</span><span class="mc-stat-label">Disciplines</span></div>`;
+        <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines.toLocaleString('en-GB')}</span><span class="mc-stat-label">Disciplines</span></div>`;
 
     // ── Distribution chart (Plotly stacked bar) ───────────────────────────
     const bins  = d.histogram || [];
     const xMids = bins.map(b => +((b.bin_lo + b.bin_hi) / 2).toFixed(2));
-    const hTpl  = 'OMC %{x:.2f}<br>%{y} reference pairs<extra>%{fullData.name}</extra>';
+    const hTpl  = 'OMC %{x:.2f}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>';
     FloraCharts.plot('mc-dist-chart', buckets.map(b => ({
         x: xMids, y: bins.map(row => row[b.histKey] || 0), name: b.label, type: 'bar',
         marker: { color: b.color }, hovertemplate: hTpl,
@@ -1332,7 +1365,7 @@ function renderMcCharts() {
         barmode: 'stack', bargap: 0.05,
         margin: { t: 10, r: 10, b: 50, l: 55 },
         xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
-        yaxis: { title: 'Reference pairs',               gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
+        yaxis: { title: 'Reference pairs', tickformat: ',d', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
         font: { family: t.fontFamily, size: 12, color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
@@ -1418,7 +1451,7 @@ function renderMcCharts() {
         ', χ² = ' + st.chi_sq +
         (pNote ? ', ' + pNote : '') +
         '; ' + glossR2 + ' = ' + st.r2 +
-        '; N = ' + st.n_model + ' (successful vs. failed)';
+        '; N = ' + st.n_model.toLocaleString('en-GB') + ' (successful vs. failed)';
 }
 
 async function loadMeanCitedness() {
@@ -1495,11 +1528,11 @@ function renderOverlapCharts() {
             '</div>' +
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_overlap || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">With author overlap (' + (ov.pct_overlap || 0) + '%)</div>' +
+                '<div class="mc-stat-label">With author overlap (' + escapeHtml(FloraCharts.percent(ov.n_overlap, ov.n_total)) + '%)</div>' +
             '</div>' +
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_no_overlap || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Without author overlap (' + (ov.pct_no_overlap || 0) + '%)</div>' +
+                '<div class="mc-stat-label">Without author overlap (' + escapeHtml(FloraCharts.percent(ov.n_no_overlap, ov.n_total)) + '%)</div>' +
             '</div>' +
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
@@ -1594,7 +1627,7 @@ function renderRRCharts() {
     if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
         const n = d && d.overview ? d.overview.n_total : 0;
         if (insufficientEl) {
-            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} checked against the RR library yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} checked against the Registered Reports database yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
             insufficientEl.style.display = '';
         }
         if (overviewEl) overviewEl.style.display = 'none';
@@ -1620,11 +1653,11 @@ function renderRRCharts() {
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_rr || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Registered Reports (' + (ov.pct_rr || 0) + '%)</div>' +
+                '<div class="mc-stat-label">Registered Reports (' + escapeHtml(FloraCharts.percent(ov.n_rr, ov.n_total)) + '%)</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_non_rr || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Rest (' + (ov.pct_non_rr || 0) + '%)</div>' +
+                '<div class="mc-stat-label">Not found in RR database (' + escapeHtml(FloraCharts.percent(ov.n_non_rr, ov.n_total)) + '%)</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
@@ -1636,7 +1669,7 @@ function renderRRCharts() {
     // ── Grouped bar chart ──────────────────────────────────────────────────────
     const buckets = studyTypeOutcomeBuckets(pubTypeKind);
     const groups     = ['rr', 'non_rr'];
-    const GROUP_LABELS = { rr: 'Registered Report', non_rr: 'Rest' };
+    const GROUP_LABELS = { rr: 'Registered Report', non_rr: 'Not found in RR database' };
 
     const traces = buckets.map(b => ({
         name: b.label,
@@ -1759,8 +1792,8 @@ function renderPubStatusCharts() {
     const ovEl = document.getElementById('pub-overview');
     if (ovEl) {
         const venueLabels = {journal:'Other named venue', preprint:'Repository / preprint', conference:'Conference output', thesis:'Thesis / dissertation', unknown:'Unknown venue'};
-        ovEl.innerHTML = `<div class="mc-stat"><div class="mc-stat-value">${ov.n_total}</div><div class="mc-stat-label">Reference pairs</div></div>` +
-            Object.entries(venueLabels).map(([key,label])=>`<div class="mc-stat"><div class="mc-stat-value">${ov['n_'+key] || 0}</div><div class="mc-stat-label">${label} (${ov.n_total ? (100*(ov['n_'+key] || 0)/ov.n_total).toFixed(1) : 0}%)</div></div>`).join('');
+        ovEl.innerHTML = `<div class="mc-stat"><div class="mc-stat-value">${ov.n_total.toLocaleString('en-GB')}</div><div class="mc-stat-label">Reference pairs</div></div>` +
+            Object.entries(venueLabels).map(([key,label])=>`<div class="mc-stat"><div class="mc-stat-value">${(ov['n_'+key] || 0).toLocaleString('en-GB')}</div><div class="mc-stat-label">${label} (${escapeHtml(FloraCharts.percent(ov['n_'+key] || 0, ov.n_total))}%)</div></div>`).join('');
         ovEl.style.display = '';
     }
 
@@ -1875,7 +1908,7 @@ function renderLargeScaleCharts() {
     if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
         const n = d && d.overview ? d.overview.n_total : 0;
         if (insufficientEl) {
-            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} with project-scale data yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} with report-size data yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
             insufficientEl.style.display = '';
         }
         if (overviewEl) overviewEl.style.display = 'none';
@@ -1900,11 +1933,11 @@ function renderLargeScaleCharts() {
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_individual || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Up to 3 targets / unknown (' + (ov.pct_individual || 0) + '%)</div>' +
+                '<div class="mc-stat-label">Up to 3 targets / unknown (' + escapeHtml(FloraCharts.percent(ov.n_individual, ov.n_total)) + '%)</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_large_scale || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Multiple-target report (' + (ov.pct_large_scale || 0) + '%)</div>' +
+                '<div class="mc-stat-label">Multiple-target report (' + escapeHtml(FloraCharts.percent(ov.n_large_scale, ov.n_total)) + '%)</div>' +
             '</div>';
         overviewEl.style.display = '';
     }
@@ -2038,7 +2071,7 @@ async function loadDataStamps() {
             const ageDays = ageMs / (1000 * 60 * 60 * 24);
             const stale = (src === 'citations' || src === 'reproduction_citations' || src === 'impact_factor' || src === 'rr_status') ? ageDays > 14 : ageDays > 3;
             el.classList.toggle('stale', stale);
-            const fmt = dt.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const fmt = dt.toLocaleString('en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
             el.innerHTML = `${label} last updated: <strong>${fmt}</strong>`;
             // Machine timestamps are shown as a readable date; the exact identifier stays in the tooltip.
             if (meta.input_snapshot) {
@@ -2048,7 +2081,7 @@ async function loadDataStamps() {
             }
             if (meta.recalculated_at) el.innerHTML += ` · recalculated: ${new Date(meta.recalculated_at).toLocaleDateString()}`;
             if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
-            if (meta.source_url) el.innerHTML += ` · <a class="doi-link" href="${meta.source_url}" target="_blank">source</a>`;
+            if (meta.source_url) el.innerHTML += ` · <a class="doi-link" href="${meta.source_url}" target="_blank">${escapeHtml(label)} source</a>`;
         } else {
             el.classList.add('missing');
             el.innerHTML = `${label}: <em>no snapshot yet</em>`;

@@ -1,6 +1,6 @@
 # FLoRA Explorer
 
-A static dashboard for the [FORRT Library of Replication Attempts (FLoRA)](https://forrt.org/replication-hub/flora). Each database row is a **reference pair**, linking an original report to a replication or reproduction report. Reports can occur in multiple pairs.
+A static dashboard for the [FORRT Library of Reproduction and Replication Attempts (FLoRA)](https://forrt.org/replication-hub/flora). Each database row is a **reference pair**, linking an original report to a replication or reproduction report. Reports can occur in multiple pairs.
 
 | View | Purpose | Data refresh |
 |---|---|---|
