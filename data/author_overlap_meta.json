@@ -5,5 +5,11 @@
     "reproduction-numerical": 220,
     "reproduction-robustness": 84
   },
-  "source": "scripts/compute_author_overlap.py"
+  "source": "scripts/compute_author_overlap.py",
+  "comparison": {
+    "minimum_share_pairs": 20,
+    "interval_method": "Wilson 95%; assumes independent pairs",
+    "interval_caveat": "Pairs are treated as independent; intervals are too narrow when pairs share reports.",
+    "recalculated_at": "2026-11-11T13:11:06Z"
+  }
 }

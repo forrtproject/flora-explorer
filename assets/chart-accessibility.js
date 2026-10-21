@@ -10,10 +10,43 @@ window.FloraCharts = (() => {
         const share = total > 0 ? 100 * (n || 0) / total : 0;
         return share > 0 && share < 1 ? '<1' : number(share, digits);
     };
-    const fmt = (v, header = '') => typeof v === 'number' ? v.toLocaleString('en-GB', {useGrouping:!/year|X \/ category/i.test(header),maximumFractionDigits:5}).replace(/-/g, '−') : plain(v);
+    const fmt = (v, header = '') => typeof v === 'number' ? v.toLocaleString('en-GB', {useGrouping:!/year|X \/ category/i.test(header),maximumFractionDigits:/Wilson/.test(header) ? 1 : 5}).replace(/-/g, '−') : plain(v);
     const comparisonIds = new Set(['ao-chart', 'rr-chart', 'pub-chart', 'ls-chart']);
     // Chart colours resolve from CSS tokens at render time, so every chart follows the theme.
     const token = (name, fallback = '') => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+    const seriesPatterns = {"rep-successful": "", "rep-failed": "/", "rep-mixed": ".", "rep-qualified": "x", "rep-inconclusive": "|", "rep-other": "-", "comp-successful": "", "comp-issues": ".", "comp-technical-failure": "/", "rob-robust": "", "rob-challenges": "\\", "citation-multiple": "+"};
+    function seriesStyle(key) {
+        return {color:token('--color-series-' + key), pattern:seriesPatterns[key] || ''};
+    }
+    function seriesKey(label, id = '') {
+        const name = plain(label).toLowerCase();
+        if (name.includes('multiple outcome')) return 'citation-multiple';
+        if (name.includes('technical failure')) return 'comp-technical-failure';
+        if (name.includes('computational issues')) return 'comp-issues';
+        if (name.includes('robustness challenges')) return 'rob-challenges';
+        if (name === 'robust') return 'rob-robust';
+        if (name.includes('successful but flawed')) return 'rep-qualified';
+        if (name.includes('successful')) return /computational/.test(id) ? 'comp-successful' : 'rep-successful';
+        for (const k of ['failed','mixed','inconclusive']) if (name.includes(k)) return 'rep-' + k;
+        if (/other|not coded/.test(name)) return 'rep-other';
+        return null;
+    }
+    function canvasFill(style) {
+        if (!style.pattern) return style.color;
+        const tile = document.createElement('canvas'); tile.width = tile.height = 10;
+        const ctx = tile.getContext('2d'); ctx.fillStyle = style.color; ctx.fillRect(0,0,10,10);
+        ctx.strokeStyle = token('--color-badge-on-outcome'); ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 1.3;
+        if (style.pattern === '.') { ctx.beginPath(); ctx.arc(5,5,1.5,0,2*Math.PI); ctx.fill(); }
+        else {
+            ctx.beginPath();
+            if (['/','x'].includes(style.pattern)) {ctx.moveTo(0,10);ctx.lineTo(10,0);}
+            if (['\\','x'].includes(style.pattern)) {ctx.moveTo(0,0);ctx.lineTo(10,10);}
+            if (['|','+'].includes(style.pattern)) {ctx.moveTo(5,0);ctx.lineTo(5,10);}
+            if (['-','+'].includes(style.pattern)) {ctx.moveTo(0,5);ctx.lineTo(10,5);}
+            ctx.stroke();
+        }
+        return ctx.createPattern(tile,'repeat');
+    }
     function theme() {
         return {
             paper: token('--color-surface-raised', '#fff'), plot: token('--color-surface-raised', '#fff'),
@@ -36,9 +69,9 @@ window.FloraCharts = (() => {
             if (id !== 'study-plot' && el?.getClientRects().length) plot(el,...args);
         }),120);
     });
-    function csvText(headers, rows, notes = '') {
+    function csvText(headers, rows, notes = '', rawNumbers = false) {
         // Prefix formula-like text so spreadsheet programs treat it as data.
-        const cell = v => '"' + (typeof v === 'number' ? String(Number(v.toFixed(5))) : (Array.isArray(v) ? plain(v) : String(v ?? '')).replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
+        const cell = v => '"' + (typeof v === 'number' ? String(rawNumbers ? v : Number(v.toFixed(5))) : (Array.isArray(v) ? plain(v) : String(v ?? '')).replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
         return [notes ? ['Export context', ...headers] : headers, ...rows.map(row => notes ? [notes,...row] : row)].map(row => row.map(cell).join(',')).join('\r\n');
     }
     function download(name, headers, rows, notes = '') {
@@ -70,12 +103,13 @@ window.FloraCharts = (() => {
         const id = el.id + '-data';
         for (const suffix of ['', '-copy', '-copy-status']) document.getElementById(id + suffix)?.remove();
         // A comparison toggle would otherwise replot the saved traces into the cleared chart.
-        document.getElementById(el.id + '-mode')?.remove(); originals.delete(el.id);
+        document.getElementById(el.id + '-mode')?.remove();
+        document.getElementById(el.id + '-comparison-note')?.remove(); originals.delete(el.id);
         plots.delete(el.id);
         el.removeAttribute('aria-describedby'); el.removeAttribute('role'); el.removeAttribute('aria-label');
         if (typeof Plotly !== 'undefined' && el.data) Plotly.purge(el);
     }
-    function table(el, rows, headers, summary) {
+    function table(el, rows, headers, summary, options = {}) {
         const id = el.id + '-data';
         let details = document.getElementById(id);
         if (!details) {
@@ -106,7 +140,7 @@ window.FloraCharts = (() => {
         action.onclick = async () => {
             status.textContent = '';
             try {
-                await navigator.clipboard.writeText(csvText(headers, rows, summary + '\n' + context(el)));
+                await navigator.clipboard.writeText(csvText(headers, options.exportRows || rows, summary + '\n' + context(el), options.rawNumbers));
                 action.title = 'Chart CSV copied';
                 action.setAttribute('aria-label', 'Chart CSV copied for ' + visibleTitle(el));
                 status.textContent = 'Chart CSV copied';
@@ -120,6 +154,10 @@ window.FloraCharts = (() => {
     }
     function chart(ctx, config) {
         const el = ctx.canvas || ctx;
+        for (const dataset of config.data.datasets || []) {
+            const key = Object.keys(seriesPatterns).find(k => token('--color-series-' + k) === dataset.backgroundColor) || seriesKey(dataset.label, el.id);
+            if (key) dataset.backgroundColor = canvasFill(seriesStyle(key));
+        }
         const datasets = config.data.datasets || [], labels = config.data.labels || [];
         el.setAttribute('role','img'); el.setAttribute('aria-label',visibleTitle(el) + '. Values in the following data table.');
         const rows = labels.map((label,i) => [label,...datasets.map(d=>d.data[i] ?? 0)]);
@@ -140,6 +178,12 @@ window.FloraCharts = (() => {
         const el = typeof target === 'string' ? document.getElementById(target) : target;
         if (!el) return Promise.resolve();
         const id = el.id;
+        traces = traces.map(t => {
+            const key = t.semanticKey || seriesKey(t.name, id);
+            if (!key || t.type !== 'bar') return t;
+            const style = seriesStyle(key);
+            return {...t,marker:{...t.marker,color:style.color,pattern:{shape:style.pattern,bgcolor:style.color,fillmode:'overlay',fgcolor:token('--color-badge-on-outcome'),size:10,solidity:.15}}};
+        });
         plots.set(id,[traces,layout,config,options]);
         if (!heights.has(id)) heights.set(id,el.style.height);
         el.style.height = heights.get(id);
@@ -149,11 +193,6 @@ window.FloraCharts = (() => {
         // give Plotly a zero-width container and trigger its 700px fallback.
         const card = el.closest('.mc-chart-card');
         if (card) card.style.display = '';
-        if (typeof Plotly === 'undefined') {
-            if (document.readyState !== 'complete') window.addEventListener('load', () => plot(target,traces,layout,config,options), {once:true});
-            else el.textContent = 'Chart library unavailable. Reload to retry.';
-            return Promise.resolve();
-        }
         let display = traces.map(t=>({...t}));
         layout = {...layout, autosize:true, legend:{...layout.legend,traceorder:'normal'}};
         for (const key of Object.keys(layout).filter(k=>/^[xy]axis\d*$/.test(k))) {
@@ -163,18 +202,56 @@ window.FloraCharts = (() => {
         const counts = modes.get(id) === 'count';
         let summary = 'Values below include every plotted series; interval limits are shown where available.';
         if (comparisonIds.has(id)) {
-            originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config]);
+            originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config,options]);
             const nGroups = traces[0]?.x?.length || 0;
+            const groups = options.comparison || [];
+            const denominator = (i, n) => `N=${number(n)} pairs<br>from ${number(groups[i]?.reports || 0)} reports`;
             const totals = Array.from({length:nGroups}, (_,i)=>traces.reduce((sum,t)=>sum+(Number(t.y?.[i])||0),0));
-            display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '')+`<br>N=${number(totals[i])}`),
-                y:t.y.map((v,i)=>counts ? v : totals[i] ? 100*v/totals[i] : 0),
+            display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '')+`<br>${denominator(i,totals[i])}`),
+                y:t.y.map((v,i)=>counts ? v : totals[i] >= 20 ? 100*v/totals[i] : null),
                 customdata:t.y.map((v,i)=>[v,totals[i], escape(percent(v,totals[i],1))]),
                 hovertemplate:counts ? '%{x}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>' : '%{x}<br>%{customdata[2]}% (%{customdata[0]:,.0f} pairs)<extra>%{fullData.name}</extra>'}));
+            // Whiskers describe only the first (headline) outcome, at its stack boundary.
+            // Other categories retain the full composition and exact table counts.
+            layout.shapes = [];
+            if (!counts && display[0]) {
+                const bounds = groups.map(g => g?.outcomes?.[options.outcomeKeys?.[0]]?.wilson || [null,null]);
+                // Draw above every stack segment: trace error bars would be covered
+                // by the next outcome's bar at the headline-share boundary.
+                totals.forEach((n,i) => {
+                    const [lo,hi] = bounds[i];
+                    if (n < 20 || lo == null || hi == null) return;
+                    const line = {color:token('--color-badge-on-outcome'),width:2};
+                    layout.shapes.push(
+                        {type:'line',x0:i,x1:i,y0:lo,y1:hi,line,layer:'above'},
+                        {type:'line',x0:i-.05,x1:i+.05,y0:lo,y1:lo,line,layer:'above'},
+                        {type:'line',x0:i-.05,x1:i+.05,y0:hi,y1:hi,line,layer:'above'});
+                });
+                display[0].text = display[0].y.map(v => v == null ? '' : number(v,1) + '%');
+                display[0].textposition = 'inside';
+                display[0].insidetextanchor = 'middle'; display[0].textangle = 0;
+                display[0].insidetextfont = {color:token('--color-badge-on-outcome')};
+            }
+            layout.annotations = counts ? [] : totals.flatMap((n,i) => n < 20 ? [{
+                x:display[0].x[i], y:50, text:`Too few to show<br>(N = ${number(n)})`, showarrow:false,
+                font:{color:theme().font,size:11}, bgcolor:theme().paper,
+            }] : []);
+            let note = document.getElementById(id + '-comparison-note');
+            if (!note) {
+                note = document.createElement('div'); note.id = id + '-comparison-note'; note.className = 'comparison-note'; el.before(note);
+            }
+            note.innerHTML = '<p>Display minimum: 20 reference pairs per group. Smaller groups remain in counts and chart data.</p>' +
+                `<p>Whiskers show Wilson 95% intervals for ${escape(plain(traces[0]?.name).toLowerCase())}. These intervals treat pairs as independent and are therefore too narrow when pairs share reports. They do not account for uneven database coverage. Reports can occur in several groups; do not add report counts across groups.</p>` +
+                '<ul>' + totals.map((n,i) => `<li>${escape(plain(traces[0].x[i]))}: N = ${number(n)} pairs from ${number(groups[i]?.reports || 0)} reports.` +
+                    (n === 0 ? ' No reference pairs in this snapshot.' : '') +
+                    (n && groups[i]?.reports < 20 ? ' Fewer than 20 reports: pairs are highly clustered.' : '') +
+                    (id === 'ls-chart' && i === 1 && groups[i]?.reports >= 2 ? ` Two reports contribute ${number(groups[i].top_two_report_pairs)} pairs.` : '') +
+                    (groups[i]?.pairs_without_report_identifiers ? ` ${number(groups[i].pairs_without_report_identifiers)} pairs lack report identifiers.` : '') + '</li>').join('') + '</ul>';
             layout.barmode = counts ? 'group' : 'stack';
             layout.xaxis = {...layout.xaxis,tickangle:0};
             const maxCount = Math.max(0,...traces.flatMap(t=>t.y));
             layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, ...(counts ? countAxis(maxCount) : {tickformat:'.0f',dtick:undefined}), range:counts ? undefined : [0,100]};
-            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
+            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent. Display minimum: 20 reference pairs per group. Wilson 95% intervals assume independent pairs and are too narrow when pairs share reports. Report counts can overlap across groups.';
             let toggle = document.getElementById(id+'-mode');
             if (!toggle) {
                 toggle=document.createElement('button');toggle.id=id+'-mode';toggle.type='button';toggle.className='chart-mode';el.before(toggle);
@@ -192,12 +269,14 @@ window.FloraCharts = (() => {
                 // Horizontal bars leave room for venue and report-category labels.
                 display=display.map(t=>({...t,orientation:'h',x:t.y,y:t.x,
                     hovertemplate:t.hovertemplate.replace(/%\{x\}/g,'%{category}').replace(/%\{y/g,'%{x').replace(/%\{category\}/g,'%{y}')}));
+                layout.shapes=(layout.shapes || []).map(s=>({...s,x0:s.y0,x1:s.y1,y0:s.x0,y1:s.x1}));
+                layout.annotations=(layout.annotations || []).map(a=>({...a,x:a.y,y:a.x}));
                 layout.xaxis={...layout.yaxis,automargin:true};
                 layout.yaxis={title:'',automargin:true,autorange:'reversed',type:'category',tickangle:0};
                 layout.xaxis.title={...layout.xaxis.title,text:counts ? 'Reference pairs' : 'Within-group<br>percentage'};
-                layout.margin={...layout.margin,l:110,b:140};
+                layout.margin={...layout.margin,l:125,b:140};
                 layout.legend={...layout.legend,y:-0.25};
-                layout.height=Math.max(440,(display[0]?.y.length || 0)*65+200);
+                layout.height=Math.max(440,(display[0]?.y.length || 0)*100+200);
             }
         }
         // Reserve separate space for category labels, axis titles and the legend.
@@ -220,19 +299,34 @@ window.FloraCharts = (() => {
         if (!el.data) el.replaceChildren();
         const title = layout.title ? plain(layout.title.text || layout.title) : visibleTitle(el);
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
+        function renderPlot() {
+            if (typeof Plotly === 'undefined') {
+                el.textContent = 'Chart library unavailable. Values remain in the chart data table.';
+                return Promise.resolve();
+            }
+            return Plotly.react(el, display, layout, config);
+        }
         if (comparisonIds.has(id)) {
             const rows = [];
             traces.forEach(t => (t.x || []).forEach((group, i) => {
                 const count = Number(t.y?.[i]) || 0;
                 const denominator = traces.reduce((n, series) => n + (Number(series.y?.[i]) || 0), 0);
-                rows.push([plain(group), plain(t.name), count, denominator, denominator ? count > 0 && 100 * count / denominator < 1 ? '<1' : Number((100 * count / denominator).toFixed(1)) : 'Not available']);
+                const g = options.comparison?.[i];
+                const bounds = g?.outcomes?.[options.outcomeKeys?.[traces.indexOf(t)]]?.wilson || [null,null];
+                rows.push([plain(group), plain(t.name), count, denominator,
+                    denominator ? count > 0 && 100 * count / denominator < 1 ? '<1' : Number((100 * count / denominator).toFixed(1)) : 'Not available',
+                    g?.reports ?? 'Not available', g?.pairs_without_report_identifiers ?? 'Not available',
+                    ...bounds.map(v => v == null ? 'Not available' : v),
+                    'Wilson 95%; assumes independent pairs', denominator >= 20 ? 'Share shown' : `Too few to show (N = ${denominator})`]);
             }));
-            table(el, rows, ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], summary);
-            return Plotly.react(el, display, layout, config);
+            const exportRows = rows.map(row => row.map((v,i) => i === 4 ? row[3] ? 100 * row[2] / row[3] : null : [7,8].includes(i) && typeof v !== 'number' ? null : v));
+            table(el, rows, ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)', 'Distinct repetition reports', 'Pairs without report identifiers', 'Wilson 95% lower (%)', 'Wilson 95% upper (%)', 'Interval method', 'Share display status'], summary, {exportRows,rawNumbers:true});
+
+            return renderPlot();
         }
         if (options.table) {
             table(el, options.table.rows, options.table.headers, options.table.summary);
-            return Plotly.react(el, display, layout, config);
+            return renderPlot();
         }
         const rows=[];
         display.forEach(t => (t.x || []).forEach((x,i)=>{
@@ -242,7 +336,7 @@ window.FloraCharts = (() => {
             rows.push([t.name || 'Series',category,value, err ? value-(err.arrayminus?.[i] ?? err.array?.[i] ?? 0) : '', err ? value+(err.array?.[i]??0) : '',t.customdata?.[i]?.[0] ?? '']);
         }));
         table(el,rows,['Series','X / category','Value','95% CI lower','95% CI upper','Reference-pair count'],summary);
-        return Plotly.react(el, display, layout, config);
+        return renderPlot();
     }
     function updateContexts() {
         document.querySelectorAll('.chart-data').forEach(d=>{
@@ -250,5 +344,5 @@ window.FloraCharts = (() => {
             if(el)d.querySelector('.chart-context').textContent=context(el);
         });
     }
-    return {chart,plot,clear,download,updateContexts, token, theme, number, percent, countAxis};
+    return {chart,plot,clear,download,seriesStyle,seriesKey,updateContexts, token, theme, number, percent, countAxis};
 })();

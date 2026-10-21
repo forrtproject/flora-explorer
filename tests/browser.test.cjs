@@ -157,8 +157,8 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
   assert.ok(await p.evaluate(()=>['overview-outcome-chart','trend-orig-year','trend-field'].every(id=>{
     const c=Chart.getChart(id);return JSON.stringify(c.legend.legendItems.map(d=>d.text))===JSON.stringify(c.getSortedVisibleDatasetMetas().map(d=>c.data.datasets[d.index].label));
   })));
-  const sums=await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].x.map((_,i)=>t.reduce((n,s)=>n+s.y[i],0));});
-  assert.ok(sums.every(s=>Math.abs(s-100)<1e-8));
+  const sums=await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].x.map((_,i)=>[t.reduce((n,s)=>n+(s.y[i] || 0),0),t[0].customdata[i][1]]);});
+  assert.ok(sums.every(([s,n])=>Math.abs(s-(n>=20 ? 100 : 0))<1e-8));
   const unknown=await p.evaluate(csv=>Papa.parse(csv,{header:true,skipEmptyLines:true}).data.filter(r=>r.type.toLowerCase().includes('replication')&&!r.type.toLowerCase().includes('reproduc')&&['','na','nan','none','null'].includes((r.journal_r||'').trim().toLowerCase())).length,fs.readFileSync('data/flora.csv','utf8'));
   assert.equal(Number(await p.locator('#pub-overview .mc-stat').filter({hasText:'Unknown venue'}).locator('.mc-stat-value').textContent()),unknown);
   await p.locator('#pub-studies-card summary').click();
@@ -178,7 +178,7 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
     await p.click('#pub-chart-mode');
     assert.ok(await p.evaluate(()=>{const el=document.getElementById('pub-chart');return el._fullLayout.xaxis.type==='linear'&&el.data.every(t=>t.x.every((v,i)=>v===t.customdata[i][0]));}));
     await p.click('#pub-chart-mode');
-    assert.ok(await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].y.every((_,i)=>Math.abs(t.reduce((n,s)=>n+s.x[i],0)-(t[0].customdata[i][1] ? 100 : 0))<1e-8);}));
+    assert.ok(await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].y.every((_,i)=>Math.abs(t.reduce((n,s)=>n+s.x[i],0)-(t[0].customdata[i][1]>=20 ? 100 : 0))<1e-8);}));
     await p.click('#theme-toggle');await p.waitForTimeout(350);
     const missing=await p.evaluate(()=>[...document.querySelectorAll('canvas')].filter(c=>Chart.getChart(c)).filter(c=>!c.getAttribute('aria-label')||!document.getElementById(c.id+'-data')).map(c=>c.id));
     assert.deepEqual(missing,[]);
@@ -262,7 +262,7 @@ test('citation content reflows at 320px after loading on desktop', async()=>{
 test('comparison tables identify counts, denominators and percentage units', async()=>{
   const p=await page('?tab=authorship-overlap');
   await p.waitForSelector('#ao-chart-data');
-  assert.deepEqual(await p.locator('#ao-chart-data thead th').allTextContents(),['Group','Outcome','Reference pairs','Group denominator','Percentage (%)']);
+  assert.deepEqual(await p.locator('#ao-chart-data thead th').allTextContents(),['Group','Outcome','Reference pairs','Group denominator','Percentage (%)','Distinct repetition reports','Pairs without report identifiers','Wilson 95% lower (%)','Wilson 95% upper (%)','Interval method','Share display status']);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -999,8 +999,8 @@ test('small-sample and unavailable-data messages use reader-facing words',async(
   await p.evaluate(()=>{
     const small=()=>({overview:{n_total:1}});
     for(const kind of ['replication','reproduction-numerical','reproduction-robustness']){
-      window._mcData[kind]=small();window._aoData[kind]=small();window._rrData[kind]=small();
-      window._pubData[kind]={...small(),large_scale:small()};
+      window._mcData[kind]=small();window._aoData[kind]=null;window._rrData[kind]=null;
+      window._pubData[kind]=null;
     }
   });
   for(const [tab,controls,ids] of [['mc-tab','#mc-study-type',['mc-placeholder']],['overlap-tab','#ao-study-type',['ao-placeholder']],['pub-tab','#pubtype-study-type',['rr-placeholder','pub-placeholder','ls-placeholder']]]){
@@ -1009,7 +1009,8 @@ test('small-sample and unavailable-data messages use reader-facing words',async(
       await p.click(`${controls} [data-value="${kind}"]`);
       for(const id of ids){
         assert.ok(await p.locator('#'+id).isVisible());
-        assert.match(await p.locator('#'+id).textContent(),new RegExp(`^Not enough ${label} .*\\(n=1; need at least 5\\)\\.$`));
+        if(id==='mc-placeholder') assert.match(await p.locator('#'+id).textContent(),new RegExp(`^Not enough ${label} .*\\(n=1; need at least 5\\)\\.$`));
+        else assert.match(await p.locator('#'+id).textContent(),/^No .* data available in this snapshot\.$/);
       }
     }
   }
@@ -1199,4 +1200,92 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal(await p.locator('#mc-study-type .chip.active').getAttribute('data-value'),'reproduction-numerical');
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
+});
+
+test('comparison shares use a 20-pair minimum, report denominators and headline Wilson whiskers',async()=>{
+  const p=await page('?tab=publication-type');
+  await p.waitForSelector('#pub-chart-data');
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  for(const [kind,headline] of [['replication','successful'],['reproduction-numerical','successful'],['reproduction-robustness','robust']]){
+    await p.click(`#pubtype-study-type [data-value="${kind}"]`);
+    for(const [id,source] of [['pub', 'pub'],['rr','rr'],['ls','ls']]){
+      const model=await p.evaluate(({id,kind,source,headline})=>{
+        const data=source==='rr'?window._rrData[kind]:source==='ls'?window._pubData[kind].large_scale:window._pubData[kind];
+        const chart=document.getElementById(id+'-chart');
+        return {groups:Object.values(data.groups), keys:Object.keys(data.groups), points:chart.data.map(t=>t.y),
+          intervals:chart.layout.shapes.filter(s=>s.x0===s.x1).map(s=>({index:s.x0,lo:s.y0,hi:s.y1})),
+          labels:chart.data[0].x,annotations:chart.layout.annotations,headline};
+      },{id,source,kind,headline});
+      for(const [i,g] of model.groups.entries()){
+        assert.ok(model.labels[i].includes(`from ${g.reports.toLocaleString('en-GB')} reports`));
+        if(g.pairs<20){
+          assert.ok(model.points.every(series=>series[i]===null));
+          assert.ok(model.annotations.some(a=>a.text.includes(`(N = ${g.pairs})`)));
+        }else{
+          const share=g.outcomes[headline].share,[lo,hi]=g.outcomes[headline].wilson;
+          assert.ok(Math.abs(model.points[0][i]-share)<1e-10);
+          const interval=model.intervals.find(s=>s.index===i);
+          assert.ok(Math.abs(interval.lo-lo)<1e-10);
+          assert.ok(Math.abs(interval.hi-hi)<1e-10);
+        }
+      }
+      assert.match(await p.locator(`#${id}-chart-comparison-note`).textContent(),/too narrow when pairs share reports/);
+      await p.click(`#${id}-chart-mode`);
+      assert.ok(await p.evaluate(id=>{const el=document.getElementById(id+'-chart');return el.layout.shapes.length===0&&el.data.every(t=>!t.error_y&&!t.error_x&&t.y.every((n,i)=>n===t.customdata[i][0]));},id));
+      await p.click(`#${id}-chart-mode`);
+    }
+  }
+  await p.click('#pubtype-study-type [data-value="replication"]');
+  const clustered=JSON.parse(fs.readFileSync('data/pub_status_data.json')).replication.large_scale.groups.large_scale;
+  assert.match(await p.locator('#ls-chart-comparison-note').textContent(),new RegExp(`N = ${clustered.pairs} pairs from ${clustered.reports} reports\\. Fewer than 20 reports: pairs are highly clustered`));
+  await p.click('#pub-chart-data-copy');
+  const exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
+  const thesis=exported.find(r=>r.Group==='Thesis / dissertation'&&r.Outcome==='Failed');
+  assert.equal(thesis['Reference pairs'],'3');assert.equal(thesis['Percentage (%)'],'100');
+  assert.equal(thesis['Distinct repetition reports'],'3');assert.equal(thesis['Share display status'],'Too few to show (N = 3)');
+  assert.ok(Math.abs(Number(thesis['Wilson 95% lower (%)'])-43.8502968245)<1e-5);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('authorship shares distinguish N=19 from N=20 and keep alternatives without Plotly',async()=>{
+  const data=JSON.parse(fs.readFileSync('data/author_overlap_data.json'));
+  const model=data.replication;
+  for(const [group,n] of [['overlap',19],['no_overlap',20]]){
+    for(const key of Object.keys(model.by_outcome[group])) model.by_outcome[group][key]=key==='successful'?n:0;
+    const g=model.groups[group];g.pairs=n;g.reports=n;g.pairs_without_report_identifiers=0;
+    for(const [key,v] of Object.entries(g.outcomes)){v.pairs=key==='successful'?n:0;v.share=key==='successful'?100:0;v.wilson=key==='successful'?[100*n/(n+1.959963984540054**2),100]:[0,100*1.959963984540054**2/(n+1.959963984540054**2)];}
+  }
+  const p=await page('?tab=authorship-overlap',1280,p=>p.route('**/data/author_overlap_data.json',route=>route.fulfill({json:data})));
+  await p.waitForSelector('#ao-chart-data');
+  assert.deepEqual(await p.evaluate(()=>document.getElementById('ao-chart').data[0].y),[null,100]);
+  assert.match(await p.locator('#ao-chart-comparison-note').textContent(),/19 pairs from 19 reports/);
+  await p.evaluate(()=>{Plotly.purge('ao-chart');window.Plotly=undefined;renderOverlapCharts();});
+  assert.match(await p.locator('#ao-chart').textContent(),/Chart library unavailable/);
+  assert.equal(await p.locator('#ao-chart-data tbody tr').count(),12);
+  assert.ok(await p.locator('#ao-chart-data-copy').isVisible());
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('semantic outcome colours and patterns follow themes across dimensions, badges and citation segments',async()=>{
+  const p=await page('?tab=overview');
+  for(const theme of ['light','dark']){
+    if(await p.evaluate(()=>currentTheme())!==theme) await p.click('#theme-toggle');
+    const colours=await p.evaluate(()=>{
+      const comp=Chart.getChart('overview-computational-chart').data.datasets;
+      const robust=Chart.getChart('overview-robustness-chart').data.datasets;
+      const rep=Chart.getChart('overview-outcome-chart').data.datasets;
+      const keys=['rep-successful','rep-failed','rep-mixed','rep-qualified','rep-inconclusive','rep-other','comp-successful','comp-issues','comp-technical-failure','rob-robust','rob-challenges','citation-multiple'];
+      const badge=document.createElement('div');badge.innerHTML=getOutcomeBadge('computationally reproducible, robustness challenges');document.body.append(badge);
+      const badgeColours=[...badge.children].map(el=>getComputedStyle(el).backgroundColor);badge.remove();
+      return {colours:keys.map(k=>FloraCharts.seriesStyle(k).color),comp:comp[0].backgroundColor,rob:robust[0].backgroundColor,rep:rep[0].backgroundColor,
+        patterned:[rep[1].backgroundColor,comp[1].backgroundColor,robust[1].backgroundColor].every(v=>v instanceof CanvasPattern),badgeColours};
+    });
+    assert.equal(new Set(colours.colours).size,12);
+    assert.equal(colours.comp,colours.colours[6]);assert.equal(colours.rob,colours.colours[9]);assert.equal(colours.rep,colours.colours[0]);
+    assert.ok(colours.patterned);assert.notEqual(colours.badgeColours[0],colours.badgeColours[1]);
+  }
+  await p.click('#pub-tab');await p.waitForSelector('#pub-chart-data');
+  await p.click('#pubtype-study-type [data-value="reproduction-numerical"]');
+  assert.equal(await p.evaluate(()=>document.getElementById('pub-chart').data[0].marker.color),await p.evaluate(()=>FloraCharts.seriesStyle('comp-successful').color));
+  assert.deepEqual(p.errors,[]);await p.close();
 });

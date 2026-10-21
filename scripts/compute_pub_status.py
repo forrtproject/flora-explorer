@@ -12,15 +12,13 @@ from pathlib import Path
 
 from classification import classify_outcome, classify_venue, REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS
 import pandas as pd
+from group_summary import summarise_groups, write_summary
 
 ROOT     = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 IN_CSV   = DATA_DIR / "flora.csv"
 OUT_DATA = DATA_DIR / "pub_status_data.json"
 OUT_META = DATA_DIR / "pub_status_meta.json"
-
-if not IN_CSV.exists():
-    raise SystemExit(f"{IN_CSV} not found.")
 
 from classification import parse_reproduction_outcome, reference_key
 
@@ -76,6 +74,7 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
             "pct_preprint": round(100 * n_preprint / n_total, 1) if n_total else 0,
         },
         "by_outcome": by_outcome,
+        "groups": summarise_groups(sub, "pub_status", VENUE_LABELS, bucket_col, buckets),
         "pub_studies": pub_studies,
     }
 
@@ -128,50 +127,59 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
             "pct_large_scale": round(100 * n_large_scale / n_total, 1) if n_total else 0,
         },
         "by_outcome": by_outcome,
+        "groups": dict(zip(["individual", "large_scale"], summarise_groups(sub, "is_large_scale", [False, True], bucket_col, buckets).values())),
         "large_scale_studies": large_scale_studies,
     }
 
 
-# ── Load & split by study type ─────────────────────────────────────────────────
-df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
-for suffix, key in [("r", "report_key"), ("o", "target_key")]:
-    df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
-df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+def main(recalculate=False):
+    global df
+    # ── Load & split by study type ─────────────────────────────────────────────────
+    df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+    for suffix, key in [("r", "report_key"), ("o", "target_key")]:
+        df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
+    df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
+    df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 
-is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
-is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
-df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
+    is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
+    is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
+    df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
-repro_df = df[is_reproduction].copy()
-repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
-repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
-repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
+    repro_df = df[is_reproduction].copy()
+    repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+    repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
+    repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 
-repro_comp_df = repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)]
-repro_robust_df = repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)]
+    repro_comp_df = repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)]
+    repro_robust_df = repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)]
 
-result = {
-    "replication": compute_pub_status_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES),
-    "reproduction-numerical": compute_pub_status_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS),
-    "reproduction-robustness": compute_pub_status_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS),
-}
-result["replication"]["large_scale"] = compute_large_scale_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES)
-result["reproduction-numerical"]["large_scale"] = compute_large_scale_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS)
-result["reproduction-robustness"]["large_scale"] = compute_large_scale_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS)
+    result = {
+        "replication": compute_pub_status_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES),
+        "reproduction-numerical": compute_pub_status_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS),
+        "reproduction-robustness": compute_pub_status_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS),
+    }
+    result["replication"]["large_scale"] = compute_large_scale_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES)
+    result["reproduction-numerical"]["large_scale"] = compute_large_scale_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS)
+    result["reproduction-robustness"]["large_scale"] = compute_large_scale_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS)
 
-OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
-OUT_META.write_text(json.dumps({
-    "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
-    "source": "scripts/compute_pub_status.py",
-}, indent=2), encoding="utf-8")
+    metadata = {
+        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
+        "source": "scripts/compute_pub_status.py",
+    }
 
-for kind, r in result.items():
-    ov = r["overview"]
-    ls = r["large_scale"]["overview"]
-    print(f"{kind}: n_total={ov['n_total']}, journal={ov['n_journal']} ({ov['pct_journal']}%), "
-          f"preprint={ov['n_preprint']} ({ov['pct_preprint']}%); "
-          f"individual={ls['n_individual']} ({ls['pct_individual']}%), "
-          f"large_scale={ls['n_large_scale']} ({ls['pct_large_scale']}%)")
-print(f"Written: {OUT_DATA}")
+    write_summary(result, OUT_DATA, OUT_META, metadata, recalculate)
+
+    for kind, r in result.items():
+        ov = r["overview"]
+        ls = r["large_scale"]["overview"]
+        print(f"{kind}: n_total={ov['n_total']}, journal={ov['n_journal']} ({ov['pct_journal']}%), "
+              f"preprint={ov['n_preprint']} ({ov['pct_preprint']}%); "
+              f"individual={ls['n_individual']} ({ls['pct_individual']}%), "
+              f"large_scale={ls['n_large_scale']} ({ls['pct_large_scale']}%)")
+    print(f"Written: {OUT_DATA}")
+
+
+if __name__ == "__main__":
+    import sys
+    main(recalculate="--recalculate" in sys.argv)

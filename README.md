@@ -12,7 +12,7 @@ A static dashboard for the [FORRT Library of Reproduction and Replication Attemp
 | Authorship Overlap | Within-group outcome percentages based on surname overlap | Daily |
 | Publication Type | Recorded venue categories, Registered Reports matching and reports with multiple original targets | Daily / weekly |
 
-Every chart has a nearby data table and a compact button to copy its CSV data. Browse Studies also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
+Every chart has a nearby data table and a compact button to copy its CSV data. Browse Studies also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and denominators showing reference pairs and distinct repetition reports. Shares are drawn only for groups with at least 20 pairs; exact counts and observed shares remain in tables and CSV for smaller groups. Whiskers show Wilson 95% intervals for the headline outcome (successful, computationally successful or robust). These intervals treat pairs as independent and are therefore too narrow when pairs share reports. Groups with fewer than 20 reports carry a clustering note. This display minimum does not establish statistical adequacy or representative database coverage. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
 
 ## Run locally
 
@@ -81,7 +81,9 @@ To recalculate the existing citation cohort from its committed cache, without ne
 python scripts/rebuild_cached_citations.py
 ```
 
-This validates cache availability, recomputes the timelines and models, and writes the compact index and individual records. The original coverage date stays unchanged; a separate recalculation date records the computation. It does not expand the citation cohort. `scripts/run_fect.R` is retained as an optional research analysis and is not part of the deployed OLS figures or scheduled workflows.
+The citation rebuild validates cache availability, recomputes the timelines and models, and writes the compact index and individual records. The original coverage date stays unchanged; a separate recalculation date records the computation. It does not expand the citation cohort. `scripts/run_fect.R` is retained as an optional research analysis and is not part of the deployed OLS figures or scheduled workflows.
+
+To add comparison report counts and Wilson intervals to existing summaries without refreshing source coverage, run `python scripts/compute_author_overlap.py --recalculate`, `python scripts/compute_pub_status.py --recalculate` and `python scripts/compute_rr_status.py --recalculate`. Recalculation reuses committed inputs and RR matches, checks that existing counts and evidence are unchanged, and preserves source dates.
 
 ## Validate changes
 

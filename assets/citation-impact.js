@@ -270,7 +270,7 @@
         if (desc.event_time && desc.event_time.length) {
             traces.push({
                 x: desc.event_time, y: desc[descField], type: 'scatter', mode: 'lines+markers',
-                line: { color, width: 2.5 }, marker: { color, size: 7 },
+                line: { color, width: 2.5, dash:({successful:'solid',failed:'dash',mixed:'dot'})[outcome] || 'solid' }, marker: { color, size: 7, symbol:({successful:'circle',failed:'square',mixed:'diamond'})[outcome] || 'circle' },
                 name: 'Mean (raw)', text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>${ylabel}: ${FloraCharts.number(desc[descField][i],2)}`),
                 hovertemplate: '%{text}<extra></extra>'
             });
@@ -605,7 +605,7 @@
             { x: years, y: tl.map(t => t.with_failed),     name: 'Co-cites failed rep',    type: 'bar', marker: { color: OUTCOME_COLORS.failed } },
             { x: years, y: tl.map(t => t.with_mixed),      name: 'Co-cites mixed rep',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
             { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } },
-            { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Co-cites multiple outcome categories', type: 'bar', marker: {color: FloraCharts.token('--color-chart-qualified')} }
+            { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Co-cites multiple outcome categories', type: 'bar', marker: {color: FloraCharts.seriesStyle('citation-multiple').color} }
         ].filter(trace=>trace.y.some(v=>v>0));
         // The coverage year stays partial even if this snapshot is viewed in a later year.
         const partialYear = Number((CI.meta?.last_updated || '').slice(0,4)) || new Date().getFullYear();
