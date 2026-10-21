@@ -143,6 +143,7 @@
     const CI_REPRO_MIN_N = 5;
 
     function renderCiKindGate(kind) {
+        applyKindText(document.querySelector('#citation-impact .ci-intro'), kind);
         const contentEl = document.getElementById('ci-content');
         const reproEl = document.getElementById('ci-repro-content');
         const placeholderEl = document.getElementById('ci-placeholder');
@@ -222,10 +223,11 @@
         const c = (CI.meta && CI.meta.outcome_counts) || {};
         const fmt = n => (n == null ? '—' : Number(n).toLocaleString());
         document.getElementById('kpis').innerHTML = `
-            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Original studies</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_replications)}</div><div class="kpi-label">Replication attempts</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(c.failed)}</div><div class="kpi-label">Failed replications</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(c.successful)}</div><div class="kpi-label">Successful replications</div></div>`;
+            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Original reports with complete citation data</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_replications)}</div><div class="kpi-label">Eligible replication reference pairs</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(c.failed)}</div><div class="kpi-label">Eligible pairs: failed</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(c.successful)}</div><div class="kpi-label">Eligible pairs: successful</div></div>
+            <p class="muted kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</p>`;
     }
 
     function renderAggregate() {
