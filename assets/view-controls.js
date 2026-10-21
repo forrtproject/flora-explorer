@@ -63,6 +63,11 @@
         });
     });
     window.addEventListener('popstate',()=>restore(new URL(location.href)));
+    // In-page links to another tab switch tabs without reloading the data.
+    document.addEventListener('click',e=>{
+        const link=e.target.closest('[data-tab-link]');if(!link)return;
+        e.preventDefault();bootstrap.Tab.getOrCreateInstance(document.getElementById(link.dataset.tabLink)).show();
+    });
     document.getElementById('share-view').onclick=async()=>{
         syncBrowseUrl();recordState();
         try { await navigator.clipboard.writeText(location.href);document.getElementById('view-feedback').textContent='Link copied'; }

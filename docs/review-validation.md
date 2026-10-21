@@ -69,3 +69,12 @@ The agent-led review (simulated newcomer, researcher and accessibility perspecti
 - F14, F15, F20: the citation search has a visible label; FAQ Markdown renders in questions; captions and accessible names use the visible title where the chart has one (otherwise its ID); tab-level headings are sequential (Browse detail rows still use `<h6>`) and copy actions sit outside headings; mobile cards have a sort control.
 
 The browser suite's readiness check now consumes its HTTP response; previously an unconsumed stream intermittently raised an uncaught `assert(!this.paused)` after the `before` hook.
+
+## 21 October 2026 usability review: wording, labels and axes
+
+These changes alter analytical wording and labels, so they were reviewed separately. An independent model review (GPT 6.1 Sol) checked every study-type-specific sentence against the pipeline scripts before publication.
+
+- F07, F08: row counts are labelled reference pairs. Each Overview and Browse outcome chart states its denominator and unassessed count above the bar, and a coverage caution precedes the first chart. Citation KPIs state that eligible pair counts are measured before citation lookup.
+- F10: the original-year chart pools the sparse years before 1960 (16 replication pairs across 1880–1959) into one column, set apart by a dashed line. From 1960, and on the report-year chart, every calendar year has a slot, so gaps keep their scale. Plotted totals still equal the pairs with a valid year.
+- F11: headings and prose in Trends, Mean Citedness, Authorship Overlap, Publication Type and Citation Impact follow the selected study type. Reproduction variants describe descriptive comparisons, pair-level units and RRDB matching without replication-specific reasoning; replication-report venues are described as recorded venues, which include repositories.
+- F15, F17: the duplicated About aim is merged, Browse and the Replication Atlas are described by purpose, and missing entries link directly to the submission form. About text no longer implies FLoRA estimates replication rates.
