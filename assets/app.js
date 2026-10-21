@@ -1313,7 +1313,7 @@ function renderMcCharts() {
 
     // ── Overview grid ─────────────────────────────────────────────────────
     const ov = d.overview;
-    const statCards = buckets.map(b => {
+    const statCards = buckets.filter(b => ov[b.overviewKey] > 0).map(b => {
         const n = ov[b.overviewKey] || 0;
         const pct = ov.n_total ? Math.round(100 * n / ov.n_total) : 0;
         return `<div class="mc-stat"><span class="mc-stat-value" style="color:${b.color}">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${pct}%)</span></div>`;
