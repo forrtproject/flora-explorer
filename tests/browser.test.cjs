@@ -766,3 +766,158 @@ test('originals and Publication Type tables expose their last columns at phone a
   }
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+test('copy follows each study type and preserves complete rendered sentences',async()=>{
+  const p=await page('?tab=overview');
+  assert.match(await p.locator('.explorer-intro').innerText(),/FORRT Library of Reproduction and Replication Attempts \(FLoRA\)/);
+  assert.match(await p.locator('.explorer-intro').innerText(),/Framework for Open and Reproducible Research Training \(FORRT\)/);
+  assert.doesNotMatch(await p.locator('meta[name="description"]').getAttribute('content'),/comprehensive/);
+  assert.equal(await p.getByText('FLoRA Annotator',{exact:false}).count(),0);
+  const repro=await p.evaluate(()=>{const r=fullRowData.find(r=>classifyKind(r)==='reproduction');renderRandomExamples([r]);return reportKindLabel(r);});
+  assert.equal(repro,'Reproduction');
+  assert.deepEqual(await p.locator('#random-examples .ex-line-label').allTextContents(),['Original','Reproduction']);
+  const views=[['trends-tab','#trends','#trends .trend-filter-btn','kind'],['mc-tab','#mean-citedness','#mc-study-type .chip','value'],['overlap-tab','#authorship-overlap','#ao-study-type .chip','value'],['pub-tab','#publication-type','#pubtype-study-type .chip','value'],['citation-tab','#citation-impact','#ci-study-type .chip','value']];
+  for(const [tab,pane,controls,key] of views){
+    await p.click('#'+tab);
+    for(const kind of ['replication','reproduction-numerical','reproduction-robustness']){
+      await p.click(`${controls}[data-${key}="${kind}"]`);
+      const text=await p.locator(pane).innerText();
+      assert.doesNotMatch(text,/a journal's the|Not enough (Numerical|Robustness|Replications)|split by the selected outcome|\bRRDB\b|\bjournal_r\b|outcome chips|straightforward to extend|data\/disciplines\.json/);
+      // Check assembled prose around substitutions, including empty variants in Mean Citedness.
+      const paragraphs=await p.locator(`${pane} p:has([data-kind-text])`).allTextContents();
+      assert.ok(paragraphs.length>0);
+      assert.ok(paragraphs.every(s=>!/(?:a|the)\s+(?:a|the)\b/i.test(s)));
+      if(tab==='trends-tab')assert.match(text,new RegExp(`Frequency shows where ${kind==='replication'?'replication':'reproduction'} effort has gone, not how ${kind==='replication'?'replicable':kind==='reproduction-numerical'?'reproducible':'robust'} a journal's research is\\.`));
+    }
+  }
+  await p.click('#browse-tab');
+  for(const kind of ['reproduction-numerical','reproduction-robustness','replication','all']){
+    await p.click(`.browse-kind-btn[data-kind="${kind}"]`);
+    const expected=kind==='all'?'Replication or reproduction':kind==='replication'?'Replication':'Reproduction';
+    assert.deepEqual(await p.locator('[data-browse-report-kind]').allTextContents(),[expected,expected]);
+  }
+  await p.click('#trends-tab');
+  assert.deepEqual(await p.locator('#rep-journal-top-n option').allTextContents(),['10 venues','15 venues','25 venues','50 venues']);
+  assert.match(await p.locator('#journal-top-n option').first().textContent(),/journals/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('live FAQ display repairs escapes, typos and spreadsheet jargon without breaking links',async()=>{
+  const faq=String.raw`# FAQs
+## Coding
+### How are meta-papers treated?
+We still have 1 row per original \- replication combination. Prefer published versions for doi\_r and the meta-paper into alt\_id\_r. Otherwise, the main publication is added as doi\_r, and the individual reports or preprints as doi\_r.
+### How are preprints handled?
+Code alternative identifiers in alt\_id\_o and alt\_id\_r columns. References: \#1 published and \#2 specific; original DOI doi\_o, journal\_r.
+### How is the peer review status determined?
+All NAs are working papers.
+### What if the result is mixed?
+This we would code as *mixed*. It is computational reproducible. There is no versionising. Use a Pubmed ID, not Google docs. It is regularly-updated.
+### What tags outcomes?
+The plugin tags replication outcomes as Successful, Failed, or Mixed, based on the authors' reports. To explore the database, click [here](https://forrt-replications.shinyapps.io/fred_explorer/).
+`;
+  const p=await page('?tab=overview',1280,p=>p.route('**/flora_faq.md',route=>route.fulfill({contentType:'text/markdown',body:faq})));
+  await p.waitForSelector('.faq-question');
+  for(const q of await p.locator('.faq-question').all())await q.click();
+  const text=await p.locator('#faq-content').innerText();
+  assert.doesNotMatch(text,/\\[#_\-]|doi_[or]|alt_id_[or]|journal_r|computational reproducible|This we|versionising|Pubmed|Google docs|regularly-updated|The plugin tags|click here|All NAs/);
+  assert.match(text,/#1 published and #2 specific/);
+  assert.match(text,/the individual reports or preprints as alternative identifiers/);
+  assert.match(text,/We would code this as mixed/);
+  assert.match(text,/computationally reproducible/);assert.match(text,/versioning/);assert.match(text,/PubMed/);assert.match(text,/Google Docs/);
+  assert.match(text,/Most replication outcomes are coded/);
+  assert.match(text,/Missing venue information remains unknown/);
+  assert.equal(await p.locator('#faq-content a').textContent(),'FORRT Replication Database explorer');
+  assert.equal(await p.locator('#faq-content a').getAttribute('href'),'https://forrt-replications.shinyapps.io/fred_explorer/');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('counts, small shares, wrapped labels, rounded exports and citation hovers use readable copy',async()=>{
+  const requests=[];
+  const pub=JSON.parse(fs.readFileSync('data/pub_status_data.json')).replication.overview;
+  const ao=JSON.parse(fs.readFileSync('data/author_overlap_data.json')).replication.overview;
+  const model=JSON.parse(fs.readFileSync('data/impact_factor_data.json'));
+  const aggregate=JSON.parse(fs.readFileSync('data/aggregate.json')).all;
+  const p=await page('?tab=overview',1280,p=>p.on('request',r=>requests.push(r.url())));
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  const qualified=await p.evaluate(()=>fullRowData.filter(r=>classifyKind(r)==='replication'&&classifyOutcome(r.outcome)==='qualified').length);
+  assert.ok(qualified>0&&qualified/pub.n_total<0.01);
+  assert.ok((await p.locator('#overview-outcome-caption').innerText()).includes(`Successful but flawed ${qualified.toLocaleString('en-GB')} (<1%)`));
+  assert.ok((await p.locator('#overview-outcome-chart-data .chart-summary').textContent()).includes(`Included in the plot: ${pub.n_total.toLocaleString('en-GB')}`));
+  assert.deepEqual(await p.evaluate(()=>[FloraCharts.percent(0,1000),FloraCharts.percent(1,1000),FloraCharts.percent(7,2692),FloraCharts.percent(1,4),FloraCharts.number(-0.033,3)]),['0','<1','<1','25','−0.033']);
+  await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-journal'));
+  // The committed data includes wrapped labels: the table and CSV must reconstruct their words.
+  const chartLabels=await p.evaluate(()=>Chart.getChart('trend-journal').data.labels.map(l=>Array.isArray(l)?l.join(' '):l));
+  assert.deepEqual(await p.locator('#trend-journal-data tbody th').allTextContents(),chartLabels);
+  await p.click('#trend-journal-data-copy');
+  let exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
+  assert.deepEqual(exported.map(r=>r.Category),chartLabels);
+  // Make exactly one pair lack a year, independently of the committed snapshot.
+  await p.evaluate(()=>{const rows=trendsFilteredData();const years=rows.map(r=>r.year_o);rows.forEach((r,i)=>r.year_o=i ? '2020' : '');renderTrendOrigYear();rows.forEach((r,i)=>r.year_o=years[i]);});
+  assert.match(await p.locator('#trend-orig-year-data .chart-summary').textContent(),/excluded from this selection: 1 reference pair\./);
+  await p.evaluate(()=>renderTrendOrigYear());
+  await p.click('#overlap-tab');await p.waitForSelector('#ao-chart-data');
+  const groups=await p.evaluate(()=>document.getElementById('ao-chart').data[0].x);
+  assert.ok(groups.some(s=>s.includes('N='+ao.n_no_overlap.toLocaleString('en-GB'))));
+  assert.ok((await p.locator('#ao-chart-data td').allTextContents()).includes(ao.n_no_overlap.toLocaleString('en-GB')));
+  assert.ok((await p.locator('#ao-chart-data td').allTextContents()).includes('<1'));
+  await p.click('#pub-tab');await p.waitForSelector('#rr-chart-data');
+  assert.match(await p.locator('#rr-overview').textContent(),/Not found in RR database/);
+  assert.equal(await p.locator('#pub-overview .mc-stat-value').first().textContent(),pub.n_total.toLocaleString('en-GB'));
+  assert.doesNotMatch(await p.locator('#pub-overview').innerText(),/\(\d+\.\d+%\)/);
+  await p.click('#mc-tab');await p.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
+  assert.ok((await p.locator('#mc-gam-stats').textContent()).replace(/\s/g,'').includes('N='+model.stats.n_model.toLocaleString('en-GB')));
+  await p.click('#mc-gam-chart-data-copy');
+  exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
+  const curve=exported.filter(r=>r['Row type']==='Fitted curve');
+  assert.equal(curve.length,model.gam_curve.length);
+  for(let i=0;i<curve.length;i++)for(const [key,field] of [['Estimated P(success)','p'],['95% CI lower','p_lo'],['95% CI upper','p_hi']]){
+    assert.equal(+curve[i][key],+model.gam_curve[i][field].toFixed(5));
+    assert.doesNotMatch(curve[i][key],/\.\d{6}/);
+  }
+  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length);
+  assert.ok(!requests.some(url=>url.endsWith('/fect_results.json')));
+  assert.doesNotMatch(await p.locator('#plot-cit,#plot-cocit').allTextContents().then(t=>t.join(' ')),/Loading…/);
+  assert.ok((await p.locator('#att-callout').textContent()).includes(`based on ${aggregate.citations_model.n_units.toLocaleString('en-GB')} originals`));
+  assert.match(await p.locator('#att-callout').textContent(),/95% CI −?\d+\.\d{3} to −?\d+\.\d{3}/);
+  await p.evaluate(()=>{const plot=document.getElementById('plot-cit-model');Plotly.Fx.hover(plot,[{curveNumber:0,pointNumber:plot.data[0].x.indexOf(-5)}]);});
+  const hover=(await p.locator('#plot-cit-model .hoverlayer tspan.line').allTextContents()).join('\n');
+  assert.match(hover,/Years from first replication: −5/);assert.match(hover,/Coefficient: −?\d+\.\d{3}/);assert.match(hover,/95% CI:/);
+  assert.doesNotMatch(hover,/\d\.\d{4}|\+0\./);
+  const nPoint=aggregate.descriptive.event_time.indexOf(-5);
+  await p.evaluate(i=>Plotly.Fx.hover('plot-cit',[{curveNumber:1,pointNumber:i}]),nPoint);
+  assert.ok((await p.locator('#plot-cit .hoverlayer').textContent()).includes('Original reports: '+aggregate.descriptive.n_units[nPoint].toLocaleString('en-GB')));
+  await p.evaluate(()=>Plotly.Fx.hover('plot-cocit',[{curveNumber:0,pointNumber:0}]));
+  assert.match(await p.locator('#plot-cocit .hoverlayer').textContent(),/Mean co-citations per year: \d+\.\d{2}/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('small-sample and unavailable-data messages use reader-facing words',async()=>{
+  const p=await page('?tab=overview');
+  await p.click('#mc-tab');await p.waitForFunction(()=>window._mcData);
+  await p.click('#overlap-tab');await p.waitForFunction(()=>window._aoData);
+  await p.click('#pub-tab');await p.waitForFunction(()=>window._pubData&&window._rrData);
+  await p.evaluate(()=>{
+    const small=()=>({overview:{n_total:1}});
+    for(const kind of ['replication','reproduction-numerical','reproduction-robustness']){
+      window._mcData[kind]=small();window._aoData[kind]=small();window._rrData[kind]=small();
+      window._pubData[kind]={...small(),large_scale:small()};
+    }
+  });
+  for(const [tab,controls,ids] of [['mc-tab','#mc-study-type',['mc-placeholder']],['overlap-tab','#ao-study-type',['ao-placeholder']],['pub-tab','#pubtype-study-type',['rr-placeholder','pub-placeholder','ls-placeholder']]]){
+    await p.click('#'+tab);
+    for(const [kind,label] of [['replication','replications'],['reproduction-numerical','numerical reproductions'],['reproduction-robustness','robustness reproductions']]){
+      await p.click(`${controls} [data-value="${kind}"]`);
+      for(const id of ids){
+        assert.ok(await p.locator('#'+id).isVisible());
+        assert.match(await p.locator('#'+id).textContent(),new RegExp(`^Not enough ${label} .*\\(n=1; need at least 5\\)\\.$`));
+      }
+    }
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+  const missing=await page('?tab=citations',1280,p=>p.route('**/data/aggregate.json',route=>route.fulfill({status:404,body:'Missing'})));
+  await missing.waitForSelector('#kpis strong');
+  assert.match(await missing.locator('#kpis').innerText(),/Citation data could not be loaded. Please try again later/);
+  assert.doesNotMatch(await missing.locator('#kpis').innerText(),/workflow|secrets|GitHub|refresh-data/);
+  assert.deepEqual(missing.errors,[]);await missing.close();
+});

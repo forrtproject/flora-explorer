@@ -4,7 +4,7 @@
 
 (function() {
     const CI = {
-        meta: null, agg: null, index: null, fect: null, cocitBreakdown: null,
+        meta: null, agg: null, index: null, cocitBreakdown: null,
         studyCache: {}, currentDoi: null,
         outcome: ['all','failed','mixed','successful'].includes(new URLSearchParams(location.search).get('ci-outcome')) ? new URLSearchParams(location.search).get('ci-outcome') : 'all', page: 1, perPage: 20,
         sortCol: 'n_citations', sortDir: 'desc',
@@ -107,12 +107,6 @@
             CI.meta = await metaRes.json();
             CI.agg = await aggRes.json();
             CI.index = buildSearchIndex(await idxRes.json());
-
-            // Optional: ETWFE results (may not exist on first run)
-            try {
-                const fectRes = await fetch('data/fect_results.json');
-                if (fectRes.ok) CI.fect = await fectRes.json();
-            } catch (_) {}
 
             // Optional: co-citation breakdown by pub status / outcome (may not exist on first run)
             try {
@@ -223,9 +217,7 @@
             <div style="padding:24px;background:var(--color-surface-raised);border:1px solid var(--color-border);
                         border-radius:8px;text-align:center;color:var(--color-muted-fg);grid-column:1 / -1">
               ⏳ <strong>Citation data not yet available.</strong><br>
-              The first weekly refresh has not completed yet (or the workflow secrets are not set).
-              This panel will populate automatically once the GitHub Action
-              <code>refresh-data.yml</code> finishes.
+              Citation data could not be loaded. Please try again later.
             </div>`;
         const kpis = document.getElementById('kpis'); if (kpis) kpis.innerHTML = msg;
         ['plot-cit', 'plot-cocit'].forEach(id => {
@@ -257,8 +249,8 @@
         const hasModel = model.att != null && Number.isFinite(model.att);
         if (hasModel) {
             const interval = model.att_ci || [];
-            const ci = interval.length === 2 && interval.every(Number.isFinite) ? ` (95% CI ${interval[0].toFixed(3)} to ${interval[1].toFixed(3)})` : '';
-            html = `<strong>Adjusted post-replication association:</strong> ${model.att.toFixed(3)} log(1 + citations) units${ci}, based on ${model.n_units} originals. This is not a percentage change in raw citations or evidence that replication caused the change.`;
+            const ci = interval.length === 2 && interval.every(Number.isFinite) ? ` (95% CI ${FloraCharts.number(interval[0],3)} to ${FloraCharts.number(interval[1],3)})` : '';
+            html = `<strong>Adjusted post-replication association:</strong> ${FloraCharts.number(model.att,3)} log(1 + citations) units${ci}, based on ${FloraCharts.number(model.n_units)} originals. This is not a percentage change in raw citations or evidence that replication caused the change.`;
         } else if (desc.n_units && desc.n_units.length) {
             const maxN = Math.max(...desc.n_units);
             html = `<strong>Descriptive trajectory shown.</strong>
@@ -279,7 +271,8 @@
             traces.push({
                 x: desc.event_time, y: desc[descField], type: 'scatter', mode: 'lines+markers',
                 line: { color, width: 2.5 }, marker: { color, size: 7 },
-                name: 'Mean (raw)', hovertemplate: 't=%{x} years: %{y:.2f}<extra></extra>'
+                name: 'Mean (raw)', text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>${ylabel}: ${FloraCharts.number(desc[descField][i],2)}`),
+                hovertemplate: '%{text}<extra></extra>'
             });
         }
         if (desc.event_time && desc.n_units && desc.n_units.length) {
@@ -287,7 +280,8 @@
                 x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines',
                 line: { color: plotlyTheme().rule, width: 1, dash: 'dot' },
                 name: 'N (right axis)', yaxis: 'y2',
-                hovertemplate: 't=%{x}: N=%{y}<extra></extra>'
+                text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>Original reports: ${FloraCharts.number(desc.n_units[i])}`),
+                hovertemplate: '%{text}<extra></extra>'
             });
         }
         const modelId = divId + '-model';
@@ -301,7 +295,8 @@
         if (valid.length) {
             const t = plotlyTheme();
             FloraCharts.plot(modelId, [{name:'OLS coefficient (95% CI)', x:valid.map(p=>p.x), y:valid.map(p=>p.y),
-                type:'scatter', mode:'markers', error_y:{type:'data', symmetric:false,
+                type:'scatter', mode:'markers', text:valid.map(p=>`Years from first replication: ${FloraCharts.number(p.x)}<br>Coefficient: ${FloraCharts.number(p.y,3)}<br>95% CI: ${FloraCharts.number(p.lo,3)} to ${FloraCharts.number(p.hi,3)}`),
+                hovertemplate:'%{text}<extra></extra>', error_y:{type:'data', symmetric:false,
                     array:valid.map(p=>p.hi-p.y), arrayminus:valid.map(p=>p.y-p.lo)}, marker:{color:t.font}}], {
                 title:{text:'Adjusted association: log(1 + count)', font:{size:14}}, height:340,
                 xaxis:{title:'Years from first replication', automargin:true, color:t.font},
@@ -325,7 +320,7 @@
             xaxis: { title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font },
             yaxis: { title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero' },
             yaxis2: {
-                title: 'N studies', overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
+                title: 'N studies', tickformat: ',d', overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
                 tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
             },
             shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: t.primary, width: 1.5, dash: 'dash' } }],
@@ -345,13 +340,13 @@
             const count = outcomeMix[o] || 0;
             if (!count) return '';
             const pct = (count / total * 100).toFixed(1);
-            const label = `${count} ${o}`;
+            const label = `${count.toLocaleString('en-GB')} ${o}`;
             return `<div class="rep-seg ${o}" style="width:${pct}%" title="${label}"></div>`;
         }).join('');
-        const tooltipParts = ORDERS.filter(o => outcomeMix[o]).map(o => `${outcomeMix[o]} ${o}`).join(', ');
+        const tooltipParts = ORDERS.filter(o => outcomeMix[o]).map(o => `${outcomeMix[o].toLocaleString('en-GB')} ${o}`).join(', ');
         return `<div class="rep-bar-wrap" title="${tooltipParts}">
             <div class="rep-bar">${segments}</div>
-            <span class="rep-count">${total}</span>
+            <span class="rep-count">${total.toLocaleString('en-GB')}</span>
         </div>`;
     }
 
@@ -363,7 +358,7 @@
     function renderBreakdownTable(title, dim, labels, note) {
         const rows = Object.keys(labels).map(key => {
             const d = dim[key] || {};
-            const fmt = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+            const fmt = v => v == null ? '—' : escapeHtml(FloraCharts.percent(v,1,1)) + '%';
             return `<tr>
                 <td>${labels[key]}</td>
                 <td>${d.n_originals != null ? d.n_originals.toLocaleString() : '—'}</td>
@@ -395,7 +390,7 @@
     function renderCocitCell(s) {
         if (!s.n_cocitations && s.n_cocitations !== 0) return '—';
         const denom = s.n_citations_post_first_rep;
-        const pct = denom > 0 ? (s.cocit_prop * 100).toFixed(1) + '%' : '—';
+        const pct = denom > 0 ? escapeHtml(FloraCharts.percent(s.cocit_prop,1,1)) + '%' : '—';
         const tooltip = denom
             ? `${s.n_cocitations.toLocaleString()} of ${denom.toLocaleString()} citations since the first replication (${s.first_replication_year}) also cite a replication`
             : `${s.n_cocitations.toLocaleString()} co-citations`;
@@ -538,7 +533,7 @@
                 <h3 style="margin-top:18px">Citation timeline</h3>
                 ${s.cocit_conflated ? `<p class="cocit-warning">Co-citation can't be measured for ${s.cocit_conflated > 1 ? 'some replications of ' : ''}this study: OpenCitations groups the original and ${s.cocit_conflated > 1 ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p>` : ''}
                 <div id="study-plot" style="width:100%;height:380px"></div>
-                <h3 style="margin-top:18px">Replications (${s.n_replications})</h3>
+                <h3 style="margin-top:18px">Replications (${s.n_replications.toLocaleString('en-GB')})</h3>
                 <ul class="rep-list">${reps}</ul>
             </div>`;
         // Remember what had focus so we can restore it when the modal closes.
@@ -603,7 +598,7 @@
         const partialYear = Number((CI.meta?.last_updated || '').slice(0,4)) || new Date().getFullYear();
         traces.forEach(trace=>{
             trace.marker.opacity = years.map(year=>year===partialYear ? 0.45 : 1);
-            trace.hovertemplate = '%{x}<br>%{y} citing works<extra>%{fullData.name}</extra>';
+            trace.hovertemplate = 'Year: %{x}<br>Citations: %{y:,.0f}<extra>%{fullData.name}</extra>';
         });
         const t = plotlyTheme();
         const shapes = []; const annotations = [];
@@ -626,7 +621,7 @@
         const layout = {
             barmode: 'stack', margin: { t: 50, r: 10, b: 40, l: 50 },
             xaxis: { title: 'Year', gridcolor: t.grid, color: t.font },
-            yaxis: { title: 'Citing preprints / papers', gridcolor: t.grid, color: t.font },
+            yaxis: { title: 'Citing preprints / papers', tickformat: ',d', gridcolor: t.grid, color: t.font },
             shapes, annotations, hoverlabel:{namelength:-1},
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },

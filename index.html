@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#2c2c2c">
-    <title>FLoRA Explorer: FORRT Library of Replication Attempts</title>
-    <meta name="description" content="Explore the FORRT Library of Replication Attempts (FLoRA), a comprehensive database tracking replication and reproduction studies across the sciences and humanities.">
+    <title>FLoRA Explorer: FORRT Library of Reproduction and Replication Attempts</title>
+    <meta name="description" content="Explore the FORRT Library of Reproduction and Replication Attempts (FLoRA), a database tracking replication and reproduction studies across the sciences and humanities.">
     <meta name="keywords" content="replication, reproduction, FLoRA, FORRT, open science, metascience, reproducibility">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="FLoRA Explorer: FORRT Library of Replication Attempts">
-    <meta property="og:description" content="Explore replication and reproduction studies across the sciences and humanities. Browse, filter, and analyze the FLoRA database.">
+    <meta property="og:title" content="FLoRA Explorer: FORRT Library of Reproduction and Replication Attempts">
+    <meta property="og:description" content="Explore replication and reproduction studies across the sciences and humanities. Browse, filter and analyse the FLoRA database.">
     <meta property="og:site_name" content="FLoRA Explorer">
 
     <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
@@ -39,7 +39,7 @@
                 <span class="brand-icon"><img src="assets/logo.svg" alt=""></span>
                 <span class="brand-name">
                     <strong>FLoRA</strong>
-                    <span>Replication Explorer</span>
+                    <span>Explorer</span>
                 </span>
             </a>
 
@@ -89,7 +89,7 @@
             <!-- ============================ OVERVIEW ============================ -->
             <div class="tab-pane fade show active" id="overview" role="tabpanel">
 
-                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. Use <a href="?tab=browse" data-tab-link="browse-tab">Browse Studies</a> to search and filter reference pairs here, or the <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Replication Atlas</a> to see the replication history of one original study.</p></section>
+                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>The <strong>FORRT Library of Reproduction and Replication Attempts (FLoRA)</strong> is a project of the Framework for Open and Reproducible Research Training (FORRT).</p><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. Use <a href="?tab=browse" data-tab-link="browse-tab">Browse Studies</a> to search and filter reference pairs here, or the <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Replication Atlas</a> to see the replication history of one original study.</p></section>
                 <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <div class="row mb-3">
@@ -182,7 +182,7 @@
                                 </div>
 
                                 <h3>Structure of FLoRA</h3>
-                                <p>FLoRA links each repetition reference to its original, and assigns a standardised outcome based on the repetition report. This simple structure lets us describe recorded replication and reproduction outcomes across time, disciplines and venues, and powers tools like the FLoRA Annotator, which lists replication and reproduction attempts for any reference you provide.</p>
+                                <p>FLoRA links each repetition reference to its original, and assigns a standardised outcome based on the repetition report. This simple structure lets us describe recorded replication and reproduction outcomes across time, disciplines and venues, and powers tools like the FLoRA Zotero Plugin, which lists replication and reproduction attempts for any reference you provide.</p>
 
                                 <h3 id="flora-coverage">Is FLoRA representative and comprehensive?</h3>
                                 <p>Honestly — neither. We are still working on a systematic literature search, and several structural factors limit coverage:</p>
@@ -403,12 +403,12 @@
                                         <th></th>
                                         <th>Original Study</th>
                                         <th>Year</th>
-                                        <th>Replication Study</th>
+                                        <th><span data-browse-report-kind>Replication or reproduction</span> study</th>
                                         <th>Year</th>
                                         <th>Outcome</th>
                                         <th>Type</th>
                                         <th>Original DOI</th>
-                                        <th>Replication Report</th>
+                                        <th><span data-browse-report-kind>Replication or reproduction</span> report</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -483,7 +483,7 @@
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by original journal</h3></div>
                         <p>The journals whose articles have most frequently been the target of <span data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span> attempts. For each journal, the bar shows the outcome breakdown of those attempts.</p>
-                        <p>Frequency here reflects where <span data-kind-text="replication|reproduction|reproduction">replication</span> attention has been focused, not necessarily a journal's <span data-kind-text="overall replicability|the computational reproducibility of research it publishes|the robustness of research it publishes">overall replicability</span>.</p>
+                        <p><span data-kind-text="Frequency shows where replication effort has gone, not how replicable a journal's research is.|Frequency shows where reproduction effort has gone, not how reproducible a journal's research is.|Frequency shows where reproduction effort has gone, not how robust a journal's research is.">Frequency shows where replication effort has gone, not how replicable a journal's research is.</span></p>
                         <div class="mt-3">
                             <label for="journal-top-n" class="note note-label">Show top:</label>
                             <select id="journal-top-n" class="form-select d-inline-block top-n-select">
@@ -500,16 +500,16 @@
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by recorded <span data-kind-text="replication|reproduction|reproduction">replication</span> venue</h3></div>
-                        <p>Each bar groups reference pairs by the venue recorded for the <span data-kind-text="replication|reproduction|reproduction">replication</span> report, which can be a journal or a repository such as OSF, split by the selected outcome.</p>
+                        <p>Each bar groups reference pairs by the venue recorded for the <span data-kind-text="replication|reproduction|reproduction">replication</span> report, which can be a journal or a repository such as OSF, split by recorded outcome.</p>
                         <p>Counts reflect FLoRA’s coverage, and one report may contribute several pairs, so bars do not rank how actively venues publish <span data-kind-text="replication|reproduction|reproduction">replication</span> research.</p>
                         <p class="trend-note">Annotation of <span data-kind-text="replication|reproduction|reproduction">replication</span>-journal data is a work in progress; some journals may be missing or under-represented at the moment.</p>
                         <div class="mt-3">
                             <label for="rep-journal-top-n" class="note note-label">Show top:</label>
                             <select id="rep-journal-top-n" class="form-select d-inline-block top-n-select">
-                                <option value="10">10 journals</option>
-                                <option value="15" selected>15 journals</option>
-                                <option value="25">25 journals</option>
-                                <option value="50">50 journals</option>
+                                <option value="10">10 venues</option>
+                                <option value="15" selected>15 venues</option>
+                                <option value="25">25 venues</option>
+                                <option value="50">50 venues</option>
                             </select>
                         </div>
                     </div>
@@ -520,8 +520,8 @@
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by field</h3></div>
                         <p>A bird's-eye view grouping reference pairs by research discipline. Each bar shows the outcome breakdown of <span data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span> attempts targeting work originally published in journals from that field.</p>
-                        <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">data/disciplines.json</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
-                        <p class="trend-note">Coverage is still growing. Many journals are not yet classified, so some fields may be under-represented and <em>Uncategorized</em> may dominate. The dictionary is straightforward to extend.</p>
+                        <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">journal-to-discipline mapping</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
+                        <p class="trend-note">Coverage is still growing. Journals that are not yet classified may leave some fields under-represented.</p>
                     </div>
                     <div class="chart-container" id="trend-field-container"><canvas id="trend-field"></canvas></div>
                 </div></div></div>
@@ -635,7 +635,7 @@
                 <div class="card ci-card">
                     <h2 class="card-header">Browse all originals</h2>
                     <div class="card-body">
-                        <p class="muted">Click any row to see its citation timeline with replication events marked.</p>
+                        <p class="muted">Choose Timeline to see a report’s citation timeline with replication events marked.</p>
 
                         <label for="search-input" class="search-label">Search originals</label>
                         <div class="search-row">
@@ -681,7 +681,7 @@
                             OpenCitations COCI. A "co-citation" is any work that cites both the original and at
                             least one of its replications.
                         </p>
-                        <p>The outcome chips group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead matches any replication of an original. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation model.</p>
+                        <p>The outcome filters group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead matches any replication of an original. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation model.</p>
                         <p>Each timeline bar counts distinct citing works. Works that cite replications with more than one outcome appear once in the “multiple outcome categories” segment. The outcome-specific co-citation rate tables are overlapping summaries and should not be added.</p>
                         <p>
                             The aggregate plots show event-study estimates from an OLS two-way fixed-effects
@@ -827,7 +827,7 @@
                         <div id="pub-caveat" style="display:none;margin-top:1.25rem;">
                             <div class="key-distinction">
                                 <strong>Interpretation caveat:</strong> Publication-venue status is derived from the
-                                <code>journal_r</code> field recorded in FLoRA, classified as above. Some studies
+                                report venue recorded in FLoRA, classified as above. Some studies
                                 currently classified as preprints may since have been formally published in a
                                 different venue without FLoRA yet reflecting that update. Any outcome
                                 differences between these groups should also not be read as caused by publication
@@ -877,13 +877,13 @@
                             <strong>Registered Report</strong> (RR): a format in which the study design and
                             analysis plan are peer-reviewed and provisionally accepted <em>before</em> results
                             are known. Matching is done by DOI/title against the
-                            <a href="https://github.com/LukasRoeseler/RRDB" target="_blank" rel="noopener noreferrer" class="doi-link">Registered Reports Database (RRDB)</a>,
-                            a regularly-updated export of the FORRT Zotero "Registered Reports" group library.
-                            Pairs whose <span data-kind-text="replication|reproduction|reproduction">replication</span> report matches RRDB form the <strong>Registered Report</strong> group;
-                            identifiable non-matches form the <strong>rest</strong> group. Pairs without a report DOI or title remain unknown and are excluded from the comparison.
+                            <a href="https://github.com/LukasRoeseler/RRDB" target="_blank" rel="noopener noreferrer" class="doi-link">Registered Reports database</a>,
+                            a regularly updated export of the FORRT Zotero "Registered Reports" group library.
+                            Pairs whose <span data-kind-text="replication|reproduction|reproduction">replication</span> report matches the Registered Reports database form the <strong>Registered Report</strong> group;
+                            identifiable non-matches form the <strong>Not found in RR database</strong> group. Pairs without a report DOI or title remain unknown and are excluded from the comparison.
                         </p>
                         <p style="margin-bottom:0.75rem;">
-                            Because RRDB is itself a work in progress, "rest" really means
+                            Because the Registered Reports database is itself a work in progress, “Not found in RR database” means
                             <em>not (yet) found</em> in the database, rather than confirmed non-RR.
                         </p>
                         <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -902,12 +902,12 @@
 
                         <div id="rr-caveat" style="display:none;margin-top:1.25rem;">
                             <div class="key-distinction">
-                                <strong>Interpretation caveat:</strong> <span data-kind-text="Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between RR and non-RR replications could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘rest’ group likely still contains some unlabelled Registered Reports.|Selection into the Registered Report format is not random. Differences between RRDB-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.|Selection into the Registered Report format is not random. Differences between RRDB-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.">Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between RR and non-RR replications could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘rest’ group likely still contains some unlabelled Registered Reports.</span>
+                                <strong>Interpretation caveat:</strong> <span data-kind-text="Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between RR and non-RR replications could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘Not found in RR database’ group likely still contains some unlabelled Registered Reports.|Selection into the Registered Report format is not random. Differences between database-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.|Selection into the Registered Report format is not random. Differences between database-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.">Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between RR and non-RR replications could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘Not found in RR database’ group likely still contains some unlabelled Registered Reports.</span>
                             </div>
                         </div>
 
                         <details id="rr-studies-card" class="mc-chart-card rr-studies-details" style="display:none;margin-top:1.25rem;">
-                            <summary class="mc-chart-title">Reference pairs whose <span data-kind-text="replication|reproduction|reproduction">replication</span> report matches RRDB <span id="rr-studies-count" class="rr-studies-count"></span></summary>
+                            <summary class="mc-chart-title">Reference pairs whose <span data-kind-text="replication|reproduction|reproduction">replication</span> report matches the Registered Reports database <span id="rr-studies-count" class="rr-studies-count"></span></summary>
                             <div class="table-wrap" style="margin-top:0.75rem;">
                                 <table class="table table-striped table-hover" id="rr-studies-table" style="width:100%;">
                                     <thead>
