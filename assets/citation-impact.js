@@ -70,6 +70,29 @@
         });
     }
 
+    function buildSearchIndex(index) {
+        // The citation snapshot's display names stop after six authors. The
+        // already-loaded FLoRA pairs retain full names; collect all records for
+        // each original and keep the snapshot names as a fallback.
+        const authorsByDoi = new Map();
+        for (const row of fullRowData) {
+            const doi = normalizeDoi(row.doi_o);
+            const names = searchAuthorNames(row.author_o);
+            if (!doi || !names) continue;
+            if (!authorsByDoi.has(doi)) authorsByDoi.set(doi, new Set());
+            authorsByDoi.get(doi).add(names);
+        }
+        return index.map(s => {
+            // Denominator is citations since the first replication, not lifetime
+            // citations — citing works published before any replication existed
+            // could never have co-cited one.
+            const cocit_prop = s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0;
+            const authors = [...(authorsByDoi.get(normalizeDoi(s.doi)) || [])];
+            const searchText = normalizedQuery([s.title, searchAuthorNames(s.author), ...authors, s.year, s.venue, s.doi].filter(Boolean).join(' | '));
+            return { ...s, cocit_prop, searchText };
+        });
+    }
+
     async function init() {
         if (CI.loaded || CI.loading) return;
         CI.loading = true;
@@ -83,14 +106,7 @@
             if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
             CI.agg = await aggRes.json();
-            CI.index = (await idxRes.json()).map(s => {
-                // Denominator is citations since the first replication, not lifetime
-                // citations — citing works published before any replication existed
-                // could never have co-cited one.
-                const cocit_prop = s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0;
-                const searchText = normalizedQuery([s.title, searchAuthorNames(s.author), s.year, s.venue, s.doi].filter(Boolean).join(' | '));
-                return { ...s, cocit_prop, searchText };
-            });
+            CI.index = buildSearchIndex(await idxRes.json());
 
             // Optional: ETWFE results (may not exist on first run)
             try {
@@ -716,6 +732,13 @@
 
     // Lazy-load when the user opens the tab
     document.getElementById('citation-tab').addEventListener('shown.bs.tab', ensureInit);
+
+    // A DOI deep link can load citation data before the main CSV finishes.
+    document.addEventListener('flora-ready', () => {
+        if (!CI.index) return;
+        CI.index = buildSearchIndex(CI.index);
+        if (CI.loaded) renderTable();
+    });
 
     setupStudyTypeSelect('ci-study-type', kind => { ciKind = kind; renderCiKindGate(kind); });
 

@@ -26,6 +26,18 @@ async function page(query, width=1280, setup){
   return p;
 }
 async function browseRows(p){return p.evaluate(()=>getChartData().map(r=>[r.title_o,r.title_r,r.outcome]));}
+async function citationSearch(p,q){
+  await p.evaluate(()=>{
+    window.citationRenderFinished=false;
+    const observer=new MutationObserver(()=>{observer.disconnect();window.citationRenderFinished=true;});
+    observer.observe(document.querySelector('#originals-table tbody'),{childList:true});
+    // The message is updated even when both the previous and next result sets are empty.
+    observer.observe(document.getElementById('ci-search-empty-message'),{childList:true});
+  });
+  await p.fill('#search-input',q);
+  await p.waitForFunction(()=>window.citationRenderFinished);
+  return p.locator('#originals-table tbody tr[data-doi]').evaluateAll(rows=>rows.map(r=>r.dataset.doi));
+}
 test('desktop/mobile search, DOI URLs, empty results, shared view and evidence agree',async()=>{
   const p=await page('?tab=browse&kind=replication&q=power+posing',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
   await p.waitForFunction(()=>getChartData().length===4);
@@ -367,18 +379,51 @@ test('Browse and Citation Impact share accent, quote, token and DOI search rules
     return ['Zoe Muller','Søren','Research collective','metadata-only','raw_outcome_code','url-only.invalid','distinctive quotation'].map(q=>matchesBrowseQuery(row,q));
   }),[true,true,true,false,false,false,true]);
   await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
-  async function citationSearch(q){
-    await p.fill('#search-input',q);
-    await p.waitForTimeout(300);
-    return p.locator('#originals-table tbody tr[data-doi]').evaluateAll(rows=>rows.map(r=>r.dataset.doi));
-  }
   for(const [q,doi] of [['Bem  2011','10.1037/a0021524'],['Strack 1988','10.1037/0022-3514.54.5.768'],['"Feeling the Future"','10.1037/a0021524'],['“Feeling the Future”','10.1037/a0021524'],['https://doi.org/10.1037/a0021524','10.1037/a0021524'],['doi: 10.1037/a0021524','10.1037/a0021524']]){
-    assert.ok((await citationSearch(q)).includes(doi),q);
+    assert.ok((await citationSearch(p,q)).includes(doi),q);
   }
   for(const [a,b] of [['Müller','Muller'],["O'Brien",'O’Brien']]){
-    const rows=await citationSearch(a);assert.ok(rows.length>0,a);assert.deepEqual(await citationSearch(b),rows,b);
+    const rows=await citationSearch(p,a);assert.ok(rows.length>0,a);assert.deepEqual(await citationSearch(p,b),rows,b);
   }
   assert.deepEqual(p.errors,[]);await p.close();
+});
+test('citation search waits for rendering even when the debounce fires late',async()=>{
+  const p=await page('?tab=citations');await p.waitForSelector('.timeline-open');
+  await p.evaluate(()=>{
+    const original=window.setTimeout;
+    window.setTimeout=(fn,delay,...args)=>original(fn,delay===200?800:delay,...args);
+  });
+  assert.deepEqual(await citationSearch(p,'Bem 2011'),['10.1037/a0021524']);
+  // Both an empty render and a second empty render must finish before the helper returns.
+  assert.deepEqual(await citationSearch(p,'zz-no-original'),[]);
+  assert.deepEqual(await citationSearch(p,'zz-another-missing-original'),[]);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Citation Impact searches full author lists, including after an early DOI deep link',async()=>{
+  const doi='10.1037/a0021524', fallbackDoi='10.1037/0022-3514.54.5.768';
+  const index=JSON.parse(fs.readFileSync('data/originals_index.json'));
+  const authors=['Firstauthor','Secondauthor','Thirdauthor','Fourthauthor','Fifthauthor','Sixthauthor','Lastauthor'].map((family,i)=>({family,given:i===6?'Zoë':'A',ORCID:'metadata-only'}));
+  const row={doi_o:'https://doi.org/10.1037/A0021524',title_o:'Feeling the Future',author_o:JSON.stringify(authors),journal_o:'Journal of Personality and Social Psychology',year_o:2011,doi_r:'10.test/replication',title_r:'Replication',author_r:'Other researcher',year_r:2015,type:'replication',outcome:'failed'};
+  const csv=[Object.keys(row),Object.values(row)].map(fields=>fields.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const compact=[{...index.find(s=>s.doi===doi),author:authors.slice(0,6).map(a=>`${a.family}, A.`).join('; ')+', … (+1)'},{...index.find(s=>s.doi===fallbackDoi),author:'Fallbackauthor, F.'}];
+  for(const early of [false,true]){
+    const p=await page('?tab=citations'+(early?'&doi='+encodeURIComponent(doi):''),1280,async p=>{
+      await p.route('**/data/originals_index.json',route=>route.fulfill({json:compact}));
+      await p.route('**/data/flora.csv',async route=>{
+        // Force the citation index to load before the full author records on a deep link.
+        if(early) await p.waitForSelector('#ci-modal:not([hidden])');
+        await route.fulfill({contentType:'text/csv',body:csv});
+      });
+    });
+    await p.waitForSelector('.timeline-open');
+    if(early) await p.keyboard.press('Escape');
+    assert.deepEqual(await citationSearch(p,'Zoe Lastauthor'),[doi],`seventh author, early=${early}`);
+    assert.deepEqual(await citationSearch(p,'Firstauthor'),[doi]);
+    assert.deepEqual(await citationSearch(p,'metadata-only'),[]);
+    assert.deepEqual(await citationSearch(p,'Fallbackauthor'),[fallbackDoi]);
+    assert.match(await p.locator('#search-input').getAttribute('placeholder'),/journal/i);
+    assert.deepEqual(p.errors,[]);await p.close();
+  }
 });
 test('search input is debounced, Show all draws once and Citation Impact offers empty-state recovery',async()=>{
   const p=await page('?tab=browse');
