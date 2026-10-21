@@ -133,11 +133,16 @@
         catch { document.getElementById('view-feedback').textContent='Copy the current address from your browser.'; }
     };
     document.getElementById('export-browse').onclick=()=>{
-        const rows=getChartData(); const keys=Object.keys(fullRowData[0] || {});
-        const stamp=document.querySelector('#browse .data-stamp')?.textContent || '';
+        const rows=getOrderedBrowseData();
+        const sourceKeys=Object.keys(fullRowData[0] || {});
+        const formatted={author_o:'authors_o_formatted',author_r:'authors_r_formatted'};
+        const keys=sourceKeys.flatMap(k=>formatted[k] ? [k,formatted[k]] : [k]);
         const filtered=browseQuery.trim() || browseKind !== 'all';
-        FloraCharts.download(filtered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv',keys,rows.map(row=>keys.map(k=>row[k])),
-            `Unit: reference pair\n${stamp}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nIncluded: ${rows.length.toLocaleString('en-GB')}; excluded by filters: ${(fullRowData.length-rows.length).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
+        const sortFields={1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome quotation',6:'type',7:'doi_o',8:'doi_r'};
+        const sort=dataTable.order().map(([col,dir])=>`${sortFields[col]} ${dir}`).join('; ');
+        FloraCharts.download(filtered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv',keys,
+            rows.map(row=>sourceKeys.flatMap(k=>formatted[k] ? [row[k],FloraCharts.exportAuthors(row[k])] : [row[k]])),
+            `Unit: reference pair\n${FloraCharts.exportContext(document.getElementById('export-browse'))}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nSort: ${sort}; input row order breaks ties\nIncluded: ${rows.length.toLocaleString('en-GB')}; excluded by filters: ${(fullRowData.length-rows.length).toLocaleString('en-GB')} reference pairs\nReports can occur in more than one pair. Qualified success is separate from unqualified success; reproduction dimensions overlap. This selection is not representative of all research. Missing values are not zero.`);
     };
     // Associate static and dynamically inserted glossary definitions with their triggers.
     let tipNumber = 0, openingTip = null;

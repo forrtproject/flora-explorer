@@ -113,7 +113,8 @@ test('Mean Citedness clears stale models and all distribution outcomes reconcile
   // The restored model exports only its own quantities, labelled with the active selection.
   await p.click('#mc-gam-chart-data-copy');
   const exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
-  assert.ok(exported.every(r=>/Selection: Replications\./.test(r['Export context'])));
+  assert.match(exported[0]['Export context'],/Selection: Replications\./);
+  assert.ok(exported.slice(1).every(r=>r['Export context']===''));
   const curve=exported.filter(r=>r['Row type']==='Fitted curve'), points=exported.filter(r=>r['Row type']==='Displayed pair');
   const model=JSON.parse(fs.readFileSync('data/impact_factor_data.json'));
   assert.equal(curve.length,model.gam_curve.length);assert.equal(points.length,model.jitter.length);
@@ -1199,4 +1200,222 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal(await p.locator('#mc-study-type .chip.active').getAttribute('data-value'),'reproduction-numerical');
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
+});
+test('CSV cells preserve rectangular data, first-row context, missing values and safe numbers',async()=>{
+  const p=await page('?tab=overview');
+  const result=await p.evaluate(()=>{
+    const rows=[['Quotes " and\nnewlines',0.1+0.2,-0.6697847158708234,null],['=SUM(A1:A2)',-2,1234567,Infinity],['@name','-text','+text',NaN]];
+    const text=FloraCharts.csvText(['Text','Value','Other','Missing'],rows,'Source and snapshot\nSelection and caveat');
+    return {text,parsed:Papa.parse(text,{header:true}),empty:Papa.parse(FloraCharts.csvText(['Text','Value'],[],'Context'),{header:true})};
+  });
+  assert.deepEqual(result.parsed.errors,[]);
+  const rows=result.parsed.data;
+  assert.equal(rows.length,3);assert.equal(rows[0].Text,'Quotes " and\nnewlines');
+  assert.equal(rows[0]['Export context'],'Source and snapshot\nSelection and caveat');
+  assert.ok(rows.slice(1).every(r=>r['Export context']===''));
+  assert.equal(rows[0].Value,'0.3');assert.equal(rows[0].Other,'-0.669785');
+  assert.equal(rows[1].Value,'-2');assert.equal(rows[1].Other,'1234567');
+  assert.ok(rows.every(r=>r.Missing===''));
+  assert.equal(rows[1].Text,"'=SUM(A1:A2)");assert.equal(rows[2].Text,"'@name");
+  assert.equal(rows[2].Value,"'-text");assert.equal(rows[2].Other,"'+text");
+  assert.deepEqual(result.empty.meta.fields,['Export context','Text','Value']);assert.deepEqual(result.empty.data,[]);
+  assert.ok(result.text.includes('\r\n'));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('readable export authors preserve order, accents, organisations and partial names',async()=>{
+  const p=await page('?tab=overview');
+  const authors=await p.evaluate(()=>[
+    JSON.stringify([{family:'van Dijk',given:'Jean-Pierre Anne'},{literal:'The β Collective'},{family:'Müller',given:'Zoë'},{sequence:'additional'},{given:'Søren'}]),
+    'Existing, A.; Existing, B.',JSON.stringify(['Literal author',{name:'Research group'},null]),'[broken',JSON.stringify({family:'No array'}),'',
+  ].map(FloraCharts.exportAuthors));
+  assert.deepEqual(authors,['van Dijk, J.-P. A.; The β Collective; Müller, Z.; Name not recorded; S.','Existing, A.; Existing, B.','Literal author; Research group; Name not recorded','','','']);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Browse CSV retains raw columns, adds adjacent authors and follows all applied sort keys across pages',async()=>{
+  const headers=['doi_o','title_o','author_o','journal_o','year_o','doi_r','title_r','author_r','journal_r','year_r','url_r','outcome','outcome_quote','type'];
+  const source=Array.from({length:32},(_,i)=>({doi_o:`10.test/original-${i}`,title_o:`Title ${i%5}`,author_o:JSON.stringify([{family:'Müller',given:'Jean-Pierre'},{literal:'Research collective'}]),journal_o:'Venue',year_o:2000+i%3,doi_r:`10.test/repetition-${i}`,title_r:`Repetition ${i}`,author_r:'Group author',journal_r:'Venue',year_r:i===31?'NA':2010+i%4,url_r:'',outcome:i%2?'failed':'statistically successful but flawed',outcome_quote:'A quotation',type:'replication'}));
+  const csv=[headers,...source.map(row=>headers.map(k=>row[k]))].map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({body:csv,contentType:'text/csv'})));
+  await p.evaluate(()=>dataTable.order([[4,'asc'],[1,'desc']]).draw());
+  const expected=await p.evaluate(()=>dataTable.rows({search:'applied',order:'applied'}).indexes().toArray().map(i=>fullRowData[i].doi_o));
+  assert.equal(expected.length,32);assert.notDeepEqual(expected,source.map(r=>r.doi_o));
+  assert.deepEqual(await p.evaluate(()=>bmFiltered.map(r=>r.doi_o)),expected);
+  const download=async()=>{
+    const event=p.waitForEvent('download');await p.click('#export-browse');const file=await event;
+    const text=fs.readFileSync(await file.path(),'utf8');assert.equal(text.charCodeAt(0),0xfeff);
+    return p.evaluate(text=>Papa.parse(text,{header:true}),text);
+  };
+  const desktop=await download();assert.deepEqual(desktop.errors,[]);
+  assert.deepEqual(desktop.data.map(r=>r.doi_o),expected);
+  for(const author of ['author_o','author_r']){
+    const fields=desktop.meta.fields;assert.equal(fields[fields.indexOf(author)+1],author.replace('author_','authors_')+'_formatted');
+  }
+  assert.equal(desktop.meta.fields.length,17);
+  assert.equal(desktop.data[0].authors_o_formatted,'Müller, J.-P.; Research collective');
+  assert.equal(desktop.data[0].authors_r_formatted,'Group author');
+  assert.equal(desktop.data[0].author_o,source[0].author_o);
+  assert.equal(desktop.data.find(r=>r.doi_o==='10.test/original-31').year_r,'');
+  assert.match(desktop.data[0]['Export context'],/Sort: year_r asc; title_o desc; input row order breaks ties/);
+  assert.match(desktop.data[0]['Export context'],/Included: 32; excluded by filters: 0 reference pairs/);
+  assert.doesNotMatch(desktop.data[0]['Export context'],/· source/);
+  assert.ok(desktop.data.slice(1).every(r=>r['Export context']===''));
+  await p.setViewportSize({width:390,height:844});
+  assert.deepEqual((await download()).data,desktop.data);
+  await p.fill('#browse-mobile-input','no-matches-zzzz');await p.waitForFunction(()=>getChartData().length===0);
+  const empty=await download();assert.deepEqual(empty.data,[]);assert.deepEqual(empty.meta.fields,desktop.meta.fields);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('all 22 chart CSV targets are rectangular and have one relevant context cell',async()=>{
+  const p=await page('?tab=overview');const copied=new Set();
+  await p.evaluate(()=>{navigator.clipboard.writeText=async text=>{window.copiedCsv=text;};});
+  async function checkVisible(){
+    for(const id of await p.locator('.chart-copy:visible').evaluateAll(els=>els.filter(el=>!el.closest('[inert]')).map(el=>el.id))){
+      await p.click('#'+id);
+      const parsed=await p.evaluate(()=>Papa.parse(window.copiedCsv,{header:true}));
+      assert.deepEqual(parsed.errors,[],id);assert.ok(parsed.data.length>0,id);
+      assert.match(parsed.data[0]['Export context'],/Source: .*Snapshot date:/,id);
+      assert.match(parsed.data[0]['Export context'],/included/i,id);
+      assert.match(parsed.data[0]['Export context'],/excluded/i,id);
+      assert.doesNotMatch(parsed.data[0]['Export context'],/· source|Reproduction citation coverage/,id);
+      assert.ok(parsed.data.slice(1).every(r=>r['Export context']===''),id);
+      copied.add(id);
+    }
+  }
+  await p.waitForFunction(()=>document.querySelector('#overview .data-stamp strong'));
+  await checkVisible();await p.click('#browse-tab');
+  for(const kind of ['replication','reproduction-numerical','reproduction-robustness']){
+    await p.click(`.browse-kind-btn[data-kind="${kind}"]`);await checkVisible();
+  }
+  await p.click('#trends-tab');await checkVisible();
+  const labels=await p.evaluate(()=>Chart.getChart('trend-journal').data.labels);
+  assert.ok(labels.some(Array.isArray));
+  {
+    await p.click('#trend-journal-data-copy');
+    const exported=await p.evaluate(()=>Papa.parse(window.copiedCsv,{header:true}).data.map(r=>r.Category));
+    assert.deepEqual(exported,labels.map(v=>Array.isArray(v)?v.join(' '):v));
+  }
+  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length>0);await checkVisible();
+  await p.click('#mc-tab');await p.waitForFunction(()=>document.getElementById('mc-gam-chart')?.data?.length>0);await checkVisible();
+  await p.click('#overlap-tab');await p.waitForFunction(()=>document.getElementById('ao-chart')?.data?.length>0);await checkVisible();
+  await p.click('#pub-tab');await p.waitForFunction(()=>document.getElementById('ls-chart')?.data?.length>0);await checkVisible();
+  await p.click('#citation-tab');await p.locator('.timeline-open').first().click();
+  await p.waitForFunction(()=>document.getElementById('study-plot-data'));await checkVisible();
+  assert.equal(copied.size,22,[...copied].join(', '));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('citation CSV uses annual denominators, source intervals and wide exclusive timeline counts',async()=>{
+  const p=await page('?tab=citations&doi=10.1037%2Fa0021524');
+  await p.waitForFunction(()=>document.getElementById('study-plot-data'));
+  await p.evaluate(()=>{navigator.clipboard.writeText=async text=>{window.copiedCsv=text;};});
+  async function copy(id){await p.click('#'+id+'-data-copy');return p.evaluate(()=>Papa.parse(window.copiedCsv,{header:true}).data);}
+  const timeline=await copy('study-plot');
+  assert.equal(timeline.length,17);
+  assert.equal(timeline.reduce((n,r)=>n+Number(r['Total citing works']),0),667);
+  assert.equal(timeline.reduce((n,r)=>n+Number(r['Co-cites failed'])+Number(r['Co-cites mixed'])+Number(r['Co-cites successful'])+Number(r['Co-cites multiple outcomes']),0),197);
+  assert.equal(timeline.reduce((n,r)=>n+Number(r['Replication event count']),0),7);
+  assert.equal(timeline.reduce((n,r)=>n+(r['Replication markers']?r['Replication markers'].split('; ').length:0),0),7);
+  for(const row of timeline){
+    assert.equal(+row['Total citing works'],+row['Cites original only']+(+row['Co-cites failed'])+(+row['Co-cites mixed'])+(+row['Co-cites successful'])+(+row['Co-cites multiple outcomes']));
+    if(row['Replication event count']!=='0') assert.ok(row['Replication DOIs']);
+  }
+  assert.equal(timeline.find(r=>r.Year==='2026')['Year status'],'snapshot_year_partial');
+  assert.match(await p.locator('#study-plot-data').textContent(),/Snapshot year \(partial\)/);
+  await p.setViewportSize({width:390,height:844});
+  await p.waitForFunction(()=>document.getElementById('study-plot').layout.annotations.filter(a=>a.name==='replication-event').every(a=>/^\d+$/.test(a.text)));
+  assert.deepEqual(await copy('study-plot'),timeline);
+  await p.keyboard.press('Escape');await p.setViewportSize({width:1280,height:900});
+  const aggregate=JSON.parse(fs.readFileSync('data/aggregate.json')).all;
+  const round=v=>Number.isInteger(v)?v:Number(v.toPrecision(6));
+  for(const [id,field,modelField] of [['plot-cit','mean_citations','citations_model'],['plot-cocit','mean_cocitations','cocitations_model']]){
+    const rows=await copy(id);assert.equal(rows.length,aggregate.descriptive.event_time.length);
+    rows.forEach((row,i)=>{assert.equal(+row['Mean count'],round(aggregate.descriptive[field][i]));assert.equal(+row['Original count'],aggregate.descriptive.n_units[i]);});
+    const model=aggregate[modelField], fitted=await copy(id+'-model');
+    fitted.forEach((row,i)=>{assert.equal(+row.Estimate,round(model.estimate[i]));assert.equal(+row['95% CI lower'],round(model.ci_low[i]));assert.equal(+row['95% CI upper'],round(model.ci_high[i]));});
+    assert.match(fitted[0]['Export context'],/log\(1 \+ count\).*year −1/);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('timeline CSV retains unknown event years and future data without inventing citation counts',async()=>{
+  const study=JSON.parse(fs.readFileSync('data/originals.json')).studies['10.1037/a0021524'];
+  const makeYear=(year,only)=>({year,only,with_failed:0,with_mixed:0,with_successful:0,with_multiple:0});
+  study.timeline=[makeYear(2025,1),makeYear(2026,2),makeYear(2030,3)];
+  study.replications=[{doi:'10.test/known',year:2025,outcome:'failed'},{doi:'10.test/future',year:2040,outcome:'mixed'},{doi:'10.test/unknown',year:null,outcome:'successful'}];
+  const p=await page('?tab=citations&doi=10.1037%2Fa0021524',1280,p=>p.route('**/data/originals/*',route=>route.fulfill({body:JSON.stringify(study),contentType:'application/json'})));
+  await p.waitForFunction(()=>document.getElementById('study-plot-data'));
+  await p.evaluate(()=>{navigator.clipboard.writeText=async text=>{window.copiedCsv=text;};});
+  await p.click('#study-plot-data-copy');
+  const rows=await p.evaluate(()=>Papa.parse(window.copiedCsv,{header:true}).data);
+  assert.deepEqual(rows.map(r=>r.Year),['2025','2026','2030','2040','']);
+  assert.equal(rows[0]['Year status'],'before_snapshot_year');
+  assert.equal(rows[1]['Year status'],'snapshot_year_partial');assert.equal(rows[2]['Year status'],'after_snapshot_year');
+  assert.equal(rows[2]['Total citing works'],'3');assert.equal(rows[3]['Total citing works'],'');assert.equal(rows[4]['Cites original only'],'');
+  assert.equal(rows[3]['Replication DOIs'],'10.test/future');assert.equal(rows[4]['Replication DOIs'],'10.test/unknown');
+  assert.equal(rows[4]['Replication markers'],'3');assert.equal(rows[4]['Year status'],'');
+  assert.equal(rows.reduce((n,r)=>n+Number(r['Total citing works']),0),6);
+  assert.equal(rows.reduce((n,r)=>n+Number(r['Replication event count']),0),3);
+  assert.match(rows[0]['Export context'],/earlier years are not guaranteed complete/);
+  assert.doesNotMatch(rows[0]['Export context'],/Reproduction citation coverage/);
+  await p.keyboard.press('Escape');
+  await p.unroute('**/data/originals/*');
+  await p.route('**/data/originals/*',route=>route.fulfill({body:JSON.stringify({...study,timeline:[]}),contentType:'application/json'}));
+  await p.locator('.timeline-open').filter({hasText:'Timeline'}).nth(1).click();
+  await p.waitForFunction(()=>document.getElementById('study-plot')?.textContent.includes('No citation data available'));
+  assert.equal(await p.locator('#study-plot-data-copy,#study-plot-data').count(),0);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('exports label unavailable snapshot dates without copying stamp link text',async()=>{
+  const p=await page('?tab=browse',1280,p=>p.route('**/data/flora_meta.json',route=>route.fulfill({body:'{}',contentType:'application/json'})));
+  await p.waitForFunction(()=>document.querySelector('#browse .data-stamp').textContent.includes('no snapshot yet'));
+  const event=p.waitForEvent('download');await p.click('#export-browse');
+  const text=fs.readFileSync(await (await event).path(),'utf8');
+  const context=await p.evaluate(text=>Papa.parse(text,{header:true}).data[0]['Export context'],text);
+  assert.match(context,/Source: data\/flora.csv\. Snapshot date: unavailable/);
+  assert.doesNotMatch(context,/· source|no snapshot yet/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('comparison CSV keeps counts, denominators and six-digit percentages in either chart mode',async()=>{
+  const p=await page('?tab=authorship-overlap');await p.waitForFunction(()=>document.getElementById('ao-chart')?.data?.length>0);
+  await p.evaluate(()=>{
+    navigator.clipboard.writeText=async text=>{window.copiedCsv=text;};
+    FloraCharts.plot('ao-chart',[
+      {x:['Known group','Empty group'],y:[1,0],name:'Successful',type:'bar'},
+      {x:['Known group','Empty group'],y:[2,0],name:'Failed',type:'bar'},
+    ],{},{displayModeBar:false},{summary:'Included: 3 reference pairs; excluded: 0. Synthetic groups for denominator checks.'});
+  });
+  async function copy(){await p.click('#ao-chart-data-copy');return p.evaluate(()=>Papa.parse(window.copiedCsv,{header:true}).data);}
+  const percentages=await copy();
+  assert.deepEqual(percentages.map(r=>r['Group denominator']),['3','3','0','0']);
+  assert.deepEqual(percentages.map(r=>r['Percentage (%)']),['33.3333','66.6667','','']);
+  assert.deepEqual(percentages.map(r=>r['Reference pairs']),['1','2','0','0']);
+  assert.match(percentages[0]['Export context'],/Mode: within-group percentages/);
+  assert.equal(await p.locator('#ao-chart-data tbody tr:first-child td:last-child').textContent(),'33.3');
+  await p.click('#ao-chart-mode');const counts=await copy();
+  assert.match(counts[0]['Export context'],/Mode: counts/);
+  const values=rows=>rows.map(({'Export context':context,...row})=>row);
+  assert.deepEqual(values(counts),values(percentages));
+  await p.setViewportSize({width:390,height:844});
+  await p.waitForFunction(()=>document.getElementById('ao-chart').data[0].orientation==='h');
+  assert.deepEqual(await copy(),counts);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('upstream Browse fallback records the loaded source without claiming the local snapshot date',async()=>{
+  const p=await page('?tab=browse',1280,async p=>{
+    await p.route('**/data/flora.csv',route=>route.abort());
+    await p.route('https://raw.githubusercontent.com/forrtproject/fred-data/refs/heads/main/output/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'}));
+  });
+  await p.waitForFunction(()=>document.querySelector('#browse .data-stamp strong'));
+  const event=p.waitForEvent('download');await p.click('#export-browse');
+  const text=fs.readFileSync(await (await event).path(),'utf8');
+  const context=await p.evaluate(text=>Papa.parse(text,{header:true}).data[0]['Export context'],text);
+  assert.match(context,/Source: https:\/\/raw.githubusercontent.com\/forrtproject\/fred-data/);
+  assert.match(context,/Snapshot date: unavailable \(upstream fallback\)/);
+  assert.deepEqual(p.errors,[]);await p.close();
 });

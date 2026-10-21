@@ -38,8 +38,47 @@ window.FloraCharts = (() => {
     });
     function csvText(headers, rows, notes = '') {
         // Prefix formula-like text so spreadsheet programs treat it as data.
-        const cell = v => '"' + (typeof v === 'number' ? String(Number(v.toFixed(5))) : (Array.isArray(v) ? plain(v) : String(v ?? '')).replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
-        return [notes ? ['Export context', ...headers] : headers, ...rows.map(row => notes ? [notes,...row] : row)].map(row => row.map(cell).join(',')).join('\r\n');
+        const cell = v => '"' + (typeof v === 'number' ? (Number.isFinite(v) ? String(Number.isInteger(v) ? v : Number(v.toPrecision(6))) : '') : (Array.isArray(v) ? plain(v) : String(v ?? '')).replace(/^[=+@-]/, m => "'" + m)).replace(/"/g, '""') + '"';
+        return [notes ? ['Export context', ...headers] : headers, ...rows.map((row, i) => notes ? [i === 0 ? notes : '',...row] : row)].map(row => row.map(cell).join(',')).join('\r\n');
+    }
+    // Keep readable authors beside the untouched source JSON. Do not infer the
+    // structure of existing plain strings, or drop unnamed authors from a list.
+    function exportAuthors(raw) {
+        if (!raw) return '';
+        let authors;
+        try { authors = JSON.parse(raw); }
+        catch { return /^[\s]*[\[{]/.test(raw) ? '' : raw; }
+        if (!Array.isArray(authors)) return typeof authors === 'string' ? authors : '';
+        return authors.map(a => {
+            if (typeof a === 'string') return a;
+            if (!a || typeof a !== 'object') return 'Name not recorded';
+            if (a.literal || a.name) return a.literal || a.name;
+            const initials = String(a.given || '').trim().split(/\s+/).filter(Boolean)
+                .map(part => part.split('-').map(v => v ? Array.from(v)[0] + '.' : '').join('-')).join(' ');
+            return a.family ? a.family + (initials ? ', ' + initials : '') : initials || 'Name not recorded';
+        }).join('; ');
+    }
+    const sources = new Map();
+    function setSource(key, meta, url) {
+        const previous = sources.get(key) || {};
+        sources.set(key, {meta: meta || previous.meta, url: url || previous.url});
+    }
+    function exportContext(el) {
+        const pane = el.closest('.tab-pane');
+        const source = el.id === 'rr-chart' ? 'rr_status' : el.id === 'ls-chart' || el.id === 'pub-chart' ? 'pub_status'
+            : el.id === 'ao-chart' ? 'author_overlap' : el.id.startsWith('mc-') ? 'impact_factor'
+            : el.id.startsWith('plot-') || el.id === 'study-plot' ? 'citations' : 'flora';
+        const record = sources.get(source) || {}, meta = record.meta || {};
+        const selection = el.dataset.exportSelection || [...(pane?.querySelectorAll('.chip.active, .trend-filter-btn.active') || [])].map(e => plain(e.textContent)).join('; ');
+        const controls = [...(pane?.querySelectorAll('input:not([type="hidden"]), select') || [])]
+            .filter(e => e.id && e.value).map(e => `${e.id}: ${e.value}`).join('; ');
+        const snapshot = source === 'flora' && record.url === REMOTE_CSV_URL ? 'unavailable (upstream fallback)' : meta.input_snapshot || meta.last_updated || 'unavailable';
+        const mode = comparisonIds.has(el.id) ? `Mode: ${modes.get(el.id) === 'count' ? 'counts' : 'within-group percentages'}. ` : '';
+        const urls = [...new Set([el.dataset.exportSource || record.url, meta.source_url].filter(Boolean))].join('; ') || 'unavailable';
+        return `Source: ${urls}. Snapshot date: ${snapshot}. `
+            + (meta.recalculated_at ? `Recalculated: ${meta.recalculated_at}. ` : '')
+            + (meta.partial_run ? 'Partial refresh: some records are unavailable. ' : '')
+            + (selection ? `Selection: ${selection}. ` : '') + mode + (controls ? `Controls: ${controls}. ` : '');
     }
     function download(name, headers, rows, notes = '') {
         const text = csvText(headers, rows, notes);
@@ -84,7 +123,9 @@ window.FloraCharts = (() => {
             anchor.insertAdjacentElement('afterend', details);
         }
         const wasOpen = details.open;
-        details.innerHTML = `<summary aria-label="View chart data for ${escape(visibleTitle(el))}">View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="${escape(visibleTitle(el))}: chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(fmt(v, headers[i]))}</td>` : `<th scope="row">${escape(fmt(v, headers[i]))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        const displayValue = (v,i) => headers[i] === 'Percentage (%)' && typeof v === 'number' ? (v > 0 && v < 1 ? '<1' : number(v, 1))
+            : headers[i] === 'Year status' ? ({before_snapshot_year:'Before snapshot year',snapshot_year_partial:'Snapshot year (partial)',after_snapshot_year:'After snapshot year'}[v] || '') : fmt(v, headers[i]);
+        details.innerHTML = `<summary aria-label="View chart data for ${escape(visibleTitle(el))}">View chart data</summary><p class="chart-summary">${escape(summary)}</p><p class="chart-context">${escape(context(el))}</p><div class="table-scroll" tabindex="0" role="region" aria-label="${escape(visibleTitle(el))}: chart values"><table><caption>${escape(visibleTitle(el))}</caption><thead><tr>${headers.map(h=>`<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map((v,i)=>i ? `<td>${escape(displayValue(v,i))}</td>` : `<th scope="row">${escape(displayValue(v,i))}</th>`).join('')}</tr>`).join('')}</tbody></table></div>`;
         details.open = wasOpen;
         const label = el.closest('.outcome-chart-row')?.querySelector('.outcome-chart-label') || el.closest('.trend-block')?.querySelector('.trend-title');
         let action = document.getElementById(id + '-copy');
@@ -105,8 +146,9 @@ window.FloraCharts = (() => {
         action.title = 'Copy chart CSV';
         action.onclick = async () => {
             status.textContent = '';
+            if (!el.getClientRects().length || el.closest('[inert]')) return;
             try {
-                await navigator.clipboard.writeText(csvText(headers, rows, summary + '\n' + context(el)));
+                await navigator.clipboard.writeText(csvText(headers, rows, exportContext(el) + 'Sort: displayed category order.\n' + summary));
                 action.title = 'Chart CSV copied';
                 action.setAttribute('aria-label', 'Chart CSV copied for ' + visibleTitle(el));
                 status.textContent = 'Chart CSV copied';
@@ -122,7 +164,7 @@ window.FloraCharts = (() => {
         const el = ctx.canvas || ctx;
         const datasets = config.data.datasets || [], labels = config.data.labels || [];
         el.setAttribute('role','img'); el.setAttribute('aria-label',visibleTitle(el) + '. Values in the following data table.');
-        const rows = labels.map((label,i) => [label,...datasets.map(d=>d.data[i] ?? 0)]);
+        const rows = labels.map((label,i) => [plain(label),...datasets.map(d=>d.data[i] ?? 0)]);
         const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
         const isOutcome = /outcome|computational|robustness/.test(el.id);
         const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
@@ -161,9 +203,9 @@ window.FloraCharts = (() => {
             layout[key] = {...axis,automargin:true,title:{...title,standoff:12}};
         }
         const counts = modes.get(id) === 'count';
-        let summary = 'Values below include every plotted series; interval limits are shown where available.';
+        let summary = options.summary || 'Values below include every plotted series; interval limits are shown where available.';
         if (comparisonIds.has(id)) {
-            originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config]);
+            originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config,options]);
             const nGroups = traces[0]?.x?.length || 0;
             const totals = Array.from({length:nGroups}, (_,i)=>traces.reduce((sum,t)=>sum+(Number(t.y?.[i])||0),0));
             display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '')+`<br>N=${number(totals[i])}`),
@@ -174,7 +216,7 @@ window.FloraCharts = (() => {
             layout.xaxis = {...layout.xaxis,tickangle:0};
             const maxCount = Math.max(0,...traces.flatMap(t=>t.y));
             layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, ...(counts ? countAxis(maxCount) : {tickformat:'.0f',dtick:undefined}), range:counts ? undefined : [0,100]};
-            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
+            summary = options.summary || 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
             let toggle = document.getElementById(id+'-mode');
             if (!toggle) {
                 toggle=document.createElement('button');toggle.id=id+'-mode';toggle.type='button';toggle.className='chart-mode';el.before(toggle);
@@ -222,10 +264,10 @@ window.FloraCharts = (() => {
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
         if (comparisonIds.has(id)) {
             const rows = [];
-            traces.forEach(t => (t.x || []).forEach((group, i) => {
-                const count = Number(t.y?.[i]) || 0;
+            (traces[0]?.x || []).forEach((group, i) => traces.forEach(t => {
+                const count = t.y?.[i] ?? '';
                 const denominator = traces.reduce((n, series) => n + (Number(series.y?.[i]) || 0), 0);
-                rows.push([plain(group), plain(t.name), count, denominator, denominator ? count > 0 && 100 * count / denominator < 1 ? '<1' : Number((100 * count / denominator).toFixed(1)) : 'Not available']);
+                rows.push([plain(group), plain(t.name), count, denominator, denominator && count !== '' ? 100 * count / denominator : '']);
             }));
             table(el, rows, ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], summary);
             return Plotly.react(el, display, layout, config);
@@ -250,5 +292,5 @@ window.FloraCharts = (() => {
             if(el)d.querySelector('.chart-context').textContent=context(el);
         });
     }
-    return {chart,plot,clear,download,updateContexts, token, theme, number, percent, countAxis};
+    return {chart,plot,clear,download,updateContexts,token,theme,number,percent,countAxis,csvText,exportAuthors,setSource,exportContext};
 })();
