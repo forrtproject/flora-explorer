@@ -1,36 +1,36 @@
 {
   "pub_status": {
     "individual": {
-      "n_originals": 1803,
-      "mean_rate": 0.1183,
-      "median_rate": 0.0657,
-      "grand_mean_rate": 0.0696
+      "n_originals": 1726,
+      "mean_rate": 0.1192,
+      "median_rate": 0.0664,
+      "grand_mean_rate": 0.0655
     },
     "large_project": {
-      "n_originals": 405,
-      "mean_rate": 0.0389,
-      "median_rate": 0.0016,
-      "grand_mean_rate": 0.0224
+      "n_originals": 411,
+      "mean_rate": 0.0394,
+      "median_rate": 0.0044,
+      "grand_mean_rate": 0.0231
     }
   },
   "outcome": {
     "successful": {
-      "n_originals": 916,
-      "mean_rate": 0.1221,
-      "median_rate": 0.0557,
-      "grand_mean_rate": 0.0662
+      "n_originals": 882,
+      "mean_rate": 0.1236,
+      "median_rate": 0.0578,
+      "grand_mean_rate": 0.0635
     },
     "failed": {
-      "n_originals": 776,
-      "mean_rate": 0.0862,
-      "median_rate": 0.0382,
-      "grand_mean_rate": 0.0649
+      "n_originals": 758,
+      "mean_rate": 0.0854,
+      "median_rate": 0.0362,
+      "grand_mean_rate": 0.0619
     },
     "mixed": {
-      "n_originals": 539,
-      "mean_rate": 0.0954,
-      "median_rate": 0.037,
-      "grand_mean_rate": 0.0545
+      "n_originals": 522,
+      "mean_rate": 0.0947,
+      "median_rate": 0.0349,
+      "grand_mean_rate": 0.0486
     }
   }
 }
