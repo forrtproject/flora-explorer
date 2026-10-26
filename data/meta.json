@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-10-24T13:05:00.256603+00:00",
-  "n_originals": 2158,
+  "last_updated": "2026-10-26T04:14:46.371806+00:00",
+  "n_originals": 2163,
   "n_replications": 2324,
   "outcome_counts": {
     "successful": 936,
@@ -15,5 +15,5 @@
   "fetch_errors": 0,
   "fetch_error_dois": [],
   "originals_errored": 0,
-  "originals_skipped": 10
+  "originals_skipped": 5
 }
