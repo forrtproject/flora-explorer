@@ -3903,5 +3903,16 @@
     "id": "https://openalex.org/S135407459",
     "display_name": "i-Perception",
     "impact_factor": 1.1069182389937107
+  },
+  "2017 ieee/acm 39th international conference on software engineering icse": null,
+  "journal of research in crime and delinquency": {
+    "id": "https://openalex.org/S173027916",
+    "display_name": "Journal of Research in Crime and Delinquency",
+    "impact_factor": 2.911764705882353
+  },
+  "pediatric exercise science": {
+    "id": "https://openalex.org/S83692137",
+    "display_name": "Pediatric Exercise Science",
+    "impact_factor": 1.6618705035971224
   }
 }

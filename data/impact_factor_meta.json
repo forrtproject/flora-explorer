@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-10-19T11:02:59Z",
-  "n_rows_with_omc": 2510,
-  "input_snapshot": "2026-10-19T11:02:16.918785+00:00",
+  "last_updated": "2026-10-26T11:14:50Z",
+  "n_rows_with_omc": 2405,
+  "input_snapshot": "2026-10-26T11:13:58.494606+00:00",
   "source": "scripts/render_impact_factor.R"
 }
