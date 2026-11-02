@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-10-26T11:13:58.494606+00:00",
-  "n_rows": 2784,
-  "n_with_omc": 2605,
+  "last_updated": "2026-11-02T11:09:37.597104+00:00",
+  "n_rows": 2850,
+  "n_with_omc": 2680,
   "source": "OpenAlex Sources API (summary_stats.2yr_mean_citedness)"
 }

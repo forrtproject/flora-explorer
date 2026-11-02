@@ -3914,5 +3914,114 @@
     "id": "https://openalex.org/S83692137",
     "display_name": "Pediatric Exercise Science",
     "impact_factor": 1.6618705035971224
+  },
+  "applied psychology": null,
+  "brain imaging and behavior": {
+    "id": "https://openalex.org/S51590970",
+    "display_name": "Brain Imaging and Behavior",
+    "impact_factor": 2.369565217391304
+  },
+  "british food journal": {
+    "id": "https://openalex.org/S99313352",
+    "display_name": "British Food Journal",
+    "impact_factor": 4.136865342163356
+  },
+  "cambridge university press": null,
+  "cancer": {
+    "id": "https://openalex.org/S126033908",
+    "display_name": "Cancer",
+    "impact_factor": 4.660621761658031
+  },
+  "cancer research": {
+    "id": "https://openalex.org/S168522863",
+    "display_name": "Cancer Research",
+    "impact_factor": 0.6398985629754861
+  },
+  "cerebral cortex": {
+    "id": "https://openalex.org/S117898428",
+    "display_name": "Cerebral Cortex",
+    "impact_factor": 4.304267161410019
+  },
+  "elsevier bv": null,
+  "genomics & informatics": {
+    "id": "https://openalex.org/S2764452186",
+    "display_name": "Genomics & Informatics",
+    "impact_factor": 4.0
+  },
+  "harvard university press ebooks": {
+    "id": "https://openalex.org/S4306463363",
+    "display_name": "Harvard University Press eBooks",
+    "impact_factor": 0.15872529492875748
+  },
+  "headache: the journal of head and face pain": {
+    "id": "https://openalex.org/S96331937",
+    "display_name": "Headache The Journal of Head and Face Pain",
+    "impact_factor": 3.6005665722379603
+  },
+  "homeopathy": {
+    "id": "https://openalex.org/S4310451",
+    "display_name": "Homeopathy",
+    "impact_factor": 0.6007462686567164
+  },
+  "interspeech 2005": null,
+  "journal of cross-cultural psychology": {
+    "id": "https://openalex.org/S23753256",
+    "display_name": "Journal of Cross-Cultural Psychology",
+    "impact_factor": 2.9943181818181817
+  },
+  "journal of education and work": {
+    "id": "https://openalex.org/S32136629",
+    "display_name": "Journal of Education and Work",
+    "impact_factor": 2.2439024390243905
+  },
+  "journal of happiness studies": {
+    "id": "https://openalex.org/S202734349",
+    "display_name": "Journal of Happiness Studies",
+    "impact_factor": 3.95
+  },
+  "journal of nervous & mental disease": {
+    "id": "https://openalex.org/S13566964",
+    "display_name": "The Journal of Nervous and Mental Disease",
+    "impact_factor": 2.5844155844155843
+  },
+  "journal of psychosomatic research": {
+    "id": "https://openalex.org/S151416048",
+    "display_name": "Journal of Psychosomatic Research",
+    "impact_factor": 2.0834057341442223
+  },
+  "oxford university press ebooks": {
+    "id": "https://openalex.org/S4306463708",
+    "display_name": "Oxford University Press eBooks",
+    "impact_factor": 0.4000333291671874
+  },
+  "passau: passavia universitatsverlag": null,
+  "prentice hall upper saddle river, nj": null,
+  "psychology of men & masculinities": null,
+  "rutgers university press ebooks": {
+    "id": "https://openalex.org/S4306463865",
+    "display_name": "Rutgers University Press eBooks",
+    "impact_factor": 0.06307385229540918
+  },
+  "sage beverly hills, ca": null,
+  "stanford university press": null,
+  "the gerontologist": {
+    "id": "https://openalex.org/S130337233",
+    "display_name": "The Gerontologist",
+    "impact_factor": 3.2370860927152316
+  },
+  "the quantitative methods for psychology": {
+    "id": "https://openalex.org/S4210187695",
+    "display_name": "The Quantitative Methods for Psychology",
+    "impact_factor": 1.8958333333333333
+  },
+  "university of michigan press ebooks": {
+    "id": "https://openalex.org/S4306464181",
+    "display_name": "University of Michigan Press eBooks",
+    "impact_factor": 1.5174825174825175
+  },
+  "medrxiv": {
+    "id": "https://openalex.org/S3005729997",
+    "display_name": "medRxiv",
+    "impact_factor": 0.6475571692464488
   }
 }
