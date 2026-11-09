@@ -4023,5 +4023,21 @@
     "id": "https://openalex.org/S3005729997",
     "display_name": "medRxiv",
     "impact_factor": 0.6475571692464488
-  }
+  },
+  "body image": {
+    "id": "https://openalex.org/S177391433",
+    "display_name": "Body Image",
+    "impact_factor": 6.7114093959731544
+  },
+  "emerging adulthood": {
+    "id": "https://openalex.org/S2764542025",
+    "display_name": "Emerging Adulthood",
+    "impact_factor": 2.781758957654723
+  },
+  "journal of biological chemistry": {
+    "id": "https://openalex.org/S140251998",
+    "display_name": "Journal of Biological Chemistry",
+    "impact_factor": 2.1650485436893203
+  },
+  "linguistic variation: models and methods": null
 }
