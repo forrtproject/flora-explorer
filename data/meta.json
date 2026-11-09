@@ -1,19 +1,19 @@
 {
-  "last_updated": "2026-11-02T04:16:07.821798+00:00",
-  "n_originals": 2201,
-  "n_replications": 2369,
+  "last_updated": "2026-11-09T04:12:14.708112+00:00",
+  "n_originals": 2188,
+  "n_replications": 2358,
   "outcome_counts": {
-    "successful": 945,
-    "failed": 862,
-    "mixed": 562
+    "successful": 918,
+    "failed": 856,
+    "mixed": 584
   },
   "pub_status_counts": {
-    "individual": 1918,
-    "large_project": 451
+    "individual": 1908,
+    "large_project": 450
   },
   "partial_run": true,
   "fetch_errors": 0,
   "fetch_error_dois": [],
   "originals_errored": 0,
-  "originals_skipped": 2
+  "originals_skipped": 3
 }
