@@ -1,7 +1,7 @@
 {
-  "last_updated": "2026-11-09T06:24:12Z",
+  "last_updated": "2026-11-10T06:17:34Z",
   "n_total": {
-    "replication": 2604,
+    "replication": 2608,
     "reproduction-numerical": 220,
     "reproduction-robustness": 84
   },
