@@ -38,7 +38,7 @@ def normalize(name: str) -> str:
     return re.sub(r"[^a-z]", "", name.lower())
 
 
-from classification import classify_outcome
+from classification import classify_outcome, REPLICATION_OUTCOMES
 
 
 def family_names(author_json) -> set[str]:
@@ -72,7 +72,6 @@ def _overlap(row) -> bool | None:
     return bool(orig & repl)
 
 
-REPLICATION_OUTCOMES = ["successful", "failed", "mixed", "inconclusive", "qualified", "other"]
 # Rows without an actual verdict on a dimension ("not checked"/uncoded) are dropped from
 # that dimension entirely rather than kept as their own bucket - they say nothing about it.
 # Applied per dimension, so a reproduction whose robustness was never checked still counts
@@ -84,7 +83,7 @@ MIN_N_FOR_BREAKDOWN = 5  # below this, a per-bucket overlap breakdown is not mea
 
 def compute_overlap_result(sub: pd.DataFrame, bucket_fn, buckets: list[str]) -> dict:
     """Shared overlap computation for one study-type slice of the data. bucket_fn maps a
-    row's outcome to one of `buckets` (replication: fixed 4-outcome vocabulary; reproduction:
+    row's outcome to one of `buckets` (replication: canonical outcome vocabulary; reproduction:
     the parsed computational or robustness dimension)."""
     sub = sub.copy()
     sub["author_overlap"] = sub.apply(_overlap, axis=1)
@@ -117,6 +116,8 @@ def compute_overlap_result(sub: pd.DataFrame, bucket_fn, buckets: list[str]) -> 
 
 # ── Load & split by study type ─────────────────────────────────────────────────
 df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+# Preserve source outcome codes; pandas also applies NA conversion after converters.
+df["outcome"] = pd.read_csv(IN_CSV, usecols=["outcome"], keep_default_na=False)["outcome"]
 df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
 df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 
