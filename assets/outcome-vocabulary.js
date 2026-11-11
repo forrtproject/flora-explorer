@@ -30,10 +30,17 @@ window.FloraVocabulary = (() => {
                 `<h3>${{replication:'Replication outcomes', computational:'Computational reproducibility', robustness:'Robustness'}[dimension]}</h3><dl>` + entries(dimension).map(item =>
                     `<dt>${item.label}</dt><dd>${item.definition}</dd>`).join('') + '</dl>').join('') + '<h3>Units</h3><dl>' + Object.entries(vocabulary.units).map(([label, definition]) => `<dt>${label}</dt><dd>${definition}</dd>`).join('') + '</dl>';
         });
+        const tipList = items => '<ul class="tip-definitions">' + items.map(item =>
+            `<li><span class="tip-swatch" style="background:var(--color-chart-${item.color})"></span><span><strong>${item.label}</strong> ${item.definition}</span></li>`).join('') + '</ul>';
         document.querySelectorAll('.outcome-chart-label .info-tip').forEach(tip => {
             const id = tip.closest('.outcome-chart-row').querySelector('canvas').id;
             const dimension = id.includes('computational') ? 'computational' : id.includes('robustness') ? 'robustness' : 'replication';
-            tip.textContent = entries(dimension).map(item => `${item.label}: ${item.definition}`).join(' ');
+            // Keep the hand-written scope note from index.html; this can run more than once.
+            tip.dataset.scope ??= tip.innerHTML;
+            const [assessed, unassessed] = [entries(dimension).filter(item => item.assessed), entries(dimension).filter(item => !item.assessed)];
+            tip.classList.add('info-tip-wide');
+            tip.innerHTML = `<p class="tip-scope">${tip.dataset.scope}</p>` + tipList(assessed)
+                + `<p class="tip-subhead">No verdict</p><p class="tip-note">${unassessed.map(item => item.label).join(' · ')}. See <em>Outcome definitions</em> for each.</p>`;
         });
     }
     const unitDefinition = label => vocabulary.units[label];

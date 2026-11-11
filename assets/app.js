@@ -195,11 +195,16 @@ setupStudyTypeSelect('pubtype-study-type', kind => {
 function getOutcomeBadge(row) {
     const badge = (dimension, key, prefix = '') => {
         const item = FloraVocabulary.item(dimension, key);
-        return `<span class="badge badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(item.definition)}">${prefix}${item.label}</span>`;
+        // The hidden colon keeps the text readable as "Computational: Reproduced" for screen readers and copy.
+        const dim = prefix ? `<span class="badge-dim">${prefix}<span class="visually-hidden">:</span></span> ` : '';
+        // "Robustness challenges" under a "Robustness" heading reads as "Challenges".
+        const value = prefix && item.label.toLowerCase().startsWith(prefix.toLowerCase() + ' ')
+            ? item.label.slice(prefix.length + 1).replace(/^./, c => c.toUpperCase()) : item.label;
+        return `<span class="badge outcome-tag badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(item.definition)}">${dim}<span class="badge-value">${value}</span></span>`;
     };
     if (classifyKind(row) === 'reproduction') {
         const dimensions = parseReproductionOutcome(row.outcome);
-        return badge('computational', dimensions.computational, 'Computational: ') + ' ' + badge('robustness', dimensions.robustness, 'Robustness: ');
+        return `<span class="outcome-tags">${badge('computational', dimensions.computational, 'Computational')} ${badge('robustness', dimensions.robustness, 'Robustness')}</span>`;
     }
     return badge('replication', classifyOutcome(row.outcome));
 }
