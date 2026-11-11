@@ -122,6 +122,13 @@ class PipelineTests(unittest.TestCase):
                     with self.assertRaises(ValueError): rr.main()
                 self.assertEqual(output.read_text(),'previous data')
                 self.assertEqual(meta.read_text(),'previous metadata')
+            # A failed reading-list lookup must not replace the outputs either.
+            valid=Mock(text='key,DOI,title\nRR1,10.test/a,Example title\n')
+            for failure in [ValueError('no reading-list items'), rr.requests.HTTPError('503')]:
+                with patch.object(rr.requests,'get',return_value=valid), patch.object(rr,'fetch_non_rr_keys',side_effect=failure), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
+                    with self.assertRaises(type(failure)): rr.main()
+                self.assertEqual(output.read_text(),'previous data')
+                self.assertEqual(meta.read_text(),'previous metadata')
             csv_text='key,DOI,title\nRR1,https://doi.org/10.test/A,Example title\nREADING,10.1126/science.aac4716,Estimating the reproducibility of psychological science\n'
             with patch.object(rr.requests,'get',return_value=Mock(text=csv_text)), patch.object(rr,'fetch_non_rr_keys',return_value={'READING'}):
                 self.assertEqual(rr.fetch_rr_library(),({'10.test/a'},{'exampletitle'}))
