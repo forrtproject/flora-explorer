@@ -1200,3 +1200,25 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
 });
+test('browse Outcome sort groups rows by category in both directions; report sort follows the displayed link text',async()=>{
+  const p=await page('?tab=browse&kind=replication',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
+  await p.waitForFunction(()=>getChartData().length===4);
+  await p.waitForSelector('#flora-table tbody tr');
+  const cats=()=>p.evaluate(()=>[...document.querySelectorAll('#flora-table tbody tr')].map(tr=>{const b=tr.children[5]?.querySelector('.badge');const c=b&&[...b.classList].find(x=>x.startsWith('badge-'));return c?c.slice(6):null;}));
+  const rank={successful:0,mixed:1,failed:2,qualified:3,inconclusive:4,other:5};
+  const grouped=(list,dir)=>list.every((c,i)=>i===0||dir*(rank[c]-rank[list[i-1]])>=0);
+  // Ascending: categories in rank order, each in one contiguous run (mixed before failed here).
+  await p.locator('#flora-table thead th').nth(5).click();
+  await p.waitForFunction(()=>document.querySelector('#flora-table tbody tr')?.children[5]?.querySelector('.badge')?.classList.contains('badge-mixed'));
+  const asc=await cats();assert.deepEqual(asc,['mixed','failed','failed','failed']);assert.ok(grouped(asc,1),JSON.stringify(asc));
+  // Descending: the groups reverse, still contiguous.
+  await p.locator('#flora-table thead th').nth(5).click();
+  await p.waitForFunction(()=>document.querySelector('#flora-table tbody tr')?.children[5]?.querySelector('.badge')?.classList.contains('badge-failed'));
+  const desc=await cats();assert.deepEqual(desc,['failed','failed','failed','mixed']);assert.ok(grouped(desc,-1),JSON.stringify(desc));
+  // Replication report column: rows order by the link text the reader sees.
+  const linkTexts=()=>p.evaluate(()=>[...document.querySelectorAll('#flora-table tbody tr')].map(tr=>tr.children[8]?.textContent.trim()));
+  await p.locator('#flora-table thead th').nth(8).click();
+  await p.waitForFunction(()=>document.querySelector('#flora-table tbody tr')?.children[8]?.textContent.trim()==='10.1080/23743603.2016.1248080');
+  const byLink=await linkTexts();assert.deepEqual(byLink,[...byLink].sort(),JSON.stringify(byLink));
+  assert.deepEqual(p.errors,[]);await p.close();
+});

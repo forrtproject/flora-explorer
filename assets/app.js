@@ -76,6 +76,15 @@ function classifyOutcome(raw) {
         'statistically successful but flawed': 'qualified' })[String(raw || '').trim().toLowerCase()] || 'other';
 }
 
+// Sort key for the Browse Outcome column: a category rank (successful first, then
+// mixed, then failed, then the remaining categories) with the raw outcome as the
+// tie-breaker, so sorting by Outcome groups rows by category instead of ordering
+// them by the outcome text.
+function outcomeSortKey(raw) {
+    const rank = { successful: 0, mixed: 1, failed: 2, qualified: 3, inconclusive: 4, other: 5 }[classifyOutcome(raw)];
+    return `${rank}|${String(raw || '').trim().toLowerCase()}`;
+}
+
 function hasMatchedOutcome(row) {
     const c = classifyOutcome(row.outcome);
     return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive' || c === 'qualified';
@@ -273,6 +282,15 @@ function formatUrlOrDoiShort(url, doi) {
     const href = safeHref(url);
     if (href) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(url.replace(/^https?:\/\/(www\.)?/i, ''))}</a>`;
     return formatDOI(doi, true);
+}
+
+// The visible link text formatUrlOrDoiShort shows for a report (the URL without its
+// scheme, or the cleaned DOI), so the report column can sort by what is displayed
+// instead of by the raw DOI value.
+function reportLinkText(url, doi) {
+    if (safeHref(url)) return String(url).replace(/^https?:\/\/(www\.)?/i, '');
+    if (!doi) return '-';
+    return String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '');
 }
 
 function formatAuthors(authorData) {
@@ -783,10 +801,10 @@ function initDataTable(data) {
         row.year_o || '-',
         { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
         row.year_r || '-',
-        { display: getOutcomeBadgeShort(row.outcome), search: row.outcome || '' },
+        { display: getOutcomeBadgeShort(row.outcome), search: row.outcome || '', sort: outcomeSortKey(row.outcome) },
         truncateText(row.type, 15) || '-',
         { display: formatDOI(row.doi_o, true), search: row.doi_o || '' },
-        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '' }
+        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '', sort: reportLinkText(row.url_r, row.doi_r) }
     ]);
 
     dataTable = $('#flora-table').DataTable({
@@ -798,9 +816,9 @@ function initDataTable(data) {
             { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '3%' },
             { targets: [1, 3], width: '22%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: [2, 4], width: '5%' },
-            { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
+            { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : t === 'sort' ? (typeof d === 'object' ? d.sort : d) : (typeof d === 'object' ? d.search : d) },
             { targets: 6, width: '8%', className: 'type-cell' },
-            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
+            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : t === 'sort' ? (typeof d === 'object' ? (d.sort ?? d.search) : d) : (typeof d === 'object' ? d.search : d) }
         ],
         createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
