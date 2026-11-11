@@ -73,7 +73,19 @@ raw$type_lc     <- tolower(raw$type)
 is_reproduction <- grepl("reproduc", raw$type_lc)
 is_replication  <- grepl("replication", raw$type_lc) & !is_reproduction
 
-df_all  <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 35 & is_replication, ]
+df_before_outliers <- raw[!is.na(raw$impact_factor) & is_replication, ]
+
+# Drop extreme OMC outliers: above Q3 + 3 * IQR of log(OMC + 1), the model scale.
+omc_log   <- log(df_before_outliers$impact_factor + 1)
+omc_q     <- quantile(omc_log, c(0.25, 0.75), names = FALSE)
+fence_log <- omc_q[2] + 3 * (omc_q[2] - omc_q[1])
+outlier_fence <- list(q1_log     = round(omc_q[1], 4),
+                      q3_log     = round(omc_q[2], 4),
+                      fence_log  = round(fence_log, 4),
+                      fence_omc  = round(expm1(fence_log), 3),
+                      n_outliers = sum(omc_log > fence_log))
+
+df_all  <- df_before_outliers[omc_log <= fence_log, ]
 df_all$outcome_class <- classify_outcome(df_all$outcome)
 oc_all <- df_all$outcome_class
 
@@ -94,8 +106,8 @@ overview <- list(
   n_disciplines = length(unique(df_all$discipline[df_all$discipline != "Uncategorized"]))
 )
 
-# ── Histogram data (bin width 0.5, 0–35) ─────────────────────────────────────
-breaks    <- seq(0, 35, by = 0.5)
+# ── Histogram data (bin width 0.5, 0 to just past the largest kept OMC) ──────
+breaks    <- seq(0, floor(max(df_all$impact_factor) / 0.5) * 0.5 + 0.5, by = 0.5)
 hist_data <- lapply(seq_len(length(breaks) - 1), function(i) {
   lo <- breaks[i]; hi <- breaks[i + 1]
   sub <- df_all[df_all$impact_factor >= lo & df_all$impact_factor < hi, ]
@@ -135,9 +147,7 @@ if (nrow(df) >= 30) {
       n_model = nrow(df)
     )
 
-    omc_seq <- seq(min(df$impact_factor, na.rm = TRUE),
-                   min(max(df$impact_factor, na.rm = TRUE), 20),
-                   length.out = 150)
+    omc_seq <- seq(min(df$impact_factor), max(df$impact_factor), length.out = 150)
     pred_df <- data.frame(omc_log = log(omc_seq + 1))
     gp      <- predict(gam_fit, newdata = pred_df, type = "link", se.fit = TRUE)
     gam_curve <- lapply(seq_along(omc_seq), function(i) list(
@@ -160,6 +170,7 @@ if (length(gam_curve) == 0) gam_curve <- numeric(0)
 if (length(jitter)    == 0) jitter    <- numeric(0)
 
 result <- list(overview  = overview,
+               outlier_fence = outlier_fence,
                stats     = stats_out,
                histogram = hist_data,
                gam_curve = gam_curve,

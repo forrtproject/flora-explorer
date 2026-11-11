@@ -1,6 +1,7 @@
 """Regression checks for scientific categories, unique counts, and failed lookups."""
 import csv
 import json
+import math
 from pathlib import Path
 import sys
 import tempfile
@@ -171,8 +172,11 @@ class PipelineTests(unittest.TestCase):
         with (ROOT/'data/flora_with_omc.csv').open() as source:
             rows=list(csv.DictReader(source))
         eligible=[r for r in rows if r.get('impact_factor') and float(r['impact_factor'])<35]
-        rep=[r for r in eligible if 'replication' in r['type'].lower() and 'reproduc' not in r['type'].lower()]
         result=json.loads((ROOT/'data/impact_factor_data.json').read_text())
+        # Replications are trimmed by the log-scale outlier cutoff, not the reproductions' fixed 35.
+        fence=result['outlier_fence']['fence_log']
+        rep=[r for r in rows if r.get('impact_factor') and math.log(float(r['impact_factor'])+1)<=fence
+             and 'replication' in r['type'].lower() and 'reproduc' not in r['type'].lower()]
         self.assertEqual(result['overview']['n_total'],len(rep))
         reproductions=json.loads((ROOT/'data/impact_factor_reproductions.json').read_text())
         repro=[c.parse_reproduction_outcome(r['outcome']) for r in eligible if 'reproduc' in r['type'].lower()]

@@ -1399,7 +1399,9 @@ function renderMcCharts() {
     // put across re-renders (theme toggles, etc.) instead of jumping.
     if (!window._mcJitter) {
         window._mcJitter = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
-            x: pt.omc + (Math.random() - 0.5) * 0.15,
+            // Reflected at 0 so pairs with OMC = 0 are never drawn at a negative OMC.
+            x: Math.abs(pt.omc + (Math.random() - 0.5) * 0.15),
+            omc: pt.omc,
             y: pt.outcome + (Math.random() - 0.5) * 0.06,
             lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
         }));
@@ -1414,15 +1416,15 @@ function renderMcCharts() {
         { x: gc.map(p => p.omc), y: gc.map(p => p.p), type: 'scatter', mode: 'lines',
           line: { color: t.primary, width: 2.5 }, name: 'Smooth fit',
           hovertemplate: 'OMC = %{x:.2f}<br>P(success) = %{y:.1%}<extra>Smooth fit</extra>' },
-        { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), type: 'scatter', mode: 'markers',
+        { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), customdata: jitter2.map(p => p.omc), type: 'scatter', mode: 'markers',
           marker: { color: t.point, size: 5, line: { width: 0 } },
           name: 'Studies', text: jitter2.map(p => p.lbl),
-          hovertemplate: 'OMC = %{x:.2f}<br>%{text}<extra></extra>' },
+          hovertemplate: 'OMC = %{customdata:.2f}<br>%{text}<extra></extra>' },
     ];
     const gamLayout = {
         height: 640,
         margin: { t: 10, r: 10, b: 50, l: 60 },
-        xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
+        xaxis: { title: 'OpenAlex Mean Citedness (OMC)', rangemode: 'nonnegative', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         yaxis: { title: 'P(success | successful or failed)', range: [-0.08, 1.08],
                  tickformat: '.0%', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
@@ -1457,12 +1459,16 @@ function renderMcCharts() {
         : '';
     const glossEdf = '<span class="gloss" tabindex="0">edf<span class="gloss-tip">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</span></span>';
     const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</span></span>';
+    const fence = d.outlier_fence;
     document.getElementById('mc-gam-stats').innerHTML =
         'Logistic smooth: ' + glossEdf + ' = ' + st.edf +
         ', χ² = ' + st.chi_sq +
         (pNote ? ', ' + pNote : '') +
         '; ' + glossR2 + ' = ' + st.r2 +
-        '; N = ' + st.n_model.toLocaleString('en-GB') + ' (successful vs. failed)';
+        '; N = ' + st.n_model.toLocaleString('en-GB') + ' (successful vs. failed)' +
+        (fence
+            ? `; ${fence.n_outliers.toLocaleString('en-GB')} replication${fence.n_outliers === 1 ? '' : 's'} above OMC ${fence.fence_omc.toFixed(1)} excluded as outliers (log(OMC + 1) > Q3 + 3 × IQR)`
+            : '');
 }
 
 async function loadMeanCitedness() {
