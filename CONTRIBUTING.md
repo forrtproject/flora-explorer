@@ -17,14 +17,15 @@ git clone https://github.com/YOUR-USERNAME/flora-explorer.git
 cd flora-explorer
 git remote add upstream https://github.com/forrtproject/flora-explorer.git
 git switch -c describe-your-change
-python3 -m http.server 8876 --bind 127.0.0.1
+npm ci
+npm run dev
 ```
 
-Open <http://127.0.0.1:8876/>. There is no frontend build step. Serve the committed `data/` snapshots; opening `index.html` as a file will not reliably support its fetch requests. Browser libraries load from CDNs, so the page and browser tests need network access to those libraries.
+Open the URL Vite prints. The dev server serves the committed `data/` snapshots; opening `index.html` as a file will not work. Browser libraries are installed from npm and bundled, so only the live citation, FAQ and fallback CSV requests need network access.
 
 ## UI and documentation changes
 
-Edit `index.html` and the relevant files under `assets/`. Keep chart data tables, CSV exports, URL state, keyboard navigation, and mobile behaviour consistent with the visual view. Check both desktop and narrow-screen layouts and provide screenshots for visible changes.
+Edit the React components under `src/` (and styles under `assets/`). Keep chart data tables, CSV exports, URL state, keyboard navigation, and mobile behaviour consistent with the visual view. Check both desktop and narrow-screen layouts and provide screenshots for visible changes.
 
 Install Node.js 22 (as in CI) and npm and either Chrome or Playwright's Chromium to run browser acceptance tests:
 
@@ -33,14 +34,14 @@ npm ci
 npm test
 ```
 
-The tests start their own Python HTTP server on port 8897 (set `TEST_PORT` to change it) and use installed Chrome by default. To use bundled Chromium instead:
+`npm test` builds the site, then the tests serve `dist/` with their own Python HTTP server on port 8897 (set `TEST_PORT` to change it) and use installed Chrome by default. To use bundled Chromium instead:
 
 ```sh
 npx playwright install chromium
 BROWSER_CHANNEL=chromium npm test
 ```
 
-`tests/fixtures/browse.csv` is a small browse fixture; other scenarios read committed dashboard data. CI runs both the Python regression suite and browser suite for changes to source, scripts, tests, or package files. The suite does not run a live data refresh, but it is not completely offline because the page uses CDNs. See [fixture notes](tests/fixtures/README.md) and [validation notes](docs/review-validation.md). Add regression coverage for changed behaviour; do not replace expected results solely to make a failing check pass.
+`tests/fixtures/browse.csv` is a small browse fixture; other scenarios read committed dashboard data. CI runs both the Python regression suite and browser suite for changes to source, scripts, tests, or package files. The suite does not run a live data refresh, but it is not completely offline because the page fetches the live citation and FAQ files. See [fixture notes](tests/fixtures/README.md) and [validation notes](docs/review-validation.md). Add regression coverage for changed behaviour; do not replace expected results solely to make a failing check pass.
 
 ## Pipeline and analysis changes
 

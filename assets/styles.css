@@ -19,6 +19,9 @@ body {
     overflow: hidden;
 }
 
+/* The React mount point must not break the flex app shell above. */
+#root { display: contents; }
+
 .app-main {
     flex: 1;
     overflow-y: auto;

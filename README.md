@@ -16,13 +16,14 @@ Every chart has a nearby data table and a compact button to copy its CSV data. B
 
 ## Run locally
 
-There is no build step or application server. From this directory:
+The front end is a React app built with Vite. Install Node.js 22 and npm, then:
 
 ```sh
-python3 -m http.server 8876 --bind 127.0.0.1
+npm ci
+npm run dev
 ```
 
-Open <http://127.0.0.1:8876/>. Third-party browser libraries load from their CDNs. GitHub Pages can serve `main` from the repository root.
+Vite prints a local URL and reloads on change. It serves `data/` directly, so the committed snapshots load as in production. `npm run build` writes the static site to `dist/` (including a copy of `data/`), and `npm run preview` serves that build. GitHub Pages is deployed from `dist/` by `.github/workflows/deploy-pages.yml` on pushes to `main` and after each data refresh; set the repository's Pages source to **GitHub Actions**.
 
 ## Data and interpretation
 
@@ -39,12 +40,14 @@ The data are not representative of all research. Shared reports, repeated target
 
 ## Source layout
 
-- `index.html`: seven tab panels and evidence dialog.
-- `assets/app.js`: shared search, outcome presentation, chart data and tab loaders.
-- `assets/citation-impact.js`: citation index, models and timelines loaded on demand.
-- `assets/chart-accessibility.js`: chart rendering, readable data tables, percentages and CSV exports.
-- `assets/view-controls.js`: URL state, navigation and filtered exports.
-- `assets/styles.css`, `assets/ds-tokens.css`: responsive components and FORRT design tokens.
+- `index.html`: Vite entry page and metadata.
+- `src/App.jsx`: app shell, tab navigation, theme and URL/history state.
+- `src/tabs/`: one component per tab, plus the citation timeline dialog.
+- `src/components/`: shared chart wrappers (Chart.js and Plotly), accessible chart tables, CSV copy actions, badges and tooltips.
+- `src/lib/`: framework-free outcome classification, search, aggregation, FAQ parsing and Plotly layout rules.
+- `src/state/url.js`: how each view is read from and written to the URL, including legacy link aliases.
+- `src/testHooks.js`: the console and browser-test API (`getChartData()`, `floraBrowse`, `FloraCharts`, …).
+- `assets/styles.css`, `assets/ds-tokens.css`: responsive components and FORRT design tokens (Bootstrap's CSS is bundled from npm).
 - `data/`: committed snapshots, chart summaries and a curated journal-to-discipline map.
 - `data/originals_index.json`: compact citation table index; full records are fetched from `data/originals/` only when opened. `originals.json` remains available for bulk download and reproducible recalculation.
 - `scripts/classification.py`: explicit outcome, venue and reproduction-dimension categories.

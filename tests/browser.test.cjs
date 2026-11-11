@@ -7,7 +7,8 @@ let browser, server;
 const port = process.env.TEST_PORT || '8897';
 const base = `http://127.0.0.1:${port}/`;
 before(async()=>{
-  server=spawn(process.env.PYTHON || 'python3',['-m','http.server',port,'--bind','127.0.0.1'],{stdio:'ignore'});
+  // Serves the production build; `npm test` runs `vite build` first.
+  server=spawn(process.env.PYTHON || 'python3',['-m','http.server',port,'--bind','127.0.0.1','--directory','dist'],{stdio:'ignore'});
   // A server that exits early usually means the port is taken; fail rather than test another server's files.
   let exited=false;server.on('exit',()=>{exited=true;});
   // Consume the readiness response so its open stream does not outlive the hook.
@@ -202,22 +203,14 @@ test('every generated timeline, outcome summary and venue grouping preserves cou
   const d=read('impact_factor_data.json');assert.equal(d.histogram.reduce((sum,b)=>sum+Object.entries(b).filter(([k])=>!k.startsWith('bin_')).reduce((n,[k,v])=>n+v,0),0),d.overview.n_total);
 });
 
-test('late Chart.js loading preserves chart ownership through repeated redraws',async()=>{
-  const p=await browser.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  let release;
-  const gate=new Promise(resolve=>{release=resolve;});
-  await p.route('**/chart.umd.min.js',async route=>{await gate;await route.continue();});
-  try {
-    await p.goto(base+'?tab=browse',{waitUntil:'commit'});
-    await p.waitForFunction(()=>typeof fullRowData!=='undefined'&&fullRowData.length>0);
-    await p.evaluate(()=>{renderOverviewChart(fullRowData);renderOverviewChart(fullRowData);renderBrowseOutcomeCharts();renderBrowseOutcomeCharts();});
-    release();await p.waitForLoadState('load');
-    await p.waitForFunction(()=>typeof Chart!=='undefined'&&Chart.getChart('overview-outcome-chart'));
-    assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
-    await p.click('#theme-toggle');await p.click('.browse-kind-btn[data-kind="replication"]');
-    assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
-    assert.deepEqual(errors,[]);
-  } finally {release();await p.close();}
+test('repeated redraws keep exactly one chart instance per canvas',async()=>{
+  const p=await page('?tab=browse');
+  const owned=()=>p.evaluate(()=>{const canvases=[...document.querySelectorAll('canvas')];return canvases.every(c=>Chart.getChart(c))&&Object.keys(Chart.instances).length===canvases.length;});
+  assert.ok(await owned());
+  await p.click('#theme-toggle');await p.click('.browse-kind-btn[data-kind="replication"]');await p.click('#theme-toggle');
+  await p.waitForFunction(()=>getChartData().length>0);
+  assert.ok(await owned());
+  assert.deepEqual(p.errors,[]);await p.close();
 });
 
 test('FAQ URLs stay inside href attributes and default filter states agree',async()=>{
@@ -551,8 +544,9 @@ test('Citation Impact searches full author lists, including after an early DOI d
 test('search input is debounced, Show all draws once and Citation Impact offers empty-state recovery',async()=>{
   const p=await page('?tab=browse');
   // deferRender creates only the first page until more rows are requested.
-  assert.ok(await p.evaluate(()=>dataTable.rows().nodes().length<fullRowData.length));
-  await p.evaluate(()=>{window.searchDraws=0;dataTable.on('draw.dt',()=>searchDraws++);dataTable.page.len(-1).draw();});
+  assert.ok(await p.evaluate(()=>floraBrowse.renderedRowCount()<fullRowData.length));
+  await p.evaluate(()=>{window.searchDraws=0;floraBrowse.onDraw(()=>searchDraws++);floraBrowse.setPageLength(-1);});
+  await p.waitForFunction(()=>searchDraws>0);
   assert.equal(await p.evaluate(()=>searchDraws),1);
   assert.equal(await p.locator('#flora-table tbody tr').count(),await p.evaluate(()=>fullRowData.length));
   const immediate=await p.evaluate(()=>{
@@ -690,15 +684,15 @@ test('old shared citation links and Browse pagination restore with compact URLs'
   assert.deepEqual([...new URL(p.url()).searchParams.entries()],[['tab','citations'],['ci-q','Carney']]);
   assert.match(await p.locator('#originals-table tbody').innerText(),/Carney/);
   await p.goto(base+'?tab=browse&page=2&page-size=10&sort=2:asc');
-  await p.waitForFunction(()=>typeof dataTable!=='undefined'&&dataTable?.page.info().page===1);
-  assert.equal(await p.evaluate(()=>dataTable.page.len()),10);
-  assert.deepEqual(await p.evaluate(()=>dataTable.order()[0]),[2,'asc']);
+  await p.waitForFunction(()=>typeof floraBrowse!=='undefined'&&floraBrowse?.page()===1);
+  assert.equal(await p.evaluate(()=>floraBrowse.pageLength()),10);
+  assert.deepEqual(await p.evaluate(()=>floraBrowse.order()),[2,'asc']);
   await p.click('#mc-tab');await p.goBack();
   await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='browse');
-  assert.equal(await p.evaluate(()=>dataTable.page()),1);assert.equal(await p.evaluate(()=>dataTable.page.len()),10);
-  await p.evaluate(()=>dataTable.page('next').draw('page'));
+  assert.equal(await p.evaluate(()=>floraBrowse.page()),1);assert.equal(await p.evaluate(()=>floraBrowse.pageLength()),10);
+  await p.evaluate(()=>floraBrowse.setPage('next'));
   await p.waitForFunction(()=>new URL(location.href).searchParams.get('page')==='3');
-  await p.reload();await p.waitForFunction(()=>typeof dataTable!=='undefined'&&dataTable?.page()===2);
+  await p.reload();await p.waitForFunction(()=>typeof floraBrowse!=='undefined'&&floraBrowse?.page()===2);
   await p.setViewportSize({width:390,height:844});
   await p.click('#bm-next');await p.waitForFunction(()=>new URL(location.href).searchParams.get('mobile-page')==='2');
   await p.reload();await p.waitForFunction(()=>document.getElementById('bm-page-info').textContent.startsWith('Page 2 '));
