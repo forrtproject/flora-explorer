@@ -20,15 +20,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+from group_summary import summarise_groups, write_summary
 
 ROOT     = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 IN_CSV   = DATA_DIR / "flora.csv"
 OUT_DATA = DATA_DIR / "author_overlap_data.json"
 OUT_META = DATA_DIR / "author_overlap_meta.json"
-
-if not IN_CSV.exists():
-    raise SystemExit(f"{IN_CSV} not found.")
 
 
 def normalize(name: str) -> str:
@@ -112,46 +110,54 @@ def compute_overlap_result(sub: pd.DataFrame, bucket_fn, buckets: list[str]) -> 
             "insufficient_n": n_total < MIN_N_FOR_BREAKDOWN,
         },
         "by_outcome": by_outcome,
+        "groups": dict(zip(["overlap", "no_overlap"], summarise_groups(known, "author_overlap", [True, False], "bucket", buckets).values())),
     }
 
 
-# ── Load & split by study type ─────────────────────────────────────────────────
-df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
-df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+def main(recalculate=False):
+    # ── Load & split by study type ─────────────────────────────────────────────────
+    df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+    df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
+    df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 
-is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
-is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
+    is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
+    is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
 
-repro_df = df[is_reproduction].copy()
-repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
-repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
-repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
+    repro_df = df[is_reproduction].copy()
+    repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+    repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
+    repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 
-result = {
-    "replication": compute_overlap_result(
-        df[is_replication], lambda r: classify_outcome(r["outcome_lc"]), REPLICATION_OUTCOMES
-    ),
-    "reproduction-numerical": compute_overlap_result(
-        repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)],
-        lambda r: r["computational_bucket"], COMPUTATIONAL_BUCKETS
-    ),
-    "reproduction-robustness": compute_overlap_result(
-        repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)],
-        lambda r: r["robustness_bucket"], ROBUSTNESS_BUCKETS
-    ),
-}
+    result = {
+        "replication": compute_overlap_result(
+            df[is_replication], lambda r: classify_outcome(r["outcome_lc"]), REPLICATION_OUTCOMES
+        ),
+        "reproduction-numerical": compute_overlap_result(
+            repro_df[repro_df["computational_bucket"].isin(COMPUTATIONAL_BUCKETS)],
+            lambda r: r["computational_bucket"], COMPUTATIONAL_BUCKETS
+        ),
+        "reproduction-robustness": compute_overlap_result(
+            repro_df[repro_df["robustness_bucket"].isin(ROBUSTNESS_BUCKETS)],
+            lambda r: r["robustness_bucket"], ROBUSTNESS_BUCKETS
+        ),
+    }
 
-OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
-OUT_META.write_text(json.dumps({
-    "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
-    "source": "scripts/compute_author_overlap.py",
-}, indent=2), encoding="utf-8")
+    metadata = {
+        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
+        "source": "scripts/compute_author_overlap.py",
+    }
 
-for kind, r in result.items():
-    ov = r["overview"]
-    print(f"{kind}: n_total={ov['n_total']}, overlap={ov['n_overlap']} ({ov['pct_overlap']}%), "
-          f"no_overlap={ov['n_no_overlap']}, unknown={ov['n_unknown']}"
-          + (" [insufficient n]" if ov["insufficient_n"] else ""))
-print(f"Written: {OUT_DATA}")
+    write_summary(result, OUT_DATA, OUT_META, metadata, recalculate)
+
+    for kind, r in result.items():
+        ov = r["overview"]
+        print(f"{kind}: n_total={ov['n_total']}, overlap={ov['n_overlap']} ({ov['pct_overlap']}%), "
+              f"no_overlap={ov['n_no_overlap']}, unknown={ov['n_unknown']}"
+              + (" [insufficient n]" if ov["insufficient_n"] else ""))
+    print(f"Written: {OUT_DATA}")
+
+
+if __name__ == "__main__":
+    import sys
+    main(recalculate="--recalculate" in sys.argv)

@@ -90,19 +90,30 @@
     --color-plot-rule: rgba(100, 100, 100, .4);         /* reference lines */
     --color-plot-rule-label: #6b7280;
 
-    /* Chart series colours (FLoRA explorer). Light values keep the
-       established outcome palette; dark values below keep series marks
-       at >= 3:1 against --color-surface-raised, except --color-chart-not-coded,
-       which stays deliberately faint (2.6:1) for unassessed rows. */
-    --color-badge-successful: #246f3d;
+    /* Legacy chart names alias the semantic series tokens. Unassessed rows
+       deliberately use faint neutral marks. */
+    /* One token per scientific meaning; labels and patterns also distinguish series. */
+    --color-series-rep-successful: #246f3d;
+    --color-series-rep-failed: #b3331e;
+    --color-series-rep-mixed: #806600;
+    --color-series-rep-qualified: #7851a9;
+    --color-series-rep-inconclusive: #686b35;
+    --color-series-rep-other: #626875;
+    --color-series-comp-successful: #007c86;
+    --color-series-comp-issues: #a33278;
+    --color-series-comp-technical-failure: #9d2439;
+    --color-series-rob-robust: #0072b2;
+    --color-series-rob-challenges: #80562b;
+    --color-series-citation-multiple: #485b9d;
+    --color-badge-successful: var(--color-series-rep-successful);
     --color-badge-on-outcome: #fff;
-    --color-chart-successful: #2f8f4f;
-    --color-chart-failed: #b3331e;
-    --color-chart-mixed: #d49b1d;
-    --color-chart-inconclusive: #6f7686;
-    --color-chart-qualified: #7851a9;
-    --color-chart-other: #707782;
-    --color-chart-technical-failure: #7a1f1f;
+    --color-chart-successful: var(--color-series-rep-successful);
+    --color-chart-failed: var(--color-series-rep-failed);
+    --color-chart-mixed: var(--color-series-rep-mixed);
+    --color-chart-inconclusive: var(--color-series-rep-inconclusive);
+    --color-chart-qualified: var(--color-series-rep-qualified);
+    --color-chart-other: var(--color-series-rep-other);
+    --color-chart-technical-failure: var(--color-series-comp-technical-failure);
     --color-chart-not-checked: #8a8f9c;
     --color-chart-not-coded: #c3c7ce;   /* deliberately faint: unassessed */
     --color-chart-neutral: #9ca3af;     /* cites original only */
@@ -295,16 +306,29 @@
     --color-plot-rule: rgba(200, 200, 210, .45);
     --color-plot-rule-label: #c3bac0;
 
+    /* One token per scientific meaning; labels and patterns also distinguish series. */
+    --color-series-rep-successful: #86efac;
+    --color-series-rep-failed: #ed7465;
+    --color-series-rep-mixed: #e0b040;
+    --color-series-rep-qualified: #c0a8fa;
+    --color-series-rep-inconclusive: #bbc77a;
+    --color-series-rep-other: #aab0bc;
+    --color-series-comp-successful: #62cdd4;
+    --color-series-comp-issues: #e78ac3;
+    --color-series-comp-technical-failure: #f17c91;
+    --color-series-rob-robust: #56b4e9;
+    --color-series-rob-challenges: #d0ae7a;
+    --color-series-citation-multiple: #9aaaf0;
     /* Lightness separates success and failure under red/green colour-vision loss. */
-    --color-badge-successful: var(--color-chart-successful);
+    --color-badge-successful: var(--color-series-rep-successful);
     --color-badge-on-outcome: #17131a;
-    --color-chart-successful: #86efac;
-    --color-chart-failed: #ed7465;
-    --color-chart-mixed: #e0b040;
-    --color-chart-inconclusive: #a3a9b6;
-    --color-chart-qualified: #c0a8fa;
-    --color-chart-other: #9a9099;
-    --color-chart-technical-failure: #d9645a;
+    --color-chart-successful: var(--color-series-rep-successful);
+    --color-chart-failed: var(--color-series-rep-failed);
+    --color-chart-mixed: var(--color-series-rep-mixed);
+    --color-chart-inconclusive: var(--color-series-rep-inconclusive);
+    --color-chart-qualified: var(--color-series-rep-qualified);
+    --color-chart-other: var(--color-series-rep-other);
+    --color-chart-technical-failure: var(--color-series-comp-technical-failure);
     --color-chart-not-checked: #7f8590;
     --color-chart-not-coded: #5a5f69;
     --color-chart-neutral: #8b919c;

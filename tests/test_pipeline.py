@@ -177,5 +177,79 @@ class PipelineTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'Cannot verify merged'):
                 pipeline.compute_reproduction_citations(frame)
 
-if __name__=='__main__':
+class ComparisonSummaryTests(unittest.TestCase):
+    def test_wilson_boundaries_and_empty(self):
+        from group_summary import wilson_interval
+        self.assertEqual(wilson_interval(0, 0), [None, None])
+        lo, hi = wilson_interval(0, 3)
+        self.assertAlmostEqual(lo, 0)
+        self.assertAlmostEqual(hi, 56.1497031755)
+        lo, hi = wilson_interval(3, 3)
+        self.assertAlmostEqual(lo, 43.8502968245)
+        self.assertAlmostEqual(hi, 100)
+        lo, hi = wilson_interval(354, 602)
+        self.assertEqual(round(lo, 1), 54.8)
+        self.assertEqual(round(hi, 1), 62.7)
+        with self.assertRaises(ValueError):
+            wilson_interval(4, 3)
+
+    def test_group_pair_report_denominators_and_aliases(self):
+        from group_summary import summarise_groups, MIN_SHARE_PAIRS
+        rows = []
+        for n, reports in [(19, 19), (20, 20), (452, 16)]:
+            rows += [dict(group=str(n), bucket='qualified' if i == 0 else 'other', doi_r=f'10.test/{i % reports}') for i in range(n)]
+        rows += [dict(group='aliases', bucket='qualified', doi_r='https://doi.org/10.TEST/SAME'),
+                 dict(group='aliases', bucket='other', doi_r='doi:10.test/same'),
+                 dict(group='aliases', bucket='other', doi_r=None, url_r='https://example.org/report'),
+                 dict(group='aliases', bucket='other', doi_r=None, url_r=None),
+                 dict(group='other_group', bucket='other', doi_r='10.test/same')]
+        frame = pd.DataFrame(rows)
+        groups = summarise_groups(frame, 'group', ['0', '19', '20', '452', 'aliases', 'other_group'], 'bucket', ['qualified', 'other'])
+        self.assertEqual(MIN_SHARE_PAIRS, 20)
+        for n, reports in [(0, 0), (19, 19), (20, 20), (452, 16)]:
+            self.assertEqual((groups[str(n)]['pairs'], groups[str(n)]['reports']), (n, reports))
+        self.assertIsNone(groups['0']['outcomes']['other']['share'])
+        self.assertEqual(groups['aliases']['reports'], 2)
+        self.assertEqual(groups['aliases']['pairs_without_report_identifiers'], 1)
+        self.assertEqual(groups['aliases']['outcomes']['qualified']['pairs'], 1)
+        self.assertEqual(groups['other_group']['reports'], 1)
+
+    def test_committed_group_summaries_reconcile_without_changing_categories(self):
+        for name in ['author_overlap', 'pub_status', 'rr_status']:
+            snapshot = json.loads((ROOT / 'data' / f'{name}_data.json').read_text())
+            for kind, data in snapshot.items():
+                for section in [data] + ([data['large_scale']] if 'large_scale' in data else []):
+                    for group, summary in section['groups'].items():
+                        self.assertEqual(summary['pairs'], sum(section['by_outcome'][group].values()))
+                        self.assertEqual({b: v['pairs'] for b, v in summary['outcomes'].items()}, section['by_outcome'][group])
+                        self.assertLessEqual(summary['reports'], summary['pairs'])
+                        self.assertEqual(summary['pairs_without_report_identifiers'], 0)
+                        if kind == 'replication':
+                            self.assertIn('qualified', summary['outcomes'])
+                            self.assertIn('other', summary['outcomes'])
+                        else:
+                            self.assertNotIn('not_checked', summary['outcomes'])
+                            self.assertNotIn('not_coded', summary['outcomes'])
+        pub = json.loads((ROOT / 'data' / 'pub_status_data.json').read_text())
+        self.assertEqual(pub['replication']['large_scale']['groups']['large_scale']['reports'], 16)
+
+    def test_recalculation_preserves_coverage_and_refuses_changed_evidence(self):
+        from group_summary import write_summary
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory) / 'data.json'
+            meta = Path(directory) / 'meta.json'
+            data.write_text(json.dumps({'by_outcome': {'successful': 20}}))
+            meta.write_text(json.dumps({'last_updated': '2020-01-01', 'n_rr_library_items': 99}))
+            write_summary({'by_outcome': {'successful': 20}, 'groups': {'example': {}}}, data, meta, {}, True)
+            metadata = json.loads(meta.read_text())
+            self.assertEqual(metadata['last_updated'], '2020-01-01')
+            self.assertEqual(metadata['n_rr_library_items'], 99)
+            self.assertEqual(metadata['comparison']['minimum_share_pairs'], 20)
+            before = data.read_bytes(), meta.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'retaining previous'):
+                write_summary({'by_outcome': {'successful': 21}}, data, meta, {}, True)
+            self.assertEqual((data.read_bytes(), meta.read_bytes()), before)
+
+
+if __name__ == '__main__':
     unittest.main()

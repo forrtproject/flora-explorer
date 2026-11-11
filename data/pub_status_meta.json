@@ -5,5 +5,11 @@
     "reproduction-numerical": 222,
     "reproduction-robustness": 84
   },
-  "source": "scripts/compute_pub_status.py"
+  "source": "scripts/compute_pub_status.py",
+  "comparison": {
+    "minimum_share_pairs": 20,
+    "interval_method": "Wilson 95%; assumes independent pairs",
+    "interval_caveat": "Pairs are treated as independent; intervals are too narrow when pairs share reports.",
+    "recalculated_at": "2026-11-11T13:18:01Z"
+  }
 }

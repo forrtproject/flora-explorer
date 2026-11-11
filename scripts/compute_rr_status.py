@@ -33,6 +33,7 @@ from pathlib import Path
 
 from classification import classify_outcome, classify_venue, REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS
 import pandas as pd
+from group_summary import summarise_groups, write_summary
 import requests
 
 ROOT     = Path(__file__).resolve().parents[1]
@@ -160,16 +161,25 @@ def compute_rr_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) ->
             "pct_non_rr": round(100 * n_non_rr / n_total, 1) if n_total else 0,
         },
         "by_outcome": by_outcome,
+        "groups": dict(zip(["rr", "non_rr"], summarise_groups(known, "is_rr", [True, False], bucket_col, buckets).values())),
         "rr_studies": rr_studies,
     }
 
 
-def main():
+def main(recalculate=False):
     global rr_dois, rr_titles
     if not IN_CSV.exists():
         raise SystemExit(f"{IN_CSV} not found.")
-    print(f"Fetching Registered Reports Database (RRDB) from {RRDB_CSV_URL} …")
-    rr_dois, rr_titles = fetch_rr_library()
+    if not recalculate:
+        print(f"Fetching Registered Reports Database (RRDB) from {RRDB_CSV_URL} …")
+    if recalculate:
+        # Reuse the committed matched evidence; this does not refresh RRDB coverage.
+        previous = json.loads(OUT_DATA.read_text())
+        matched = [row for value in previous.values() for row in value["rr_studies"]]
+        rr_dois = {normalize_doi(row.get("doi_r")) for row in matched} - {""}
+        rr_titles = {normalize_title(row.get("title_r")) for row in matched} - {""}
+    else:
+        rr_dois, rr_titles = fetch_rr_library()
     print(f"RRDB: {len(rr_dois)} DOIs, {len(rr_titles)} titles")
 
     # ── Load & split by study type ─────────────────────────────────────────────────
@@ -196,15 +206,16 @@ def main():
             "robustness_bucket", ROBUSTNESS_BUCKETS),
     }
 
-    OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
-    OUT_META.write_text(json.dumps({
+    metadata = {
         "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
         "n_rr_library_items": len(rr_dois | rr_titles),
         "source": "scripts/compute_rr_status.py",
         "source_url": RRDB_SOURCE_URL,
         "source_citation": RRDB_CITATION,
-    }, indent=2), encoding="utf-8")
+    }
+
+    write_summary(result, OUT_DATA, OUT_META, metadata, recalculate)
 
     for kind, r in result.items():
         ov = r["overview"]
@@ -214,4 +225,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(recalculate="--recalculate" in sys.argv)

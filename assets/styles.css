@@ -488,9 +488,9 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .rep-bar-wrap { display: flex; align-items: center; gap: 0.45rem; }
 .rep-bar { display: flex; height: 10px; border-radius: 4px; overflow: hidden; min-width: 80px; flex: 1; background: var(--color-border); }
 .rep-seg { height: 100%; min-width: 3px; transition: width 0.2s; }
-.rep-seg.failed { background: var(--color-chart-failed); }
-.rep-seg.mixed { background: var(--color-chart-mixed); }
-.rep-seg.successful { background: var(--color-chart-successful); }
+.rep-seg.failed { background:var(--color-series-rep-failed); }
+.rep-seg.mixed { background:var(--color-series-rep-mixed); }
+.rep-seg.successful { background:var(--color-series-rep-successful); }
 .rep-count { font-size: 0.78rem; color: var(--color-muted-fg); white-space: nowrap; }
 .cocit-pct { font-size: 0.78rem; color: var(--color-muted-fg); }
 
@@ -635,9 +635,10 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .chart-data .table-scroll th {text-transform:none;}
 .badge {white-space:normal;line-height:1.4;text-transform:none;}
 .badge-successful,.outcome-badge.successful {background:var(--color-badge-successful)!important;color:var(--color-badge-on-outcome)!important;}
-.badge-mixed,.outcome-badge.mixed {background:#d49b1d!important;color:#201800!important;}
-.badge-qualified {background:#684491!important;color:#fff!important;}
-.badge-other,.badge-unknown,.badge-inconclusive {background:#626875!important;color:#fff!important;}
+.badge-mixed,.outcome-badge.mixed {background:var(--color-series-rep-mixed)!important;color:var(--color-badge-on-outcome)!important;}
+.badge-qualified {background:var(--color-series-rep-qualified)!important;color:var(--color-badge-on-outcome)!important;}
+.badge-other,.badge-unknown {background:var(--color-series-rep-other)!important;color:var(--color-badge-on-outcome)!important;}
+.badge-inconclusive {background:var(--color-series-rep-inconclusive)!important;color:var(--color-badge-on-outcome)!important;}
 .bm-evidence {margin-top:.8rem;}
 .mobile-navigation {display:none;}
 .top-bar.navigation-collapsed .mobile-navigation {display:flex;gap:.5rem;align-items:center;color:white;flex:1;min-width:0;}
@@ -755,3 +756,12 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
     .rep-seg.mixed { background: repeating-linear-gradient(45deg, Canvas 0 2px, CanvasText 2px 4px) !important; }
     :focus-visible { outline-color: Highlight; }
 }
+
+.badge-comp-successful {background:var(--color-series-comp-successful);color:var(--color-badge-on-outcome);}
+.badge-comp-issues {background:var(--color-series-comp-issues);color:var(--color-badge-on-outcome);}
+.badge-comp-technical-failure {background:var(--color-series-comp-technical-failure);color:var(--color-badge-on-outcome);}
+.badge-rob-robust {background:var(--color-series-rob-robust);color:var(--color-badge-on-outcome);}
+.badge-rob-challenges {background:var(--color-series-rob-challenges);color:var(--color-badge-on-outcome);}
+.comparison-note {font-size:.85rem;line-height:1.5;margin:.8rem 0;}
+.comparison-note p {margin:.4rem 0;}
+.comparison-note ul {padding-left:1.3rem;}

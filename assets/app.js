@@ -234,7 +234,7 @@ function getOutcomeBadge(outcome) {
         const labels = {successful: 'Reproducible', issues: 'Computational issues', technical_failure: 'Technical failure',
             robust: 'Robust', challenges: 'Robustness challenges', not_checked: 'Not checked'};
         return [['Computational', d.computational], ['Robustness', d.robustness]].map(([label, key]) =>
-            `<span class="badge badge-${key === 'successful' || key === 'robust' ? 'successful' : key === 'issues' || key === 'challenges' || key === 'technical_failure' ? 'failed' : 'unknown'}">${label}: ${labels[key] || 'Not coded'}</span>`).join(' ');
+            `<span class="badge badge-${key === 'not_checked' || !key ? 'unknown' : (label === 'Computational' ? 'comp-' : 'rob-') + key.replaceAll('_','-')}">${label}: ${labels[key] || 'Not coded'}</span>`).join(' ');
     }
     return `<span class="badge badge-${classifyOutcome(raw)}">${escapeHtml(raw)}</span>`;
 }
@@ -365,11 +365,11 @@ function updateOverviewStats(data) {
 // Muted grays for "not yet coded"/"not checked" - distinct from the successful/failed/
 // mixed palette so an unassessed reproduction never reads as an outcome.
 const REPRODUCTION_COLORS = {
-    get successful()        { return chartToken('successful'); },
-    get issues()            { return chartToken('failed'); },
-    get technical_failure() { return chartToken('technical-failure'); },
-    get robust()            { return chartToken('successful'); },
-    get challenges()        { return chartToken('failed'); },
+    get successful()        { return FloraCharts.seriesStyle('comp-successful').color; },
+    get issues()            { return FloraCharts.seriesStyle('comp-issues').color; },
+    get technical_failure() { return FloraCharts.seriesStyle('comp-technical-failure').color; },
+    get robust()            { return FloraCharts.seriesStyle('rob-robust').color; },
+    get challenges()        { return FloraCharts.seriesStyle('rob-challenges').color; },
     get not_checked()       { return chartToken('not-checked'); },
     get not_coded()         { return chartToken('not-coded'); },
 };
@@ -1371,6 +1371,7 @@ function renderMcCharts() {
     const hTpl  = 'OMC %{x:.2f}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>';
     FloraCharts.plot('mc-dist-chart', buckets.map(b => ({
         x: xMids, y: bins.map(row => row[b.histKey] || 0), name: b.label, type: 'bar',
+        semanticKey: ({'replication':'rep-', 'reproduction-numerical':'comp-', 'reproduction-robustness':'rob-'})[mcKind] + b.histKey.replaceAll('_','-'),
         marker: { color: b.color }, hovertemplate: hTpl,
     })), {
         barmode: 'stack', bargap: 0.05,
@@ -1505,16 +1506,14 @@ document.getElementById('mc-tab').addEventListener('shown.bs.tab', loadMeanCited
 window._aoData = null;
 
 function renderOverlapCharts() {
-    if (typeof Plotly === "undefined") { chartLibUnavailable("ao-chart", "Plotly", renderOverlapCharts); return; }
     const d = window._aoData && window._aoData[aoKind];
     const insufficientEl = document.getElementById('ao-placeholder');
     const overviewEl = document.getElementById('ao-overview');
     const chartCard = document.getElementById('ao-chart-card');
     const caveatEl = document.getElementById('ao-caveat');
-    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
-        const n = d && d.overview ? d.overview.n_total : 0;
+    if (!d || !d.overview) {
         if (insufficientEl) {
-            insufficientEl.textContent = `Not enough ${studyTypeLabel(aoKind)} with known authorship yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.textContent = "No authorship data available in this snapshot.";
             insufficientEl.style.display = '';
         }
         if (overviewEl) overviewEl.style.display = 'none';
@@ -1558,7 +1557,7 @@ function renderOverlapCharts() {
     const GROUP_LABELS = { overlap: 'Author overlap', no_overlap: 'No author overlap' };
 
     const traces = buckets.map(b => ({
-        name: b.label,
+        name: b.label, semanticKey: ({'replication':'rep-', 'reproduction-numerical':'comp-', 'reproduction-robustness':'rob-'})[aoKind] + b.key.replaceAll('_','-'),
         type: 'bar',
         x: groups.map(g => GROUP_LABELS[g]),
         y: groups.map(g => (by[g] && by[g][b.key]) || 0),
@@ -1587,7 +1586,7 @@ function renderOverlapCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {comparison: groups.map(g => d.groups[g]), outcomeKeys: buckets.map(b => b.key)});
     chartCard.style.display = '';
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
@@ -1628,17 +1627,15 @@ document.getElementById('overlap-tab').addEventListener('shown.bs.tab', loadAuth
 window._rrData = null;
 
 function renderRRCharts() {
-    if (typeof Plotly === "undefined") { chartLibUnavailable("rr-chart", "Plotly", renderRRCharts); return; }
     const d = window._rrData && window._rrData[pubTypeKind];
     const insufficientEl = document.getElementById('rr-placeholder');
     const overviewEl = document.getElementById('rr-overview');
     const chartCard = document.getElementById('rr-chart-card');
     const studiesCard = document.getElementById('rr-studies-card');
     const caveatEl = document.getElementById('rr-caveat');
-    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
-        const n = d && d.overview ? d.overview.n_total : 0;
+    if (!d || !d.overview) {
         if (insufficientEl) {
-            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} checked against the Registered Reports database yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.textContent = "No Registered Report matching data available in this snapshot.";
             insufficientEl.style.display = '';
         }
         if (overviewEl) overviewEl.style.display = 'none';
@@ -1683,7 +1680,7 @@ function renderRRCharts() {
     const GROUP_LABELS = { rr: 'Registered Report', non_rr: 'Not found in RR database' };
 
     const traces = buckets.map(b => ({
-        name: b.label,
+        name: b.label, semanticKey: ({'replication':'rep-', 'reproduction-numerical':'comp-', 'reproduction-robustness':'rob-'})[pubTypeKind] + b.key.replaceAll('_','-'),
         type: 'bar',
         x: groups.map(g => GROUP_LABELS[g]),
         y: groups.map(g => (by[g] && by[g][b.key]) || 0),
@@ -1712,7 +1709,7 @@ function renderRRCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('rr-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {comparison: groups.map(g => d.groups[g]), outcomeKeys: buckets.map(b => b.key)});
     chartCard.style.display = '';
 
     // ── Included-studies table ───────────────────────────────────────────────────
@@ -1773,17 +1770,15 @@ async function loadRegisteredReports() {
 window._pubData = null;
 
 function renderPubStatusCharts() {
-    if (typeof Plotly === "undefined") { chartLibUnavailable("pub-chart", "Plotly", renderPubStatusCharts); return; }
     const d = window._pubData && window._pubData[pubTypeKind];
     const insufficientEl = document.getElementById('pub-placeholder');
     const overviewEl = document.getElementById('pub-overview');
     const chartCard = document.getElementById('pub-chart-card');
     const studiesCard = document.getElementById('pub-studies-card');
     const caveatEl = document.getElementById('pub-caveat');
-    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
-        const n = d && d.overview ? d.overview.n_total : 0;
+    if (!d || !d.overview) {
         if (insufficientEl) {
-            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} with publication-status data yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.textContent = "No publication venue data available in this snapshot.";
             insufficientEl.style.display = '';
         }
         if (overviewEl) overviewEl.style.display = 'none';
@@ -1814,7 +1809,7 @@ function renderPubStatusCharts() {
     const GROUP_LABELS = { journal: 'Other named venue', preprint: 'Repository / preprint', conference: 'Conference output', thesis: 'Thesis / dissertation', unknown: 'Unknown venue' };
 
     const traces = buckets.map(b => ({
-        name: b.label,
+        name: b.label, semanticKey: ({'replication':'rep-', 'reproduction-numerical':'comp-', 'reproduction-robustness':'rob-'})[pubTypeKind] + b.key.replaceAll('_','-'),
         type: 'bar',
         x: groups.map(g => GROUP_LABELS[g]),
         y: groups.map(g => (by[g] && by[g][b.key]) || 0),
@@ -1843,7 +1838,7 @@ function renderPubStatusCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('pub-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {comparison: groups.map(g => d.groups[g]), outcomeKeys: buckets.map(b => b.key)});
     chartCard.style.display = '';
 
     // ── All-studies table ─────────────────────────────────────────────────────
@@ -1908,7 +1903,6 @@ async function loadPubStatus() {
 // each kind alongside the journal/preprint breakdown, since both are pure flora.csv
 // transforms with no external API - no separate fetch needed here.
 function renderLargeScaleCharts() {
-    if (typeof Plotly === "undefined") { chartLibUnavailable("ls-chart", "Plotly", renderLargeScaleCharts); return; }
     document.getElementById('ls-loading').style.display = 'none';
     const d = window._pubData && window._pubData[pubTypeKind] && window._pubData[pubTypeKind].large_scale;
     const insufficientEl = document.getElementById('ls-placeholder');
@@ -1916,10 +1910,9 @@ function renderLargeScaleCharts() {
     const chartCard = document.getElementById('ls-chart-card');
     const studiesCard = document.getElementById('ls-studies-card');
     const caveatEl = document.getElementById('ls-caveat');
-    if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
-        const n = d && d.overview ? d.overview.n_total : 0;
+    if (!d || !d.overview) {
         if (insufficientEl) {
-            insufficientEl.textContent = `Not enough ${studyTypeLabel(pubTypeKind)} with report-size data yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
+            insufficientEl.textContent = "No report size data available in this snapshot.";
             insufficientEl.style.display = '';
         }
         if (overviewEl) overviewEl.style.display = 'none';
@@ -1959,7 +1952,7 @@ function renderLargeScaleCharts() {
     const GROUP_LABELS = { individual: 'Up to 3 targets / unknown', large_scale: 'Multiple-target report (>3 targets)' };
 
     const traces = buckets.map(b => ({
-        name: b.label,
+        name: b.label, semanticKey: ({'replication':'rep-', 'reproduction-numerical':'comp-', 'reproduction-robustness':'rob-'})[pubTypeKind] + b.key.replaceAll('_','-'),
         type: 'bar',
         x: groups.map(g => GROUP_LABELS[g]),
         y: groups.map(g => (by[g] && by[g][b.key]) || 0),
@@ -1988,7 +1981,7 @@ function renderLargeScaleCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ls-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {comparison: groups.map(g => d.groups[g]), outcomeKeys: buckets.map(b => b.key)});
     if (chartCard) chartCard.style.display = '';
 
     // ── Large-scale projects table ───────────────────────────────────────────────
