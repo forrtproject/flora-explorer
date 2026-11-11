@@ -177,5 +177,114 @@ class PipelineTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'Cannot verify merged'):
                 pipeline.compute_reproduction_citations(frame)
 
+    def citation_fixture(self):
+        study = dict(doi='10.test/original', title='Original', author='A', year=2020, venue='Venue',
+            n_citations=3, n_citations_post_first_rep=3, n_cocitations=2, n_replications=1,
+            outcome_mix={'failed':1}, pubstatus_mix={'individual':1},
+            first_replication_year=2021, first_replication_outcome='failed',
+            timeline=[dict(year=2021,only=1,with_failed=2,with_mixed=0,with_successful=0,with_multiple=0,with_any=2)],
+            replications=[dict(doi='10.test/report',title='Report',author='B',year=2021,outcome='failed',pub_status='individual')],
+            cocit_by_outcome={'failed':2},n_citations_post_by_outcome={'failed':3},
+            cocit_by_pubstatus={'individual':2},n_citations_post_by_pubstatus={'individual':3})
+        previous={'studies':{study['doi']:study}}
+        return previous, rebuild.cohort_frame(previous)
+
+    def assert_withheld(self, aggregate):
+        for group in aggregate.values():
+            for key in ['citations_model','cocitations_model']:
+                model=group[key]
+                self.assertEqual(model['status'],'withheld_pending_reestimation')
+                for field in ['event_time','estimate','ci_low','ci_high']:
+                    self.assertEqual(model[field],[])
+                for field in ['att','att_ci','n_units']:
+                    self.assertIsNone(model[field])
+
+    def test_writes_withhold_models_and_preserve_descriptive_records(self):
+        previous,frame=self.citation_fixture()
+        with tempfile.TemporaryDirectory() as tmp, patch.object(pipeline,'DATA_DIR',Path(tmp)), \
+             patch.object(pipeline,'event_study',side_effect=AssertionError('Must not fit withdrawn models')) as fit:
+            pipeline.write_outputs(previous['studies'],frame)
+            aggregate=json.loads((Path(tmp)/'aggregate.json').read_text())
+            self.assert_withheld(aggregate)
+            expected=pipeline.descriptive_trajectory(pipeline.build_panel(previous['studies']),['failed'])
+            self.assertEqual(aggregate['failed']['descriptive'],expected)
+            written=json.loads((Path(tmp)/'originals.json').read_text())
+            self.assertEqual(written['studies'],previous['studies'])
+            self.assertEqual(len(json.loads((Path(tmp)/'originals_index.json').read_text())),1)
+            fit.assert_not_called()
+
+    def test_cache_rebuild_preserves_snapshot_denominators_and_exclusions(self):
+        previous,frame=self.citation_fixture()
+        meta=dict(last_updated='2026-10-19T00:00:00Z',n_originals=1,n_replications=7,
+            outcome_counts={'failed':5,'mixed':2},partial_run=True,originals_skipped=2,
+            exclusions={'10.test/missing':'lookup failed'},input_snapshot='source-hash')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(pipeline,'DATA_DIR',Path(tmp)), \
+             patch.object(pipeline,'event_study',side_effect=AssertionError('Must not fit withdrawn models')) as fit, \
+             patch.object(pipeline,'build_study_data',return_value=previous['studies']), \
+             patch.object(pipeline,'cache_path',return_value=Path(tmp)/'cache.json'), \
+             patch.object(pipeline,'fetch_oc_citations'), patch.object(pipeline,'oc_entity_ids'), patch.object(pipeline.session,'get'):
+            (Path(tmp)/'originals.json').write_text(json.dumps(previous))
+            (Path(tmp)/'meta.json').write_text(json.dumps(meta))
+            (Path(tmp)/'cache.json').write_text('[]')
+            rebuild.main()
+            rebuilt=json.loads((Path(tmp)/'meta.json').read_text())
+            for key,value in meta.items():
+                self.assertEqual(rebuilt[key],value,key)
+            self.assertIn('recalculated_at',rebuilt)
+            self.assert_withheld(json.loads((Path(tmp)/'aggregate.json').read_text()))
+            fit.assert_not_called()
+
+    def test_sanitise_models_only_leaves_descriptive_arrays_and_metadata_unchanged(self):
+        aggregate={label:dict(descriptive={'event_time':[0,1],'mean_citations':[2,3],'n_units':[4,2]},
+            citations_model={'att':0.2393,'estimate':[0.1]},cocitations_model={'att':0.1})
+            for label in ['all','failed','successful','mixed']}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(pipeline,'DATA_DIR',Path(tmp)), \
+             patch.object(pipeline.session,'get',side_effect=AssertionError('No network')):
+            (Path(tmp)/'aggregate.json').write_text(json.dumps(aggregate))
+            (Path(tmp)/'meta.json').write_text('unchanged coverage date')
+            rebuild.withhold_models()
+            result=json.loads((Path(tmp)/'aggregate.json').read_text())
+            self.assert_withheld(result)
+            for label in aggregate:
+                self.assertEqual(result[label]['descriptive'],aggregate[label]['descriptive'])
+            self.assertEqual((Path(tmp)/'meta.json').read_text(),'unchanged coverage date')
+        self.assert_withheld(json.loads((ROOT/'data/aggregate.json').read_text()))
+
+    def test_original_lookup_failure_is_omitted_but_genuine_zero_is_retained(self):
+        _,frame=self.citation_fixture()
+        for original_citations,replication_citations,included in [(None,[],False),([],None,False),([],[],True)]:
+            stats=dict(originals_skipped=0,originals_errored=0,rep_fetch_error_dois=[])
+            with patch.object(pipeline,'RUN_STATS',stats), patch.object(pipeline,'should_stop',return_value=False), \
+                 patch.object(pipeline,'fetch_oc_citations',side_effect=lambda doi:original_citations if doi=='10.test/original' else replication_citations):
+                studies=pipeline.build_study_data(frame)
+            self.assertEqual(len(studies),int(included))
+            if included:
+                self.assertEqual(studies['10.test/original']['n_citations'],0)
+                self.assertEqual(studies['10.test/original']['n_cocitations'],0)
+            else:
+                self.assertEqual(stats['originals_skipped']+stats['originals_errored'],1)
+
+    def test_retained_cohort_rules_and_overlapping_rates(self):
+        base=dict(doi_o='10.test/a',doi_r='10.test/r',type='replication',outcome='failed',journal_r='')
+        rows=[base,dict(base),dict(base,outcome='mixed'),dict(base,doi_r=None),
+              dict(base,doi_o=None),dict(base,doi_r='qualified',outcome='statistically successful but flawed'),
+              dict(base,doi_r='reproduction',type='reproduction'),dict(base,doi_r='mixed',outcome='mixed')]
+        frame=pipeline.filter_replications(pd.DataFrame(rows))
+        self.assertEqual(frame[['doi_r','outcome']].values.tolist(),[['10.test/r','failed'],['mixed','mixed']])
+        previous,_=self.citation_fixture()
+        study=previous['studies']['10.test/original']
+        study['outcome_mix']['mixed']=1
+        study['cocit_by_outcome']['mixed']=1
+        study['n_citations_post_by_outcome']['mixed']=2
+        rates=pipeline.compute_cocit_breakdown(previous['studies'])['outcome']
+        self.assertEqual(rates['failed']['n_originals'],1)
+        self.assertEqual(rates['mixed']['n_originals'],1)
+        self.assertEqual(rates['failed']['mean_rate'],0.6667)
+        self.assertEqual(rates['mixed']['mean_rate'],0.5)
+        study['n_citations_post_by_outcome']['mixed']=0
+        rates=pipeline.compute_cocit_breakdown(previous['studies'])['outcome']
+        self.assertEqual(rates['mixed']['n_originals'],0)
+        self.assertIsNone(rates['mixed']['mean_rate'])
+
 if __name__=='__main__':
     unittest.main()

@@ -5,6 +5,7 @@ The citation coverage date stays unchanged; recalculated_at records the calculat
 date. Missing citation lists or metadata needed to check merged records abort the
 run before outputs are written. Use refresh_data.py for a new coverage snapshot.
 """
+import argparse
 import json
 from datetime import datetime, timezone
 import pandas as pd
@@ -43,11 +44,29 @@ def main():
     studies = pipeline.build_study_data(frame)
     assert set(studies) == set(previous['studies']), 'Rebuild must preserve the complete citation cohort'
     pipeline.write_outputs(studies,frame,partial=previous_meta.get('partial_run',False))
-    meta = json.loads((pipeline.DATA_DIR / 'meta.json').read_text())
-    meta['last_updated'] = previous_meta['last_updated']
+    # Retain the input cohort denominators, coverage date and any exclusion
+    # metadata: the surviving cached cohort is not a new eligibility snapshot.
+    meta = dict(previous_meta)
     meta['recalculated_at'] = datetime.now(timezone.utc).isoformat()
     meta['source'] = 'Committed OpenCitations cache; unchanged citation cohort'
     (pipeline.DATA_DIR / 'meta.json').write_text(json.dumps(meta,indent=2))
 
+def withhold_models():
+    """Sanitise only model payloads; preserve descriptive data and coverage dates."""
+    path = pipeline.DATA_DIR / 'aggregate.json'
+    aggregate = json.loads(path.read_text())
+    for group in aggregate.values():
+        for key in ['citations_model', 'cocitations_model']:
+            group[key] = pipeline.withheld_model()
+    path.write_text(json.dumps(aggregate, indent=2, allow_nan=False))
+
+
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--withhold-models-only', action='store_true',
+                        help='Sanitise committed aggregate estimates without rebuilding records')
+    args = parser.parse_args()
+    if args.withhold_models_only:
+        withhold_models()
+    else:
+        main()

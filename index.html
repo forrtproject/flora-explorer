@@ -545,19 +545,15 @@
                     <div class="cite-ref">Weinerova, J., Wallrich, L., Röseler, L., Feuerriegel, S., &amp; Azevedo, F. (2026, April 30). (When) Do Replications Influence the Impact of Original Claims? A Bibliometric Investigation. <a href="https://doi.org/10.17605/OSF.IO/WJGM3" target="_blank" rel="noopener noreferrer" class="doi-link">https://doi.org/10.17605/OSF.IO/WJGM3</a></div></details>
 
                 <div class="ci-intro">
-                    <h2 class="ci-h2" data-kind-text="Citation patterns around the first replication|Citation counts for numerical reproductions|Citation counts for robustness reproductions">Citation patterns around the first replication</h2>
+                    <h2 class="ci-h2" data-kind-text="Citation records and co-citations|Citation counts for numerical reproductions|Citation counts for robustness reproductions">Citation records and co-citations</h2>
                     <div class="chip-group study-type-select" id="ci-study-type" role="group" aria-label="Citation Impact study type">
                         <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                         <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                         <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
                     </div>
                     <div class="study-type-note">Numerical and robustness reproductions show descriptive citation counts. No reproduction event-study model is fitted.</div>
-                    <p class="ci-lede">
-                        This tab combines the FLoRA dataset with citation data from
-                        <a href="https://opencitations.net" target="_blank" rel="noopener noreferrer">OpenCitations</a> to
-                        <span data-kind-text="describe citations to the original around the first recorded replication|count citations to originals and their numerical reproductions|count citations to originals and their robustness reproductions">describe citations to the original around the first recorded replication</span>,
-                        and how often the two are "co-cited" (cited together by the same later work).
-                    </p>
+                    <p class="ci-lede" data-kind-text="This tab combines FLoRA with OpenCitations to show citation counts for individual originals and how often later works cite both an original and a recorded replication.|This tab combines FLoRA with OpenCitations to count citations to originals and their numerical reproductions, and how often later works cite both.|This tab combines FLoRA with OpenCitations to count citations to originals and their robustness reproductions, and how often later works cite both.">This tab combines FLoRA with OpenCitations to show citation counts for individual originals and how often later works cite both an original and a recorded replication.</p>
+                    <p id="ci-trends-note" class="note">Citation trend charts and model estimates are temporarily unavailable while the analysis is re-estimated. The previous model could not uniquely separate citation trends from replication timing, and the raw trend charts compared changing groups of originals. The tables and individual timelines below are descriptive; they do not establish whether failed replications change citations.</p>
                 </div>
 
                 <div id="ci-placeholder" class="coming-soon-placeholder" style="display:none;"></div>
@@ -589,45 +585,11 @@
                 <div class="kpi-row" id="kpis"></div>
 
                 <div class="card ci-card">
-                    <h2 class="card-header">Aggregate impact of replications</h2>
-                    <div class="card-body">
-                        <p class="muted">
-                            Event-study estimates: each original is aligned at <em>t = 0</em>, the year of its first
-                            published replication. Raw trajectories show average counts. The separate coefficient plots show OLS estimates and 95% confidence intervals on the log(1 + count) scale, relative to year −1, adjusting for original and calendar-year fixed effects. These associations do not establish a causal effect.
-                        </p>
-
-                        <div class="filters">
-                            <span class="filter-label">Replication outcome</span>
-                            <div class="chip-group" id="outcome-chips" role="group" aria-label="Replication outcome">
-                                <button class="chip active" data-value="all" aria-pressed="true">All</button>
-                                <button class="chip" data-value="failed" aria-pressed="false">Failed</button>
-                                <button class="chip" data-value="successful" aria-pressed="false">Successful</button>
-                                <button class="chip" data-value="mixed" aria-pressed="false">Mixed</button>
-                            </div>
-                        </div>
-
-                        <div class="att-callout" id="att-callout"></div>
-
-                        <div class="plot-grid">
-                            <div class="plot-card">
-                                <h3>Citations to the original</h3>
-                                <div id="plot-cit" class="plot"></div>
-                            </div>
-                            <div class="plot-card">
-                                <h3>Co-citations (original and replication)</h3>
-                                <div id="plot-cocit" class="plot"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card ci-card">
                     <h2 class="card-header">Co-citation rate by replication report size &amp; outcome</h2>
                     <div class="card-body">
                         <p class="muted">
-                            The co-citation rate is the share of an original's citations that also cite one of its
-                            replications, counted from the year of its first replication. Originals with multiple
-                            replications appear in every row that applies. Rates vary widely across originals, so three
+                            For each group, the rate uses citations from the year of the earliest recorded replication in that group onwards. Originals with no citations in that period are excluded from the rate calculation. An original can appear in several groups, so the rows must not be added. These rates describe co-citation, not changes in overall citedness.
+                            Rates vary widely across originals, so three
                             summaries are shown:
                             <strong>per-paper mean</strong> (each original weighted equally),
                             <strong>median</strong> (robust to outliers), and
@@ -679,23 +641,10 @@
                 <div class="card ci-card">
                     <h2 class="card-header">About this analysis</h2>
                     <div class="card-body">
-                        <p>
-                            Data are refreshed weekly. The pipeline filters FLoRA to
-                            <strong>conceptual and direct replications</strong> with outcomes labelled
-                            <em>successful</em>, <em>failed</em>, or <em>mixed</em> (reproductions are excluded).
-                            For each included original and replication, we retrieve all citing works from
-                            OpenCitations COCI. A "co-citation" is any work that cites both the original and at
-                            least one of its replications.
-                        </p>
-                        <p>The outcome filters group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead matches any replication of an original. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation model.</p>
+                        <p>Citation records include replication pairs labelled successful, failed or mixed, with DOIs for both reports; repeated DOI pairs are counted once. Qualified success, other or uncoded outcomes, and reproductions are excluded from this replication citation cohort. An original is omitted when required citation lookups fail; it is not counted as having zero citations. The table’s outcome filter matches any included replication of an original.</p>
+                        <p>Data are refreshed weekly using OpenCitations COCI. A co-citation is a distinct work that cites both the original and at least one of its replications.</p>
                         <p>Each timeline bar counts distinct citing works. Works that cite replications with more than one outcome appear once in the “multiple outcome categories” segment. The outcome-specific co-citation rate tables are overlapping summaries and should not be added.</p>
-                        <p>
-                            The aggregate plots show event-study estimates from an OLS two-way fixed-effects
-                            model, a transparent analogue of the <span class="gloss" tabindex="0">FECT<span class="gloss-tip">Fixed Effects Counterfactual estimator: the causal-inference method specified in our preregistered protocol. This chart approximates it with a simpler OLS two-way fixed-effects model.</span></span> specification used in the
-                            preregistered analysis. See the
-                            <a href="https://github.com/forrtproject/FReD-data" target="_blank" rel="noopener noreferrer">FReD-data repository</a>
-                            for the underlying FLoRA dataset.
-                        </p>
+                        <p>See the <a href="https://github.com/forrtproject/FReD-data" target="_blank" rel="noopener noreferrer">FReD-data repository</a> for the underlying FLoRA dataset.</p>
                     </div>
                 </div>
                 </div>
