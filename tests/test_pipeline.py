@@ -118,12 +118,25 @@ class PipelineTests(unittest.TestCase):
             meta=Path(tmp)/'meta.json'; meta.write_text('previous metadata')
             for text in ['error\nService unavailable\n','DOI,title\n,\n','DOI,title,itemType\n10.test/a,Attachment,attachment\n']:
                 response=Mock(text=text)
-                with patch.object(rr.requests,'get',return_value=response), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
+                with patch.object(rr.requests,'get',return_value=response), patch.object(rr,'fetch_non_rr_keys',return_value={'READING'}), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
                     with self.assertRaises(ValueError): rr.main()
                 self.assertEqual(output.read_text(),'previous data')
                 self.assertEqual(meta.read_text(),'previous metadata')
-            with patch.object(rr.requests,'get',return_value=Mock(text='DOI,title\nhttps://doi.org/10.test/A,Example title\n')):
+            csv_text='key,DOI,title\nRR1,https://doi.org/10.test/A,Example title\nREADING,10.1126/science.aac4716,Estimating the reproducibility of psychological science\n'
+            with patch.object(rr.requests,'get',return_value=Mock(text=csv_text)), patch.object(rr,'fetch_non_rr_keys',return_value={'READING'}):
                 self.assertEqual(rr.fetch_rr_library(),({'10.test/a'},{'exampletitle'}))
+
+    def test_rrdb_skips_items_filed_only_in_the_reading_list(self):
+        def page(items,total):
+            return Mock(json=Mock(return_value=items),headers={'Total-Results':str(total)},raise_for_status=Mock())
+        only_list={'key':'A','data':{'key':'A','collections':['BB5B9YHG']}}
+        also_rr={'key':'B','data':{'key':'B','collections':['BB5B9YHG','RRCOLL']}}
+        unfiled={'key':'C','data':{'key':'C','collections':[]}}
+        with patch.object(rr.requests,'get',side_effect=[page([only_list,also_rr],3),page([unfiled],3)]) as get:
+            self.assertEqual(rr.fetch_non_rr_keys(),{'A'})
+        self.assertEqual(get.call_args_list[1].kwargs['params']['start'],2)
+        with patch.object(rr.requests,'get',return_value=page([],0)):
+            with self.assertRaises(ValueError): rr.fetch_non_rr_keys()
 
     def test_cache_rebuild_preserves_report_size_outside_surviving_cohort(self):
         previous={'studies':{'one':dict(doi='one',title='O',author='A',year=2010,venue='',replications=[

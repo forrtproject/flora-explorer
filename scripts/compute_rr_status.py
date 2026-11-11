@@ -4,7 +4,9 @@ Determine which FLoRA replications were published as Registered Reports (RR).
 Matches each replication's DOI/title against the Registered Reports Database
 (RRDB) - a CSV export of the FORRT Zotero "Registered Reports" group library
 (https://www.zotero.org/groups/5937153/registered_reports), maintained and
-regularly updated at https://github.com/LukasRoeseler/RRDB. This is preferred
+regularly updated at https://github.com/LukasRoeseler/RRDB. Items filed only in
+the group's shared reading list (not Registered Reports) are excluded using one
+paginated Zotero API lookup of that collection. RRDB is otherwise preferred
 over querying the Zotero API directly: one small, reliable GET instead of a
 paginated/rate-limited API walk, and RRDB is itself a citable, actively
 maintained project (see RRDB_CITATION below).
@@ -43,6 +45,14 @@ OUT_META = DATA_DIR / "rr_status_meta.json"
 
 RRDB_CSV_URL = "https://raw.githubusercontent.com/LukasRoeseler/RRDB/main/zotero_registered_reports.csv"
 RRDB_SOURCE_URL = "https://github.com/LukasRoeseler/RRDB/blob/main/zotero_registered_reports.csv"
+# The Zotero group also holds "QRCshared", a shared reading list (collection BB5B9YHG) of
+# background literature such as Ioannidis (2005) and OSC (2015). RRDB exports the whole
+# library, so items filed only in that collection are dropped before matching. Same rule
+# as forrtproject/chromium-extension#286.
+ZOTERO_GROUP_ID = "5937153"
+NON_RR_COLLECTIONS = {"BB5B9YHG"}
+ZOTERO_PAGE_SIZE = 100
+
 RRDB_CITATION = (
     "Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., "
     "Morillo, D., … Armstrong, C. (2026, May 14). Database of Published "
@@ -69,6 +79,40 @@ def normalize_title(title) -> str:
     return re.sub(r"[^a-z0-9]", "", t.lower())
 
 
+def only_in_non_rr_collections(collections) -> bool:
+    collections = list(collections or [])
+    return bool(collections) and all(c in NON_RR_COLLECTIONS for c in collections)
+
+
+def fetch_non_rr_keys() -> set[str]:
+    """Zotero item keys filed only in a non-RR collection (the shared reading list)."""
+    keys: set[str] = set()
+    for collection in sorted(NON_RR_COLLECTIONS):
+        url = f"https://api.zotero.org/groups/{ZOTERO_GROUP_ID}/collections/{collection}/items/top"
+        start = 0
+        while True:
+            resp = requests.get(url, params={"format": "json", "limit": ZOTERO_PAGE_SIZE, "start": start}, timeout=60)
+            resp.raise_for_status()
+            page = resp.json()
+            for item in page:
+                data = item.get("data", {})
+                if only_in_non_rr_collections(data.get("collections")):
+                    keys.add(data.get("key") or item.get("key"))
+            total = int(resp.headers.get("Total-Results", 0))
+            start += len(page)
+            if not page or start >= total:
+                break
+    if not keys:
+        raise ValueError("Zotero returned no reading-list items; retaining previous outputs")
+    return keys
+
+
+def drop_non_rr_items(df_rr: pd.DataFrame, non_rr_keys: set[str]) -> pd.DataFrame:
+    if "key" not in df_rr.columns:
+        raise ValueError("RRDB CSV has no Zotero key column; cannot exclude the reading list")
+    return df_rr[~df_rr["key"].astype(str).isin(non_rr_keys)]
+
+
 def fetch_rr_library() -> tuple[set[str], set[str]]:
     """Load the RRDB CSV (a regularly-updated export of the FORRT Zotero Registered
     Reports group library) and return (dois, titles) sets for matching."""
@@ -80,6 +124,9 @@ def fetch_rr_library() -> tuple[set[str], set[str]]:
         raise ValueError("RRDB CSV is missing required DOI/title columns; retaining previous outputs")
     is_attachment_or_note = df_rr.get("itemType", pd.Series("", index=df_rr.index)).astype(str).str.lower().isin(["attachment", "note"])
     df_rr = df_rr[~is_attachment_or_note]
+    n_before = len(df_rr)
+    df_rr = drop_non_rr_items(df_rr, fetch_non_rr_keys())
+    print(f"RRDB: dropped {n_before - len(df_rr)} items filed only in the shared reading list")
 
     dois = set(df_rr.get("DOI", pd.Series(dtype=str)).apply(normalize_doi)) - {""}
     titles = set(df_rr.get("title", pd.Series(dtype=str)).apply(normalize_title)) - {""}
