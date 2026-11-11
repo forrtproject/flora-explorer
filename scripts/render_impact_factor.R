@@ -73,7 +73,7 @@ raw$type_lc     <- tolower(raw$type)
 is_reproduction <- grepl("reproduc", raw$type_lc)
 is_replication  <- grepl("replication", raw$type_lc) & !is_reproduction
 
-df_all  <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 20 & is_replication, ]
+df_all  <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 35 & is_replication, ]
 df_all$outcome_class <- classify_outcome(df_all$outcome)
 oc_all <- df_all$outcome_class
 
