@@ -227,9 +227,6 @@
             <div class="kpi"><div class="kpi-value">${fmt(c.failed)}</div><div class="kpi-label">Eligible reference pairs: Failed</div></div>
             <div class="kpi"><div class="kpi-value">${fmt(c.successful)}</div><div class="kpi-label">Eligible reference pairs: Successful</div></div>
             <p class="muted kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</p>`;
-        document.querySelectorAll('#kpis .kpi').forEach(tile => {
-            if (tile.querySelector('.kpi-value').textContent === '0') tile.remove();
-        });
     }
 
     function renderAggregate() {
@@ -600,6 +597,8 @@
             { x: years, y: tl.map(t => t.with_successful), name: 'Also cites Successful replication',type: 'bar', marker: { color: OUTCOME_COLORS.successful } },
             { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Also cites replications with multiple outcomes', type: 'bar', marker: {color: FloraCharts.token('--color-chart-qualified')} }
         ];
+        // Empty series stay in the data table and export but not in the legend.
+        traces.forEach(trace => { if (!trace.y.some(v => v > 0)) trace.showlegend = false; });
         // The coverage year stays partial even if this snapshot is viewed in a later year.
         const partialYear = Number((CI.meta?.last_updated || '').slice(0,4)) || new Date().getFullYear();
         traces.forEach(trace=>{
@@ -752,6 +751,10 @@
 
     // A DOI deep link can load citation data before the main CSV finishes.
     document.addEventListener('flora-ready', () => {
+        // Plots drawn while the page was hidden keep a broken autorange until a full re-layout.
+        document.querySelectorAll('#floraTabsContent .js-plotly-plot').forEach(el => {
+            if (el.offsetParent) Plotly.Plots.resize(el).catch(() => {});
+        });
         if (!CI.index) return;
         CI.index = buildSearchIndex(CI.index);
         if (CI.loaded) renderTable();

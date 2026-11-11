@@ -6,6 +6,8 @@ window.FloraVocabulary = (() => {
         if (!response.ok) throw new Error('Outcome vocabulary could not be loaded');
         return response.json();
     }).then(data => { vocabulary = data; });
+    // loadData() reports the failure; this only stops an early unhandled-rejection warning.
+    ready.catch(() => {});
     const entries = dimension => vocabulary[dimension];
     function classify(raw, dimension = 'replication') {
         const value = normalise(raw);
@@ -43,6 +45,8 @@ window.FloraVocabulary = (() => {
                 + `<p class="tip-subhead">No verdict</p><p class="tip-note">${unassessed.map(item => item.label).join(' · ')}. See <em>Outcome definitions</em> for each.</p>`;
         });
     }
-    const unitDefinition = label => vocabulary.units[label];
-    return {ready, entries, classify, item, label, reproduction, outcomeLabel, studyType, definitions, unitDefinition};
+    // A ?doi= deep link can draw charts before the vocabulary has loaded.
+    const unitDefinition = label => vocabulary?.units[label] || '';
+    const isMissing = raw => Boolean(vocabulary?.missing_markers.includes(normalise(raw)));
+    return {ready, entries, classify, item, label, reproduction, outcomeLabel, studyType, definitions, unitDefinition, isMissing};
 })();

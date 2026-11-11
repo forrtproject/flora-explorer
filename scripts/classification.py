@@ -7,7 +7,7 @@ import re
 import json
 from pathlib import Path
 
-OUTCOME_VOCABULARY = json.loads((Path(__file__).resolve().parents[1] / "data/outcome_vocabulary.json").read_text())
+OUTCOME_VOCABULARY = json.loads((Path(__file__).resolve().parents[1] / "data/outcome_vocabulary.json").read_text(encoding="utf-8"))
 
 REPLICATION_OUTCOMES = [item['key'] for item in OUTCOME_VOCABULARY['replication']]
 MULTI_TARGET_THRESHOLD = 3

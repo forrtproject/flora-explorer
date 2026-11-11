@@ -76,7 +76,7 @@ function classifyKind(row) {
     if (t.includes('replic')) return 'replication';
     const o = (row.outcome || '').toLowerCase();
     if (o.includes('computational') || o.includes('robust')) return 'reproduction';
-    if (o) return 'replication';
+    if (o && !FloraVocabulary.isMissing(o)) return 'replication';
     return 'unknown';
 }
 function reportKindLabel(row) {
@@ -2057,11 +2057,29 @@ function parseCsvFromUrl(url) {
     });
 }
 
+function showGlobalError(message) {
+    document.getElementById('global-loading').style.display = 'none';
+    const err = document.getElementById('global-error');
+    err.style.display = 'block';
+    err.textContent = message + ' ';
+    const reload = document.createElement('button');
+    reload.type = 'button'; reload.className = 'btn btn-sm btn-outline-danger'; reload.textContent = 'Reload';
+    reload.addEventListener('click', () => location.reload());
+    err.appendChild(reload);
+}
+
 async function loadData() {
+    try {
+        await FloraVocabulary.ready;
+    } catch (e) {
+        console.error(e);
+        showGlobalError('Error loading the outcome definitions: ' + (e.message || e));
+        return;
+    }
+    FloraVocabulary.definitions();
+    FloraCharts.updateContexts();
     // Disciplines and the CSV are independent - fetch them concurrently rather than
     // waiting on the (small) disciplines request before starting the (large) CSV one.
-    await FloraVocabulary.ready;
-    FloraVocabulary.definitions();
     const disciplinesPromise = loadDisciplines();
 
     let results;
@@ -2073,10 +2091,7 @@ async function loadData() {
         try {
             results = await parseCsvFromUrl(REMOTE_CSV_URL);
         } catch (e2) {
-            document.getElementById('global-loading').style.display = 'none';
-            const err = document.getElementById('global-error');
-            err.style.display = 'block';
-            err.textContent = 'Error loading FLoRA data: ' + (e2.message || e2);
+            showGlobalError('Error loading FLoRA data: ' + (e2.message || e2));
             return;
         }
     }

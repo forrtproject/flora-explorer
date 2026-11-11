@@ -268,9 +268,12 @@ def main(argv=()):
     }
 
     if previous:
-        for kind in result:
-            if result[kind]['overview'] != previous[kind]['overview']:
-                raise ValueError('Cached matches changed RR coverage; retaining previous outputs')
+        # Reproduction totals depend on outcome bucketing, so only replication totals must match exactly.
+        new_dois, new_titles = cached_matches(result)
+        old_dois, old_titles = cached_matches(previous)
+        if (result['replication']['overview'] != previous['replication']['overview']
+                or not new_dois <= old_dois or not new_titles <= old_titles):
+            raise ValueError('Cached matches changed RR coverage; retaining previous outputs')
     OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
     if previous:
         print(f"Reclassified outcomes offline; RR coverage and metadata retained: {OUT_DATA}")

@@ -62,7 +62,7 @@ window.FloraCharts = (() => {
         const kind = selected?.dataset.kind || selected?.dataset.value;
         const reportKind = kind?.startsWith('reproduction') ? 'reproduction' : kind === 'replication' ? 'replication' : 'replication or reproduction';
         const unitDefinition = FloraVocabulary.unitDefinition('Reference pair').replace('replication or reproduction', reportKind);
-        return `${stamp}. ${filters ? 'Selection: ' + filters + '. ' : ''}Values and units correspond to the labelled series. ${unitDefinition} Reproduction dimensions can overlap.`;
+        return `${stamp}. ${filters ? 'Selection: ' + filters + '. ' : ''}Values and units correspond to the labelled series. ${unitDefinition ? unitDefinition + ' ' : ''}Reproduction dimensions can overlap.`;
     }
     // Captions and accessible names come from the chart's visible heading, not its element ID.
     function visibleTitle(el) {

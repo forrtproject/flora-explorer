@@ -233,5 +233,25 @@
     "dimension": "robustness",
     "raw": "successful || computationally reproducible, robustness not checked",
     "key": "unrecognised"
+  },
+  {
+    "dimension": "replication",
+    "raw": "N/A",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": "#N/A",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": "<NA>",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": " successful ",
+    "key": "successful"
   }
 ]

@@ -4,7 +4,17 @@
     "na",
     "nan",
     "none",
-    "null"
+    "null",
+    "#n/a",
+    "#n/a n/a",
+    "#na",
+    "-1.#ind",
+    "-1.#qnan",
+    "-nan",
+    "1.#ind",
+    "1.#qnan",
+    "<na>",
+    "n/a"
   ],
   "replication": [
     {
@@ -200,6 +210,7 @@
   "study_types": {
     "all": "All",
     "replication": "Replications",
+    "reproduction": "Reproductions",
     "reproduction-numerical": "Numerical reproductions",
     "reproduction-robustness": "Robustness reproductions"
   },

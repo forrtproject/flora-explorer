@@ -1306,3 +1306,48 @@ test('zero categories stay in chart tables and exports while legends show only o
   await p.keyboard.press('Escape');
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+test('outcome vocabulary failures show the page error with a reload action',async()=>{
+  for(const [name,respond] of [['request',route=>route.abort()],['status',route=>route.fulfill({status:404,body:'missing'})],['json',route=>route.fulfill({contentType:'application/json',body:'{not json'})]]){
+    const p=await browser.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
+    await p.route('**/data/outcome_vocabulary.json',respond);
+    await p.goto(base+'?tab=overview');
+    await p.locator('#global-error').waitFor({state:'visible'});
+    assert.match(await p.locator('#global-error').innerText(),/outcome definitions/,name);
+    assert.ok(await p.locator('#global-error button',{hasText:'Reload'}).isVisible(),name);
+    assert.ok(!(await p.locator('#global-loading').isVisible()),name);
+    assert.deepEqual(errors,[],name);await p.close();
+  }
+});
+
+test('missing outcome markers do not make an untyped row a replication, and the reproduction export names its study type',async()=>{
+  const p=await page('?tab=browse&kind=reproduction');
+  assert.deepEqual(await p.evaluate(()=>['NA','N/A',' #n/a ','','successful'].map(outcome=>classifyKind({type:'',outcome}))),
+    ['unknown','unknown','unknown','unknown','replication']);
+  const event=p.waitForEvent('download');await p.click('#export-browse');
+  const text=fs.readFileSync(await (await event).path(),'utf8');
+  assert.match(text,/Study type: Reproductions/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('citation headline counts keep real zeros',async()=>{
+  const meta=JSON.parse(fs.readFileSync('data/meta.json'));meta.outcome_counts={...meta.outcome_counts,failed:0};
+  const p=await page('?tab=citations',1280,p=>p.route('**/data/meta.json',route=>route.fulfill({json:meta})));
+  await p.waitForFunction(()=>document.querySelectorAll('#kpis .kpi').length);
+  const tiles=await p.locator('#kpis .kpi').evaluateAll(tiles=>tiles.map(t=>[t.querySelector('.kpi-label').textContent,t.querySelector('.kpi-value').textContent]));
+  assert.deepEqual(tiles.find(([label])=>/Failed/.test(label))?.[1],'0');
+  assert.equal(tiles.length,4);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('citation charts drawn before the main CSV loads re-fit their axes once shown',async()=>{
+  const entry=JSON.parse(fs.readFileSync('data/originals_index.json'))[0];
+  const aggregate={all:{descriptive:{event_time:[0,1,2],mean_citations:[0,0.5,1],mean_cocitations:[0,0.1,0.2],n_units:[0,1,2]}}};
+  const p=await page('?tab=citations&doi='+encodeURIComponent(entry.doi),1280,async p=>{
+    await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
+    await p.route('**/data/flora.csv',async route=>{await new Promise(r=>setTimeout(r,1500));await route.continue();});
+  });
+  assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout),'the deep link should draw citation charts before the CSV arrives');
+  await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')._fullLayout.yaxis;return axis.range[1]>0.2&&axis.range[1]<0.5&&axis.dtick<1;},null,{timeout:5000});
+  assert.deepEqual(p.errors,[]);await p.close();
+});
