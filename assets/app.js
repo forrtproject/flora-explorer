@@ -783,7 +783,7 @@ function initDataTable(data) {
         row.year_o || '-',
         { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
         row.year_r || '-',
-        { display: getOutcomeBadgeShort(row.outcome), search: row.outcome_quote || '' },
+        { display: getOutcomeBadgeShort(row.outcome), search: row.outcome || '' },
         truncateText(row.type, 15) || '-',
         { display: formatDOI(row.doi_o, true), search: row.doi_o || '' },
         { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '' }
