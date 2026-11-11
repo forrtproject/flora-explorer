@@ -30,17 +30,9 @@ out_meta  <- file.path(root, "data", "impact_factor_meta.json")
 if (!file.exists(data_csv)) stop("flora_with_omc.csv not found at ", data_csv)
 
 # ── Outcome classifier ───────────────────────────────────────────────────────
-# Faithful port of classifyOutcome() in assets/app.js so all tabs agree on how
-# free-text outcome labels map to categories. Returns one of
-# "successful" / "failed" / "mixed" / "inconclusive" / "other".
-classify_outcome <- function(x) {
-  mapping <- c(successful="successful", replicated="successful", failed="failed",
-    "not replicated"="failed", mixed="mixed", partial="mixed", inconclusive="inconclusive",
-    "statistically successful but flawed"="qualified")
-  result <- unname(mapping[trimws(tolower(x))])
-  result[is.na(result)] <- "other"
-  result
-}
+# Read the same category aliases as JavaScript and Python. Binary eligibility below
+# remains limited to unqualified successful/failed reference pairs.
+source(file.path(root, "scripts", "outcome_vocabulary.R"))
 
 # ── Load & enrich ────────────────────────────────────────────────────────────
 raw <- read.csv(data_csv, stringsAsFactors = FALSE, na.strings = c("", "NA"))
@@ -86,9 +78,11 @@ overview <- list(
   n_success     = sum(oc_all == "successful"),
   n_failed      = sum(oc_all == "failed"),
   n_mixed       = sum(oc_all == "mixed"),
-  n_inconclusive = sum(oc_all == "inconclusive"),
   n_qualified = sum(oc_all == "qualified"),
-  n_other = sum(oc_all == "other"),
+  n_descriptive = sum(oc_all == "descriptive"),
+  n_uninformative = sum(oc_all == "uninformative"),
+  n_missing = sum(oc_all == "missing"),
+  n_unrecognised = sum(oc_all == "unrecognised"),
   n_journals    = length(unique(df_all$journal_o[!is.na(df_all$journal_o) &
                                                    nchar(df_all$journal_o) > 0])),
   n_disciplines = length(unique(df_all$discipline[df_all$discipline != "Uncategorized"]))
@@ -105,7 +99,9 @@ hist_data <- lapply(seq_len(length(breaks) - 1), function(i) {
        successful = sum(oc == "successful"),
        failed     = sum(oc == "failed"),
        mixed      = sum(oc == "mixed"),
-       inconclusive = sum(oc == "inconclusive"), qualified = sum(oc == "qualified"), other = sum(oc == "other"))
+       qualified = sum(oc == "qualified"), descriptive = sum(oc == "descriptive"),
+       uninformative = sum(oc == "uninformative"), missing = sum(oc == "missing"),
+       unrecognised = sum(oc == "unrecognised"))
 })
 
 # ── GAM model ────────────────────────────────────────────────────────────────

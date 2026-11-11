@@ -1,0 +1,237 @@
+[
+  {
+    "dimension": "replication",
+    "raw": "  SUCCESSFUL  ",
+    "key": "successful"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  REPLICATED  ",
+    "key": "successful"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  FAILED  ",
+    "key": "failed"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  NOT REPLICATED  ",
+    "key": "failed"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  MIXED  ",
+    "key": "mixed"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  PARTIAL  ",
+    "key": "mixed"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  STATISTICALLY SUCCESSFUL BUT FLAWED  ",
+    "key": "qualified"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  DESCRIPTIVE ONLY  ",
+    "key": "descriptive"
+  },
+  {
+    "dimension": "replication",
+    "raw": "  UNINFORMATIVE  ",
+    "key": "uninformative"
+  },
+  {
+    "dimension": "replication",
+    "raw": null,
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": "",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": " NA ",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": "NaN",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": "None",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": "null",
+    "key": "missing"
+  },
+  {
+    "dimension": "replication",
+    "raw": "inconclusive",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "replication",
+    "raw": "uncoded",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "replication",
+    "raw": "successful || computationally reproducible, robustness not checked",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "computational",
+    "raw": "  COMPUTATIONALLY REPRODUCIBLE  ",
+    "key": "successful"
+  },
+  {
+    "dimension": "computational",
+    "raw": "  COMPUTATIONALLY SUCCESSFUL  ",
+    "key": "successful"
+  },
+  {
+    "dimension": "computational",
+    "raw": "  COMPUTATIONAL ISSUES  ",
+    "key": "issues"
+  },
+  {
+    "dimension": "computational",
+    "raw": "  TECHNICAL FAILURE  ",
+    "key": "technical_failure"
+  },
+  {
+    "dimension": "computational",
+    "raw": "  FAILED  ",
+    "key": "technical_failure"
+  },
+  {
+    "dimension": "computational",
+    "raw": "  NOT CHECKED  ",
+    "key": "not_checked"
+  },
+  {
+    "dimension": "computational",
+    "raw": "  COMPUTATION NOT CHECKED  ",
+    "key": "not_checked"
+  },
+  {
+    "dimension": "computational",
+    "raw": null,
+    "key": "missing"
+  },
+  {
+    "dimension": "computational",
+    "raw": "",
+    "key": "missing"
+  },
+  {
+    "dimension": "computational",
+    "raw": " NA ",
+    "key": "missing"
+  },
+  {
+    "dimension": "computational",
+    "raw": "NaN",
+    "key": "missing"
+  },
+  {
+    "dimension": "computational",
+    "raw": "None",
+    "key": "missing"
+  },
+  {
+    "dimension": "computational",
+    "raw": "null",
+    "key": "missing"
+  },
+  {
+    "dimension": "computational",
+    "raw": "inconclusive",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "computational",
+    "raw": "uncoded",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "computational",
+    "raw": "successful || computationally reproducible, robustness not checked",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "  ROBUST  ",
+    "key": "robust"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "  ROBUSTNESS CHALLENGES  ",
+    "key": "challenges"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "  NOT CHECKED  ",
+    "key": "not_checked"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "  ROBUSTNESS NOT CHECKED  ",
+    "key": "not_checked"
+  },
+  {
+    "dimension": "robustness",
+    "raw": null,
+    "key": "missing"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "",
+    "key": "missing"
+  },
+  {
+    "dimension": "robustness",
+    "raw": " NA ",
+    "key": "missing"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "NaN",
+    "key": "missing"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "None",
+    "key": "missing"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "null",
+    "key": "missing"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "inconclusive",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "uncoded",
+    "key": "unrecognised"
+  },
+  {
+    "dimension": "robustness",
+    "raw": "successful || computationally reproducible, robustness not checked",
+    "key": "unrecognised"
+  }
+]

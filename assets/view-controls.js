@@ -133,11 +133,11 @@
         catch { document.getElementById('view-feedback').textContent='Copy the current address from your browser.'; }
     };
     document.getElementById('export-browse').onclick=()=>{
-        const rows=getChartData(); const keys=Object.keys(fullRowData[0] || {});
+        const rows=getChartData(); const keys=Object.keys(fullRowData[0] || {}).flatMap(key => key === 'outcome' ? [key, 'outcome_label'] : [key]);
         const stamp=document.querySelector('#browse .data-stamp')?.textContent || '';
         const filtered=browseQuery.trim() || browseKind !== 'all';
-        FloraCharts.download(filtered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv',keys,rows.map(row=>keys.map(k=>row[k])),
-            `Unit: reference pair\n${stamp}\nStudy kind: ${browseKind}\nQuery: ${browseQuery}\nIncluded: ${rows.length.toLocaleString('en-GB')}; excluded by filters: ${(fullRowData.length-rows.length).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
+        FloraCharts.download(filtered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv',keys,rows.map(row=>keys.map(k=>k === 'outcome_label' ? FloraVocabulary.outcomeLabel(row) : row[k])),
+            `Unit: reference pair\n${stamp}\nStudy type: ${FloraVocabulary.studyType(browseKind)}\nQuery: ${browseQuery}\nIncluded: ${rows.length.toLocaleString('en-GB')}; excluded by filters: ${(fullRowData.length-rows.length).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
     };
     // Associate static and dynamically inserted glossary definitions with their triggers.
     let tipNumber = 0, openingTip = null;

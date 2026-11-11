@@ -215,16 +215,36 @@ def compute_rr_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) ->
     }
 
 
-def main():
+def cached_matches(snapshot):
+    """Reuse positive report matches recorded in the committed summary, offline.
+
+    This is a vocabulary-only recalculation, not a new RRDB coverage lookup.
+    """
+    if not snapshot:
+        raise ValueError('No committed RR summary available; retaining previous outputs')
+    studies = [study for result in snapshot.values() for study in result['rr_studies']]
+    return ({normalize_doi(study.get('doi_r')) for study in studies} - {''},
+            {normalize_title(study.get('title_r')) for study in studies} - {''})
+
+
+def main(argv=()):
     global rr_dois, rr_titles
     if not IN_CSV.exists():
         raise SystemExit(f"{IN_CSV} not found.")
-    print(f"Fetching Registered Reports Database (RRDB) from {RRDB_CSV_URL} …")
-    rr_dois, rr_titles = fetch_rr_library()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cached-matches', action='store_true',
+                        help='Reclassify outcomes offline using matches in the existing summary')
+    args = parser.parse_args(argv)
+    previous = json.loads(OUT_DATA.read_text()) if args.cached_matches else None
+    print("Reusing committed RR matches …" if args.cached_matches else f"Fetching Registered Reports Database (RRDB) from {RRDB_CSV_URL} …")
+    rr_dois, rr_titles = cached_matches(previous) if args.cached_matches else fetch_rr_library()
     print(f"RRDB: {len(rr_dois)} DOIs, {len(rr_titles)} titles")
 
     # ── Load & split by study type ─────────────────────────────────────────────────
     df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+    # Preserve source outcome codes; pandas also applies NA conversion after converters.
+    df["outcome"] = pd.read_csv(IN_CSV, usecols=["outcome"], keep_default_na=False)["outcome"]
     df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
     df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
 
@@ -247,7 +267,14 @@ def main():
             "robustness_bucket", ROBUSTNESS_BUCKETS),
     }
 
+    if previous:
+        for kind in result:
+            if result[kind]['overview'] != previous[kind]['overview']:
+                raise ValueError('Cached matches changed RR coverage; retaining previous outputs')
     OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
+    if previous:
+        print(f"Reclassified outcomes offline; RR coverage and metadata retained: {OUT_DATA}")
+        return
     OUT_META.write_text(json.dumps({
         "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "n_total": {k: v["overview"]["n_total"] for k, v in result.items()},
@@ -265,4 +292,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(sys.argv[1:])

@@ -755,3 +755,14 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
     .rep-seg.mixed { background: repeating-linear-gradient(45deg, Canvas 0 2px, CanvasText 2px 4px) !important; }
     :focus-visible { outline-color: Highlight; }
 }
+
+/* Full outcome labels remain readable in narrow cards and evidence tables. */
+.badge { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.outcome-definitions { margin: 0.75rem 0; color: var(--color-text); }
+.outcome-definitions summary { cursor: pointer; font-weight: 600; }
+.outcome-definitions h3 { font-size: 1rem; margin-top: 1rem; }
+.outcome-definitions dd { margin: 0.2rem 0 0.75rem; }
+
+.study-type-select > .filter-label, .trend-filter-label {
+    text-transform: none; letter-spacing: normal; align-self: center;
+}
