@@ -199,6 +199,7 @@ function studyTypeOutcomeBuckets(kind) {
 const KIND_TEXT_INDEX = {replication: 0, 'reproduction-numerical': 1, 'reproduction-robustness': 2};
 function applyKindText(root, kind) {
     const i = KIND_TEXT_INDEX[kind]; if (i === undefined || !root) return;
+    root.querySelectorAll('[data-reproduction-only]').forEach(el => { el.hidden = kind === 'replication' || kind === 'all'; });
     root.querySelectorAll('[data-kind-text]').forEach(el => {
         const variants = el.dataset.kindText.split('|');
         el.innerHTML = variants[i] ?? variants[0];
@@ -423,7 +424,7 @@ function kindChartCaption(data, kind) {
     const scope = total === eligible
         ? `${total.toLocaleString()} reproduction ${total === 1 ? 'pair has' : 'pairs have'} ${dimension}`
         : `${total.toLocaleString()} of ${eligible.toLocaleString()} reproduction pairs have ${dimension}; ${(eligible - total).toLocaleString()} not checked or not coded`;
-    return `${scope}. ${total ? counts + '. ' : ''}A reference pair can contribute to both dimensions.`;
+    return `${scope}.${total ? ' ' + counts + '.' : ''}`;
 }
 function setCaption(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
 
@@ -461,9 +462,9 @@ function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel
 const retryOverviewCharts = () => renderOverviewChart(fullRowData);
 
 function renderOverviewChart(data) {
+    overviewChart = renderKindStackedBar('overview-outcome-chart', overviewChart, data, 'replicability', 'Replications', retryOverviewCharts);
     overviewComputationalChart = renderKindStackedBar('overview-computational-chart', overviewComputationalChart, data, 'computational', 'Reproductions', retryOverviewCharts);
     overviewRobustnessChart = renderKindStackedBar('overview-robustness-chart', overviewRobustnessChart, data, 'robustness', 'Reproductions', retryOverviewCharts);
-    overviewChart = renderKindStackedBar('overview-outcome-chart', overviewChart, data, 'replicability', 'Replications', retryOverviewCharts);
     setCaption('overview-computational-caption', kindChartCaption(data, 'computational'));
     setCaption('overview-robustness-caption', kindChartCaption(data, 'robustness'));
     setCaption('overview-outcome-caption', kindChartCaption(data, 'replicability'));
@@ -564,10 +565,6 @@ async function loadCitation() {
         htmlParts.push(`<em>${escapeHtml(title)}</em>${escapeHtml(version)} [Dataset].`);
         if (doiLink) htmlParts.push(doiLink);
         box.innerHTML = htmlParts.join(' ');
-        ['citation-text-top', 'citation-text-browse'].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) el.innerHTML = htmlParts.join(' ');
-        });
 
         const plainParts = [];
         if (authorsStr) plainParts.push(authorsStr);
@@ -579,9 +576,6 @@ async function loadCitation() {
         console.error('Citation load failed:', err);
         const errHtml = '<span style="color: var(--color-muted-fg);">Could not load live citation. Please see the <a href="' + CITATION_URL + '" target="_blank" class="doi-link">CITATION.cff file</a>.</span>';
         box.innerHTML = errHtml;
-        ['citation-text-top', 'citation-text-browse'].forEach(function(id) {
-            var el = document.getElementById(id); if (el) el.innerHTML = errHtml;
-        });
     }
 }
 
@@ -769,7 +763,7 @@ function formatDetailRow(rowData) {
                 <h6>Recorded evidence</h6>
                 <div class="detail-section">
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
-                    ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome quotation:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div><p class="small">${rowData.outcome_quote_source ? `Source: ${escapeHtml(rowData.outcome_quote_source)}. ` : ""}This excerpt may cover only part of the findings and may not fully explain the recorded outcome.</p>` : '<p class="small">No supporting quotation is recorded for this pair.</p>'}
+                    ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome quotation:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div>${rowData.outcome_quote_source ? `<p class="small">Source: ${escapeHtml(rowData.outcome_quote_source)}.</p>` : ""}` : '<p class="small">No supporting quotation is recorded for this pair.</p>'}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
                 </div>
             </div>
@@ -1004,6 +998,8 @@ function renderBrowseOutcomeCharts() {
     const active = dimensions[browseKind];
     const card = document.getElementById('browse-outcome-card');
     if (card) card.style.display = active && data.length ? '' : 'none';
+    document.getElementById('browse-coverage-note').hidden = !data.length || (!active && !browseQuery.trim());
+    document.getElementById('browse-assessment-note').hidden = !active || browseKind === 'replication';
     const hint = document.getElementById('browse-chart-hint');
     if (hint) hint.style.display = active ? 'none' : '';
     Object.entries(rows).forEach(([dimension, el]) => { if (el) el.style.display = active === dimension ? '' : 'none'; });
@@ -1323,6 +1319,8 @@ function mcBucketConfig(kind) {
 function renderMcCharts() {
     if (typeof Plotly === "undefined") { chartLibUnavailable("mc-dist-chart", "Plotly", renderMcCharts); return; }
     document.getElementById('mc-gam-stats').textContent = '';
+    document.getElementById('mc-model-count').textContent = '';
+    document.getElementById('mc-repro-note').style.display = 'none';
     // The model, its table, copy action and status leave together; see FloraCharts.clear.
     FloraCharts.clear('mc-gam-chart');
     const d = window._mcData && window._mcData[mcKind];
@@ -1457,11 +1455,12 @@ function renderMcCharts() {
         : '';
     const glossEdf = '<span class="gloss" tabindex="0">edf<span class="gloss-tip">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</span></span>';
     const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</span></span>';
+    document.getElementById('mc-model-count').textContent = `Fitted from ${st.n_model.toLocaleString('en-GB')} successful or failed reference pairs.`;
     document.getElementById('mc-gam-stats').innerHTML =
         'Logistic smooth: ' + glossEdf + ' = ' + st.edf +
         ', χ² = ' + st.chi_sq +
         (pNote ? ', ' + pNote : '') +
-        '; ' + glossR2 + ' = ' + st.r2 +
+        '; ' + glossR2 + ' = ' + Number(st.r2).toFixed(3) +
         '; N = ' + st.n_model.toLocaleString('en-GB') + ' (successful vs. failed)';
 }
 

@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#2c2c2c">
-    <title>FLoRA Explorer: FORRT Library of Reproduction and Replication Attempts</title>
+    <title>FLoRA Explorer: replication and reproduction evidence</title>
     <meta name="description" content="Explore the FORRT Library of Reproduction and Replication Attempts (FLoRA), a database tracking replication and reproduction studies across the sciences and humanities.">
     <meta name="keywords" content="replication, reproduction, FLoRA, FORRT, open science, metascience, reproducibility">
 
     <meta property="og:type" content="website">
-    <meta property="og:title" content="FLoRA Explorer: FORRT Library of Reproduction and Replication Attempts">
+    <meta property="og:title" content="FLoRA Explorer: replication and reproduction evidence">
     <meta property="og:description" content="Explore replication and reproduction studies across the sciences and humanities. Browse, filter and analyse the FLoRA database.">
     <meta property="og:site_name" content="FLoRA Explorer">
 
@@ -92,7 +92,8 @@
             <!-- ============================ OVERVIEW ============================ -->
             <div class="tab-pane fade show active" id="overview" role="tabpanel">
 
-                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>The <strong>FORRT Library of Reproduction and Replication Attempts (FLoRA)</strong> is a project of the Framework for Open and Reproducible Research Training (FORRT).</p><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. Use <a href="?tab=browse" data-tab-link="browse-tab">Browse Studies</a> to search and filter reference pairs here, or the <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Replication Atlas</a> to see the replication history of one original study.</p></section>
+                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>The <strong>FORRT Library of Reproduction and Replication Attempts (FLoRA)</strong> is a project of the Framework for Open and Reproducible Research Training (<a href="https://forrt.org/" target="_blank" rel="noopener noreferrer">FORRT</a>).</p><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. Use <a href="?tab=browse" data-tab-link="browse-tab">Browse Studies</a> to search and filter reference pairs here, or the <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Replication Atlas</a> to see the replication history of one original study.</p></section>
+                <p><a href="#cite-and-reuse" data-cite-link>How to cite this view</a></p>
                 <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <div class="row mb-3">
@@ -101,16 +102,24 @@
                     <div class="col-6 col-md-4"><div class="stats-card"><div class="number" id="ov-reproductions">-</div><div class="label">Reproductions</div></div></div>
                 </div>
 
-                <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                    <div class="tab-cite-block-label">How to cite &amp; re-use guidelines</div>
-                    <p class="reuse-text">The projects embedded in this website are the work of over two hundred paid and volunteer researchers over more than four years. Please cite the respective works when (re-)using them. If you expect to profit from this work, for example through a grant application based on these data, please consider reaching out to us to involve members of the community.</p>
-                    <div class="cite-ref" id="citation-text-top">Loading citation…</div>
-                    <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
-
                 <div class="card">
                     <h2 class="card-header">Outcome Breakdown</h2>
                     <div class="card-body">
-                        <p class="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage">Coverage limits</a></p>
+                        <p class="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage" data-coverage-link>Coverage limits</a></p>
+                        <div class="outcome-chart-row">
+                            <div class="outcome-chart-label">
+                                <span>Replicability</span>
+                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about replicability">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    <span class="info-tip">This distribution covers <strong>replications only</strong>. Reproductions are shown separately because they are coded along different dimensions.</span>
+                                </span>
+                            </div>
+                            <p class="chart-caption" id="overview-outcome-caption"></p>
+                            <div class="chart-container-stack">
+                                <canvas id="overview-outcome-chart"></canvas>
+                            </div>
+                        </div>
+                        <p class="study-type-note">Computational reproducibility and robustness are assessed separately. A reference pair can appear in both charts; their totals must not be added.</p>
                         <div class="outcome-chart-row">
                             <div class="outcome-chart-label">
                                 <span>Computational Reproducibility</span>
@@ -137,19 +146,6 @@
                                 <canvas id="overview-robustness-chart"></canvas>
                             </div>
                         </div>
-                        <div class="outcome-chart-row">
-                            <div class="outcome-chart-label">
-                                <span>Replicability</span>
-                                <span class="info-icon" role="img" tabindex="0" aria-label="Info about replicability">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                                    <span class="info-tip">Currently, this distribution covers <strong>replications only</strong>. Reproductions are shown separately above, since they're coded along different dimensions.</span>
-                                </span>
-                            </div>
-                            <p class="chart-caption" id="overview-outcome-caption"></p>
-                            <div class="chart-container-stack">
-                                <canvas id="overview-outcome-chart"></canvas>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -166,9 +162,9 @@
                                 <h3>What is a replication?</h3>
                                 <p>Replications intentionally repeat prior research to test whether the original findings hold. To be included in FLoRA, a study must:</p>
                                 <ul>
-                                    <li>Self-identify as a replication <em>before</em> reporting results: replication must be an aim, not just a result</li>
+                                    <li>Set out to replicate prior research before reporting results.</li>
                                     <li>Identify a specific target study (or studies)</li>
-                                    <li>Replicate a study or experiment: a central claim, not just any empirical pattern</li>
+                                    <li>Test a central claim of a specific study or experiment.</li>
                                 </ul>
                                 <p>Replications range from <strong>close/direct</strong> (same methods, same population) to <strong>conceptual</strong> (same hypothesis, different methods). Most outcomes are tagged <strong>Successful</strong>, <strong>Failed</strong>, or <strong>Mixed</strong> based on how the replication authors characterise their results. A few are recorded as <strong>Successful but flawed</strong>, and some as other or not yet coded (for example, descriptive only); charts show these separately.</p>
 
@@ -185,18 +181,20 @@
                                 </div>
 
                                 <h3>Structure of FLoRA</h3>
-                                <p>FLoRA links each repetition reference to its original, and assigns a standardised outcome based on the repetition report. This simple structure lets us describe recorded replication and reproduction outcomes across time, disciplines and venues, and powers tools like the FLoRA Zotero Plugin, which lists replication and reproduction attempts for any reference you provide.</p>
+                                <p>FLoRA links each repetition reference to its original and records an outcome from the repetition report.</p>
 
                                 <h3 id="flora-coverage">Is FLoRA representative and comprehensive?</h3>
-                                <p>Honestly — neither. We are still working on a systematic literature search, and several structural factors limit coverage:</p>
+                                <p>FLoRA is neither comprehensive nor representative. A systematic literature search is still in progress.</p>
+                                <details><summary>Coverage details</summary>
                                 <ul>
                                     <li>Some replications cannot be added because they do not self-identify as such in the metadata we can reach (e.g., the title and abstract).</li>
                                     <li>In some areas of computational reproduction (for example, <a href="https://codecheck.org.uk/" target="_blank" rel="noopener noreferrer" class="doi-link">CODECHECK</a> certificates), the artefacts are typically only issued for <em>successful</em> numerical reproductions, which makes representative estimates of computational reproducibility difficult.</li>
                                     <li>Coverage by discipline, language, and publication venue is uneven and reflects where contributors have focused so far.</li>
                                 </ul>
+                                </details>
                                 <p>Treat aggregate statistics as exploratory rather than definitive, and please <a href="https://forrt.org/replication-hub/submit/" target="_blank" rel="noopener noreferrer" class="doi-link">submit missing entries</a> when you spot them.</p>
 
-                                <p>FLoRA is the product of years of work by a large community of volunteers. If you'd like to contribute or use the data for your own research, <a href="https://forrt.org/replication-hub/" target="_blank" rel="noopener noreferrer" class="doi-link">please reach out</a>.</p>
+                                <p>FLoRA is the product of years of work by a large community of volunteers. <a href="https://forrt.org/replication-hub/" target="_blank" rel="noopener noreferrer" class="doi-link">Find out how to contribute</a>.</p>
                             </div>
                         </div>
 
@@ -308,30 +306,15 @@
                     </div>
                 </div>
 
-                <div class="card">
-                    <h2 class="card-header">Recommended Citation</h2>
-                    <div class="card-body">
-                        <p class="mb-2 note">If you use the underlying dataset, please cite it as:</p>
-                        <div class="citation-box" id="citation-box">
-                            <button class="copy-btn" id="citation-copy-btn" aria-label="Copy dataset citation">Copy</button>
-                            <div id="citation-text">Loading citation…</div>
-                        </div>
-
-                        <p class="mt-4 mb-2 note">If you report results based on this website, please cite it as:</p>
-                        <div class="citation-box" id="website-citation-box">
-                            <button class="copy-btn" id="website-citation-copy-btn" aria-label="Copy website citation">Copy</button>
-                            <div id="website-citation-text">
-                                Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- ============================ BROWSE ============================ -->
             <div class="tab-pane fade" id="browse" role="tabpanel">
                 <h1 class="visually-hidden">Browse Studies</h1>
-                <div class="data-stamp" data-stamp-source="flora"></div>
+                <h2>Browse Studies</h2>
+                <p class="tab-purpose">Search FLoRA for reports and inspect the evidence behind their recorded outcomes.</p>
+                <p><a href="#cite-and-reuse" data-cite-link>How to cite this view</a></p>
+
                 <div class="browse-filter-panel">
                     <div class="browse-search"><label for="browse-mobile-input">Find a reference pair</label><div class="browse-search-row"><input type="search" id="browse-mobile-input" class="form-control" placeholder="Title, author, year, DOI or DOI URL" autocomplete="off"><button type="button" id="share-view" class="icon-action" aria-label="Copy current view link" title="Copy current view link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><button type="button" id="export-browse" class="browse-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg><span>Download full CSV</span></button></div><span id="view-feedback" role="status"></span></div>
                     <div class="trend-filter browse-kind-filter" role="group" aria-label="Filter by study kind">
@@ -344,17 +327,14 @@
                     </div>
                     <p id="browse-chart-hint" class="study-type-note">Choose a study type to see its outcome breakdown.</p>
                 </div>
+                <div class="data-stamp" data-stamp-source="flora"></div>
                 <div id="browse-empty" class="browse-empty" role="status" hidden></div>
 
-                <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                    <div class="tab-cite-block-label">How to cite &amp; re-use guidelines</div>
-                    <p class="reuse-text">The projects embedded in this website are the work of over two hundred paid and volunteer researchers over more than four years. Please cite the respective works when (re-)using them. If you expect to profit from this work, for example through a grant application based on these data, please consider reaching out to us to involve members of the community.</p>
-                    <div class="cite-ref" id="citation-text-browse">Loading citation…</div>
-                    <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
-
+                <p id="browse-coverage-note" class="coverage-caution" hidden>These shares describe the matching records in FLoRA. Coverage is incomplete and uneven, and a text search does not define a representative sample of research.</p>
                 <div class="card" id="browse-outcome-card" style="display:none;">
                     <h2 class="card-header">Outcome Breakdown</h2>
                     <div class="card-body">
+                        <p id="browse-assessment-note" class="study-type-note" hidden>Only assessed outcomes for the selected dimension are included; unchecked or uncoded values are excluded.</p>
                         <div class="outcome-chart-row" id="browse-computational-row" style="display:none;">
                             <div class="outcome-chart-label">
                                 <span>Computational Reproducibility</span>
@@ -400,6 +380,7 @@
                 <div class="card">
                     <h2 class="card-header" id="browse-results-heading" tabindex="-1">Studies Database</h2>
                     <div class="card-body">
+                        <p>Recorded excerpts may cover only part of a report’s findings and may not fully explain its recorded outcome.</p>
                         <div class="browse-desktop">
                             <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
                                 <thead>
@@ -443,12 +424,9 @@
             <!-- ============================ TRENDS ============================ -->
             <div class="tab-pane fade" id="trends" role="tabpanel">
                 <h1 class="visually-hidden">Years &amp; Disciplines</h1>
-                <h2 class="visually-hidden">Outcome summaries</h2>
-                <div class="data-stamp" data-stamp-source="flora"></div>
-
-                <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                    <div class="tab-cite-block-label">How to cite</div>
-                    <div class="cite-ref">Röseler, L. et al. (in preparation). <em>The FORRT Library of Reproduction and Replication Attempts: Documenting the Reproducibility and Replicability of the Sciences and Humanities.</em></div></details>
+                <h2>Years &amp; Disciplines</h2>
+                <p class="tab-purpose">Compare recorded outcomes by publication year, journal, venue and field.</p>
+                <p><a href="#cite-and-reuse" data-cite-link>How to cite this view</a></p>
 
                 <div class="trend-filter" role="group" aria-label="Filter by study kind">
                     <span class="trend-filter-label">Show:</span>
@@ -459,11 +437,14 @@
                     <span class="trend-filter-count" id="trend-filter-count" role="status"></span>
                 </div>
 
+                <div class="data-stamp" data-stamp-source="flora"></div>
                 <div id="trends-placeholder" class="coming-soon-placeholder" style="display:none;">
                     Select a study type above (Replications, Numerical Reproductions, or Robustness Reproductions) to see year, journal, and field breakdowns. "All studies" mixes two different outcome vocabularies, so it isn't shown here.
                 </div>
 
+                <p class="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage" data-coverage-link>Coverage limits</a></p>
                 <div id="trends-charts">
+                <p class="study-type-note" data-reproduction-only hidden>Only assessed outcomes for the selected dimension are included; unchecked or uncoded values are excluded.</p>
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by original study year</h3></div>
@@ -524,9 +505,8 @@
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by field</h3></div>
-                        <p>A bird's-eye view grouping reference pairs by research discipline. Each bar shows the outcome breakdown of <span data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span> attempts targeting work originally published in journals from that field.</p>
-                        <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">journal-to-discipline mapping</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
-                        <p class="trend-note">Coverage is still growing. Journals that are not yet classified may leave some fields under-represented.</p>
+                        <p>Each bar groups recorded outcomes by the field assigned to the original study’s journal.</p>
+                        <p>Fields are assigned from original journal names using a manually maintained mapping. Unmapped journals appear under Uncategorized; a journal’s assigned field may not describe every article it publishes. See the <a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">journal-to-field mapping</a>.</p>
                     </div>
                     <div class="chart-container" id="trend-field-container"><canvas id="trend-field"></canvas></div>
                 </div></div></div>
@@ -537,29 +517,20 @@
             <!-- ============================ CITATION IMPACT ============================ -->
             <div class="tab-pane fade" id="citation-impact" role="tabpanel">
                 <h1 class="visually-hidden">Citation Impact</h1>
-                <div class="data-stamp" data-stamp-source="citations"></div>
-
-                <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                    <div class="tab-cite-block-label">How to cite</div>
-                    <p class="reuse-text">This is a simplified preview of the methods pre-registered for our ongoing confirmatory study:</p>
-                    <div class="cite-ref">Weinerova, J., Wallrich, L., Röseler, L., Feuerriegel, S., &amp; Azevedo, F. (2026, April 30). (When) Do Replications Influence the Impact of Original Claims? A Bibliometric Investigation. <a href="https://doi.org/10.17605/OSF.IO/WJGM3" target="_blank" rel="noopener noreferrer" class="doi-link">https://doi.org/10.17605/OSF.IO/WJGM3</a></div></details>
-
                 <div class="ci-intro">
                     <h2 class="ci-h2" data-kind-text="Citation patterns around the first replication|Citation counts for numerical reproductions|Citation counts for robustness reproductions">Citation patterns around the first replication</h2>
+                    <p class="ci-lede" data-kind-text="See how often originals and their replications are cited, and how often later works cite both.|See citation counts for originals and their numerical reproductions, including works that cite both.|See citation counts for originals and their robustness reproductions, including works that cite both.">See how often originals and their replications are cited, and how often later works cite both.</p>
+                    <p><a href="#cite-and-reuse" data-cite-link>How to cite this view</a></p>
                     <div class="chip-group study-type-select" id="ci-study-type" role="group" aria-label="Citation Impact study type">
                         <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                         <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                         <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
                     </div>
-                    <div class="study-type-note">Numerical and robustness reproductions show descriptive citation counts. No reproduction event-study model is fitted.</div>
-                    <p class="ci-lede">
-                        This tab combines the FLoRA dataset with citation data from
-                        <a href="https://opencitations.net" target="_blank" rel="noopener noreferrer">OpenCitations</a> to
-                        <span data-kind-text="describe citations to the original around the first recorded replication|count citations to originals and their numerical reproductions|count citations to originals and their robustness reproductions">describe citations to the original around the first recorded replication</span>,
-                        and how often the two are "co-cited" (cited together by the same later work).
-                    </p>
+                    <div class="study-type-note" data-reproduction-only hidden>These citation counts are descriptive; no reproduction model is fitted.</div>
                 </div>
 
+                <div class="data-stamp" data-stamp-source="citations" id="ci-replication-stamp"></div>
+                <p>Citation patterns do not establish that replication or reproduction caused a change in citations.</p>
                 <div id="ci-placeholder" class="coming-soon-placeholder" style="display:none;"></div>
 
                 <div id="ci-repro-content" class="card ci-card" style="display:none;"><div class="data-stamp" data-stamp-source="reproduction_citations"></div>
@@ -680,10 +651,7 @@
                     <h2 class="card-header">About this analysis</h2>
                     <div class="card-body">
                         <p>
-                            Data are refreshed weekly. The pipeline filters FLoRA to
-                            <strong>conceptual and direct replications</strong> with outcomes labelled
-                            <em>successful</em>, <em>failed</em>, or <em>mixed</em> (reproductions are excluded).
-                            For each included original and replication, we retrieve all citing works from
+                            The citation dataset includes records marked as replications, with outcomes labelled successful, failed or mixed. Both reports must have a DOI. Duplicate original–replication DOI pairs are removed. There is no filter for direct or conceptual replication. For each included original and replication, we retrieve all citing works from
                             OpenCitations COCI. A "co-citation" is any work that cites both the original and at
                             least one of its replications.
                         </p>
@@ -704,40 +672,41 @@
             <!-- ============================ MEAN CITEDNESS ============================ -->
             <div class="tab-pane fade" id="mean-citedness" role="tabpanel">
                 <h1 class="visually-hidden">Mean Citedness</h1>
-                <div class="data-stamp" data-stamp-source="impact_factor"></div>
-
-                <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                    <div class="tab-cite-block-label">How to cite</div>
-                    <div class="cite-ref">Röseler, J., &amp; Röseler, L. (in preparation). <em>Guess the replication: How Journal Prestige affects Predicted and Actual Replication Success.</em></div></details>
+                <h2>Mean Citedness</h2>
+                <p class="tab-purpose">How do recorded outcomes vary with the citation rate of the original study’s journal?</p>
+                <p><a href="#cite-and-reuse" data-cite-link>How to cite this view</a></p>
 
                 <div class="card">
                     <h2 class="card-header">Journal Mean Citedness and Recorded Outcomes</h2>
                     <div class="card-body">
-                        <p class="muted" style="margin-bottom: 0.75rem;">
-                            This tab <span data-kind-text="presents a statistical analysis of whether|describes, without a fitted model, how computational verdicts vary with|describes, without a fitted model, how robustness verdicts vary with">presents a statistical analysis of whether</span> the
-                            <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal<span data-kind-text=" predicts replication success||"> predicts replication success</span>. OMC is a proxy for the Journal Impact Factor.
-                            Mean Citedness is a journal-level measure from OpenAlex: the mean citations to its works published in the previous two years. It is retrieved at enrichment time, not matched to the original publication year, and is not the original article’s citation count. The update stamp identifies the analysis snapshot. Any fitted model describes an association.
-                        </p>
+                        <p class="muted" style="margin-bottom: 0.75rem;">OpenAlex Mean Citedness (OMC) is the mean number of citations to a journal’s works published in the previous two years. We use its value at data enrichment, not its value when the original was published. It is a journal measure, not the original article’s citation count.</p>
                         <div class="chip-group study-type-select" id="mc-study-type" role="group" aria-label="Mean Citedness study type">
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                             <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                             <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
                         </div>
-                        <div class="study-type-note">Reproduction summaries include only pairs with a verdict on the selected dimension and an available OMC below 35. Unchecked and uncoded dimensions are excluded; the two subsets can overlap.</div>
+                        <div class="study-type-note" data-reproduction-only hidden>Only assessed outcomes for the selected dimension are included; unchecked or uncoded values are excluded.</div>
+                        <div class="data-stamp" data-stamp-source="impact_factor"></div>
                         <div id="mc-placeholder" class="coming-soon-placeholder" style="display:none;">Not computed yet for this study type — coming soon.</div>
+                        <p class="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage" data-coverage-link>Coverage limits</a></p>
                         <div id="mc-content">
                         <div id="mc-loading" class="note note-loading">Loading analysis…</div>
                         <div id="mc-overview" class="mc-overview-grid" style="display:none;"></div>
                         <div id="mc-dist-card" class="mc-chart-card" style="display:none;">
                             <h3 class="mc-chart-title">Distribution of reference pairs by journal Mean Citedness</h3>
+                            <p>Includes pairs with an available OMC below 35; other pairs are excluded.</p>
                             <div class="mc-chart-wrap"><div id="mc-dist-chart"></div></div>
                         </div>
-                        <p id="mc-repro-note" class="mc-model-note" style="display:none;">Reproduction summaries are descriptive. No reproduction model has been fitted.</p>
+                        <p id="mc-repro-note" class="mc-model-note" style="display:none;">This distribution is descriptive; no reproduction model is fitted.</p>
                         <div id="mc-gam-card" class="mc-chart-card" style="display:none;">
                             <h3 class="mc-chart-title">Success probability among successful / failed replications</h3>
-                            <p id="mc-gam-stats" class="mc-model-note"></p>
+                            <p>The curve summarises an association among unqualified successful or failed outcomes. Other outcomes are excluded. It does not establish a causal effect or show how accurately OMC would predict new outcomes.</p>
+                            <p id="mc-model-count" class="mc-model-note"></p>
+                            <details><summary>Model details</summary>
+                                <p>The logistic model uses a smooth of log(1 + OMC). The curve is displayed up to OMC 20, although eligible observations below 35 enter the fit. Intervals are pointwise 95% intervals and do not account for clustering by journal, report or original target. McFadden R² compares model fit with an intercept-only model; it is not prediction accuracy or the share of variation explained. The dashed 50% line is a reference, not a chance baseline.</p>
+                                <p id="mc-gam-stats" class="mc-model-note"></p>
+                            </details>
                             <div class="mc-chart-wrap"><div id="mc-gam-chart"></div></div>
-                            <p class="mc-model-note" style="margin-top:0.6rem;">Conditional on unqualified successful or failed outcomes; other outcomes are excluded. Association does not establish causation.</p>
                         </div>
                         <div id="mc-error" class="note" style="display:none;">
                             Failed to load analysis data.
@@ -751,35 +720,29 @@
             <!-- ==================== AUTHORSHIP OVERLAP ==================== -->
             <div class="tab-pane fade" id="authorship-overlap" role="tabpanel">
                 <h1 class="visually-hidden">Authorship Overlap</h1>
-                <div class="data-stamp" data-stamp-source="author_overlap"></div>
-
-                <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                    <div class="tab-cite-block-label">How to cite</div>
-                    <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
+                <h2>Authorship Overlap</h2>
+                <p class="tab-purpose">Compare recorded outcomes for reports with and without matching author family names.</p>
+                <p><a href="#cite-and-reuse" data-cite-link>How to cite this view</a></p>
 
                 <div class="card">
                     <h2 class="card-header">Authorship Overlap and Outcomes</h2>
                     <div class="card-body">
-                        <p style="margin-bottom:0.75rem;">
-                            This analysis looks for matching family names between the authors of the <strong>original study</strong>
-                            and of the <strong><span data-kind-text="replication|reproduction|reproduction">replication</span> report</strong>. A match may indicate
-                            <span data-kind-text="a &lt;em&gt;same-author replication&lt;/em&gt; or &lt;em&gt;self-replication&lt;/em&gt;|a &lt;em&gt;same-author reproduction&lt;/em&gt;|a &lt;em&gt;same-author reproduction&lt;/em&gt;">a <em>same-author replication</em> or <em>self-replication</em></span>, but does not confirm author identity.
-                            Author names are matched by family name (normalised: lowercase, diacritics removed).
-                            This may produce <strong>false positives</strong> for common family names when two
-                            unrelated researchers share a surname.
-                        </p>
+                        <p style="margin-bottom:0.75rem;">We match authors by family name, ignoring case, diacritics and punctuation. A match suggests, but does not confirm, shared authorship; common surnames can produce false matches.</p>
                         <div class="chip-group study-type-select" id="ao-study-type" role="group" aria-label="Authorship Overlap study type">
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                             <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                             <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
                         </div>
-                        <div class="study-type-note">Each reproduction dimension includes only assessed outcomes. Unchecked dimensions are excluded; the numerical and robustness subsets can overlap.</div>
+                        <div class="study-type-note" data-reproduction-only hidden>Only assessed outcomes for the selected dimension are included; unchecked or uncoded values are excluded.</div>
+                        <div class="data-stamp" data-stamp-source="author_overlap"></div>
                         <div id="ao-placeholder" class="coming-soon-placeholder" style="display:none;">Not computed yet for this study type — coming soon.</div>
+                        <p class="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage" data-coverage-link>Coverage limits</a></p>
                         <div id="ao-content">
                         <div id="ao-loading" class="note note-loading">Loading analysis…</div>
 
                         <div id="ao-overview" class="mc-overview-grid" style="display:none;"></div>
 
+                        <p>Pairs can share reports or original targets, so these observations are not independent.</p>
                         <div id="ao-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
                             <h3 class="mc-chart-title"><span data-kind-text="Replication outcomes|Computational verdicts|Robustness verdicts">Replication outcomes</span> by authorship overlap</h3>
                             <div class="mc-chart-wrap"><div id="ao-chart"></div></div>
@@ -787,7 +750,7 @@
 
                         <div id="ao-caveat" style="display:none;margin-top:1rem;">
                             <div class="key-distinction">
-                                <strong>Interpretation caveat:</strong> <span data-kind-text="Authors replicating their own work may bring unique methodological knowledge and access to original materials, which could improve replication success. At the same time, they may have a conflict of interest in publicly reporting inconsistent results. Both effects can operate simultaneously, making the direction of bias difficult to predict.|Author involvement may affect access to materials, analytical choices and reporting. These comparisons do not establish that author overlap affects the recorded verdict.|Author involvement may affect access to materials, analytical choices and reporting. These comparisons do not establish that author overlap affects the recorded verdict.">Authors replicating their own work may bring unique methodological knowledge and access to original materials, which could improve replication success. At the same time, they may have a conflict of interest in publicly reporting inconsistent results. Both effects can operate simultaneously, making the direction of bias difficult to predict.</span>
+                                <strong>Interpretation caveat:</strong> <span data-kind-text="Original authors may know the methods better, but may also be reluctant to report failures. These comparisons do not show which explanation accounts for any outcome difference.|Author involvement may affect access to materials, analytical choices and reporting. These comparisons do not establish that author overlap affects the recorded verdict.|Author involvement may affect access to materials, analytical choices and reporting. These comparisons do not establish that author overlap affects the recorded verdict.">Original authors may know the methods better, but may also be reluctant to report failures. These comparisons do not show which explanation accounts for any outcome difference.</span>
                             </div>
                         </div>
 
@@ -803,17 +766,20 @@
             <!-- ==================== PUBLICATION TYPE ==================== -->
             <div class="tab-pane fade" id="publication-type" role="tabpanel">
                 <h1 class="visually-hidden">Publication Type</h1>
-                <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                    <div class="tab-cite-block-label">How to cite</div>
-                    <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
+                <h2>Publication Type</h2>
+                <p class="tab-purpose">Compare recorded outcomes by publication venue, Registered Report status and number of original targets.</p>
+                <p><a href="#cite-and-reuse" data-cite-link>How to cite this view</a></p>
 
                 <div class="chip-group study-type-select" id="pubtype-study-type" role="group" aria-label="Publication Type study type (all three comparisons)">
                     <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
                     <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
                     <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
                 </div>
-                <div class="study-type-note">This filter applies to all three analyses below. It is computed for all three study types; reproduction results may show a low-data message given how few reproductions exist so far.</div>
+                <div class="study-type-note">The selection applies to all three comparisons below.</div>
 
+                <p class="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage" data-coverage-link>Coverage limits</a></p>
+                <p class="study-type-note" data-reproduction-only hidden>Only assessed outcomes for the selected dimension are included; unchecked or uncoded values are excluded.</p>
+                <p>Pairs can share reports or original targets, so these observations are not independent.</p>
                 <!-- ---- Publication Status: journal vs. preprint ---- -->
                 <div class="data-stamp" data-stamp-source="pub_status"></div>
                 <div class="card">
@@ -835,17 +801,7 @@
 
                         <div id="pub-caveat" style="display:none;margin-top:1.25rem;">
                             <div class="key-distinction">
-                                <strong>Interpretation caveat:</strong> Publication-venue status is derived from the
-                                report venue recorded in FLoRA, classified as above. Some studies
-                                currently classified as preprints may since have been formally published in a
-                                different venue without FLoRA yet reflecting that update. Any outcome
-                                differences between these groups should also not be read as caused by publication
-                                venue alone: constructive peer review, a tendency for more selective journals to
-                                accept more polished work, and publication-pressure effects — for example a bias
-                                toward reporting positive or successful results in order to get published, or
-                                conversely extra editorial scrutiny catching more issues before publication — could
-                                all plausibly produce real differences independent of, or entangled with, venue
-                                itself.
+                                <strong>Interpretation caveat:</strong> Venue is taken from the recorded journal name. Some preprints may since have been published. Differences between groups may reflect peer review, journal selectivity or publication bias, rather than venue alone.
                             </div>
                         </div>
 
@@ -892,12 +848,8 @@
                             identifiable non-matches form the <strong>Not found in RR database</strong> group. Pairs without a report DOI or title remain unknown and are excluded from the comparison.
                         </p>
                         <p style="margin-bottom:0.75rem;">
-                            Because the Registered Reports database is itself a work in progress, “Not found in RR database” means
-                            <em>not (yet) found</em> in the database, rather than confirmed non-RR.
+                            A non-match means the report was not found in the Registered Reports Database; it does not establish that the report was not registered.
                         </p>
-                        <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
-                            <div class="tab-cite-block-label">Registered Reports data source</div>
-                            <div class="cite-ref">Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., Morillo, D., … Armstrong, C. (2026, May 14). <em>Database of Published Registered Reports</em>. <a href="https://doi.org/10.17605/OSF.IO/VUR72" target="_blank" rel="noopener noreferrer" class="doi-link">https://doi.org/10.17605/OSF.IO/VUR72</a></div></details>
                         <div id="rr-placeholder" class="coming-soon-placeholder" style="display:none;">Not computed yet for this study type — coming soon.</div>
                         <div id="rr-content">
                         <div id="rr-loading" class="note note-loading">Loading analysis…</div>
@@ -911,7 +863,7 @@
 
                         <div id="rr-caveat" style="display:none;margin-top:1.25rem;">
                             <div class="key-distinction">
-                                <strong>Interpretation caveat:</strong> <span data-kind-text="Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between RR and non-RR replications could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘Not found in RR database’ group likely still contains some unlabelled Registered Reports.|Selection into the Registered Report format is not random. Differences between database-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.|Selection into the Registered Report format is not random. Differences between database-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.">Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between RR and non-RR replications could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘Not found in RR database’ group likely still contains some unlabelled Registered Reports.</span>
+                                <strong>Interpretation caveat:</strong> Selection into the Registered Report format is not random. Differences between matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.
                             </div>
                         </div>
 
@@ -962,13 +914,7 @@
 
                         <div id="ls-caveat" style="display:none;margin-top:1.25rem;">
                             <div class="key-distinction">
-                                <strong>Interpretation caveat:</strong> Outcomes reported within the same
-                                multiple-target report are not independent data points — they typically share
-                                authors, protocol, and incentives, so pooling many results from one report
-                                alongside results from reports with fewer targets can understate how clustered those
-                                outcomes really are. Multiple-target reports may also differ systematically in rigour,
-                                pre-registration, or topic selection from reports with fewer targets, which could
-                                itself explain any outcome difference, independent of target count itself.
+                                <strong>Interpretation caveat:</strong> Multiple-target reports share authors and protocol. They may also differ in rigour or topic, which could explain outcome differences.
                             </div>
                         </div>
 
@@ -1002,12 +948,39 @@
 
         </div>
 
+        <details id="cite-and-reuse" class="tab-cite-block">
+            <summary>Cite and reuse</summary>
+            <p>Cite the dataset when using its records and FLoRA Explorer when reporting results from this dashboard. Cite the relevant analysis or data source below when using it. If you plan a project using these data, consider involving the <a href="https://forrt.org/replication-hub/" target="_blank" rel="noopener noreferrer">FLoRA community</a>.</p>
+
+            <p class="mb-2 note">If you use the underlying dataset, please cite it as:</p>
+            <div class="citation-box" id="citation-box">
+                <button class="copy-btn" id="citation-copy-btn" aria-label="Copy dataset citation">Copy</button>
+                <div id="citation-text">Loading citation…</div>
+            </div>
+
+            <p class="mt-4 mb-2 note">If you report results based on this website, please cite it as:</p>
+            <div class="citation-box" id="website-citation-box">
+                <button class="copy-btn" id="website-citation-copy-btn" aria-label="Copy website citation">Copy</button>
+                <div id="website-citation-text">
+                    Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a>
+                </div>
+            </div>
+
+            <p>Relevant analyses and data sources:</p>
+            <p>Citation counts come from <a href="https://opencitations.net" target="_blank" rel="noopener noreferrer">OpenCitations</a>. The citation analysis previews the methods pre-registered by Weinerova and colleagues below.</p>
+            <div class="cite-ref">Röseler, L. et al. (in preparation). <em>The FORRT Library of Reproduction and Replication Attempts: Documenting the Reproducibility and Replicability of the Sciences and Humanities.</em></div>
+            <div class="cite-ref">Weinerova, J., Wallrich, L., Röseler, L., Feuerriegel, S., &amp; Azevedo, F. (2026, April 30). (When) Do Replications Influence the Impact of Original Claims? A Bibliometric Investigation. <a href="https://doi.org/10.17605/OSF.IO/WJGM3" target="_blank" rel="noopener noreferrer" class="doi-link">https://doi.org/10.17605/OSF.IO/WJGM3</a></div>
+            <div class="cite-ref">Röseler, J., &amp; Röseler, L. (in preparation). <em>Guess the replication: How Journal Prestige affects Predicted and Actual Replication Success.</em></div>
+            <div class="cite-ref">Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., Morillo, D., … Armstrong, C. (2026, May 14). <em>Database of Published Registered Reports</em>. <a href="https://doi.org/10.17605/OSF.IO/VUR72" target="_blank" rel="noopener noreferrer" class="doi-link">https://doi.org/10.17605/OSF.IO/VUR72</a></div>
+        </details>
+
     </div>
     </main>
 
     <footer class="footer-bar">
         <span>FLoRA &middot; Tracking reproductions and replications across the sciences and humanities</span>
         <div>
+            <a href="#cite-and-reuse" data-cite-link>Cite and reuse</a>
             <a href="https://github.com/forrtproject/FReD-data" target="_blank" rel="noopener noreferrer">FORRT FLoRA Project</a>
             <a href="https://forrt.org/replication-hub/" target="_blank" rel="noopener noreferrer">FORRT Replication Hub</a>
         </div>

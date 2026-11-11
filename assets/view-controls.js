@@ -113,6 +113,27 @@
         });
     });
     window.addEventListener('popstate',()=>restore(new URL(location.href),true));
+    // Shared guidance remains reachable from the footer and from every tab.
+    document.addEventListener('click',e=>{
+        const link=e.target.closest('[data-cite-link], [data-coverage-link]');if(!link)return;
+        if(e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+        e.preventDefault();
+        if(link.hasAttribute('data-cite-link')) {
+            const disclosure=document.getElementById('cite-and-reuse');
+            disclosure.open=true;
+            disclosure.scrollIntoView({block:'start'});
+            disclosure.querySelector('summary').focus({preventScroll:true});
+        } else {
+            const tab=document.getElementById('overview-tab');
+            const showCoverage=()=>{
+                const heading=document.getElementById('flora-coverage');
+                heading.setAttribute('tabindex','-1');
+                heading.scrollIntoView({block:'start'});heading.focus({preventScroll:true});
+            };
+            if(tab.classList.contains('active'))showCoverage();
+            else {tab.addEventListener('shown.bs.tab',()=>requestAnimationFrame(showCoverage),{once:true});bootstrap.Tab.getOrCreateInstance(tab).show();}
+        }
+    });
     // In-page links to another tab switch tabs without reloading the data.
     // Modified or non-primary clicks keep normal link behaviour (new tab or window).
     document.addEventListener('click',e=>{

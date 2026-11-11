@@ -155,6 +155,7 @@
 
     function renderCiKindGate(kind) {
         applyKindText(document.querySelector('#citation-impact .ci-intro'), kind);
+        document.getElementById('ci-replication-stamp').hidden = kind !== 'replication';
         const contentEl = document.getElementById('ci-content');
         const reproEl = document.getElementById('ci-repro-content');
         const placeholderEl = document.getElementById('ci-placeholder');
