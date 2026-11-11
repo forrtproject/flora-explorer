@@ -144,6 +144,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(get.call_args_list[1].kwargs['params']['start'],2)
         with patch.object(rr.requests,'get',return_value=page([],0)):
             with self.assertRaises(ValueError): rr.fetch_non_rr_keys()
+        with patch.object(rr.requests,'get',return_value=page([also_rr],1)):
+            self.assertEqual(rr.fetch_non_rr_keys(),set())
 
     def test_cache_rebuild_preserves_report_size_outside_surviving_cohort(self):
         previous={'studies':{'one':dict(doi='one',title='O',author='A',year=2010,venue='',replications=[

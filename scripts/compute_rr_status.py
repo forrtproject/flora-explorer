@@ -87,6 +87,7 @@ def only_in_non_rr_collections(collections) -> bool:
 def fetch_non_rr_keys() -> set[str]:
     """Zotero item keys filed only in a non-RR collection (the shared reading list)."""
     keys: set[str] = set()
+    n_fetched = 0
     for collection in sorted(NON_RR_COLLECTIONS):
         url = f"https://api.zotero.org/groups/{ZOTERO_GROUP_ID}/collections/{collection}/items/top"
         start = 0
@@ -94,6 +95,7 @@ def fetch_non_rr_keys() -> set[str]:
             resp = requests.get(url, params={"format": "json", "limit": ZOTERO_PAGE_SIZE, "start": start}, timeout=60)
             resp.raise_for_status()
             page = resp.json()
+            n_fetched += len(page)
             for item in page:
                 data = item.get("data", {})
                 if only_in_non_rr_collections(data.get("collections")):
@@ -102,7 +104,9 @@ def fetch_non_rr_keys() -> set[str]:
             start += len(page)
             if not page or start >= total:
                 break
-    if not keys:
+    if not n_fetched:
+        # An empty collection means the lookup failed or the list moved; items filed in
+        # both the list and an RR collection are kept, so an empty key set is fine.
         raise ValueError("Zotero returned no reading-list items; retaining previous outputs")
     return keys
 
