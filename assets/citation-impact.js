@@ -106,6 +106,7 @@
             if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
             CI.agg = await aggRes.json();
+            FloraCharts.setSource('citations', CI.meta, 'data/aggregate.json');
             CI.index = buildSearchIndex(await idxRes.json());
 
             // Optional: co-citation breakdown by pub status / outcome (may not exist on first run)
@@ -302,14 +303,18 @@
                 xaxis:{title:'Years from first replication', automargin:true, color:t.font},
                 yaxis:{title:'Coefficient (reference: year −1)', zeroline:true, zerolinecolor:t.font, automargin:true, color:t.font},
                 margin:{t:45,r:20,b:60,l:65}, plot_bgcolor:t.plot,paper_bgcolor:t.paper,font:{color:t.font},
-            }, {responsive:true,displayModeBar:false});
+            }, {responsive:true,displayModeBar:false}, {table:{
+                headers:['Event year','Estimate','95% CI lower','95% CI upper','Original count'],
+                rows:valid.map(p=>[p.x,p.y,p.lo,p.hi,model.n_units ?? '']),
+                summary:`Included: ${model.n_units ?? 'unavailable'} originals; excluded count: unavailable. Adjusted associations are expressed as log(1 + count), relative to year −1, with 95% intervals. They are not percentage changes or established causal effects.`,
+            }});
         } else {
-            if (modelEl.data) Plotly.purge(modelEl);
+            FloraCharts.clear(modelEl);
             modelEl.textContent = 'No fitted model for this selection.';
-            document.getElementById(modelId+'-data')?.remove();
         }
 
         if (traces.length === 0) {
+            FloraCharts.clear(divId);
             document.getElementById(divId).innerHTML = '<div style="padding:60px;text-align:center;color:var(--color-muted-fg)">No data for this filter</div>';
             return;
         }
@@ -329,7 +334,11 @@
             font: { family: t.fontFamily, size: 12, color: t.font },
             legend: { orientation: 'h', y: -0.22, font: { color: t.font } }
         };
-        FloraCharts.plot(divId, traces, layout, { displayModeBar: false, responsive: true });
+        FloraCharts.plot(divId, traces, layout, { displayModeBar: false, responsive: true }, {table:{
+            headers:['Event year','Mean count','Original count'],
+            rows:(desc.event_time || []).map((year,i)=>[year,desc[descField]?.[i] ?? '',desc.n_units?.[i] ?? '']),
+            summary:'Included originals: see Original count for each year; excluded count: unavailable. Counts are annual means per original report. The contributing originals can change across years; reports and targets are not independent. Missing values are not zero.',
+        }});
     }
 
     function renderOutcomeBar(outcomeMix, nReplications) {
@@ -596,6 +605,7 @@
         if (typeof Plotly === 'undefined') { chartLibUnavailable('study-plot', 'Plotly', () => drawStudyTimeline(s)); return; }
         const tl = s.timeline || [];
         if (tl.length === 0) {
+            FloraCharts.clear('study-plot');
             document.getElementById('study-plot').innerHTML = '<div style="padding:80px;text-align:center;color:var(--color-muted-fg)">No citation data available</div>';
             return;
         }
@@ -641,7 +651,29 @@
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
             font: { family: t.fontFamily, size: 12, color: t.font }
         };
-        FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true });
+        // One annual record preserves the mutually exclusive citing-work segments.
+        // Event lists share their marker order with the evidence list and annotations.
+        const events = chronologicalReplications(s).map((r,i)=>({...r,marker:i+1}));
+        const eventYears = [...new Set(events.map(r=>r.year || null))];
+        const annual = [...tl, ...eventYears.filter(year=>!tl.some(t=>t.year===year)).map(year=>({year}))];
+        annual.sort((a,b)=>(a.year ?? Infinity)-(b.year ?? Infinity));
+        const rows = annual.map(t => {
+            const matching = events.filter(r=>(r.year || null)===(t.year || null));
+            const hasCounts = tl.includes(t);
+            const counts = hasCounts ? [t.only,t.with_failed,t.with_mixed,t.with_successful,t.with_multiple ?? 0] : ['', '', '', '', ''];
+            return [s.doi,t.year ?? '',t.year == null ? '' : t.year < partialYear ? 'before_snapshot_year' : t.year === partialYear ? 'snapshot_year_partial' : 'after_snapshot_year',
+                ...counts,hasCounts ? counts.reduce((n,v)=>n+v,0) : '',matching.length,
+                matching.map(r=>r.marker).join('; '),matching.map(r=>r.doi || '').join('; '),matching.map(r=>r.outcome || '').join('; ')];
+        });
+        const el = document.getElementById('study-plot');
+        const entry = CI.index.find(entry=>entry.doi===s.doi);
+        if (entry) el.dataset.exportSource = 'data/originals/' + encodeURIComponent(entry.file);
+        el.dataset.exportSelection = 'Original DOI: ' + s.doi;
+        FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true }, {table:{
+            headers:['Original DOI','Year','Year status','Cites original only','Co-cites failed','Co-cites mixed','Co-cites successful','Co-cites multiple outcomes','Total citing works','Replication event count','Replication markers','Replication DOIs','Replication outcomes'],
+            rows,
+            summary:`Included: ${tl.reduce((n,t)=>n+t.only+t.with_failed+t.with_mixed+t.with_successful+(t.with_multiple || 0),0)} citing works and ${events.length} recorded replication events; excluded count: unavailable. Citing-work segments are mutually exclusive. Replication event lists use matching positions across markers, DOIs and outcomes; events without annual citation data have blank counts. The snapshot year is partial; earlier years are not guaranteed complete. Missing values are not zero.`,
+        }});
     }
 
     function bindEvents() {

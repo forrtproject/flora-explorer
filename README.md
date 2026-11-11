@@ -24,6 +24,14 @@ python3 -m http.server 8876 --bind 127.0.0.1
 
 Open <http://127.0.0.1:8876/>. Third-party browser libraries load from their CDNs. GitHub Pages can serve `main` from the repository root.
 
+## CSV exports
+
+Browse downloads all matching reference pairs across pages, in the current table sort order. Existing source columns are retained; `authors_o_formatted` and `authors_r_formatted` sit beside the raw author fields. `_o` refers to the original report and `_r` to the replication or reproduction report. Readable names preserve author order and use family names with initials; organisations and existing plain strings are preserved. Unnamed authors appear as “Name not recorded”; malformed JSON has an empty readable field and remains available in the raw column.
+
+Each export is one rectangular CSV with a header row. The existing `Export context` column records the source, snapshot date, selection, sort, available inclusion/exclusion counts and caveat in the first data row only. Later context cells are empty; empty exports contain headers only. Unavailable metadata or counts are labelled as unavailable, rather than inferred. Downloaded files use UTF-8 with a BOM and CRLF row separators; clipboard copies omit the BOM. Formula-like text beginning with `=`, `+`, `@` or `-` is prefixed with an apostrophe for spreadsheet safety; numeric negatives remain numbers.
+
+Chart exports join wrapped labels with spaces, include displayed denominators, and round non-integer numbers to six significant digits. Empty values are not zeros. Group comparisons include counts, denominators and percentages in either display mode. Citation trajectories have an original-report count for each year; coefficient exports retain source confidence bounds. Timelines have one row per year with mutually exclusive citing-work counts and matching lists of replication markers, DOIs and outcomes. Events outside the available annual data, including missing years, have rows with blank citation counts. Mean Citedness exports use source bin boundaries and unjittered sample values. For recalculation requiring all stored precision, use the committed source data.
+
 ## Data and interpretation
 
 - **Replication outcomes:** explicit mappings retain “statistically successful but flawed” as a separate qualified category. Unknown, descriptive-only and uninformative outcomes remain visible under other/not coded. They are excluded from the binary Mean Citedness model and the successful/failed/mixed citation cohort.

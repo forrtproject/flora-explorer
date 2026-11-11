@@ -820,7 +820,6 @@ function initDataTable(data) {
 
 // ===== Browse mobile =====
 const BM_PAGE_SIZE = 20;
-const bmSortCollator = new Intl.Collator(undefined, {numeric:true});
 let bmFiltered = []; let bmPage = 0; let bmInitialized = false;
 const bmSearchText = new WeakMap();
 
@@ -936,14 +935,10 @@ let updatingBrowse = false;
 function updateBrowseResults(redraw = true) {
     if (updatingBrowse) return;
     updatingBrowse = true;
-    bmFiltered = getChartData();
-    if (dataTable) {
-        const [column, direction] = dataTable.order()[0] || [4, 'desc'];
-        const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o',8:'doi_r'}[column] || 'year_r';
-        bmFiltered.sort((a,b) => bmSortCollator.compare(String(a[field] || ''), String(b[field] || '')) * (direction === 'desc' ? -1 : 1));
-        // order.dt also fires during a draw: refresh cards/charts without a second draw.
-        if (redraw) dataTable.draw(false);
-    }
+    // DataTables applies all sort keys and its input-row tie-breaker. Use the same
+    // order for mobile cards and CSV, including rows beyond the current page.
+    if (dataTable && redraw) dataTable.draw(false);
+    bmFiltered = getOrderedBrowseData();
     bmPage = 0;
     if (bmInitialized) bmRender();
     updateBrowseKindCount();
@@ -983,6 +978,12 @@ function bmDataSource() { return browseFilteredData(); }
 // Returns rows that pass both the kind filter AND the current DataTables search.
 function getChartData() {
     return browseFilteredData().filter(row => matchesBrowseQuery(row, browseQuery));
+}
+
+function getOrderedBrowseData() {
+    const selected = new Set(getChartData());
+    return dataTable ? dataTable.rows({order:'applied', search:'none'}).indexes().toArray()
+        .map(i => fullRowData[i]).filter(row => selected.has(row)) : [...selected];
 }
 
 function renderBrowseOutcomeCharts() {
@@ -1354,6 +1355,7 @@ function renderMcCharts() {
 
     // ── Overview grid ─────────────────────────────────────────────────────
     const ov = d.overview;
+    FloraCharts.setSource('impact_factor', null, mcKind === 'replication' ? IMPACT_DATA_URL : IMPACT_REPRODUCTIONS_URL);
     const statCards = buckets.filter(b => ov[b.overviewKey] > 0).map(b => {
         const n = ov[b.overviewKey] || 0;
         const pct = FloraCharts.percent(n, ov.n_total);
@@ -1381,7 +1383,11 @@ function renderMcCharts() {
         font: { family: t.fontFamily, size: 12, color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
         height: 320,
-    }, { displayModeBar: false, responsive: true });
+    }, { displayModeBar: false, responsive: true }, {table:{
+        headers:['Bin lower','Bin upper','Outcome','Reference pairs'],
+        rows:bins.flatMap(bin=>buckets.map(b=>[bin.bin_lo,bin.bin_hi,b.label,bin[b.histKey] ?? 0])),
+        summary:`Included: ${ov.n_total} reference pairs with OMC; excluded: ${ov.n_excluded ?? 'unavailable'} reference pairs without matched OMC. OMC is a journal-level metric retrieved at enrichment time, not the original publication year. Other and qualified outcomes remain in the distribution.`,
+    }});
 
     const st = d.stats || {};
     const gc = Array.isArray(d.gam_curve) ? d.gam_curve : [];
@@ -1449,7 +1455,7 @@ function renderMcCharts() {
             ...gc.map(p => ['Fitted curve', p.omc, p.p, p.p_lo, p.p_hi, '']),
             ...points.map(p => ['Displayed pair', p.omc, '', '', '', p.outcome]),
         ],
-        summary: `Fitted curve: logistic smooth with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs. Displayed pairs: a random sample of ${points.length.toLocaleString()} of these pairs, with their raw OMC and outcome; the chart jitters their positions for legibility. The sample has no pair identifiers.`,
+        summary: `Included in the model: ${st.n_model} reference pairs; excluded from the input: ${ov.n_input == null ? 'unavailable' : ov.n_input-st.n_model}. Fitted curve: logistic smooth with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs. Displayed pairs: a random sample of ${points.length.toLocaleString()} of these pairs, with their raw OMC and outcome; the chart jitters their positions for legibility. The sample has no pair identifiers.`,
     };
     FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true }, { table: modelTable });
     const pNote = (st.p_val !== null && st.p_val !== undefined)
@@ -1587,7 +1593,7 @@ function renderOverlapCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {summary:`Included: ${ov.n_total} reference pairs; excluded: ${ov.n_unknown} with unknown authorship. Group denominators count pairs with recorded surnames. Surname overlap does not establish shared identity or independence; reports and targets can repeat.`});
     chartCard.style.display = '';
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
@@ -1612,6 +1618,7 @@ async function loadAuthorOverlap() {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const d = await res.json();
         window._aoData = d;
+        FloraCharts.setSource('author_overlap', null, OVERLAP_DATA_URL);
 
         if (loadingEl)  loadingEl.style.display  = 'none';
         renderOverlapCharts();
@@ -1712,7 +1719,7 @@ function renderRRCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('rr-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {summary:`Included: ${ov.n_total} reference pairs; excluded: ${ov.n_unknown} with neither DOI nor title. An RRDB non-match does not establish absence of registration or peer review. Reports and targets can repeat.`});
     chartCard.style.display = '';
 
     // ── Included-studies table ───────────────────────────────────────────────────
@@ -1758,6 +1765,7 @@ async function loadRegisteredReports() {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const d = await res.json();
         window._rrData = d;
+        FloraCharts.setSource('rr_status', null, RR_DATA_URL);
 
         if (loadingEl) loadingEl.style.display = 'none';
         renderRRCharts();
@@ -1843,7 +1851,7 @@ function renderPubStatusCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('pub-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {summary:`Included: ${ov.n_total} reference pairs; excluded: 0. Unknown venues remain unknown. A named venue does not verify journal publication or peer review. Reports and targets can repeat.`});
     chartCard.style.display = '';
 
     // ── All-studies table ─────────────────────────────────────────────────────
@@ -1891,6 +1899,7 @@ async function loadPubStatus() {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const d = await res.json();
         window._pubData = d;
+        FloraCharts.setSource('pub_status', null, PUB_STATUS_DATA_URL);
 
         if (loadingEl) loadingEl.style.display = 'none';
         renderPubStatusCharts();
@@ -1988,7 +1997,7 @@ function renderLargeScaleCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ls-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, {summary:`Included: ${ov.n_total} reference pairs; excluded count: unavailable. More than three distinct original targets defines a multiple-target report; this does not establish laboratories or membership of a coordinated project. Reports and targets can repeat.`});
     if (chartCard) chartCard.style.display = '';
 
     // ── Large-scale projects table ───────────────────────────────────────────────
@@ -2075,6 +2084,7 @@ async function loadDataStamps() {
     document.querySelectorAll('.data-stamp').forEach(el => {
         const src = el.dataset.stampSource;
         const meta = cache[src];
+        FloraCharts.setSource(src, meta);
         const label = STAMP_LABELS[src] || 'Data';
         if (meta && meta.last_updated) {
             const dt = new Date(meta.last_updated);
@@ -2133,11 +2143,13 @@ async function loadData() {
     const disciplinesPromise = loadDisciplines();
 
     let results;
+    let loadedUrl = LOCAL_CSV_URL;
     try {
         results = await parseCsvFromUrl(LOCAL_CSV_URL);
         if (!results.data || results.data.length === 0) throw new Error('empty');
     } catch (e) {
         console.info('Local flora.csv not available, falling back to upstream raw URL');
+        loadedUrl = REMOTE_CSV_URL;
         try {
             results = await parseCsvFromUrl(REMOTE_CSV_URL);
         } catch (e2) {
@@ -2156,6 +2168,7 @@ async function loadData() {
         return row;
     });
     fullRowData = data;
+    FloraCharts.setSource('flora', null, loadedUrl);
 
     document.getElementById('global-loading').style.display = 'none';
     document.getElementById('floraTabsContent').style.display = 'block';
