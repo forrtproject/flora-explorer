@@ -274,6 +274,10 @@ function formatUrlOrDoiShort(url, doi) {
     if (href) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(url.replace(/^https?:\/\/(www\.)?/i, ''))}</a>`;
     return formatDOI(doi, true);
 }
+function urlOrDoiShortText(url, doi) {
+    if (safeHref(url)) return url.replace(/^https?:\/\/(www\.)?/i, '');
+    return doi ? String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '') : '';
+}
 
 function formatAuthors(authorData) {
     if (!authorData) return '-';
@@ -786,7 +790,7 @@ function initDataTable(data) {
         { display: getOutcomeBadgeShort(row.outcome), search: row.outcome || '' },
         truncateText(row.type, 15) || '-',
         { display: formatDOI(row.doi_o, true), search: row.doi_o || '' },
-        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '' }
+        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '', sort: urlOrDoiShortText(row.url_r, row.doi_r) }
     ]);
 
     dataTable = $('#flora-table').DataTable({
@@ -800,7 +804,7 @@ function initDataTable(data) {
             { targets: [2, 4], width: '5%' },
             { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: 6, width: '8%', className: 'type-cell' },
-            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
+            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => typeof d !== 'object' ? d : t === 'display' ? d.display : t === 'sort' && d.sort !== undefined ? d.sort : d.search }
         ],
         createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
@@ -939,8 +943,9 @@ function updateBrowseResults(redraw = true) {
     bmFiltered = getChartData();
     if (dataTable) {
         const [column, direction] = dataTable.order()[0] || [4, 'desc'];
-        const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o',8:'doi_r'}[column] || 'year_r';
-        bmFiltered.sort((a,b) => bmSortCollator.compare(String(a[field] || ''), String(b[field] || '')) * (direction === 'desc' ? -1 : 1));
+        const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o'}[column] || 'year_r';
+        const key = column === 8 ? r => urlOrDoiShortText(r.url_r, r.doi_r) : r => String(r[field] || '');
+        bmFiltered.sort((a,b) => bmSortCollator.compare(key(a), key(b)) * (direction === 'desc' ? -1 : 1));
         // order.dt also fires during a draw: refresh cards/charts without a second draw.
         if (redraw) dataTable.draw(false);
     }
