@@ -1173,8 +1173,8 @@ test('Browse shares describe matching records and quotation limits appear once',
   assert.equal(totals.find(d=>d[0]==='Successful')[1],selectedOutcomes.filter(outcome=>outcome==='successful').length);
   for(const kind of ['all','reproduction-numerical','reproduction-robustness','replication']){
     await p.fill('#browse-mobile-input','');await p.click(`.browse-kind-btn[data-kind="${kind}"]`);
-    if(kind==='all')assert.ok(await p.locator('#browse-coverage-note').isHidden());
-    else assert.ok(await p.locator('#browse-coverage-note').isVisible());
+    // The search input is debounced, so wait for the note to settle after clearing it.
+    await p.locator('#browse-coverage-note').waitFor({state:kind==='all'?'hidden':'visible',timeout:5000});
     assert.equal(await p.locator('#browse-assessment-note').isVisible(),kind.startsWith('reproduction'));
   }
   const evidence=await p.evaluate(()=>formatDetailRow({outcome:'failed',outcome_quote:'First finding',outcome_quote_source:'Report, page 2'})+formatDetailRow({outcome:'mixed',outcome_quote:'Second finding'}));
