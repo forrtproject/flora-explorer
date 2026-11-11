@@ -899,6 +899,7 @@ test('small stacked citation timelines and study denominators have integer ticks
   await assertIntegerCountTicks(p,'plot-cit','yaxis2');
   await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
   // The raw means are continuous quantities and must retain fractional ticks.
+  await p.waitForFunction(()=>document.getElementById('plot-cocit')?._fullLayout?.yaxis?.dtick!==undefined).catch(()=>{});
   assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout.yaxis.dtick<1));
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -1367,7 +1368,7 @@ test('Trends top journals stay ranked by pair count and percentage exports retai
   assert.ok(fields.some(r=>Number(r['Percentage (%)'])!==Number(Number(r['Percentage (%)']).toFixed(1))));
   const displayed=await p.locator('#trend-field-data tbody tr').evaluateAll(rows=>rows.map(row=>row.cells[4].textContent));
   assert.ok(displayed.every(v=>/^\d+\.\d$/.test(v)));
-  assert.match(fields[0]['Export context'],/measure: percent.*five-year bands.*minimum: 20.*Oct.*2026/s);
+  assert.match(fields[0]['Export context'],/measure: percent.*five-year bands.*minimum: 20.*\d{1,2} [A-Z][a-z]{2} \d{4}/s);
   await p.selectOption('#trends-mode','count');
   assert.deepEqual(await p.evaluate(()=>Chart.getChart('trend-journal').data.labels),labels);
   await p.check('#trends-exclude-multi');
