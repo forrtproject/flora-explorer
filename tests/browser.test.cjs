@@ -15,7 +15,23 @@ before(async()=>{
   await new Promise(r=>setTimeout(r,200));
   if(exited) throw new Error(`Test server could not start on port ${port}; set TEST_PORT to a free port.`);
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
+  // Download each CDN library once per run; per-page CDN fetches made unrelated tests time out at random.
+  const newContext=browser.newContext.bind(browser);
+  browser.newContext=async(...args)=>{const context=await newContext(...args);await context.route(CDN_HOSTS,serveCdn);return context;};
 });
+const CDN_HOSTS=/^https:\/\/(code\.jquery\.com|cdn\.jsdelivr\.net|cdn\.datatables\.net|cdnjs\.cloudflare\.com|cdn\.plot\.ly)\//;
+const cdnCache=new Map();
+async function serveCdn(route){
+  const url=route.request().url();
+  if(!cdnCache.has(url)) cdnCache.set(url,(async()=>{
+    for(let attempt=0;;attempt++){
+      try{const res=await route.fetch({timeout:20000});if(!res.ok()) throw new Error(`${res.status()} ${url}`);return {status:res.status(),headers:res.headers(),body:await res.body()};}
+      catch(e){if(attempt>=3) throw e;await new Promise(r=>setTimeout(r,1000*(attempt+1)));}
+    }
+  })());
+  try{await route.fulfill(await cdnCache.get(url));}
+  catch{cdnCache.delete(url);await route.abort();}
+}
 after(async()=>{await browser?.close();server?.kill();});
 async function page(query, width=1280, setup){
   const p=await browser.newPage({viewport:{width,height:900}});p.errors=[];
@@ -898,10 +914,10 @@ test('small stacked citation timelines and study denominators have integer ticks
   await assertIntegerCountTicks(p,'plot-cit','yaxis2');
   await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
   // The raw means are continuous quantities and must retain fractional ticks.
-  // Plotly can finish the secondary axis before the primary axis's re-layout.
+  // Plotly can leave _fullLayout.yaxis.dtick unset after a re-layout, so read the rendered labels.
   await p.waitForFunction(()=>{
-    const axis=document.getElementById('plot-cocit')._fullLayout?.yaxis;
-    return axis?.dtick>0&&axis.dtick<1&&axis._vals.some(t=>t.x>0&&t.x<1);
+    const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
+    return labels.length>=2&&labels.some(v=>v>0&&v<1)&&labels.every(v=>v<1);
   });
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -1343,11 +1359,18 @@ test('citation headline counts keep real zeros',async()=>{
 test('citation charts drawn before the main CSV loads re-fit their axes once shown',async()=>{
   const entry=JSON.parse(fs.readFileSync('data/originals_index.json'))[0];
   const aggregate={all:{descriptive:{event_time:[0,1,2],mean_citations:[0,0.5,1],mean_cocitations:[0,0.1,0.2],n_units:[0,1,2]}}};
-  const p=await page('?tab=citations&doi='+encodeURIComponent(entry.doi),1280,async p=>{
-    await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
-    await p.route('**/data/flora.csv',async route=>{await new Promise(r=>setTimeout(r,1500));await route.continue();});
-  });
-  assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout),'the deep link should draw citation charts before the CSV arrives');
-  await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')._fullLayout.yaxis;return axis.range[1]>0.2&&axis.range[1]<0.5&&axis.dtick<1;},null,{timeout:5000});
+  const p=await browser.newPage({viewport:{width:1280,height:900}});p.errors=[];
+  p.on('pageerror',e=>p.errors.push(e.message));
+  await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
+  let releaseCsv;const csvHeld=new Promise(r=>{releaseCsv=r;});
+  await p.route('**/data/flora.csv',async route=>{await csvHeld;await route.continue();});
+  await p.goto(base+'?tab=citations&doi='+encodeURIComponent(entry.doi));
+  await p.waitForFunction(()=>document.getElementById('plot-cocit')?._fullLayout);
+  assert.equal(await p.evaluate(()=>getComputedStyle(document.querySelector('#floraTabsContent')).display),'none',
+    'the chart must be drawn while the page is still hidden');
+  releaseCsv();
+  await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
+  await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')._fullLayout.yaxis;const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
+    return axis.range[1]>0.2&&axis.range[1]<0.5&&labels.some(v=>v>0&&v<1);},null,{timeout:5000});
   assert.deepEqual(p.errors,[]);await p.close();
 });
