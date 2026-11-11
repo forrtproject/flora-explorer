@@ -1200,3 +1200,30 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
 });
+test('Replication report column sorts by its displayed link text on desktop and mobile',async()=>{
+  const p=await page('?tab=browse&kind=all&sort=8:asc');
+  const {shown,mobile}=await p.evaluate(()=>{
+    const text=html=>{const d=document.createElement('div');d.innerHTML=html;return d.textContent;};
+    return {shown:dataTable.rows({order:'applied',search:'applied'}).data().toArray().map(r=>text(r[8].display)),
+      mobile:bmFiltered.map(r=>text(formatUrlOrDoiShort(r.url_r,r.doi_r)))};
+  });
+  assert.ok(shown.some(t=>/^osf\.io\//.test(t)),'data should include URL-only links');
+  // DataTables compares plain lowercase strings; mobile cards use a numeric collator.
+  assert.deepEqual(shown,[...shown].sort((a,b)=>a.toLowerCase()<b.toLowerCase()?-1:a.toLowerCase()>b.toLowerCase()?1:0));
+  assert.deepEqual(mobile,[...mobile].sort(new Intl.Collator(undefined,{numeric:true}).compare));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Outcome column groups rows by outcome in both directions',async()=>{
+  const p=await page('?tab=browse&kind=all&sort=5:asc');
+  const grouped=async dir=>{
+    await p.evaluate(dir=>dataTable.order([[5,dir]]).draw(),dir);
+    const outcomes=await p.evaluate(()=>dataTable.rows({order:'applied',search:'applied'}).data().toArray().map(r=>r[5].search));
+    const runs=outcomes.filter((o,i)=>o!==outcomes[i-1]);
+    assert.equal(runs.length,new Set(outcomes).size,`${dir}: outcomes split into ${runs.join(', ')}`);
+    return runs;
+  };
+  const asc=await grouped('asc');
+  assert.deepEqual(await grouped('desc'),[...asc].reverse());
+  assert.ok(await p.locator('#flora-table tbody .badge').count()>0);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
