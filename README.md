@@ -6,13 +6,15 @@ A static dashboard for the [FORRT Library of Reproduction and Replication Attemp
 |---|---|---|
 | Overview | Reference-pair counts and separate replication, computational and robustness outcomes | Daily |
 | Browse Studies | Shared desktop/mobile search, full evidence, outcome quotations, links and filtered CSV export | Daily |
-| Years & Disciplines | Outcome counts by year, venue and discipline | Daily |
+| Years & Disciplines | Within-group outcome percentages or pair counts by year, venue and discipline | Daily |
 | Citation Impact | Citation trajectories, adjusted associations, co-citation rates and individual timelines | Weekly |
 | Mean Citedness | Journal-level citation metric distributions and a conditional replication-success model | Weekly |
 | Authorship Overlap | Within-group outcome percentages based on surname overlap | Daily |
 | Publication Type | Recorded venue categories, Registered Reports matching and reports with multiple original targets | Daily / weekly |
 
 Every chart has a nearby data table and a compact button to copy its CSV data. Browse Studies also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
+
+Years & Disciplines defaults to within-group percentages and fixed five-year bands (with original years before 1960 pooled separately). Groups with fewer than 20 reference pairs retain their labels and denominators, but no percentage bar is drawn; this display minimum does not guarantee a reliable comparison. Counts and individual years remain available. Known multiple-target contributions are marked and can be excluded using membership from the complete snapshot. All studies shows counts by study type, counting each row once. Tables and CSVs retain source counts, group denominators, percentage status and report coverage in both measures.
 
 ## Run locally
 

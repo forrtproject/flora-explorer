@@ -459,35 +459,40 @@
                     <span class="trend-filter-count" id="trend-filter-count" role="status"></span>
                 </div>
 
-                <div id="trends-placeholder" class="coming-soon-placeholder" style="display:none;">
-                    Select a study type above (Replications, Numerical Reproductions, or Robustness Reproductions) to see year, journal, and field breakdowns. "All studies" mixes two different outcome vocabularies, so it isn't shown here.
+                <div class="trend-controls">
+                    <label for="trends-mode">Measure <select id="trends-mode" class="form-select"><option value="percent">Percentages</option><option value="count">Counts</option></select></label>
+                    <label for="trends-years">Year groups <select id="trends-years" class="form-select"><option value="5">Five-year bands</option><option value="1">Individual years</option></select></label>
+                    <label class="trend-exclusion"><input id="trends-exclude-multi" type="checkbox"> Exclude multiple-target reports</label>
                 </div>
+                <p id="trends-all-note" hidden>All studies shows pair counts by study type. Select a study type to compare outcome percentages.</p>
+                <p>Counts show database coverage; percentages show the outcome mix within each displayed group. Neither estimates how often research across a field or period replicates. Pairs can share reports and original studies.</p>
+                <p id="trends-kind-note"></p>
+                <p id="trends-percent-note">Percentages are shown only for groups with at least 20 pairs. This minimum does not guarantee a reliable comparison.</p>
+                <p>† Includes pairs from known multiple-target reports: reports linked to more than three distinct original targets in this snapshot. This does not establish that a report involved multiple laboratories. Missing identifiers may hide further multiple-target reports.</p>
+                <p id="trends-exclusion-note" role="status"></p>
+                <ul id="trends-legend" class="trends-legend" aria-label="Chart legend"></ul>
 
                 <div id="trends-charts">
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by original study year</h3></div>
-                        <p data-kind-text="How have findings from different eras fared when researchers tried to replicate them? Each bar groups replication reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by recorded replication outcome.|How have findings from different eras fared when researchers tried to reproduce them by re-analysing the original data? Each bar groups numerical-reproduction reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by computational verdict.|How have findings from different eras held up under alternative analysis choices? Each bar groups robustness-reproduction reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by robustness verdict.">How have findings from different eras fared when researchers tried to replicate them? Each bar groups replication reference pairs by the year the <strong>original</strong> study was published, split by recorded replication outcome.</p>
-                        <p id="trend-orig-year-axis-note">The axis runs year by year, so years without any recorded pair appear as gaps and elapsed time keeps its scale.</p>
-                        <p class="trend-note">Reference pairs without a recorded original publication year are excluded.</p>
+                        <p>Reference pairs grouped by the original study’s publication year.</p>
                     </div>
-                    <div class="chart-container"><canvas id="trend-orig-year"></canvas></div>
+                    <div class="trend-year-scroll" tabindex="0" role="region" aria-label="Scrollable year chart"><div class="chart-container"><canvas id="trend-orig-year"></canvas></div></div>
                 </div></div></div>
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by <span data-kind-text="replication|reproduction|reproduction">replication</span> report year</h3></div>
-                        <p>Grouped by the year of the <strong><span data-kind-text="replication|reproduction|reproduction">replication</span></strong> report itself, this view shows the growth of FLoRA's coverage and how outcome profiles have shifted over time.</p>
-                        <p>The rightmost years may reflect ongoing data entry rather than a genuine decline in activity.</p>
-                        <p class="trend-note">Reference pairs without a recorded <span data-kind-text="replication|reproduction|reproduction">replication</span> year are excluded.</p>
+                        <p>Reference pairs grouped by the replication or reproduction report’s publication year. Recent counts may reflect ongoing data entry.</p>
                     </div>
-                    <div class="chart-container"><canvas id="trend-rep-year"></canvas></div>
+                    <div class="trend-year-scroll" tabindex="0" role="region" aria-label="Scrollable year chart"><div class="chart-container"><canvas id="trend-rep-year"></canvas></div></div>
                 </div></div></div>
 
                 <div class="card"><div class="card-body"><div class="trend-block">
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by original journal</h3></div>
-                        <p>The journals whose articles have most frequently been the target of <span data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span> attempts. For each journal, the bar shows the outcome breakdown of those attempts.</p>
+                        <p>The journals whose articles have most frequently been the target of <span data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span> attempts. Journals are selected by pair count, not outcome percentage. Bars show the outcome breakdown; percentages are shown only for groups with at least 20 pairs.</p>
                         <p><span data-kind-text="Frequency shows where replication effort has gone, not how replicable a journal's research is.|Frequency shows where reproduction effort has gone, not how reproducible a journal's research is.|Frequency shows where reproduction effort has gone, not how robust a journal's research is.">Frequency shows where replication effort has gone, not how replicable a journal's research is.</span></p>
                         <div class="mt-3">
                             <label for="journal-top-n" class="note note-label">Show top:</label>
@@ -525,7 +530,7 @@
                     <div class="trend-desc">
                         <div class="trend-title"><h3>Outcomes by field</h3></div>
                         <p>A bird's-eye view grouping reference pairs by research discipline. Each bar shows the outcome breakdown of <span data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span> attempts targeting work originally published in journals from that field.</p>
-                        <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">journal-to-discipline mapping</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
+                        <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" class="doi-link">journal-to-discipline mapping</a>). Journals that have not been mapped yet are collected under <em>Uncategorised</em>.</p>
                         <p class="trend-note">Coverage is still growing. Journals that are not yet classified may leave some fields under-represented.</p>
                     </div>
                     <div class="chart-container" id="trend-field-container"><canvas id="trend-field"></canvas></div>

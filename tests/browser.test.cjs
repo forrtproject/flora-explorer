@@ -326,7 +326,7 @@ test('Overview charts state denominators; placeholders, labels and headings stay
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('Trends follow the selected study type, keep calendar spacing and reflow after narrowing',async()=>{
-  const p=await page('?tab=trends',1440);await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  const p=await page('?tab=trends&trends-mode=count&trends-years=1',1440);await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
   const labels=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.labels);
   // Sparse early years pool into one leading column; from 1960 every calendar year has a slot.
   assert.equal(labels[0],'Before 1960');assert.equal(labels[1],'1960');
@@ -339,11 +339,14 @@ test('Trends follow the selected study type, keep calendar spacing and reflow af
   assert.equal(plotted,withYear);
   await p.click('#trends .trend-filter-btn[data-kind="reproduction-numerical"]');
   assert.deepEqual(await p.locator('#trends h3').allInnerTexts(),['Outcomes by original study year','Outcomes by reproduction report year','Outcomes by original journal','Outcomes by recorded reproduction venue','Outcomes by field']);
-  assert.doesNotMatch(await p.locator('#trends-charts').innerText(),/\breplications?\b/i);
+  assert.equal(await p.locator('#trends-kind-note').innerText(),'Colours show computational reproducibility verdicts. Only assessed pairs are included.');
+  assert.deepEqual(await p.evaluate(()=>Chart.getChart('trend-orig-year').data.datasets.map(d=>d.label)),['Successful','Computational issues','Technical failure']);
   await p.click('#trends .trend-filter-btn[data-kind="replication"]');
   for(const width of [390,1440,390]){
     await p.setViewportSize({width,height:844});await p.waitForTimeout(700);
-    const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, canvas')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
+    const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, canvas:not(#trend-orig-year):not(#trend-rep-year)')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
+    assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert.ok(await p.locator('.trend-year-scroll').first().evaluate(el=>el.scrollWidth>el.clientWidth));
     assert.deepEqual(overflow,[],`clipped at ${width}px`);
   }
   await p.click('#mobile-navigation');await p.selectOption('#mobile-navigation','citation-tab');
@@ -896,6 +899,7 @@ test('small stacked citation timelines and study denominators have integer ticks
   await assertIntegerCountTicks(p,'plot-cit','yaxis2');
   await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
   // The raw means are continuous quantities and must retain fractional ticks.
+  await p.waitForFunction(()=>document.getElementById('plot-cocit')?._fullLayout?.yaxis?.dtick!==undefined).catch(()=>{});
   assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout.yaxis.dtick<1));
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -947,10 +951,17 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-journal'));
   // The committed data includes wrapped labels: the table and CSV must reconstruct their words.
   const chartLabels=await p.evaluate(()=>Chart.getChart('trend-journal').data.labels.map(l=>Array.isArray(l)?l.join(' '):l));
-  assert.deepEqual(await p.locator('#trend-journal-data tbody th').allTextContents(),chartLabels);
+  const chartSeries=await p.evaluate(()=>Chart.getChart('trend-journal').data.datasets.map(d=>d.label));
+  const ticks=await p.evaluate(()=>Chart.getChart('trend-journal').scales.y.ticks.map(t=>t.label));
+  assert.ok(ticks.some(lines=>lines.findIndex(line=>line.startsWith('N='))>1),'long category labels wrap');
+  assert.deepEqual(ticks.map(lines=>lines.slice(0,lines.findIndex(line=>line.startsWith('N='))).join(' ').replace(/†$/,'')),chartLabels);
+  const tableCategories=await p.locator('#trend-journal-data tbody th').allTextContents();
   await p.click('#trend-journal-data-copy');
   let exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
-  assert.deepEqual(exported.map(r=>r.Category),chartLabels);
+  // Trends exports one row per category and outcome, retaining raw category names in CSV.
+  assert.deepEqual(exported.map(r=>r.Category),chartLabels.flatMap(label=>chartSeries.map(()=>label)));
+  assert.deepEqual(exported.map(r=>r.Series),chartLabels.flatMap(()=>chartSeries));
+  assert.deepEqual(tableCategories,exported.map(r=>r.Category+(+r['Multiple-target pairs'] ? ' †' : '')));
   // Make exactly one pair lack a year, independently of the committed snapshot.
   await p.evaluate(()=>{const rows=trendsFilteredData();const years=rows.map(r=>r.year_o);rows.forEach((r,i)=>r.year_o=i ? '2020' : '');renderTrendOrigYear();rows.forEach((r,i)=>r.year_o=years[i]);});
   assert.match(await p.locator('#trend-orig-year-data .chart-summary').textContent(),/excluded from this selection: 1 reference pair\./);
@@ -1199,4 +1210,171 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal(await p.locator('#mc-study-type .chip.active').getAttribute('data-value'),'reproduction-numerical');
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
+});
+
+// Cross the 20-pair display minimum, calendar boundaries and four-target rule.
+function trendsFixture(adjust = () => {}) {
+  const rows=[];
+  const add=(values={})=>rows.push({doi_o:'10.test/target-'+rows.length,title_o:'Original',author_o:'A',journal_o:'Fixture original journal with a long unwrapped name',year_o:'2000',doi_r:'10.test/report-'+rows.length,title_r:'Report',author_r:'B',journal_r:'Fixture recorded venue',year_r:'2010',url_r:'',url_o:'',outcome:'successful',type:'replication',...values});
+  const outcomes=['successful','failed','mixed','inconclusive','statistically successful but flawed','not coded'];
+  for(let i=0;i<20;i++) {
+    const row={outcome:outcomes[i%outcomes.length]};
+    if(i<5) Object.assign(row,{doi_r:['https://doi.org/10.TEST/MULTI/','doi: 10.test/multi','http://dx.doi.org/10.test/multi','10.test/multi','10.test/multi'][i],doi_o:'10.test/multi-target-'+i%4});
+    if(i>=5&&i<9) Object.assign(row,{doi_r:'10.test/three',doi_o:'10.test/three-target-'+(i-5)%3});
+    if(i>=9&&i<13) Object.assign(row,{doi_r:'NA',url_r:i%2?' HTTPS://EXAMPLE.ORG/REPORT ':'https://example.org/report',doi_o:'',url_o:'https://example.org/target-'+i});
+    if(i===13) Object.assign(row,{doi_r:'',url_r:''});
+    add(row);
+  }
+  for(let i=0;i<19;i++) add({year_o:'2010',outcome:i%2?'failed':'successful',...(i<4?{doi_r:'10.test/unknown-targets',doi_o:'',url_o:''}:{})});
+  add({year_o:'1959'});add({year_o:'1964'});add({year_o:'unknown',journal_o:'',journal_r:''});
+  add({year_o:'2004',type:'reproduction',outcome:'computationally reproducible, robust'});
+  add({year_o:'2005',type:'reproduction',outcome:'technical failure, not checked'});
+  add({year_o:'2009',type:'reproduction',outcome:'not checked, robustness challenges'});
+  add({year_o:'2010',type:'reproduction',outcome:'not checked, not checked'});
+  add({year_o:'2011',type:'',outcome:''});
+  adjust(rows);
+  const headers=Object.keys(rows[0]), cell=x=>'"'+String(x??'').replace(/"/g,'""')+'"';
+  return {rows,csv:[headers,...rows.map(r=>headers.map(k=>r[k]))].map(r=>r.map(cell).join(',')).join('\n')};
+}
+async function trendData(p,id='trend-orig-year') {
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  await p.click('#'+id+'-data-copy');
+  return p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true}).data);
+}
+test('Trends percentages, counts, suppression, report membership and exports reconcile',async()=>{
+  const fixture=trendsFixture();
+  const p=await page('?tab=trends',1280,p=>p.route('**/data/flora.csv',r=>r.fulfill({body:fixture.csv,contentType:'text/csv'})));
+  await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  assert.equal(await p.inputValue('#trends-mode'),'percent');assert.equal(await p.inputValue('#trends-years'),'5');
+  const data=await trendData(p), group=key=>data.filter(r=>r.Category===key);
+  assert.equal(group('2000–2004').reduce((n,r)=>n+ +r['Reference pairs'],0),20);
+  assert.ok(group('2000–2004').every(r=>r['Group denominator']==='20'&&r['Percentage status']==='Shown'));
+  assert.equal(group('2000–2004').find(r=>r.Series==='Successful but flawed')['Reference pairs'],'3');
+  assert.equal(group('2000–2004').find(r=>r.Series==='Other / not coded')['Reference pairs'],'3');
+  assert.ok(group('2010–2014').every(r=>r['Percentage (%)']===''&&r['Group denominator']==='19'&&r['Percentage status']==='Percentage not shown: fewer than 20 pairs'));
+  assert.ok(group('2005–2009').every(r=>r['Percentage (%)']===''&&r['Group denominator']==='0'&&r['Percentage status']==='No recorded pairs'));
+  assert.ok(group('2000–2004').every(r=>r['Multiple-target pairs']==='9'&&r['Multiple-target reports']==='2'&&r['Pairs without report ID']==='1'&&r['Identified reports']==='9'));
+  assert.equal(data.reduce((n,r)=>n+ +r['Reference pairs'],0),41);
+  assert.match(await p.locator('#trend-orig-year-coverage').innerText(),/41 of 42 selected reference pairs are represented; 1 lack a valid year/);
+  const chart=await p.evaluate(()=>{const c=Chart.getChart('trend-orig-year');return {labels:c.data.labels,values:c.data.datasets.map(d=>d.data),max:c.options.scales.y.max,ticks:c.scales.x.ticks.map(t=>t.label)};});
+  assert.equal(chart.max,100);
+  const band=chart.labels.indexOf('2000–2004');
+  assert.equal(chart.values.reduce((n,d)=>n+d[band],0),100);
+  assert.ok(chart.values.every(d=>d[chart.labels.indexOf('2010–2014')]===null&&d[chart.labels.indexOf('2005–2009')]===null));
+  assert.match(chart.ticks[band].join(' '),/†.*N=20/);
+  await p.locator('#trends-mode').focus();await p.keyboard.press('ArrowDown');await p.keyboard.press('Enter');
+  assert.equal(await p.inputValue('#trends-mode'),'count');
+  const counts=await trendData(p);
+  assert.deepEqual(counts.map(r=>{delete r['Export context'];return r;}),data.map(r=>{delete r['Export context'];return r;}));
+  assert.deepEqual(await p.evaluate(()=>Chart.getChart('trend-orig-year').data.labels),chart.labels);
+  assert.equal(await p.evaluate(()=>Chart.getChart('trend-orig-year').data.datasets.reduce((n,d)=>n+d.data.reduce((a,b)=>a+b,0),0)),41);
+  const journals=await trendData(p,'trend-journal');
+  assert.ok(journals.every(r=>r.Category==='Fixture original journal with a long unwrapped name'));
+  assert.match(await p.locator('#trend-journal-coverage').innerText(),/41 of 42.*1 lack a recorded venue; 0 fall outside/);
+  await p.check('#trends-exclude-multi');
+  assert.equal(await p.evaluate(()=>trendsFilteredData().length),33);
+  assert.equal(await p.evaluate(()=>trendReportTargets.get('10.test/three').size),3);
+  assert.equal(await p.evaluate(()=>trendReportTargets.has('10.test/unknown-targets')),false);
+  assert.match(await p.locator('#trends-exclusion-note').innerText(),/Excluded 9 pairs from 2 known multiple-target reports/);
+  await p.selectOption('#trends-mode','percent');
+  assert.match(await p.locator('#trend-orig-year-empty').innerText(),/No groups have at least 20 pairs/);
+  assert.equal(new URL(p.url()).searchParams.get('trends-exclude-multi'),'1');
+  await p.reload();await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  assert.equal(await p.isChecked('#trends-exclude-multi'),true);assert.equal(await p.evaluate(()=>trendsFilteredData().length),33);
+  await p.uncheck('#trends-exclude-multi');await p.selectOption('#trends-years','1');
+  const annual=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.labels);
+  assert.ok(annual.includes('2001')&&annual.includes('2009'));
+  assert.equal(annual[0],'Before 1960');assert.equal(annual[1],'1960');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Trends All studies counts rows once and reproduction dimensions remain separate',async()=>{
+  const fixture=trendsFixture(rows=>{rows[42].doi_r='10.test/three';rows[42].doi_o='10.test/fourth-target';});
+  const p=await page('?tab=trends&trends-kind=all&trends-mode=percent&trends-years=5&journal-top-n=10&unrelated=kept',1280,p=>p.route('**/data/flora.csv',r=>r.fulfill({body:fixture.csv,contentType:'text/csv'})));
+  await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  assert.equal(await p.inputValue('#trends-mode'),'count');assert.equal(new URL(p.url()).searchParams.get('trends-mode'),'count');
+  assert.equal(await p.locator('#trends-mode [value="percent"]').evaluate(el=>el.disabled),true);
+  assert.match(await p.locator('#trends-all-note').innerText(),/All studies shows pair counts by study type/);
+  assert.ok((await p.locator('#trends h3').allTextContents()).every(t=>t.startsWith('Reference pairs by')));
+  const data=await trendData(p,'trend-field');
+  assert.equal(data.reduce((n,r)=>n+ +r['Reference pairs'],0),fixture.rows.length);
+  assert.equal(+data.find(r=>r.Series==='Reproduction')['Reference pairs'],4);
+  assert.equal(+data.find(r=>r.Series==='Unknown study type')['Reference pairs'],1);
+  assert.ok(data.every(r=>r['Percentage (%)']===''&&r['Percentage status']==='Count-only view'));
+  await p.click('#trends [data-kind="reproduction-numerical"]');
+  assert.equal(await p.inputValue('#trends-mode'),'count');
+  assert.equal(await p.locator('#trends-mode [value="percent"]').evaluate(el=>el.disabled),false);
+  assert.match(await p.locator('#trend-filter-count').innerText(),/2 assessed of 4 reproduction pairs/);
+  assert.equal((await trendData(p,'trend-field')).reduce((n,r)=>n+ +r['Reference pairs'],0),2);
+  await p.click('#trends [data-kind="reproduction-robustness"]');
+  assert.equal((await trendData(p,'trend-field')).reduce((n,r)=>n+ +r['Reference pairs'],0),2);
+  assert.match(await p.locator('#trend-filter-count').innerText(),/2 assessed of 4 reproduction pairs/);
+  assert.equal(await p.evaluate(()=>fullRowData.filter(r=>isComputationalAssessed(r)&&isRobustnessAssessed(r)).length),1);
+  await p.selectOption('#trends-mode','percent');await p.check('#trends-exclude-multi');
+  assert.equal(await p.evaluate(()=>trendReportTargets.get('10.test/three').size),4);
+  assert.equal(await p.evaluate(()=>trendsFilteredData().length),1);
+  await p.click('#browse-tab');await p.goBack();
+  await p.waitForFunction(()=>document.querySelector('#trends').classList.contains('active'));
+  assert.equal(await p.inputValue('#trends-mode'),'percent');assert.equal(await p.inputValue('#journal-top-n'),'10');
+  assert.equal(await p.isChecked('#trends-exclude-multi'),true);
+  assert.equal(new URL(p.url()).searchParams.get('unrelated'),'kept');
+  await p.goForward();await p.waitForFunction(()=>document.querySelector('#browse').classList.contains('active'));
+  await p.goto(base+'?tab=trends&trends-kind=invalid&trends-mode=invalid&trends-years=2&trends-exclude-multi=true&journal-top-n=garbage');
+  await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  assert.equal(await p.evaluate(()=>trendsKind),'replication');assert.equal(await p.inputValue('#trends-mode'),'percent');
+  assert.equal(await p.inputValue('#trends-years'),'5');assert.equal(await p.isChecked('#trends-exclude-multi'),false);
+  assert.equal(await p.inputValue('#journal-top-n'),'15');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Trends snapshot denominators, multiple-target contributions and responsive layout agree with source CSV',async()=>{
+  const p=await page('?tab=trends',1440);await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  const expected=await p.evaluate(text=>{
+    const rows=Papa.parse(text,{header:true,skipEmptyLines:true}).data;
+    const key=(doi,url)=>{let d=String(doi||'').trim().toLowerCase();if(['nan','na','none'].includes(d))d='';d=d.replace(/^(https?:\/\/(dx\.)?doi\.org\/|doi:\s*)/,'').replace(/^[ /]+|[ /]+$/g,'');const k=d||String(url||'').trim().toLowerCase();return ['','na','nan','none','null'].includes(k)?null:k;};
+    const reports=new Map();rows.forEach(r=>{const report=key(r.doi_r,r.url_r),target=key(r.doi_o,r.url_o);if(report&&target){if(!reports.has(report))reports.set(report,new Set());reports.get(report).add(target);}});
+    const replication=rows.filter(r=>{const t=(r.type||'').toLowerCase(),o=(r.outcome||'').toLowerCase();return t.includes('replic')&&!t.includes('reproduc')||!t.includes('reproduc')&&!t.includes('replic')&&!!o&&!o.includes('computational')&&!o.includes('robust');});
+    const multi=replication.filter(r=>(reports.get(key(r.doi_r,r.url_r))?.size||0)>3);
+    return {total:replication.length,multi:multi.length,reports:new Set(multi.map(r=>key(r.doi_r,r.url_r))).size,
+      withYear:replication.filter(r=>{const y=+(String(r.year_o||'').match(/\d{4}/)||[])[0];return y>=1800&&y<=2100;}).length};
+  },fs.readFileSync('data/flora.csv','utf8'));
+  assert.equal((await trendData(p,'trend-field')).reduce((n,r)=>n+ +r['Reference pairs'],0),expected.total);
+  assert.equal((await trendData(p)).reduce((n,r)=>n+ +r['Reference pairs'],0),expected.withYear);
+  await p.check('#trends-exclude-multi');
+  assert.equal(await p.evaluate(()=>trendsFilteredData().length),expected.total-expected.multi);
+  assert.equal(await p.locator('#trends-exclusion-note').innerText(),'Excluded '+expected.multi+' pairs from '+expected.reports+' known multiple-target reports.');
+  for(const width of [390,768,1440]) for(const theme of ['light','dark']) {
+    await p.setViewportSize({width,height:900});
+    await p.evaluate(t=>{document.documentElement.setAttribute('data-theme',t);window._rerenderAllCharts();},theme);
+    await p.waitForTimeout(250);
+    assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    assert.equal(await p.evaluate(()=>{const c=document.querySelector('#trends .trend-block');return c.querySelector('canvas').getBoundingClientRect().top>c.querySelector('.trend-desc').getBoundingClientRect().bottom;}),true);
+    const size=await p.locator('.trend-year-scroll').first().evaluate(el=>[el.clientWidth,el.scrollWidth]);
+    assert.ok(size[1]>=size[0]);
+    await p.locator('.trend-year-scroll').first().evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+    assert.equal(await p.locator('#trend-orig-year-data').evaluate(el=>!!el.closest('.trend-year-scroll')),false);
+    assert.ok(await p.locator('#trend-orig-year-data').evaluate(el=>{const card=el.closest('.card').getBoundingClientRect(),box=el.getBoundingClientRect();return box.left>=card.left&&box.right<=card.right;}));
+    assert.equal(await p.locator('#trends-legend button').count(),0);
+  }
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Trends top journals stay ranked by pair count and percentage exports retain precision',async()=>{
+  const fixture=trendsFixture(rows=>{for(let i=20;i<39;i++)rows[i].journal_o='Small journal '+i;});
+  const p=await page('?tab=trends&journal-top-n=10',1280,p=>p.route('**/data/flora.csv',r=>r.fulfill({body:fixture.csv,contentType:'text/csv'})));
+  await p.waitForFunction(()=>Chart.getChart('trend-journal'));
+  const labels=await p.evaluate(()=>Chart.getChart('trend-journal').data.labels);
+  assert.equal(labels.length,10);assert.equal(labels[0],'Fixture original journal with a long unwrapped name');
+  assert.match(await p.locator('#trend-journal-coverage').innerText(),/31 of 42.*1 lack a recorded venue; 10 fall outside the selected top 10/);
+  const fields=await trendData(p,'trend-field');
+  assert.ok(fields.every(r=>r.Category==='Uncategorised'&&r['Group denominator']==='42'));
+  assert.ok(fields.some(r=>Number(r['Percentage (%)'])!==Number(Number(r['Percentage (%)']).toFixed(1))));
+  const displayed=await p.locator('#trend-field-data tbody tr').evaluateAll(rows=>rows.map(row=>row.cells[4].textContent));
+  assert.ok(displayed.every(v=>/^\d+\.\d$/.test(v)));
+  assert.match(fields[0]['Export context'],/measure: percent.*five-year bands.*minimum: 20.*\d{1,2} [A-Z][a-z]{2} \d{4}/s);
+  await p.selectOption('#trends-mode','count');
+  assert.deepEqual(await p.evaluate(()=>Chart.getChart('trend-journal').data.labels),labels);
+  await p.check('#trends-exclude-multi');
+  assert.match(await p.locator('#trend-journal-coverage').innerText(),/22 of 33.*1 lack a recorded venue; 10 fall outside the selected top 10/);
+  await p.selectOption('#trends-mode','percent');
+  assert.match(await p.locator('#trend-journal-empty').innerText(),/No groups have at least 20 pairs/);
+  assert.ok(await p.evaluate(()=>Chart.getChart('trend-journal').data.datasets.every(d=>d.data.every(v=>v===null))));
+  assert.deepEqual(p.errors,[]);await p.close();
 });
