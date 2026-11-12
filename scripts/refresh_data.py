@@ -762,10 +762,15 @@ def build_study_data(flora: pd.DataFrame) -> dict:
 
 
 # ------------------------------------------------------------------ aggregate event-study
-def build_panel(studies: dict) -> pd.DataFrame:
+def build_panel(studies: dict, require_pre_window: bool = True) -> pd.DataFrame:
     rows = []
     for doi, s in studies.items():
         if s["year"] is None:
+            continue
+        treat_year = s["first_replication_year"]
+        if treat_year is None or treat_year > CURRENT_YEAR - EVENT_WINDOW[1]:
+            continue
+        if require_pre_window and treat_year - s["year"] < -EVENT_WINDOW[0]:
             continue
         y_min = s["year"]
         y_max = CURRENT_YEAR
@@ -987,12 +992,15 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
         for b in buckets:
             sub = repro[repro[bucket_col] == b]
             n_citations_o = 0
-            n_citations_r = sum(len(required_citations(doi))
-                                for doi in sub["doi_r"].unique())
+            per_reproduction = [len(required_citations(doi))
+                                for doi in sub["doi_r"].unique()]
+            n_citations_r = sum(per_reproduction)
             n_cocitations = 0
+            per_original, cocit_rates = [], []
             for doi_o, grp in sub.groupby("doi_o"):
                 co = required_citations(doi_o)
                 n_citations_o += len(co)
+                per_original.append(len(co))
                 rep_citing = set()
                 for _, row in grp.iterrows():
                     if row["doi_r"] != doi_o:
@@ -1010,12 +1018,19 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
                             if f"doi:{row['doi_r']}" in entity_cache[doi_o]:
                                 continue
                         rep_citing.update(cr)
-                n_cocitations += sum(1 for c in co if c in rep_citing)
+                n_cocit_o = sum(1 for c in co if c in rep_citing)
+                n_cocitations += n_cocit_o
+                if co:
+                    cocit_rates.append(n_cocit_o / len(co))
             out[b] = {
                 "n_originals": int(sub["doi_o"].nunique()),
+                "n_reproductions": int(sub["doi_r"].nunique()),
                 "n_citations_to_original": int(n_citations_o),
                 "n_citations_to_reproduction": int(n_citations_r),
                 "n_cocitations": int(n_cocitations),
+                "median_citations_per_original": float(np.median(per_original)) if per_original else None,
+                "mean_citations_per_reproduction": round(float(np.mean(per_reproduction)), 2) if per_reproduction else None,
+                "mean_cocitation_rate": round(float(np.mean(cocit_rates)), 4) if cocit_rates else None,
             }
         return out
 
@@ -1030,6 +1045,8 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
         raise RuntimeError(
             "No complete originals; retaining the previous citation outputs")
     panel = build_panel(studies)
+    # Co-citations are zero before any replication exists, so they need no pre-replication window.
+    cocit_panel = build_panel(studies, require_pre_window=False)
     aggregate = {}
     for label, outcomes in [
         ("all", ["successful", "failed", "mixed"]),
@@ -1039,8 +1056,9 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     ]:
         aggregate[label] = {
             "descriptive":       descriptive_trajectory(panel, outcomes),
+            "descriptive_cocit": descriptive_trajectory(cocit_panel, outcomes),
             "citations_model":   event_study(panel, outcomes, "n_cit"),
-            "cocitations_model": event_study(panel, outcomes, "n_cocit"),
+            "cocitations_model": event_study(cocit_panel, outcomes, "n_cocit"),
         }
 
     originals_index = []

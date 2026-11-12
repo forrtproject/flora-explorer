@@ -949,7 +949,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     await p.click('#ci-study-type [data-value="reproduction-numerical"]');
     const repro=JSON.parse(fs.readFileSync('data/reproduction_citations.json'))['reproduction-numerical'].successful;
     assert.equal(await p.locator('#ci-repro-table tbody tr').first().locator('td').first().textContent(),'Reproduced');
-    assert.deepEqual((await p.locator('#ci-repro-table tbody tr').first().locator('td').allTextContents()).slice(1),['n_originals','n_citations_to_original','n_citations_to_reproduction','n_cocitations'].map(k=>repro[k].toLocaleString('en-GB')));
+    assert.deepEqual((await p.locator('#ci-repro-table tbody tr').first().locator('td').allTextContents()).slice(1,3),[repro.n_originals.toLocaleString('en-GB'),repro.median_citations_per_original.toLocaleString('en-GB',{minimumFractionDigits:1,maximumFractionDigits:1})]);
     assert.deepEqual(errors,[]);
   }finally{await p.close();}
 });
@@ -1258,7 +1258,7 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   const rows=outcomes.map((outcome,i)=>({...Object.fromEntries(headers.map(key=>[key,''])),title_o:'Original '+i,title_r:'Report '+i,type:i<5?'replication':'reproduction',outcome}));
   const csv=[headers,...rows.map(row=>headers.map(key=>row[key]))].map(row=>row.map(value=>'"'+value.replaceAll('"','""')+'"').join(',')).join('\n');
   const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({contentType:'text/csv',body:csv})));
-  assert.equal(await p.locator('[data-outcome-definitions]').count(),7);
+  assert.equal(await p.locator('[data-outcome-definitions]').count(),1);
   for(const selector of ['#browse .browse-kind-filter','#trends > .trend-filter','#ci-study-type','#mc-study-type','#ao-study-type','#pubtype-study-type']){
     assert.deepEqual(await p.locator(selector+' button').allTextContents(),[...(/browse|trends/.test(selector)?['All']:[]),'Replications','Numerical reproductions','Robustness reproductions']);
   }
@@ -1269,9 +1269,7 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   assert.deepEqual(await p.locator('#flora-table .badge').allTextContents(),[
     'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
     'Computational: Not checked','Robustness: Robust','Computational: Reproduced','Robustness: Not checked']);
-  await p.locator('#browse [data-outcome-definitions] summary').click();
-  assert.ok(await p.locator('#browse [data-outcome-definitions]').getByText('The outcome is recorded as uninformative; no successful, failed or mixed verdict is supplied.',{exact:true}).isVisible());
-  await p.locator('#browse [data-outcome-definitions] summary').click();
+  assert.equal(await p.locator('#overview [data-outcome-definitions]').getByText('The outcome is recorded as uninformative; no successful, failed or mixed verdict is supplied.',{exact:true}).count(),1);
   const readDownload=async()=>{
     const event=p.waitForEvent('download');await p.click('#export-browse');const download=await event;
     const stream=await download.createReadStream();const chunks=[];for await(const chunk of stream)chunks.push(chunk);

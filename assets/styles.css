@@ -440,7 +440,11 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
     border-radius: 8px; padding: 1rem; box-shadow: 0 1px 2px var(--color-shadow);
 }
 .plot-card h3 { margin: 0 0 0.5rem; font-size: 0.98rem; color: var(--color-primary); font-family: var(--font-display); font-weight: 600; }
+.plot-sample { margin: -0.3rem 0 0.5rem; font-size: 0.82rem; }
 .plot { width: 100%; height: 360px; }
+.plot-footnote { margin: 0.75rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--color-border); font-size: 0.82rem; line-height: 1.4; color: var(--color-text-secondary); }
+.plot-footnote:empty { display: none; }
+.plot-footnote strong { color: var(--color-text); font-variant-numeric: tabular-nums; }
 
 .search-row { display: flex; gap: 0.6rem; margin: 0.75rem 0 1rem; flex-wrap: wrap; }
 #search-input { flex: 1; min-width: 240px; padding: 0.55rem 0.85rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.9rem; background: var(--color-surface-raised); color: var(--color-text); }

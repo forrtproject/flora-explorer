@@ -101,9 +101,9 @@
         showLoading();
         try {
             const [metaRes, aggRes, idxRes] = await Promise.all([
-                fetch('data/meta.json'),
-                fetch('data/aggregate.json'),
-                fetch('data/originals_index.json')
+                fetch('data/meta.json', { cache: 'no-cache' }),
+                fetch('data/aggregate.json', { cache: 'no-cache' }),
+                fetch('data/originals_index.json', { cache: 'no-cache' })
             ]);
             if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
@@ -112,14 +112,14 @@
 
             // Optional: co-citation breakdown by pub status / outcome (may not exist on first run)
             try {
-                const breakdownRes = await fetch('data/cocit_breakdown.json');
+                const breakdownRes = await fetch('data/cocit_breakdown.json', { cache: 'no-cache' });
                 if (breakdownRes.ok) CI.cocitBreakdown = await breakdownRes.json();
             } catch (_) {}
 
             // Optional: simple descriptive citation counts for reproductions (no event-study -
             // too few reproductions for that model to be meaningful; see refresh_data.py)
             try {
-                const reproRes = await fetch('data/reproduction_citations.json');
+                const reproRes = await fetch('data/reproduction_citations.json', { cache: 'no-cache' });
                 if (reproRes.ok) CI.repro = await reproRes.json();
             } catch (_) {}
 
@@ -182,9 +182,9 @@
                 return '<tr>' +
                     '<td>' + escapeHtml(b.label) + '</td>' +
                     '<td>' + FloraCharts.number(row.n_originals || 0) + '</td>' +
-                    '<td>' + FloraCharts.number(row.n_citations_to_original || 0) + '</td>' +
-                    '<td>' + FloraCharts.number(row.n_citations_to_reproduction || 0) + '</td>' +
-                    '<td>' + FloraCharts.number(row.n_cocitations || 0) + '</td>' +
+                    '<td>' + (row.median_citations_per_original == null ? '—' : FloraCharts.number(row.median_citations_per_original, 1)) + '</td>' +
+                    '<td>' + (row.mean_citations_per_reproduction == null ? '—' : FloraCharts.number(row.mean_citations_per_reproduction, 2)) + '</td>' +
+                    '<td>' + (row.mean_cocitation_rate == null ? '—' : escapeHtml(FloraCharts.percent(row.mean_cocitation_rate, 1, 1)) + '%') + '</td>' +
                 '</tr>';
             }).join('');
         }
@@ -233,10 +233,43 @@
 
     function renderAggregate() {
         const data = CI.agg[CI.outcome]; if (!data) return;
+        renderSampleSize('plot-cit-sample', data.descriptive, null, 'with 5 years of citation data before and after the first replication');
+        renderSampleSize('plot-cocit-sample', data.descriptive_cocit || data.descriptive, COCIT_EVENT_WINDOW, 'with 5 years of citation data after the first replication');
+        renderCocitDenominator();
+        renderCitFootnote(data.descriptive);
         drawAggregatePlot('plot-cit', data, 'mean_citations', 'citations_model', 'Mean citations per year', CI.outcome);
-        drawAggregatePlot('plot-cocit', data, 'mean_cocitations', 'cocitations_model', 'Mean co-citations per year', CI.outcome, COCIT_EVENT_WINDOW);
+        drawAggregatePlot('plot-cocit', { ...data, descriptive: data.descriptive_cocit || data.descriptive }, 'mean_cocitations', 'cocitations_model', 'Mean co-citations per year', CI.outcome, COCIT_EVENT_WINDOW);
     }
 
+
+    const ciOutcomeGroup = s => {
+        const outcomes = Object.keys(s.outcome_mix || {}).filter(k => s.outcome_mix[k]);
+        return outcomes.length === 1 ? outcomes[0] : outcomes.length ? 'multiple' : null;
+    };
+
+    function renderCocitDenominator() {
+        const el = document.getElementById('plot-cocit-denominator'); if (!el) return;
+        const n = CI.outcome === 'all'
+            ? CI.index.filter(s => s.n_citations_post_first_rep > 0).length
+            : CI.cocitBreakdown?.outcome?.[CI.outcome]?.n_originals;
+        const group = CI.outcome === 'all' ? 'replication' : `${FloraVocabulary.label(CI.outcome).toLowerCase()} replication`;
+        el.innerHTML = n == null ? '' : `Co-citation rate defined for <strong><i>N</i> = ${FloraCharts.number(n)}</strong> originals (≥ 1 ${group}; ≥ 1 citation since the first ${group}).`;
+    }
+
+    function renderCitFootnote(desc) {
+        const el = document.getElementById('plot-cit-footnote'); if (!el) return;
+        const n = Math.max(0, ...((desc && desc.n_units) || []));
+        const [lo, hi] = [Math.min(...(desc?.event_time || [0])), Math.max(...(desc?.event_time || [0]))];
+        const group = CI.outcome === 'all' ? 'successful, failed or mixed' : FloraVocabulary.label(CI.outcome).toLowerCase();
+        el.innerHTML = n ? `Mean citations estimated for <strong><i>N</i> = ${FloraCharts.number(n)}</strong> originals (first replication ${group}; each observed over t = ${FloraCharts.number(lo)} to +${FloraCharts.number(hi)}).` : '';
+    }
+
+    function renderSampleSize(id, desc, eventWindow, criterion) {
+        const el = document.getElementById(id); if (!el) return;
+        const shown = desc && desc.event_time && eventWindow ? sliceDescriptive(desc, eventWindow) : desc;
+        const n = Math.max(0, ...((shown && shown.n_units) || []));
+        el.textContent = n ? `Sample size: ${FloraCharts.number(n)} originals ${criterion}` : '';
+    }
 
     function sliceDescriptive(desc, [lo, hi]) {
         const keep = desc.event_time.map((x, i) => (x >= lo && x <= hi ? i : -1)).filter(i => i >= 0);
@@ -259,17 +292,10 @@
             traces.push({
                 x: desc.event_time, y: desc[descField], type: 'scatter', mode: 'lines+markers',
                 line: { color, width: 2.5 }, marker: { color, size: 7 },
-                name: 'Mean (raw)', text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>${ylabel}: ${FloraCharts.number(desc[descField][i],2)}`),
-                hovertemplate: '%{text}<extra></extra>'
-            });
-        }
-        if (desc.event_time && desc.n_units && desc.n_units.length) {
-            traces.push({
-                x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines',
-                line: { color: plotlyTheme().rule, width: 1, dash: 'dot' },
-                name: 'Distinct originals', yaxis: 'y2',
-                text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>Distinct originals: ${FloraCharts.number(desc.n_units[i])}`),
-                hovertemplate: '%{text}<extra></extra>'
+                name: 'Mean (raw)', 
+                text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>${ylabel}: ${FloraCharts.number(desc[descField][i],2)}`),
+                hovertemplate: '%{text}<extra></extra>',
+                legendgroup: 'raw', showlegend: true
             });
         }
 
@@ -368,7 +394,7 @@
 
         let rows = CI.index.filter(s => {
             if (!matchesSearchTokens(s.searchText, tokens)) return false;
-            if (outFilter && !(s.outcome_mix && s.outcome_mix[outFilter])) return false;
+            if (outFilter && ciOutcomeGroup(s) !== outFilter) return false;
             return true;
         });
 

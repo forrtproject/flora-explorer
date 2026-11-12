@@ -526,7 +526,6 @@
                 <!-- ============================ BROWSE ============================ -->
                 <div class="tab-pane fade" id="browse" role="tabpanel">
                     <h1 class="visually-hidden">Browse reference pairs</h1>
-                    <details class="outcome-definitions" data-outcome-definitions></details>
                     <div class="data-stamp" data-stamp-source="flora"></div>
                     <div class="browse-filter-panel">
                         <div class="browse-search"><label for="browse-mobile-input">Find a reference pair</label>
@@ -694,7 +693,6 @@
                 <div class="tab-pane fade" id="trends" role="tabpanel">
                     <h1 class="visually-hidden">Years &amp; Disciplines</h1>
                     <h2 class="visually-hidden">Outcome summaries</h2>
-                    <details class="outcome-definitions" data-outcome-definitions></details>
                     <div class="data-stamp" data-stamp-source="flora"></div>
 
                     <details class="tab-cite-block">
@@ -873,7 +871,6 @@
                 <!-- ============================ CITATION IMPACT ============================ -->
                 <div class="tab-pane fade" id="citation-impact" role="tabpanel">
                     <h1 class="visually-hidden">Citation Impact</h1>
-                    <details class="outcome-definitions" data-outcome-definitions></details>
                     <div class="data-stamp" data-stamp-source="citations"></div>
 
                     <details class="tab-cite-block">
@@ -917,27 +914,35 @@
 
                     <div id="ci-placeholder" class="coming-soon-placeholder" style="display:none;"></div>
 
-                    <div id="ci-repro-content" class="card ci-card" style="display:none;">
+                    <div id="ci-repro-content" style="display:none;">
                         <div class="data-stamp" data-stamp-source="reproduction_citations"></div>
-                        <h2 class="card-header">Reproduction citation counts</h2>
-                        <div class="card-body">
-                            <p class="muted">
-                                Counts are grouped by the assessed dimension. A report can contribute to several outcome
-                                groups, so group totals are not additive.
-                            </p>
-                            <div class="table-wrap">
-                                <table class="table table-striped table-hover" id="ci-repro-table" style="width:100%;">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col"><span class="visually-hidden">Outcome</span></th>
-                                            <th>Originals</th>
-                                            <th>Citations to original</th>
-                                            <th>Citations to reproduction</th>
-                                            <th>Co-citations</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
+                        <div class="card ci-card">
+                            <h2 class="card-header">Reproduction citation counts</h2>
+                            <div class="card-body">
+                                <p class="muted">
+                                    Per-original summaries by assessed dimension, so groups of different sizes can be
+                                    compared. Citations are all-time counts; medians limit the pull of a few highly
+                                    cited
+                                    originals. The co-citation rate is each original's share of citations that also cite
+                                    its
+                                    reproduction, averaged across originals. A report can appear in several outcome
+                                    groups.
+                                </p>
+                                <div class="table-wrap">
+                                    <table class="table table-striped table-hover" id="ci-repro-table"
+                                        style="width:100%;">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col"><span class="visually-hidden">Outcome</span></th>
+                                                <th><i>N</i> originals</th>
+                                                <th>Median citations per original</th>
+                                                <th>Mean citations per reproduction</th>
+                                                <th>Mean co-citation rate</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -946,8 +951,17 @@
                         <div class="kpi-row" id="kpis"></div>
 
                         <div class="card ci-card">
-                            <h2 class="card-header">Aggregate impact of replications</h2>
+                            <h2 class="card-header">Citation Counts after Replications are published</h2>
                             <div class="card-body">
+                                <p class="muted">There is no apparent association between a replication’s outcome and
+                                    how often the original study is cited afterwards: original studies keep gaining
+                                    citations
+                                    after
+                                    both failed and successful replications. However, citation counts increase in time
+                                    and
+                                    replication targets are usually not selected at random. Therefore, the before and
+                                    after change visualised here is only descriptive, and cannot by itself be
+                                    interpreted as an effect of replication.</p>
 
                                 <div class="filters">
                                     <span class="filter-label">Replication outcome</span>
@@ -964,11 +978,15 @@
                                 <div class="plot-grid">
                                     <div class="plot-card">
                                         <h3>Citations to the original</h3>
+                                        <p id="plot-cit-sample" class="muted plot-sample"></p>
                                         <div id="plot-cit" class="plot"></div>
+                                        <p id="plot-cit-footnote" class="plot-footnote"></p>
                                     </div>
                                     <div class="plot-card">
                                         <h3>Co-citations (original and replication)</h3>
+                                        <p id="plot-cocit-sample" class="muted plot-sample"></p>
                                         <div id="plot-cocit" class="plot"></div>
+                                        <p id="plot-cocit-denominator" class="plot-footnote"></p>
                                     </div>
                                 </div>
                             </div>
@@ -1006,11 +1024,12 @@
                                     <input id="search-input" type="search"
                                         placeholder="Title, author, year, journal, DOI or DOI URL" />
                                     <select id="filter-outcome"
-                                        aria-label="Filter originals by any recorded replication outcome">
+                                        aria-label="Filter originals by the outcomes of all their replications">
                                         <option value="">All outcomes</option>
-                                        <option value="failed">Has failed replication</option>
-                                        <option value="successful">Has successful replication</option>
-                                        <option value="mixed">Has mixed replication</option>
+                                        <option value="successful">Only successful replications</option>
+                                        <option value="failed">Only failed replications</option>
+                                        <option value="mixed">Only mixed replications</option>
+                                        <option value="multiple">Multiple replication outcomes</option>
                                     </select>
                                 </div>
 
@@ -1064,8 +1083,9 @@
                                 </p>
                                 <p>The outcome filters group originals by the outcome of their earliest recorded
                                     replication year; same-year ties follow the stored record order. Later replications
-                                    can have different outcomes. The table’s outcome filter instead matches any
-                                    replication of an original. Qualified success, descriptive-only, uninformative, and
+                                    can have different outcomes. The table’s outcome filter instead groups originals by
+                                    the outcomes of all their replications. Qualified success, descriptive-only,
+                                    uninformative, and
                                     missing outcomes are excluded from the citation model.</p>
                                 <p>Each timeline bar counts distinct citing works. Works that cite replications with
                                     more than one outcome appear once in the “multiple outcome categories” segment. The
@@ -1091,7 +1111,6 @@
                 <!-- ============================ MEAN CITEDNESS ============================ -->
                 <div class="tab-pane fade" id="mean-citedness" role="tabpanel">
                     <h1 class="visually-hidden">Mean Citedness</h1>
-                    <details class="outcome-definitions" data-outcome-definitions></details>
                     <div class="data-stamp" data-stamp-source="impact_factor"></div>
 
                     <details class="tab-cite-block">
@@ -1168,7 +1187,6 @@
                 <!-- ==================== AUTHORSHIP OVERLAP ==================== -->
                 <div class="tab-pane fade" id="authorship-overlap" role="tabpanel">
                     <h1 class="visually-hidden">Authorship Overlap</h1>
-                    <details class="outcome-definitions" data-outcome-definitions></details>
                     <div class="data-stamp" data-stamp-source="author_overlap"></div>
 
                     <details class="tab-cite-block">
@@ -1251,7 +1269,6 @@
                 <!-- ==================== PUBLICATION TYPE ==================== -->
                 <div class="tab-pane fade" id="publication-type" role="tabpanel">
                     <h1 class="visually-hidden">Publication Type</h1>
-                    <details class="outcome-definitions" data-outcome-definitions></details>
                     <details class="tab-cite-block">
                         <summary>Citation and reuse guidance</summary>
                         <div class="tab-cite-block-label">How to cite</div>
