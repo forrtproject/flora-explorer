@@ -948,7 +948,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     await p.keyboard.press('Escape');
     await p.click('#ci-study-type [data-value="reproduction-numerical"]');
     const repro=JSON.parse(fs.readFileSync('data/reproduction_citations.json'))['reproduction-numerical'].successful;
-    assert.equal(await p.locator('#ci-repro-table tbody tr').first().locator('td').first().textContent(),'Reproduced');
+    assert.equal(await p.locator('#ci-repro-table tbody tr').first().locator('td').first().textContent(),'Computationally reproducible');
     assert.deepEqual((await p.locator('#ci-repro-table tbody tr').first().locator('td').allTextContents()).slice(1),['n_originals','n_citations_to_original','n_citations_to_reproduction','n_cocitations'].map(k=>repro[k].toLocaleString('en-GB')));
     assert.deepEqual(errors,[]);
   }finally{await p.close();}
@@ -1340,15 +1340,10 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   assert.deepEqual(await p.evaluate(cases=>cases.map(test=>FloraVocabulary.classify(test.raw,test.dimension)),cases),cases.map(test=>test.key));
   assert.deepEqual(await p.evaluate(()=>fullRowData.map(row=>FloraVocabulary.outcomeLabel(row))),[
     'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
-    'Computational: Not checked; Robustness: Robust','Computational: Reproduced; Robustness: Not checked']);
-  assert.deepEqual(await p.evaluate(()=>[
-    {type:'replication',outcome_replication:'Mixed'},{type:'replication',outcome_replication:'partial'},{type:'replication',outcome_replication:''},
-    {type:'reproduction',outcome_computation:'not checked',outcome_robustness:'robust'},
-    {type:'reproduction',outcome_computation:'computationally reproducible',outcome_robustness:'robust'},
-  ].map(row=>FloraVocabulary.distinctSourceOutcome(row))),['','partial','','','computationally reproducible, robust']);
+    'Computational: Not checked; Robustness: Robust','Computational: Computationally reproducible; Robustness: Not checked']);
   assert.deepEqual(await p.locator('#flora-table .badge').allTextContents(),[
     'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
-    'Computational: Not checked','Robustness: Robust','Computational: Reproduced','Robustness: Not checked']);
+    'Computational: Not checked','Robustness: Robust','Computational: Computationally reproducible','Robustness: Not checked']);
   await p.locator('#browse [data-outcome-definitions] summary').click();
   assert.ok(await p.locator('#browse [data-outcome-definitions]').getByText('The outcome is recorded as uninformative; no successful, failed or mixed verdict is supplied.',{exact:true}).isVisible());
   await p.locator('#browse [data-outcome-definitions] summary').click();
@@ -1367,7 +1362,7 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   await p.click('.browse-kind-btn[data-kind="reproduction-numerical"]');
   const filtered=await readDownload();assert.equal(filtered.data.length,1);
   assert.equal([filtered.data[0].outcome_computation,filtered.data[0].outcome_robustness].join(', '),outcomes[6]);
-  assert.equal(filtered.data[0].outcome_label,'Computational: Reproduced; Robustness: Not checked');
+  assert.equal(filtered.data[0].outcome_label,'Computational: Computationally reproducible; Robustness: Not checked');
   assert.match(filtered.data[0]['Export context'],/Study type: Numerical reproductions/);
   await p.fill('#browse-mobile-input','zzzz-missing');await p.waitForFunction(()=>getChartData().length===0);
   const empty=await readDownload();assert.deepEqual(empty.meta.fields,full.meta.fields);assert.deepEqual(empty.data,[]);
@@ -1376,7 +1371,7 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   await p.setViewportSize({width:390,height:900});
   assert.deepEqual(await p.locator('.bm-card .bm-tags .badge').allTextContents(),await p.locator('#flora-table .badge').allTextContents());
   await p.locator('.bm-evidence summary').nth(2).click();
-  const evidence=p.locator('.bm-evidence[open]');assert.match(await evidence.innerText(),/Source outcome:\s*NA/);
+  const evidence=p.locator('.bm-evidence[open]');assert.doesNotMatch(await evidence.innerText(),/Source outcome/);
   assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   assert.deepEqual(p.errors,[]);await p.close();
 });

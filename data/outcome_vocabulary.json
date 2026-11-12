@@ -100,7 +100,7 @@
   "computational": [
     {
       "key": "successful",
-      "label": "Reproduced",
+      "label": "Computationally reproducible",
       "definition": "The original numerical results were reproduced.",
       "aliases": [
         "computationally reproducible",

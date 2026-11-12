@@ -195,7 +195,7 @@ setupStudyTypeSelect('pubtype-study-type', kind => {
 function getOutcomeBadge(row) {
     const badge = (dimension, key, prefix = '') => {
         const item = FloraVocabulary.item(dimension, key);
-        // The hidden colon keeps the text readable as "Computational: Reproduced" for screen readers and copy.
+        // The hidden colon keeps the text readable as "Computational: Computationally reproducible" for screen readers and copy.
         const dim = prefix ? `<span class="badge-dim">${prefix}<span class="visually-hidden">:</span></span> ` : '';
         // "Robustness challenges" under a "Robustness" heading reads as "Challenges".
         const value = prefix && item.label.toLowerCase().startsWith(prefix.toLowerCase() + ' ')
@@ -207,11 +207,6 @@ function getOutcomeBadge(row) {
         return `<span class="outcome-tags">${badge('computational', dimensions.computational, 'Computational')} ${badge('robustness', dimensions.robustness, 'Robustness')}</span>`;
     }
     return badge('replication', FloraVocabulary.replication(row));
-}
-
-function sourceOutcomeNote(row) {
-    const text = FloraVocabulary.distinctSourceOutcome(row);
-    return text ? '<div class="small">Source outcome: ' + escapeHtml(text) + '</div>' : '';
 }
 
 function getOutcomeBadgeShort(row) { return getOutcomeBadge(row); }
@@ -836,7 +831,6 @@ function formatDetailRow(rowData) {
                 <h6>Recorded evidence</h6>
                 <div class="detail-section">
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData)}</span></div>
-                    ${FloraVocabulary.distinctSourceOutcome(rowData) ? `<div><span class="detail-label">Source outcome:</span> <span class="detail-value">${escapeHtml(FloraVocabulary.distinctSourceOutcome(rowData))}</span></div>` : ''}
                     ${formatOutcomeEvidence(rowData)}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
                 </div>
@@ -1781,7 +1775,7 @@ function renderRRCharts() {
                 '<td>' + escapeHtml(s.title_r) + '</td>' +
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + sourceOutcomeNote({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -1914,7 +1908,7 @@ function renderPubStatusCharts() {
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + statusBadge + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + sourceOutcomeNote({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -2115,7 +2109,7 @@ const STAMP_URLS = {
     pub_status: PUB_STATUS_META_URL
 };
 
-// Verdict columns keep "NA" as recorded, so "Source outcome" shows what the coder entered.
+// Verdict columns keep "NA" as recorded, so it shows as unrecognised rather than missing.
 const OUTCOME_CODE_COLUMNS = new Set(['outcome', 'outcome_replication', 'outcome_computation', 'outcome_robustness']);
 // TODO: remove after the first FLoRA release that ships the replication columns. Until then they
 // are copied from the combined fields, which hold identical values for replications.

@@ -19,19 +19,10 @@ window.FloraVocabulary = (() => {
     // Each study type has its own verdict columns; the combined `outcome` is not classified.
     const reproduction = row => ({computational: classify(row.outcome_computation, 'computational'), robustness: classify(row.outcome_robustness, 'robustness')});
     const replication = row => classify(row.outcome_replication);
-    // The verdicts as recorded, for "Source outcome" text, search and sorting.
+    // The verdicts as recorded, for search and sorting.
     const sourceOutcome = row => classifyKind(row) === 'reproduction'
         ? [row.outcome_computation, row.outcome_robustness].map(v => String(v ?? '').trim()).filter(Boolean).join(', ')
         : String(row.outcome_replication ?? '').trim();
-    // The recorded text only when it adds something to the badge, e.g. "partial" behind "Mixed".
-    function distinctSourceOutcome(row) {
-        const same = (raw, dimension, key) => { const v = String(raw ?? '').trim().toLowerCase(); return !v || v === label(key, dimension).toLowerCase(); };
-        if (classifyKind(row) === 'reproduction') {
-            const d = reproduction(row);
-            if (same(row.outcome_computation, 'computational', d.computational) && same(row.outcome_robustness, 'robustness', d.robustness)) return '';
-        } else if (same(row.outcome_replication, 'replication', replication(row))) return '';
-        return sourceOutcome(row);
-    }
     function outcomeLabel(row) {
         if (classifyKind(row) !== 'reproduction') return label(replication(row));
         const dimensions = reproduction(row);
@@ -82,5 +73,5 @@ window.FloraVocabulary = (() => {
     // A ?doi= deep link can draw charts before the vocabulary has loaded.
     const unitDefinition = label => vocabulary?.units[label] || '';
     const isMissing = raw => Boolean(vocabulary?.missing_markers.includes(normalise(raw)));
-    return {ready, entries, classify, item, label, reproduction, replication, sourceOutcome, distinctSourceOutcome, outcomeLabel, studyType, definitions, unitDefinition, isMissing};
+    return {ready, entries, classify, item, label, reproduction, replication, sourceOutcome, outcomeLabel, studyType, definitions, unitDefinition, isMissing};
 })();
