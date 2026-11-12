@@ -743,44 +743,54 @@ function stripClaimIds(text) {
         .trim();
 }
 
-function splitLabelledParts(value) {
-    return String(value || '').split('||').map(p => p.trim()).filter(p => p && p.toUpperCase() !== 'NA').map(part => {
-        const m = part.match(/^(Computational|Robustness):\s*/);
-        return { label: m ? m[1] : '', text: m ? part.slice(m[0].length) : part };
-    });
-}
+const hasValue = v => { const t = String(v ?? '').trim(); return t !== '' && t.toUpperCase() !== 'NA'; };
+const splitParts = v => String(v || '').split('||').map(p => p.trim()).filter(hasValue);
 
+// Reproductions record each axis in its own columns; the combined outcome_quote(_source) is not used for them.
+const REPRODUCTION_QUOTE_AXES = [
+    ['Computational', 'outcome_computational_quote', 'out_quote_computational_source'],
+    ['Robustness', 'outcome_robustness_quote', 'out_quote_robust_source'],
+];
+
+// Returns the quote parts, each with its source where one can be paired, plus any sources left unpaired.
 function outcomeEvidenceParts(row) {
-    return splitLabelledParts(row.outcome_quote).map(p => ({ ...p, text: row.type === 'reproduction' ? stripClaimIds(p.text) : p.text }));
+    if (row.type === 'reproduction') {
+        const parts = REPRODUCTION_QUOTE_AXES.filter(([, q]) => hasValue(row[q]))
+            .map(([label, q, src]) => ({ label, text: stripClaimIds(row[q].trim()), source: hasValue(row[src]) ? row[src].trim() : '' }));
+        return { parts, unpaired: [] };
+    }
+    const quotes = splitParts(row.outcome_quote);
+    const sources = splitParts(row.outcome_quote_source);
+    // Pair by position when the counts match; otherwise list the distinct sources once below the quotes.
+    const paired = sources.length === quotes.length;
+    return {
+        parts: quotes.map((text, i) => ({ label: '', text, source: paired ? sources[i] : '' })),
+        unpaired: paired ? [] : sources.filter((s, i) => sources.findIndex(o => o.toLowerCase() === s.toLowerCase()) === i),
+    };
 }
 
 function formatQuoteSource(text) {
     return /^https?:\/\//.test(text) ? `<a href="${escapeHtml(text)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>` : escapeHtml(text);
 }
 
-// Sources that record a coder's note rather than a location in the report. "coding note" is the
-// convention requested upstream (FReD-data); the other markers cover rows coded before it existed.
+// Sources that record a coder's note rather than a location in the report. FReD-data marks these
+// with a "coding note:" prefix (FReD-data#174); the other markers cover snapshots coded before it.
 const CODING_NOTE_SOURCE = /^coding note\b|project rule|^data file\b|github\.com\/forrtproject\/fred-data\/issues/i;
 
 function formatOutcomeEvidence(row) {
-    const parts = outcomeEvidenceParts(row);
+    const { parts, unpaired } = outcomeEvidenceParts(row);
     if (!parts.length) return '<p class="small">No outcome evidence is recorded for this pair.</p>';
-    const sources = splitLabelledParts(row.outcome_quote_source);
-    // Pair each quote with its source: by Computational/Robustness label, or by position when the counts match.
-    const byPosition = sources.length === parts.length && sources.every(s => !s.label);
-    const paired = parts.map((p, i) => ({ ...p, source: byPosition ? sources[i] : sources.find(s => p.label && s.label === p.label) }));
-    const unpaired = sources.filter(s => !paired.some(p => p.source === s))
-        .filter((s, i, all) => all.findIndex(o => o.text.toLowerCase() === s.text.toLowerCase()) === i);
-    const isNote = s => s && CODING_NOTE_SOURCE.test(s.text);
-    const items = paired.map(p => {
-        const note = isNote(p.source);
-        const src = p.source ? ` <span class="small">(${note ? 'coding note; basis' : 'source'}: ${formatQuoteSource(p.source.text)})</span>` : '';
+    const isNote = s => CODING_NOTE_SOURCE.test(s);
+    const items = parts.map(p => {
+        const src = p.source ? ` <span class="small">(${isNote(p.source) ? 'coding note' : 'source'}: ${formatQuoteSource(p.source.replace(/^coding note:\s*/i, ''))})</span>` : '';
         return `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}${src}</li>`;
     }).join('');
-    const allQuotes = sources.length && !sources.some(isNote);
-    return `<div class="detail-label">${allQuotes ? 'Outcome quote' : 'Outcome evidence'}:</div>
+    const sources = [...parts.map(p => p.source).filter(Boolean), ...unpaired];
+    const allQuotes = parts.every(p => p.source) || (unpaired.length && !parts.some(p => p.source));
+    const heading = allQuotes && !sources.some(isNote) ? 'Outcome quote' : 'Outcome evidence';
+    return `<div class="detail-label">${heading}:</div>
         <ul class="outcome-evidence">${items}</ul>
-        ${unpaired.length ? `<p class="small">Source: ${unpaired.map(s => formatQuoteSource(s.text)).join('; ')}</p>` : ''}`;
+        ${unpaired.length ? `<p class="small">Source: ${unpaired.map(formatQuoteSource).join('; ')}</p>` : ''}`;
 }
 
 // ===== Browse: detail row =====
@@ -882,7 +892,7 @@ function bmSearchableText(row) {
         const urlDoi = /^https?:\/\/(?:dx\.)?doi\.org\//i.test(row.url_r || '') ? row.url_r : '';
         bmSearchText.set(row, normalizedQuery([row.title_o, searchAuthorNames(row.author_o), row.journal_o, row.year_o, row.doi_o,
             row.title_r, searchAuthorNames(row.author_r), row.journal_r, row.year_r, row.doi_r, urlDoi,
-            row.outcome_quote, row.type].filter(Boolean).join(' | ')));
+            row.outcome_quote, row.outcome_computational_quote, row.outcome_robustness_quote, row.type].filter(Boolean).join(' | ')));
     }
     return bmSearchText.get(row);
 }

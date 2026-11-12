@@ -1226,9 +1226,9 @@ test('filter state restored from a shared URL is not announced',async()=>{
 test('Browse outcome evidence splits parts, hides claim IDs and shows quote sources',async()=>{
   const p=await page('?tab=browse');await p.waitForSelector('#flora-table tbody tr .title-clamp');
   const r=await p.evaluate(()=>{
-    const strip=s=>outcomeEvidenceParts({type:'reproduction',outcome_quote:s}).map(x=>x.text).join(' | ');
+    const strip=s=>outcomeEvidenceParts({type:'reproduction',outcome_computational_quote:s.replace(/^Computational: /,'')}).parts.map(x=>x.text).join(' | ');
     const host=document.createElement('div');
-    host.innerHTML=formatOutcomeEvidence({type:'reproduction',outcome_quote:'Computational: code ran || Robustness: estimates match'});
+    host.innerHTML=formatOutcomeEvidence({type:'reproduction',outcome_computational_quote:'code ran',outcome_robustness_quote:'estimates match',outcome_quote:'Computational: ignored'});
     return {
       items:[...host.querySelectorAll('.outcome-evidence li')].map(li=>li.textContent),
       list:strip('Computational: "Based on these criteria, the claim did reproduce." (stated for all four claims: gdyrdr, b7dlq4, gzljvk, ml3qr2), all within ranges'),
@@ -1237,12 +1237,14 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
       perClaim:strip('Computational: Per-claim outcomes: m63jjk "did reproduce", gjrjjk "did reproduce", blw99o "did not reproduce"'),
       claimsWord:strip('Computational: (stated for both completed claims, l8d8wj and 6rvr3z)'),
       nonClaim:strip('Computational: packages (e.g. ivreg2, eststo, esttab) were available'),
-      replication:outcomeEvidenceParts({type:'replication',outcome_quote:'Claim ID: 3n6x9n replicated'})[0].text,
-      searchKeepsIds:matchesBrowseQuery({type:'reproduction',outcome_quote:'claims: gdyrdr, b7dlq4'},'b7dlq4'),
+      replication:outcomeEvidenceParts({type:'replication',outcome_quote:'Claim ID: 3n6x9n replicated'}).parts[0].text,
+      searchKeepsIds:matchesBrowseQuery({type:'reproduction',outcome_computational_quote:'claims: gdyrdr, b7dlq4'},'b7dlq4'),
       empty:formatOutcomeEvidence({outcome_quote:' || '}),
-      sourced:formatOutcomeEvidence({type:'reproduction',outcome_quote:'Computational: code ran || Robustness: estimates match',outcome_quote_source:'Computational: results || Robustness: abstract'}),
+      sourced:formatOutcomeEvidence({type:'reproduction',outcome_computational_quote:'code ran',out_quote_computational_source:'results',outcome_robustness_quote:'estimates match',out_quote_robust_source:'abstract'}),
+      reproNote:formatOutcomeEvidence({type:'reproduction',outcome_computational_quote:'Rated as reproduced',out_quote_computational_source:'coding note: project rule',outcome_robustness_quote:'NA'}),
       plain:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'abstract || Abstract'}),
-      note:formatOutcomeEvidence({type:'replication',outcome_quote:'Survival increased || PAPER-LEVEL: 1/2 experiments successful',outcome_quote_source:'abstract || project rule'}),
+      note:formatOutcomeEvidence({type:'replication',outcome_quote:'Survival increased || PAPER-LEVEL: 1/2 experiments successful',outcome_quote_source:'abstract || coding note: project rule'}),
+      legacyNote:formatOutcomeEvidence({type:'replication',outcome_quote:'Replicate = 0',outcome_quote_source:'data file at https://osf.io/fgjvw'}),
       noSource:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'NA'}),
       escaped:tableTitleCell('<b>x</b>',JSON.stringify([{family:'Carney'},{family:'Cuddy'},{family:'Yap'}]),2010)
     };
@@ -1264,8 +1266,12 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
   assert.match(r.noSource,/Outcome evidence:/);
   assert.match(r.note,/Outcome evidence:/);
   assert.match(r.note,/Survival increased <span class="small">\(source: abstract\)/);
-  assert.match(r.note,/successful <span class="small">\(coding note; basis: project rule\)/);
+  assert.match(r.note,/successful <span class="small">\(coding note: project rule\)/);
+  assert.match(r.legacyNote,/Outcome evidence:[\s\S]*\(coding note: data file at https:\/\/osf\.io\/fgjvw\)/);
+  assert.match(r.reproNote,/Outcome evidence:[\s\S]*Computational:<\/span> Rated as reproduced <span class="small">\(coding note: project rule\)/);
+  assert.ok(!/Robustness/.test(r.reproNote));
   assert.ok(!/may not fully explain/.test(r.sourced+r.plain+r.noSource));
+  assert.ok(!/ignored/.test(r.items.join(' ')));
   assert.ok(r.escaped.includes('&lt;b&gt;x&lt;/b&gt;')&&!r.escaped.includes('<b>'));
   assert.ok(r.escaped.includes('Carney et al. (2010)'));
   const cell=p.locator('#flora-table tbody tr').first().locator('td').nth(1);

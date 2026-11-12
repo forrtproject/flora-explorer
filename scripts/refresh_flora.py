@@ -54,6 +54,9 @@ KEEP_COLUMNS = [
     "doi_o", "title_o", "author_o", "journal_o", "year_o",
     "doi_r", "title_r", "author_r", "journal_r", "year_r", "url_r",
     "outcome", "outcome_quote", "outcome_quote_source", "type",
+    # Reproductions: per-axis quotes and their sources (the combined outcome_quote is not used for them).
+    "outcome_computational_quote", "out_quote_computational_source",
+    "outcome_robustness_quote", "out_quote_robust_source",
 ]
 
 
