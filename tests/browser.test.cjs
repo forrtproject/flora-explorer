@@ -1247,6 +1247,12 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
       bareNote:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'Outcome classified as failed',out_quote_replication_source:'coding note'}),
       legacyNote:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'Replicate = 0',out_quote_replication_source:'data file at https://osf.io/fgjvw'}),
       noSource:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'It replicated',out_quote_replication_source:'NA'}),
+      positions:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'A || NA || B',out_quote_replication_source:'abstract || results || NA'}),
+      halfSourced:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'A || B',out_quote_replication_source:'abstract || NA'}),
+      embeddedUrl:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'A',out_quote_replication_source:'coding note: data file at https://osf.io/fgjvw; see notes'}),
+      fredIssue:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'A',out_quote_replication_source:'see https://github.com/forrtproject/fred-data/issues/12'}),
+      searchRobustness:matchesBrowseQuery({type:'reproduction',outcome_robustness_quote:'leave-future-out'},'leave-future-out'),
+      unrecognisedTitle:getOutcomeBadge({type:'replication',outcome_replication:'sort of'}),
       deduplicated:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'First || Second',out_quote_replication_source:'abstract'}),
       escaped:tableTitleCell('<b>x</b>',JSON.stringify([{family:'Carney'},{family:'Cuddy'},{family:'Yap'}]),2010)
     };
@@ -1270,8 +1276,15 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
   assert.match(r.note,/Survival increased <span class="small">\(source: abstract\)/);
   assert.match(r.note,/successful <span class="small">\(coding note: project rule\)/);
   assert.match(r.bareNote,/Outcome evidence:[\s\S]*failed <span class="small">\(coding note\)<\/span>/);
+  assert.match(r.positions,/<li>A <span class="small">\(source: abstract\)<\/span><\/li><li>B<\/li>/);
+  assert.match(r.positions,/Outcome evidence:/);
+  assert.match(r.halfSourced,/Outcome evidence:/);
+  assert.match(r.embeddedUrl,/\(coding note: data file at <a href="https:\/\/osf\.io\/fgjvw"[^>]*>https:\/\/osf\.io\/fgjvw<\/a>; see notes\)/);
+  assert.match(r.fredIssue,/Outcome evidence:[\s\S]*\(coding note: see <a href="https:\/\/github\.com\/forrtproject\/fred-data\/issues\/12"/);
+  assert.ok(r.searchRobustness);
+  assert.match(r.unrecognisedTitle,/title="[^"]*Recorded as: sort of"/);
   assert.match(r.deduplicated,/<li>First<\/li><li>Second<\/li>[\s\S]*Source: abstract<\/p>/);
-  assert.match(r.legacyNote,/Outcome evidence:[\s\S]*\(coding note: data file at https:\/\/osf\.io\/fgjvw\)/);
+  assert.match(r.legacyNote,/Outcome evidence:[\s\S]*\(coding note: data file at <a href="https:\/\/osf\.io\/fgjvw"[^>]*>https:\/\/osf\.io\/fgjvw<\/a>\)/);
   assert.match(r.reproNote,/Outcome evidence:[\s\S]*Computational:<\/span> Rated as reproduced <span class="small">\(coding note: project rule\)/);
   assert.ok(!/Robustness/.test(r.reproNote));
   assert.ok(!/may not fully explain|Combined field/.test(r.sourced+r.plain+r.noSource));

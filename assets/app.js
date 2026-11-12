@@ -193,18 +193,19 @@ setupStudyTypeSelect('pubtype-study-type', kind => {
 });
 
 function getOutcomeBadge(row) {
-    const badge = (dimension, key, prefix = '') => {
+    const badge = (dimension, key, prefix = '', raw = '') => {
         const item = FloraVocabulary.item(dimension, key);
+        const title = key === 'unrecognised' ? `${item.definition} Recorded as: ${String(raw).trim()}` : item.definition;
         // The hidden colon keeps the text readable as "Computational: Computationally reproducible" for screen readers and copy.
         const dim = prefix ? `<span class="badge-dim">${prefix}<span class="visually-hidden">:</span></span> ` : '';
         const value = item.label;
-        return `<span class="badge outcome-tag badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(item.definition)}">${dim}<span class="badge-value">${value}</span></span>`;
+        return `<span class="badge outcome-tag badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(title)}">${dim}<span class="badge-value">${value}</span></span>`;
     };
     if (classifyKind(row) === 'reproduction') {
         const dimensions = parseReproductionOutcome(row);
-        return `<span class="outcome-tags">${badge('computational', dimensions.computational, 'Computational')} ${badge('robustness', dimensions.robustness, 'Robustness')}</span>`;
+        return `<span class="outcome-tags">${badge('computational', dimensions.computational, 'Computational', row.outcome_computation)} ${badge('robustness', dimensions.robustness, 'Robustness', row.outcome_robustness)}</span>`;
     }
-    return badge('replication', FloraVocabulary.replication(row));
+    return badge('replication', FloraVocabulary.replication(row), '', row.outcome_replication);
 }
 
 function getOutcomeBadgeShort(row) { return getOutcomeBadge(row); }
@@ -742,7 +743,7 @@ function stripClaimIds(text) {
 }
 
 const hasValue = v => { const t = String(v ?? '').trim(); return t !== '' && t.toUpperCase() !== 'NA'; };
-const splitParts = v => String(v || '').split('||').map(p => p.trim()).filter(hasValue);
+const splitParts = v => String(v || '').split('||').map(p => p.trim());
 
 // Reproductions record each axis in its own columns; the combined outcome_quote(_source) is not used for them.
 const REPRODUCTION_QUOTE_AXES = [
@@ -759,16 +760,21 @@ function outcomeEvidenceParts(row) {
     }
     const quotes = splitParts(row.outcome_replication_quote);
     const sources = splitParts(row.out_quote_replication_source);
-    // Pair by position when the counts match; otherwise list the distinct sources once below the quotes.
+    // Pair by position when the counts match (before dropping missing parts, so positions hold);
+    // otherwise list the distinct sources once below the quotes.
     const paired = sources.length === quotes.length;
+    const present = sources.filter(hasValue);
     return {
-        parts: quotes.map((text, i) => ({ label: '', text, source: paired ? sources[i] : '' })),
-        unpaired: paired ? [] : sources.filter((s, i) => sources.findIndex(o => o.toLowerCase() === s.toLowerCase()) === i),
+        parts: quotes.map((text, i) => ({ label: '', text, source: paired && hasValue(sources[i]) ? sources[i] : '' }))
+            .filter(p => hasValue(p.text)),
+        unpaired: paired ? [] : present.filter((s, i) => present.findIndex(o => o.toLowerCase() === s.toLowerCase()) === i),
     };
 }
 
+// Links each URL inside a source and keeps the surrounding text.
 function formatQuoteSource(text) {
-    return /^https?:\/\//.test(text) ? `<a href="${escapeHtml(text)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>` : escapeHtml(text);
+    return String(text).split(/(https?:\/\/[^\s;,)]+)/).map((piece, i) => i % 2
+        ? `<a href="${escapeHtml(piece)}" target="_blank" rel="noopener">${escapeHtml(piece)}</a>` : escapeHtml(piece)).join('');
 }
 
 // Sources that record a coder's note rather than a location in the report. flora-validation marks
@@ -2107,7 +2113,7 @@ const STAMP_URLS = {
     pub_status: PUB_STATUS_META_URL
 };
 
-// Verdict columns keep "NA" as recorded, so it shows as unrecognised rather than missing.
+// Verdict columns keep "NA" as recorded so downloads show the coder's value; classify() reads it as missing.
 const OUTCOME_CODE_COLUMNS = new Set(['outcome', 'outcome_replication', 'outcome_computation', 'outcome_robustness']);
 // TODO: remove after the first FLoRA release that ships the replication columns. Until then they
 // are copied from the combined fields, which hold identical values for replications.

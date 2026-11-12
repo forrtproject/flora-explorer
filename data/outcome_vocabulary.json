@@ -91,7 +91,7 @@
     {
       "key": "unrecognised",
       "label": "Unrecognised outcome",
-      "definition": "A recorded value falls outside the supported vocabulary; see the source outcome.",
+      "definition": "A recorded value falls outside the supported vocabulary.",
       "aliases": [],
       "assessed": false,
       "color": "other"

@@ -44,6 +44,10 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual([row['outcome_replication'] for row in dicts],['failed',''])
         shipped=c.with_outcome_columns(pd.DataFrame([dict(type='replication',outcome='failed',outcome_replication='mixed')]))
         self.assertEqual(shipped.loc[0,'outcome_replication'],'mixed')
+        alt=c.with_outcome_columns(pd.DataFrame([dict(Study_Type='reproduction',outcome='robust'),dict(Study_Type='replication',outcome='failed')]))
+        self.assertEqual(list(alt['outcome_replication']),['','failed'])
+        untyped=c.with_outcome_columns(pd.DataFrame([dict(outcome='failed')]))
+        self.assertEqual(untyped.loc[0,'outcome_replication'],'failed')
         self.assertEqual(c.study_outcome_fields(dict(type='reproduction',outcome_computation='computational issues',outcome_robustness=float('nan'))),
                          {'outcome_computation':'computational issues','outcome_robustness':None})
         self.assertEqual(c.study_outcome_fields(dict(type='replication',outcome_replication='failed')),{'outcome_replication':'failed'})

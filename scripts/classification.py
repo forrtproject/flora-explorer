@@ -54,8 +54,12 @@ def is_reproduction(row) -> bool:
 
 def with_outcome_columns(df):
     """Return a DataFrame that has the replication columns (see _REPLICATION_FALLBACK)."""
+    import pandas as pd
     df = df.copy()
-    reproduction = df["type"].astype(str).str.lower().str.contains("reproduc", na=False)
+    # The same type-column names load_flora_raw accepts; no type column means all replications.
+    type_col = next((c for name in ("type", "study_type", "ref_type") for c in df.columns if c.lower() == name), None)
+    reproduction = (df[type_col].astype(str).str.lower().str.contains("reproduc", na=False)
+                    if type_col else pd.Series(False, index=df.index))
     for column, combined in _REPLICATION_FALLBACK.items():
         if column not in df.columns and combined in df.columns:
             df[column] = df[combined].where(~reproduction, "")
