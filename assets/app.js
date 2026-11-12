@@ -686,6 +686,80 @@ async function loadFaqs() {
     }
 }
 
+// ===== Browse: outcome evidence =====
+const CLAIM_ID_SEP = String.raw`(?:\s*,\s*(?:and\s+|\.\.\.\s*|…\s*)?|\s+and\s+)`;
+const CLAIM_ID_RUN = new RegExp(String.raw`(?<![\w/.@:-])[a-z0-9]{6}(?:'s)?(?:${CLAIM_ID_SEP}[a-z0-9]{6}(?:'s)?)*(?![\w/-])`, 'g');
+const ONE_CLAIM_ID = '\u0001', MANY_CLAIM_IDS = '\u0002';
+const isCodedClaimId = t => /\d/.test(t) && /[a-z]/.test(t);
+// Letter-only IDs (e.g. "gdyrdr") look like words; at most one vowel keeps six-letter words such as "claims" out.
+const looksLikeLetterClaimId = t => /^[a-z]{6}$/.test(t) && (t.match(/[aeiou]/g) || []).length <= 1;
+
+function markClaimIds(text) {
+    return text.replace(/"([a-z0-9]{6})"/g, (m, id) => isCodedClaimId(id) ? id : m).replace(CLAIM_ID_RUN, (run, offset, whole) => {
+        const parts = run.split(new RegExp(`(${CLAIM_ID_SEP})`));
+        const raw = parts.filter((_, i) => i % 2 === 0);
+        const seps = parts.filter((_, i) => i % 2 === 1);
+        const ids = raw.map(t => t.replace(/'s$/, ''));
+        const followedByVerdict = /^\s+"did/.test(whole.slice(offset + run.length));
+        const isId = ids.map((t, i) => isCodedClaimId(t) || (looksLikeLetterClaimId(t) &&
+            ([ids[i - 1], ids[i + 1]].some(n => n && isCodedClaimId(n)) || (i === ids.length - 1 && followedByVerdict))));
+        if (!isId.some(Boolean)) return run;
+        let out = '';
+        for (let i = 0; i < raw.length;) {
+            if (!isId[i]) { out += (i ? seps[i - 1] : '') + raw[i]; i++; continue; }
+            let j = i; while (j + 1 < raw.length && isId[j + 1]) j++;
+            out += (i ? seps[i - 1] : '') + (j > i ? MANY_CLAIM_IDS : ONE_CLAIM_ID) + (raw[j].endsWith("'s") ? "'s" : '');
+            i = j + 1;
+        }
+        return out;
+    });
+}
+
+// Display only: exports and search keep the raw text. IDs that name a claim become "one claim"/"some claims".
+function stripClaimIds(text) {
+    if (!text || !/claim/i.test(text)) return text;
+    const marked = markClaimIds(text);
+    if (!/[\u0001\u0002]/.test(marked)) return text;
+    const X = '[\u0001\u0002]';
+    const label = id => id === MANY_CLAIM_IDS ? 'some claims' : 'one claim';
+    return marked
+        .replace(new RegExp(String.raw`\s*\(\s*${X}\s*\)`, 'g'), '')
+        .replace(new RegExp(String.raw`([(;])\s*${X}\s*[,/]\s*`, 'g'), (m, p) => p === ';' ? '; ' : p)
+        .replace(new RegExp(String.raw`${X}\s*/\s*`, 'g'), '')
+        .replace(new RegExp(String.raw`:\s*${X}(?=\s*[)\];,.]|"|$)`, 'g'), '')
+        .replace(new RegExp(String.raw`\b(claims?)\s+${X}\s*:`, 'gi'), '$1:')
+        .replace(new RegExp(String.raw`\bclaim\s+(${X})'s`, 'gi'), (m, id) => `${label(id)}'s`)
+        .replace(new RegExp(String.raw`(${X})'s`, 'g'), (m, id) => `${label(id)}'s`)
+        .replace(new RegExp(String.raw`\bclaims\s+${X}(?=\s+[a-z])`, 'g'), 'some claims')
+        .replace(new RegExp(String.raw`(^|[;,(]\s*|\b(?:while|but|and|for)\s+)claim\s+(${X})`, 'g'), (m, p, id) => p + label(id))
+        .replace(new RegExp(String.raw`\b(for|of|but|while)\s+(${X})`, 'g'), (m, w, id) => `${w} ${label(id)}`)
+        .replace(new RegExp(String.raw`(${X})(?=\s+")`, 'g'), (m, id) => label(id))
+        .replace(new RegExp(String.raw`${X}\s*:\s*`, 'g'), '')
+        .replace(new RegExp(String.raw`\s*,\s*${X}`, 'g'), '')
+        .replace(new RegExp(X, 'g'), '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\s+([,;:)])/g, '$1')
+        .replace(/\(\s+/g, '(')
+        .trim();
+}
+
+function outcomeEvidenceParts(row) {
+    return String(row.outcome_quote || '').split('||').map(p => p.trim()).filter(Boolean).map(part => {
+        const m = part.match(/^(Computational|Robustness):\s*/);
+        const text = m ? part.slice(m[0].length) : part;
+        return { label: m ? m[1] : '', text: row.type === 'reproduction' ? stripClaimIds(text) : text };
+    });
+}
+
+function formatOutcomeEvidence(row) {
+    const parts = outcomeEvidenceParts(row);
+    if (!parts.length) return '<p class="small">No outcome evidence is recorded for this pair.</p>';
+    const items = parts.map(p => `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}</li>`).join('');
+    return `<div class="detail-label">Outcome evidence (quotation or coding note):</div>
+        <ul class="outcome-evidence">${items}</ul>
+        <p class="small">${row.outcome_quote_source ? `Source: ${escapeHtml(row.outcome_quote_source)}. ` : ''}This text may be quoted from the report or written by a coder, may cover only part of the findings and may not fully explain the recorded outcome.</p>`;
+}
+
 // ===== Browse: detail row =====
 function formatDetailRow(rowData) {
     return `
@@ -717,19 +791,25 @@ function formatDetailRow(rowData) {
                 <div class="detail-section">
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData)}</span></div>
                     <div><span class="detail-label">Source outcome:</span> <span class="detail-value">${escapeHtml(rowData.outcome)}</span></div>
-                    ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome quotation:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div><p class="small">${rowData.outcome_quote_source ? `Source: ${escapeHtml(rowData.outcome_quote_source)}. ` : ""}This excerpt may cover only part of the findings and may not fully explain the recorded outcome.</p>` : '<p class="small">No supporting quotation is recorded for this pair.</p>'}
+                    ${formatOutcomeEvidence(rowData)}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
                 </div>
             </div>
         </div>`;
 }
 
+function tableTitleCell(title, authorData, year) {
+    const text = title || shortAuthors(authorData) || '-';
+    const byline = bmAuthorYear(authorData, year);
+    return `<span class="title-clamp" title="${escapeHtml(text)}">${escapeHtml(text)}</span>${byline ? `<span class="title-byline">${escapeHtml(byline)}</span>` : ''}`;
+}
+
 function initDataTable(data) {
     const tableData = data.map(row => [
         null,
-        { display: truncateText(row.title_o || row.author_o, 50), search: `${row.title_o || ''} ${searchAuthorNames(row.author_o)} ${row.journal_o || ''}` },
+        { display: tableTitleCell(row.title_o, row.author_o, row.year_o), search: `${row.title_o || ''} ${searchAuthorNames(row.author_o)} ${row.journal_o || ''}` },
         row.year_o || '-',
-        { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
+        { display: tableTitleCell(row.title_r, row.author_r, row.year_r), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
         row.year_r || '-',
         { display: getOutcomeBadgeShort(row), search: row.outcome || '' },
         truncateText(row.type, 15) || '-',
@@ -803,7 +883,7 @@ function bmCardHtml(row) {
             <div class="bm-row"><div class="bm-row-label">Original report</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
             <div class="bm-divider"></div>
             <div class="bm-row"><div class="bm-row-label">${reportKindLabel(row)} report</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
-            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study evidence and outcome quotation</summary>${formatDetailRow(row)}</details>
+            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study and outcome evidence</summary>${formatDetailRow(row)}</details>
         </div>`;
 }
 function bmApplySearch(query) {

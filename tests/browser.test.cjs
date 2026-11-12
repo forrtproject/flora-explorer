@@ -1223,6 +1223,51 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
 });
+test('Browse outcome evidence splits parts, hides claim IDs and labels coding notes neutrally',async()=>{
+  const p=await page('?tab=browse');await p.waitForSelector('#flora-table tbody tr .title-clamp');
+  const r=await p.evaluate(()=>{
+    const strip=s=>outcomeEvidenceParts({type:'reproduction',outcome_quote:s}).map(x=>x.text).join(' | ');
+    const host=document.createElement('div');
+    host.innerHTML=formatOutcomeEvidence({type:'reproduction',outcome_quote:'Computational: code ran || Robustness: estimates match'});
+    return {
+      items:[...host.querySelectorAll('.outcome-evidence li')].map(li=>li.textContent),
+      list:strip('Computational: "Based on these criteria, the claim did reproduce." (stated for all four claims: gdyrdr, b7dlq4, gzljvk, ml3qr2), all within ranges'),
+      table:strip('Computational: two claims (22zkkv, Table 6 col 3b; 6dwooq, Table 8 col 5) did not reproduce'),
+      named:strip('Computational: Claim gpvvw3: "did not reproduce." (claims 6rr1l5 and ppp6n8 did reproduce)'),
+      perClaim:strip('Computational: Per-claim outcomes: m63jjk "did reproduce", gjrjjk "did reproduce", blw99o "did not reproduce"'),
+      claimsWord:strip('Computational: (stated for both completed claims, l8d8wj and 6rvr3z)'),
+      nonClaim:strip('Computational: packages (e.g. ivreg2, eststo, esttab) were available'),
+      replication:outcomeEvidenceParts({type:'replication',outcome_quote:'Claim ID: 3n6x9n replicated'})[0].text,
+      searchKeepsIds:matchesBrowseQuery({type:'reproduction',outcome_quote:'claims: gdyrdr, b7dlq4'},'b7dlq4'),
+      empty:formatOutcomeEvidence({outcome_quote:' || '}),
+      escaped:tableTitleCell('<b>x</b>',JSON.stringify([{family:'Carney'},{family:'Cuddy'},{family:'Yap'}]),2010)
+    };
+  });
+  assert.deepEqual(r.items,['Computational: code ran','Robustness: estimates match']);
+  assert.equal(r.list,'"Based on these criteria, the claim did reproduce." (stated for all four claims), all within ranges');
+  assert.equal(r.table,'two claims (Table 6 col 3b; Table 8 col 5) did not reproduce');
+  assert.equal(r.named,'Claim: "did not reproduce." (some claims did reproduce)');
+  assert.equal(r.perClaim,'Per-claim outcomes: one claim "did reproduce", one claim "did reproduce", one claim "did not reproduce"');
+  assert.equal(r.claimsWord,'(stated for both completed claims)');
+  assert.equal(r.nonClaim,'packages (e.g. ivreg2, eststo, esttab) were available');
+  assert.equal(r.replication,'Claim ID: 3n6x9n replicated');
+  assert.ok(r.searchKeepsIds);
+  assert.match(r.empty,/No outcome evidence is recorded/);
+  assert.ok(r.escaped.includes('&lt;b&gt;x&lt;/b&gt;')&&!r.escaped.includes('<b>'));
+  assert.ok(r.escaped.includes('Carney et al. (2010)'));
+  const cell=p.locator('#flora-table tbody tr').first().locator('td').nth(1);
+  assert.ok(!(await cell.locator('.title-clamp').textContent()).endsWith('…'));
+  assert.match(await cell.locator('.title-byline').textContent(),/\(\d{4}\)$/);
+  await p.locator('.study-details').first().click();
+  const evidence=p.locator('.detail-row').first();
+  if(await evidence.locator('.outcome-evidence').count()){
+    assert.equal(await evidence.getByText('Outcome evidence (quotation or coding note):').count(),1);
+    assert.equal(await evidence.locator('.outcome-evidence li').first().evaluate(li=>getComputedStyle(li).fontStyle),'normal');
+  }
+  assert.equal(await p.getByText('Outcome quotation').count(),0);
+  assert.deepEqual(p.errors,[]);
+  await p.close();
+});
 test('Replication report column sorts by its displayed link text on desktop and mobile',async()=>{
   const p=await page('?tab=browse&kind=all&sort=8:asc');
   const {shown,mobile}=await p.evaluate(()=>{

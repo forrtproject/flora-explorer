@@ -298,6 +298,11 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .detail-section { margin-bottom: 1rem; }
 .detail-label { font-weight: 600; color: var(--color-text-secondary); display: inline-block; min-width: 120px; }
 .detail-value { color: var(--color-text); }
+.outcome-evidence { list-style: none; padding-left: 0; margin: 0.25rem 0 0.5rem; }
+.outcome-evidence li + li { margin-top: 0.5rem; }
+.evidence-part-label { font-weight: 600; }
+.title-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.title-byline { display: block; font-size: 0.8rem; color: var(--color-text-secondary); }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
 .detail-card { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; box-shadow: 0 1px 3px var(--color-shadow); }
 
