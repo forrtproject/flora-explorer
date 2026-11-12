@@ -7,7 +7,7 @@ let browser, server;
 const port = process.env.TEST_PORT || '8897';
 const base = `http://127.0.0.1:${port}/`;
 before(async()=>{
-  server=spawn(process.env.PYTHON || 'python3',['-m','http.server',port,'--bind','127.0.0.1'],{stdio:'ignore'});
+  server=spawn(process.env.PYTHON || 'python3',['-m','http.server',port,'--bind','127.0.0.1','--directory','dist'],{stdio:'ignore'});
   // A server that exits early usually means the port is taken; fail rather than test another server's files.
   let exited=false;server.on('exit',()=>{exited=true;});
   // Consume the readiness response so its open stream does not outlive the hook.
@@ -15,43 +15,21 @@ before(async()=>{
   await new Promise(r=>setTimeout(r,200));
   if(exited) throw new Error(`Test server could not start on port ${port}; set TEST_PORT to a free port.`);
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
-  // Download each CDN library once per run; per-page CDN fetches made unrelated tests time out at random.
-  const newContext=browser.newContext.bind(browser);
-  browser.newContext=async(...args)=>{const context=await newContext(...args);await context.route(CDN_HOSTS,serveCdn);return context;};
 });
-const CDN_HOSTS=/^https:\/\/(code\.jquery\.com|cdn\.jsdelivr\.net|cdn\.datatables\.net|cdnjs\.cloudflare\.com|cdn\.plot\.ly)\//;
-const cdnCache=new Map();
-async function serveCdn(route){
-  const url=route.request().url();
-  if(!cdnCache.has(url)) cdnCache.set(url,(async()=>{
-    for(let attempt=0;;attempt++){
-      try{const res=await route.fetch({timeout:20000});if(!res.ok()) throw new Error(`${res.status()} ${url}`);return {status:res.status(),headers:res.headers(),body:await res.body()};}
-      catch(e){if(attempt>=3) throw e;await new Promise(r=>setTimeout(r,1000*(attempt+1)));}
-    }
-  })());
-  try{await route.fulfill(await cdnCache.get(url));}
-  catch{cdnCache.delete(url);await route.abort();}
-}
 after(async()=>{await browser?.close();server?.kill();});
 async function page(query, width=1280, setup){
   const p=await browser.newPage({viewport:{width,height:900}});p.errors=[];
   p.on('pageerror',e=>p.errors.push(e.message));
   if(setup) await setup(p);
   await p.goto(base+query);await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
-  await p.waitForFunction(()=>typeof Chart!=='undefined'&&typeof Plotly!=='undefined');
+  await p.waitForFunction(()=>typeof Plotly!=='undefined');
   return p;
 }
 async function browseRows(p){return p.evaluate(()=>getChartData().map(r=>[r.title_o,r.title_r,r.outcome]));}
 async function citationSearch(p,q){
-  await p.evaluate(()=>{
-    window.citationRenderFinished=false;
-    const observer=new MutationObserver(()=>{observer.disconnect();window.citationRenderFinished=true;});
-    observer.observe(document.querySelector('#originals-table tbody'),{childList:true});
-    // The message is updated even when both the previous and next result sets are empty.
-    observer.observe(document.getElementById('ci-search-empty-message'),{childList:true});
-  });
   await p.fill('#search-input',q);
-  await p.waitForFunction(()=>window.citationRenderFinished);
+  // The table names the query it has rendered, so an unchanged result set still signals completion.
+  await p.waitForFunction(q=>document.getElementById('originals-table').dataset.query===q,q);
   return p.locator('#originals-table tbody tr[data-doi]').evaluateAll(rows=>rows.map(r=>r.dataset.doi));
 }
 test('desktop/mobile search, DOI URLs, empty results, shared view and evidence agree',async()=>{
@@ -218,23 +196,6 @@ test('every generated timeline, outcome summary and venue grouping preserves cou
   const d=read('impact_factor_data.json');assert.equal(d.histogram.reduce((sum,b)=>sum+Object.entries(b).filter(([k])=>!k.startsWith('bin_')).reduce((n,[k,v])=>n+v,0),0),d.overview.n_total);
 });
 
-test('late Chart.js loading preserves chart ownership through repeated redraws',async()=>{
-  const p=await browser.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
-  let release;
-  const gate=new Promise(resolve=>{release=resolve;});
-  await p.route('**/chart.umd.min.js',async route=>{await gate;await route.continue();});
-  try {
-    await p.goto(base+'?tab=browse',{waitUntil:'commit'});
-    await p.waitForFunction(()=>typeof fullRowData!=='undefined'&&fullRowData.length>0);
-    await p.evaluate(()=>{renderOverviewChart(fullRowData);renderOverviewChart(fullRowData);renderBrowseOutcomeCharts();renderBrowseOutcomeCharts();});
-    release();await p.waitForLoadState('load');
-    await p.waitForFunction(()=>typeof Chart!=='undefined'&&Chart.getChart('overview-outcome-chart'));
-    assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
-    await p.click('#theme-toggle');await p.click('.browse-kind-btn[data-kind="replication"]');
-    assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
-    assert.deepEqual(errors,[]);
-  } finally {release();await p.close();}
-});
 
 test('FAQ URLs stay inside href attributes and default filter states agree',async()=>{
   const p=await page('?tab=overview');
@@ -402,11 +363,11 @@ test('citation timeline redraws wait for 120 ms without another resize',async()=
   await p.waitForFunction(()=>document.getElementById('study-plot')?.layout?.annotations?.length>0);
   await p.clock.pauseAt(new Date('2026-10-21T01:00:00Z'));
   await p.evaluate(()=>{
-    const plot=FloraCharts.plot;
+    const react=Plotly.react;
     window.timelineDraws=0;
-    FloraCharts.plot=function(target,...args){
-      if(target==='study-plot') window.timelineDraws++;
-      return plot.call(this,target,...args);
+    Plotly.react=function(target,...args){
+      if(target.id==='study-plot') window.timelineDraws++;
+      return react.call(this,target,...args);
     };
     for(let i=0;i<5;i++) window.dispatchEvent(new Event('resize'));
   });
@@ -567,23 +528,17 @@ test('Citation Impact searches full author lists, including after an early DOI d
 });
 test('search input is debounced, Show all draws once and Citation Impact offers empty-state recovery',async()=>{
   const p=await page('?tab=browse');
-  // deferRender creates only the first page until more rows are requested.
-  assert.ok(await p.evaluate(()=>dataTable.rows().nodes().length<fullRowData.length));
-  await p.evaluate(()=>{window.searchDraws=0;dataTable.on('draw.dt',()=>searchDraws++);dataTable.page.len(-1).draw();});
-  assert.equal(await p.evaluate(()=>searchDraws),1);
+  // Only the current page of rows is rendered until more are requested.
+  assert.ok(await p.evaluate(()=>floraBrowse.rendered<fullRowData.length));
+  await p.selectOption('#flora-table_length select','-1');
   assert.equal(await p.locator('#flora-table tbody tr').count(),await p.evaluate(()=>fullRowData.length));
-  const immediate=await p.evaluate(()=>{
-    searchDraws=0;const el=document.getElementById('browse-mobile-input');
-    for(const q of ['B','Bem','Bem 2011']){el.value=q;el.dispatchEvent(new Event('input'));}
-    return searchDraws;
-  });
-  assert.equal(immediate,0);await p.waitForFunction(()=>browseQuery==='Bem 2011');
+  await p.evaluate(()=>{window.searchDraws=0;new MutationObserver(()=>searchDraws++).observe(document.querySelector('#flora-table tbody'),{childList:true});});
+  await p.locator('#browse-mobile-input').pressSequentially('Bem 2011',{delay:10});
+  assert.equal(await p.evaluate(()=>searchDraws),0);await p.waitForFunction(()=>browseQuery==='Bem 2011');
   assert.equal(await p.evaluate(()=>searchDraws),1);
   await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
-  await p.evaluate(()=>{
-    window.citationRenders=0;new MutationObserver(()=>citationRenders++).observe(document.querySelector('#originals-table tbody'),{childList:true});
-    const el=document.getElementById('search-input');for(const q of ['z','zz','zz-no-such-original']){el.value=q;el.dispatchEvent(new Event('input'));}
-  });
+  await p.evaluate(()=>{window.citationRenders=0;new MutationObserver(()=>citationRenders++).observe(document.querySelector('#originals-table tbody'),{childList:true});});
+  await p.locator('#search-input').pressSequentially('zz-no-such-original',{delay:5});
   assert.ok(await p.locator('.timeline-open').count()>0);
   await p.waitForSelector('#ci-search-empty:not([hidden])');
   assert.equal(await p.evaluate(()=>citationRenders),1);
@@ -707,18 +662,18 @@ test('old shared citation links and Browse pagination restore with compact URLs'
   assert.deepEqual([...new URL(p.url()).searchParams.entries()],[['tab','citations'],['ci-q','Carney']]);
   assert.match(await p.locator('#originals-table tbody').innerText(),/Carney/);
   await p.goto(base+'?tab=browse&page=2&page-size=10&sort=2:asc');
-  await p.waitForFunction(()=>typeof dataTable!=='undefined'&&dataTable?.page.info().page===1);
-  assert.equal(await p.evaluate(()=>dataTable.page.len()),10);
-  assert.deepEqual(await p.evaluate(()=>dataTable.order()[0]),[2,'asc']);
+  await p.waitForFunction(()=>floraBrowse?.page===1);
+  assert.equal(await p.evaluate(()=>floraBrowse.pageSize),10);
+  assert.deepEqual(await p.evaluate(()=>floraBrowse.order),[2,'asc']);
   await p.click('#mc-tab');await p.goBack();
   await p.waitForFunction(()=>document.querySelector('.tab-pane.active').id==='browse');
-  assert.equal(await p.evaluate(()=>dataTable.page()),1);assert.equal(await p.evaluate(()=>dataTable.page.len()),10);
-  await p.evaluate(()=>dataTable.page('next').draw('page'));
+  assert.equal(await p.evaluate(()=>floraBrowse.page),1);assert.equal(await p.evaluate(()=>floraBrowse.pageSize),10);
+  await p.locator('#flora-table_paginate button',{hasText:'Next'}).click();
   await p.waitForFunction(()=>new URL(location.href).searchParams.get('page')==='3');
-  await p.reload();await p.waitForFunction(()=>typeof dataTable!=='undefined'&&dataTable?.page()===2);
+  await p.reload();await p.waitForFunction(()=>floraBrowse?.page===2);
   await p.setViewportSize({width:390,height:844});
   await p.click('#bm-next');await p.waitForFunction(()=>new URL(location.href).searchParams.get('mobile-page')==='2');
-  await p.reload();await p.waitForFunction(()=>document.getElementById('bm-page-info').textContent.startsWith('Page 2 '));
+  await p.reload();await p.waitForFunction(()=>document.getElementById('bm-page-info')?.textContent.startsWith('Page 2 '));
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -790,9 +745,10 @@ test('copy follows each study type and preserves complete rendered sentences',as
   assert.match(await p.locator('.explorer-intro').innerText(),/Framework for Open and Reproducible Research Training \(FORRT\)/);
   assert.doesNotMatch(await p.locator('meta[name="description"]').getAttribute('content'),/comprehensive/);
   assert.equal(await p.getByText('FLoRA Annotator',{exact:false}).count(),0);
-  const repro=await p.evaluate(()=>{const r=fullRowData.find(r=>classifyKind(r)==='reproduction');renderRandomExamples([r]);return reportKindLabel(r);});
-  assert.equal(repro,'Reproduction');
-  assert.deepEqual(await p.locator('#random-examples .ex-line-label').allTextContents(),['Original report','Reproduction report']);
+  assert.equal(await p.evaluate(()=>reportKindLabel(fullRowData.find(r=>classifyKind(r)==='reproduction'))),'Reproduction');
+  await p.click('#browse-tab');await p.click('.browse-kind-btn[data-kind="reproduction-numerical"]');
+  assert.deepEqual(await p.locator('.bm-card').first().locator('.bm-row-label').allTextContents(),['Original report','Reproduction report']);
+  await p.click('.browse-kind-btn[data-kind="all"]');
   const views=[['trends-tab','#trends','#trends .trend-filter-btn','kind'],['mc-tab','#mean-citedness','#mc-study-type .chip','value'],['overlap-tab','#authorship-overlap','#ao-study-type .chip','value'],['pub-tab','#publication-type','#pubtype-study-type .chip','value'],['citation-tab','#citation-impact','#ci-study-type .chip','value']];
   for(const [tab,pane,controls,key] of views){
     await p.click('#'+tab);
@@ -801,7 +757,7 @@ test('copy follows each study type and preserves complete rendered sentences',as
       const text=await p.locator(pane).innerText();
       assert.doesNotMatch(text,/a journal's the|Not enough (Numerical|Robustness|Replications)|split by the selected outcome|\bRRDB\b|\bjournal_r\b|outcome chips|straightforward to extend|data\/disciplines\.json/);
       // Check assembled prose around substitutions, including empty variants in Mean Citedness.
-      const paragraphs=await p.locator(`${pane} p:has([data-kind-text])`).allTextContents();
+      const paragraphs=await p.locator(`${pane} p`).allTextContents();
       assert.ok(paragraphs.length>0);
       assert.ok(paragraphs.every(s=>!/(?:a|the)\s+(?:a|the)\b/i.test(s)));
       if(tab==='trends-tab')assert.match(text,new RegExp(`Frequency shows where ${kind==='replication'?'replication':'reproduction'} effort has gone, not how ${kind==='replication'?'replicable':kind==='reproduction-numerical'?'reproducible':'robust'} a journal's research is\\.`));
@@ -894,7 +850,7 @@ test('small comparison counts have distinct integer ticks on desktop and mobile'
   assert.deepEqual(await p.evaluate(()=>document.getElementById('ao-chart').layout.xaxis.range),[0,100]);
   await p.click('#ao-chart-mode');
   await assertIntegerCountTicks(p,'ao-chart','xaxis');
-  await p.evaluate(()=>{window._aoData.replication.by_outcome.overlap.successful=1000;renderOverlapCharts();});
+  await p.evaluate(()=>{window._aoData.replication.by_outcome.overlap.successful=1000;floraRefresh();});
   await p.waitForFunction(()=>document.getElementById('ao-chart')._fullLayout.xaxis.dtick>1);
   await assertIntegerCountTicks(p,'ao-chart','xaxis');
   assert.deepEqual(p.errors,[]);await p.close();
@@ -975,9 +931,9 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   let exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
   assert.deepEqual(exported.map(r=>r.Category),chartLabels);
   // Make exactly one pair lack a year, independently of the committed snapshot.
-  await p.evaluate(()=>{const rows=trendsFilteredData();const years=rows.map(r=>r.year_o);rows.forEach((r,i)=>r.year_o=i ? '2020' : '');renderTrendOrigYear();rows.forEach((r,i)=>r.year_o=years[i]);});
+  await p.evaluate(()=>{const rows=trendsFilteredData();const years=rows.map(r=>r.year_o);rows.forEach((r,i)=>r.year_o=i ? '2020' : '');floraRefresh();rows.forEach((r,i)=>r.year_o=years[i]);});
   assert.match(await p.locator('#trend-orig-year-data .chart-summary').textContent(),/excluded from this selection: 1 reference pair\./);
-  await p.evaluate(()=>renderTrendOrigYear());
+  await p.evaluate(()=>floraRefresh());
   await p.click('#overlap-tab');await p.waitForSelector('#ao-chart-data');
   const groups=await p.evaluate(()=>document.getElementById('ao-chart').data[0].x);
   assert.ok(groups.some(s=>s.includes('N='+ao.n_no_overlap.toLocaleString('en-GB'))));
@@ -1225,22 +1181,19 @@ test('filter state restored from a shared URL is not announced',async()=>{
 });
 test('Replication report column sorts by its displayed link text on desktop and mobile',async()=>{
   const p=await page('?tab=browse&kind=all&sort=8:asc');
-  const {shown,mobile}=await p.evaluate(()=>{
-    const text=html=>{const d=document.createElement('div');d.innerHTML=html;return d.textContent;};
-    return {shown:dataTable.rows({order:'applied',search:'applied'}).data().toArray().map(r=>text(r[8].display)),
-      mobile:bmFiltered.map(r=>text(formatUrlOrDoiShort(r.url_r,r.doi_r)))};
-  });
-  assert.ok(shown.some(t=>/^osf\.io\//.test(t)),'data should include URL-only links');
-  // DataTables compares plain lowercase strings; mobile cards use a numeric collator.
-  assert.deepEqual(shown,[...shown].sort((a,b)=>a.toLowerCase()<b.toLowerCase()?-1:a.toLowerCase()>b.toLowerCase()?1:0));
-  assert.deepEqual(mobile,[...mobile].sort(new Intl.Collator(undefined,{numeric:true}).compare));
+  const links=await p.evaluate(()=>floraBrowse.rows.map(r=>FloraCharts.reportLinkText(r.url_r,r.doi_r)));
+  assert.ok(links.some(t=>/^osf\.io\//.test(t)),'data should include URL-only links');
+  // The table and the mobile cards share one order: a numeric collator over the displayed text.
+  assert.deepEqual(links,[...links].sort(new Intl.Collator(undefined,{numeric:true}).compare));
+  const firstPage=links.slice(0,25).map(t=>t||'-');
+  assert.deepEqual(await p.locator('#flora-table tbody tr td:last-child').allTextContents(),firstPage);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('Outcome column groups rows by outcome in both directions',async()=>{
   const p=await page('?tab=browse&kind=all&sort=5:asc');
   const grouped=async dir=>{
-    await p.evaluate(dir=>dataTable.order([[5,dir]]).draw(),dir);
-    const outcomes=await p.evaluate(()=>dataTable.rows({order:'applied',search:'applied'}).data().toArray().map(r=>r[5].search));
+    await p.evaluate(dir=>floraBrowse.setOrder(5,dir),dir);await p.waitForFunction(dir=>floraBrowse.order[1]===dir,dir);
+    const outcomes=await p.evaluate(()=>floraBrowse.rows.map(r=>r.outcome||''));
     const runs=outcomes.filter((o,i)=>o!==outcomes[i-1]);
     assert.equal(runs.length,new Set(outcomes).size,`${dir}: outcomes split into ${runs.join(', ')}`);
     return runs;
@@ -1356,7 +1309,7 @@ test('citation headline counts keep real zeros',async()=>{
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
-test('citation charts drawn before the main CSV loads re-fit their axes once shown',async()=>{
+test('citation charts fit their axes when the main CSV arrives after a DOI deep link',async()=>{
   const entry=JSON.parse(fs.readFileSync('data/originals_index.json'))[0];
   const aggregate={all:{descriptive:{event_time:[0,1,2],mean_citations:[0,0.5,1],mean_cocitations:[0,0.1,0.2],n_units:[0,1,2]}}};
   const p=await browser.newPage({viewport:{width:1280,height:900}});p.errors=[];
@@ -1365,12 +1318,12 @@ test('citation charts drawn before the main CSV loads re-fit their axes once sho
   let releaseCsv;const csvHeld=new Promise(r=>{releaseCsv=r;});
   await p.route('**/data/flora.csv',async route=>{await csvHeld;await route.continue();});
   await p.goto(base+'?tab=citations&doi='+encodeURIComponent(entry.doi));
-  await p.waitForFunction(()=>document.getElementById('plot-cocit')?._fullLayout);
-  assert.equal(await p.evaluate(()=>getComputedStyle(document.querySelector('#floraTabsContent')).display),'none',
-    'the chart must be drawn while the page is still hidden');
+  // Views mount only once the pairs have loaded, so no chart is sized against a hidden page.
+  await p.waitForSelector('#global-loading');
+  assert.equal(await p.locator('#citation-impact .js-plotly-plot').count(),0);
   releaseCsv();
   await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
-  await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')._fullLayout.yaxis;const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
+  await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')?._fullLayout?.yaxis;if(!axis)return false;const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
     return axis.range[1]>0.2&&axis.range[1]<0.5&&labels.some(v=>v>0&&v<1);},null,{timeout:5000});
   assert.deepEqual(p.errors,[]);await p.close();
 });

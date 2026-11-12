@@ -1,7 +1,7 @@
 name: Validate explorer
 on:
   pull_request:
-    paths: ['assets/**', 'scripts/**', 'tests/**', 'index.html', 'package*.json', '.github/workflows/check.yml']
+    paths: ['src/**', 'public/**', 'scripts/**', 'tests/**', 'index.html', 'vite.config.js', 'package*.json', '.github/workflows/check.yml']
   workflow_dispatch:
 permissions:
   contents: read

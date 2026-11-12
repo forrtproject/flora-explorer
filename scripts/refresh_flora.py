@@ -45,7 +45,7 @@ REPRODUCTIONS_GSHEET_URL = (
 OUT_CSV = DATA_DIR / "flora.csv"
 OUT_META = DATA_DIR / "flora_meta.json"
 
-# The frontend (assets/app.js) only ever reads these columns. The upstream CSV also
+# The frontend (src/) only ever reads these columns. The upstream CSV also
 # carries apa_ref/bibtex_ref and other bibliographic fields that nothing displays,
 # which roughly doubles the payload the browser has to download and parse - so keep
 # only what's used in the committed snapshot. The upstream fallback URL in app.js is

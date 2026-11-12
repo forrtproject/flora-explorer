@@ -1,6 +1,24 @@
 {
   "name": "flora-explorer",
   "private": true,
-  "scripts": {"test": "node --test tests/browser.test.cjs"},
-  "devDependencies": {"playwright": "1.58.2"}
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vite build && node --test tests/browser.test.cjs"
+  },
+  "dependencies": {
+    "chart.js": "4.4.1",
+    "js-yaml": "4.1.0",
+    "papaparse": "5.4.1",
+    "plotly.js-basic-dist-min": "2.35.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "playwright": "1.58.2",
+    "vite": "5.4.11"
+  }
 }

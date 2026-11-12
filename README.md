@@ -1,6 +1,6 @@
 # FLoRA Explorer
 
-A static dashboard for the [FORRT Library of Reproduction and Replication Attempts (FLoRA)](https://forrt.org/replication-hub/flora). Each database row is a **reference pair**, linking an original report to a replication or reproduction report. Reports can occur in multiple pairs.
+A static React dashboard for the [FORRT Library of Reproduction and Replication Attempts (FLoRA)](https://forrt.org/replication-hub/flora). Each database row is a **reference pair**, linking an original report to a replication or reproduction report. Reports can occur in multiple pairs.
 
 | View | Purpose | Data refresh |
 |---|---|---|
@@ -16,13 +16,16 @@ Every chart has a nearby data table and a compact button to copy its CSV data. B
 
 ## Run locally
 
-There is no build step or application server. From this directory:
+The explorer is a React app built with Vite. With Node.js 22:
 
 ```sh
-python3 -m http.server 8876 --bind 127.0.0.1
+npm ci
+npm run dev
 ```
 
-Open <http://127.0.0.1:8876/>. Third-party browser libraries load from their CDNs. GitHub Pages can serve `main` from the repository root.
+Open the address Vite prints (by default <http://localhost:5173/>). The dev server serves the committed `data/` snapshots directly. `npm run build` writes the static site, including a copy of `data/`, to `dist/`; `npm run preview` serves that build. Libraries and fonts are bundled, so the built site needs no CDN.
+
+`.github/workflows/deploy.yml` builds and publishes `dist/` to GitHub Pages on each push to `main` and after each data refresh. The repository's Pages source must be set to **GitHub Actions**.
 
 ## Data and interpretation
 
@@ -39,12 +42,13 @@ The data are not representative of all research. Shared reports, repeated target
 
 ## Source layout
 
-- `index.html`: seven tab panels and evidence dialog.
-- `assets/app.js`: shared search, outcome presentation, chart data and tab loaders.
-- `assets/citation-impact.js`: citation index, models and timelines loaded on demand.
-- `assets/chart-accessibility.js`: chart rendering, readable data tables, percentages and CSV exports.
-- `assets/view-controls.js`: URL state, navigation and filtered exports.
-- `assets/styles.css`, `assets/ds-tokens.css`: responsive components and FORRT design tokens.
+- `index.html`, `src/main.jsx`, `src/App.jsx`: page shell, top bar and the seven tab panes.
+- `src/tabs/`: one component per view; `CitationImpact.jsx` also holds the timeline dialog.
+- `src/components/`: shared pieces — charts with their data tables and CSV copy, outcome badges, filters, definitions and update stamps.
+- `src/state/`: data loading, URL-backed view state (shareable links, back/forward) and theme.
+- `src/lib/`: framework-free logic — outcome vocabulary and classification, search, aggregation, chart preparation, FAQ and citation parsing. `hooks.js` exposes read-only state on `window` for the console and the browser tests.
+- `src/styles/`: `tokens.css` (FORRT design tokens, light and dark) and `app.css` (components in the Replication Atlas visual language); fonts are self-hosted under `src/assets/fonts/`.
+- `vite.config.js`: build settings; serves `data/` in development and copies it into `dist/`.
 - `data/`: committed snapshots, chart summaries and a curated journal-to-discipline map.
 - `data/originals_index.json`: compact citation table index; full records are fetched from `data/originals/` only when opened. `originals.json` remains available for bulk download and reproducible recalculation.
 - `scripts/classification.py`: explicit outcome, venue and reproduction-dimension categories.
@@ -94,7 +98,7 @@ npm ci
 npm test
 ```
 
-Browser tests start their own local server and use installed Chrome by default. For Playwright's bundled Chromium, run `npx playwright install chromium` and set `BROWSER_CHANNEL=chromium`. Tests cover desktop/mobile search, shared views, stale model state, keyboard evidence access, model intervals, responsive redraws, accessible tables and reconciliation of generated counts.
+`npm test` builds the site first. Browser tests then serve `dist/` from their own local server and use installed Chrome by default. For Playwright's bundled Chromium, run `npx playwright install chromium` and set `BROWSER_CHANNEL=chromium`. Tests cover desktop/mobile search, shared views, stale model state, keyboard evidence access, model intervals, responsive redraws, accessible tables and reconciliation of generated counts.
 
 [Validation notes](docs/review-validation.md) record the current acceptance results and data coverage. Contributions of additional views are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 

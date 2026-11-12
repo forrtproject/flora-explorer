@@ -1,0 +1,66 @@
+import {useMemo} from 'react';
+import {ANALYSIS_MIN_N, URLS} from '../lib/config.js';
+import {percent} from '../lib/format.js';
+import {outcomeBuckets, studyTypeLabel} from '../lib/outcomes.js';
+import {setHook} from '../lib/hooks.js';
+import {useJson} from '../state/data.jsx';
+import {useEnv} from '../state/env.jsx';
+import {useView} from '../state/view.jsx';
+import {Plot, comparisonSpec} from '../components/charts.jsx';
+import {Caveat, Chips, CiteBlock, DataStamp, OutcomeDefinitions, Pane, Placeholder, StatTiles, WebsiteCitation, byKind, kindLabel, repWord} from '../components/common.jsx';
+
+const GROUPS = {overlap: 'Author overlap', no_overlap: 'No author overlap'};
+
+export default function AuthorshipOverlap() {
+    const {view, setView} = useView();
+    const {theme, rev} = useEnv();
+    const kind = view.aoKind;
+    const {data, error} = useJson(URLS.overlap, view.tab === 'overlap-tab');
+    setHook('_aoData', () => data);
+    const d = data?.[kind], ov = d?.overview;
+    const enough = ov && ov.n_total >= ANALYSIS_MIN_N;
+    const spec = useMemo(() => enough ? comparisonSpec(outcomeBuckets(kind), Object.keys(GROUPS), GROUPS, d.by_outcome) : null, [enough, d, kind, theme, rev]);
+    const word = repWord(kind);
+    const chartTitle = `${byKind(kind, ['Replication outcomes', 'Computational reproducibility', 'Robustness'])} by authorship overlap`;
+    return (
+        <Pane id="authorship-overlap" tabId="overlap-tab" sources={['author_overlap']} selection={[kindLabel(kind)]} kind={kind}
+            title={{heading: 'Authorship Overlap', lede: 'Whether outcomes differ when a repetition shares a family name with the authors of the original study.'}}>
+            <div className="pane-meta">
+                <DataStamp source="author_overlap" />
+                <OutcomeDefinitions />
+                <CiteBlock><div className="cite-ref"><WebsiteCitation /></div></CiteBlock>
+            </div>
+            <section className="card">
+                <h2 className="card-header">Authorship Overlap and Outcomes</h2>
+                <div className="card-body">
+                    <p>
+                        This analysis looks for matching family names between the authors of the <strong>original study</strong> and of the <strong>{word} report</strong>. A match may indicate {kind === 'replication' ? <>a <em>same-author replication</em> or <em>self-replication</em></> : <>a <em>same-author reproduction</em></>}, but does not confirm author identity.
+                        Author names are matched by family name (normalised: lowercase, diacritics removed). This may produce <strong>false positives</strong> for common family names when two unrelated researchers share a surname.
+                    </p>
+                    <Chips id="ao-study-type" label="Authorship Overlap study type" value={kind} onChange={k => setView({aoKind: k})} />
+                    <div className="study-type-note">Numerical reproductions include reference pairs with a computational verdict. Robustness reproductions include reference pairs with a robustness verdict. The selections can overlap. Pairs without a verdict on the selected dimension are excluded.</div>
+                    <div id="ao-content">
+                        {!data && !error && <div id="ao-loading" className="note note-loading">Loading analysis…</div>}
+                        {error && <div id="ao-error" className="note">Failed to load authorship overlap data. <code id="ao-error-detail" className="note-detail">{error}</code></div>}
+                        {data && !enough && <Placeholder id="ao-placeholder">Not enough {studyTypeLabel(kind)} with known authorship yet (n={ov?.n_total || 0}; need at least {ANALYSIS_MIN_N}).</Placeholder>}
+                        {enough && <>
+                            <StatTiles id="ao-overview" box tiles={[
+                                {value: ov.n_total || 0, label: `${kind === 'replication' ? 'Replication' : 'Reproduction'} reference pairs included`},
+                                {value: ov.n_overlap || 0, label: `With author overlap (${percent(ov.n_overlap, ov.n_total)}%)`},
+                                {value: ov.n_no_overlap || 0, label: `Without author overlap (${percent(ov.n_no_overlap, ov.n_total)}%)`},
+                                {value: ov.n_unknown || 0, label: 'Overlap unknown'},
+                            ]} />
+                            <div id="ao-chart-card" className="mc-chart-card">
+                                <h3 className="mc-chart-title">{chartTitle}</h3>
+                                <div className="mc-chart-wrap"><Plot id="ao-chart" title={chartTitle} spec={spec} /></div>
+                            </div>
+                            <Caveat id="ao-caveat">{kind === 'replication'
+                                ? 'Authors replicating their own work may bring unique methodological knowledge and access to original materials, which could improve replication success. At the same time, they may have a conflict of interest in publicly reporting inconsistent results. Both effects can operate simultaneously, making the direction of bias difficult to predict.'
+                                : 'Author involvement may affect access to materials, analytical choices and reporting. These comparisons do not establish that author overlap affects the recorded verdict.'}</Caveat>
+                        </>}
+                    </div>
+                </div>
+            </section>
+        </Pane>
+    );
+}
