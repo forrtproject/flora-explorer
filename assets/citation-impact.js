@@ -3,6 +3,8 @@
    plots, and a browsable per-original table. Adapted from flora-citations. */
 
 (function() {
+    const COCIT_EVENT_WINDOW = [0, 5];
+
     const CI = {
         meta: null, agg: null, index: null, cocitBreakdown: null,
         studyCache: {}, currentDoi: null,
@@ -232,28 +234,24 @@
     function renderAggregate() {
         const data = CI.agg[CI.outcome]; if (!data) return;
         drawAggregatePlot('plot-cit', data, 'mean_citations', 'citations_model', 'Mean citations per year', CI.outcome);
-        drawAggregatePlot('plot-cocit', data, 'mean_cocitations', 'cocitations_model', 'Mean co-citations per year', CI.outcome);
-
-        const model = data.citations_model || {}; const desc = data.descriptive || {};
-        let html;
-        const hasModel = model.att != null && Number.isFinite(model.att);
-        if (hasModel) {
-            const interval = model.att_ci || [];
-            const ci = interval.length === 2 && interval.every(Number.isFinite) ? ` (95% CI ${FloraCharts.number(interval[0],3)} to ${FloraCharts.number(interval[1],3)})` : '';
-            html = `<strong>Adjusted post-replication association:</strong> ${FloraCharts.number(model.att,3)} log(1 + citations) units${ci}, based on ${FloraCharts.number(model.n_units)} originals. This is not a percentage change in raw citations or evidence that replication caused the change.`;
-        } else if (desc.n_units && desc.n_units.length) {
-            const maxN = Math.max(...desc.n_units);
-            html = `<strong>Descriptive trajectory shown.</strong>
-                <span class="muted">${FloraCharts.number(maxN)} originals contribute at peak. Each line shows the average citation count by years relative to the first replication.</span>`;
-        } else {
-            html = `<strong>Insufficient data</strong> for the selected outcome group.`;
-        }
-        document.getElementById('att-callout').innerHTML = html;
+        drawAggregatePlot('plot-cocit', data, 'mean_cocitations', 'cocitations_model', 'Mean co-citations per year', CI.outcome, COCIT_EVENT_WINDOW);
     }
 
-    function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome) {
-        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome)); return; }
-        const desc = data.descriptive || {}; const model = data[modelField] || {};
+
+    function sliceDescriptive(desc, [lo, hi]) {
+        const keep = desc.event_time.map((x, i) => (x >= lo && x <= hi ? i : -1)).filter(i => i >= 0);
+        const out = {};
+        Object.entries(desc).forEach(([k, v]) => {
+            out[k] = Array.isArray(v) && v.length === desc.event_time.length ? keep.map(i => v[i]) : v;
+        });
+        return out;
+    }
+
+    function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome, eventWindow) {
+        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome, eventWindow)); return; }
+        const rawDesc = data.descriptive || {};
+        const desc = eventWindow && rawDesc.event_time ? sliceDescriptive(rawDesc, eventWindow) : rawDesc;
+        const model = data[modelField] || {};
         const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
         const traces = [];
 
@@ -273,35 +271,6 @@
                 text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>Distinct originals: ${FloraCharts.number(desc.n_units[i])}`),
                 hovertemplate: '%{text}<extra></extra>'
             });
-        }
-        const modelId = divId + '-model';
-        let modelEl = document.getElementById(modelId);
-        if (!modelEl) {
-            modelEl = document.createElement('div'); modelEl.id = modelId; modelEl.className = 'coefficient-plot';
-            document.getElementById(divId).insertAdjacentElement('afterend', modelEl);
-        }
-        const valid = (model.event_time || []).map((x,i) => ({x, y:model.estimate?.[i], lo:model.ci_low?.[i], hi:model.ci_high?.[i]}))
-            .filter(p => [p.y,p.lo,p.hi].every(v => typeof v === 'number' && Number.isFinite(v)));
-        if (valid.length) {
-            const t = plotlyTheme();
-            FloraCharts.plot(modelId, [{name:'OLS coefficient (95% CI)', x:valid.map(p=>p.x), y:valid.map(p=>p.y),
-                type:'scatter', mode:'markers', text:valid.map(p=>`Years from first replication: ${FloraCharts.number(p.x)}<br>Coefficient: ${FloraCharts.number(p.y,3)}<br>95% CI: ${FloraCharts.number(p.lo,3)} to ${FloraCharts.number(p.hi,3)}`),
-                hovertemplate:'%{text}<extra></extra>', error_y:{type:'data', symmetric:false,
-                    array:valid.map(p=>p.hi-p.y), arrayminus:valid.map(p=>p.y-p.lo)}, marker:{color:t.font}}], {
-                title:{text:'Adjusted association: log(1 + count)', font:{size:14}}, height:340,
-                xaxis:{title:'Years from first replication', automargin:true, color:t.font},
-                yaxis:{title:'Coefficient (reference: year −1)', zeroline:true, zerolinecolor:t.font, automargin:true, color:t.font},
-                margin:{t:45,r:20,b:60,l:65}, plot_bgcolor:t.plot,paper_bgcolor:t.paper,font:{color:t.font},
-            }, {responsive:true,displayModeBar:false});
-        } else {
-            if (modelEl.data) Plotly.purge(modelEl);
-            modelEl.textContent = 'No fitted model for this selection.';
-            document.getElementById(modelId+'-data')?.remove();
-        }
-
-        if (traces.length === 0) {
-            document.getElementById(divId).innerHTML = '<div style="padding:60px;text-align:center;color:var(--color-muted-fg)">No data for this filter</div>';
-            return;
         }
 
         const t = plotlyTheme();

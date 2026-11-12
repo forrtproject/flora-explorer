@@ -7,6 +7,8 @@ Optimised for GitHub Actions:
 - Resumes from disk cache (committed between runs)
 """
 from __future__ import annotations
+import json as _json
+from classification import parse_reproduction_outcome
 
 import hashlib
 import io
@@ -45,7 +47,7 @@ EMAIL = os.environ.get("MY_EMAIL", "").strip()
 
 CACHE_TTL_DAYS = 30
 CURRENT_YEAR = datetime.now(timezone.utc).year
-EVENT_WINDOW = (-10, 10)
+EVENT_WINDOW = (-5, 5)
 
 MAX_RUNTIME_SECONDS = int(os.environ.get("MAX_RUNTIME_SECONDS", 5 * 3600))
 START_TIME = time.time()
@@ -112,7 +114,8 @@ def read_cache(p: Path) -> list | None:
         return None  # old bare-list format -> treat as stale, refetch & upgrade
     try:
         fetched = datetime.fromisoformat(payload["fetched_at"])
-        age_days = (datetime.now(timezone.utc) - fetched).total_seconds() / 86400
+        age_days = (datetime.now(timezone.utc) -
+                    fetched).total_seconds() / 86400
     except Exception:
         return None
     if age_days >= CACHE_TTL_DAYS:
@@ -175,7 +178,6 @@ def parse_year(s) -> int | None:
     m = re.search(r"\b(19|20)\d{2}\b", str(s))
     return int(m.group(0)) if m else None
 
-import json as _json
 
 def parse_flora_authors(raw, max_n: int = 6) -> str:
     """Parse FLoRA author field (JSON-like) into a clean 'Family, G.; ...' string."""
@@ -223,6 +225,7 @@ def parse_flora_authors(raw, max_n: int = 6) -> str:
         return "; ".join(names)
     return "; ".join(names[:max_n]) + f", … (+{len(names)-max_n})"
 
+
 def clean_for_json(obj):
     """Recursively convert NaN / numpy types to JSON-safe values."""
     if isinstance(obj, dict):
@@ -265,7 +268,8 @@ def fetch_text(url: str, attempts: int = 3, timeout: int = 60) -> str:
             wait = 2 ** attempt
             print(f"  retry {attempt}/{attempts} for {url} in {wait}s: {e}")
             time.sleep(wait)
-    raise SystemExit(f"Failed to fetch {url} after {attempts} attempts: {last_err}")
+    raise SystemExit(
+        f"Failed to fetch {url} after {attempts} attempts: {last_err}")
 
 
 def fetch_reproduction_outcomes() -> dict:
@@ -279,10 +283,12 @@ def fetch_reproduction_outcomes() -> dict:
     r = requests.get(REPRODUCTIONS_GSHEET_URL, timeout=60)
     r.raise_for_status()
     gsheet = pd.read_csv(io.StringIO(r.text), low_memory=False).fillna("")
-    required = {"validation", "doi_r", "outcome_computational", "outcome_robustness"}
+    required = {"validation", "doi_r",
+                "outcome_computational", "outcome_robustness"}
     missing = required - set(gsheet.columns)
     if missing:
-        raise ValueError(f"Reproduction outcome sheet is missing columns: {sorted(missing)}")
+        raise ValueError(
+            f"Reproduction outcome sheet is missing columns: {sorted(missing)}")
     by_doi: dict[str, str] = {}
     for _, row in gsheet.iterrows():
         if str(row.get("validation") or "").strip().lower() == "validated - discarded":
@@ -295,7 +301,8 @@ def fetch_reproduction_outcomes() -> dict:
         if doi_key:
             by_doi[doi_key] = f"{computational}, {robustness}"
     if not by_doi:
-        raise ValueError("Reproduction outcome sheet has no usable outcome records")
+        raise ValueError(
+            "Reproduction outcome sheet has no usable outcome records")
     return by_doi
 
 
@@ -304,7 +311,8 @@ def load_flora_raw() -> pd.DataFrame:
     filtering - so both filter_replications() and filter_reproductions() can work
     from the same parsed frame."""
     print("Fetching FLoRA…")
-    df = pd.read_csv(DATA_DIR / "flora.csv", low_memory=False) if (DATA_DIR / "flora.csv").exists() else pd.read_csv(io.StringIO(fetch_text(FLORA_URL)), low_memory=False)
+    df = pd.read_csv(DATA_DIR / "flora.csv", low_memory=False) if (DATA_DIR /
+                                                                   "flora.csv").exists() else pd.read_csv(io.StringIO(fetch_text(FLORA_URL)), low_memory=False)
     print(f"  {len(df)} rows; columns: {list(df.columns)[:14]}…")
 
     def find_col(names, required=True, default=None):
@@ -316,19 +324,20 @@ def load_flora_raw() -> pd.DataFrame:
             raise KeyError(f"None of {names} found in FLoRA columns")
         return default
 
-    col_doi_o   = find_col(["doi_o"])
-    col_doi_r   = find_col(["doi_r"])
-    col_outcome = find_col(["result", "outcome", "result_class"], required=False)
-    col_type    = find_col(["type", "study_type", "ref_type"], required=False)
+    col_doi_o = find_col(["doi_o"])
+    col_doi_r = find_col(["doi_r"])
+    col_outcome = find_col(
+        ["result", "outcome", "result_class"], required=False)
+    col_type = find_col(["type", "study_type", "ref_type"], required=False)
 
     col_title_o = find_col(["title_o", "ref_o"], required=False)
-    col_auth_o  = find_col(["author_o"], required=False)
-    col_year_o  = find_col(["year_o"], required=False)
+    col_auth_o = find_col(["author_o"], required=False)
+    col_year_o = find_col(["year_o"], required=False)
     col_journal_o = find_col(["journal_o"], required=False)
 
     col_title_r = find_col(["title_r", "ref_r"], required=False)
-    col_auth_r  = find_col(["author_r"], required=False)
-    col_year_r  = find_col(["year_r"], required=False)
+    col_auth_r = find_col(["author_r"], required=False)
+    col_year_r = find_col(["year_r"], required=False)
     col_journal_r = find_col(["journal_r"], required=False)
 
     out = pd.DataFrame({
@@ -347,17 +356,20 @@ def load_flora_raw() -> pd.DataFrame:
     })
 
     is_reproduction = out["type"].str.contains("reproduc", na=False)
-    missing_outcome = out["outcome"].isna() | out["outcome"].isin(["", "na", "nan"])
+    missing_outcome = out["outcome"].isna(
+    ) | out["outcome"].isin(["", "na", "nan"])
     needs_backfill = is_reproduction & missing_outcome
     if needs_backfill.any():
         try:
             by_doi = fetch_reproduction_outcomes()
             filled = out.loc[needs_backfill, "doi_r"].map(by_doi)
-            out.loc[needs_backfill, "outcome"] = filled.combine_first(out.loc[needs_backfill, "outcome"])
+            out.loc[needs_backfill, "outcome"] = filled.combine_first(
+                out.loc[needs_backfill, "outcome"])
             print(f"  Backfilled outcome for {filled.notna().sum()}/{needs_backfill.sum()} "
                   f"reproduction rows from the Google Sheet")
         except requests.exceptions.RequestException as e:
-            print(f"  ! could not fetch reproduction outcomes ({e}); leaving outcome as-is")
+            print(
+                f"  ! could not fetch reproduction outcomes ({e}); leaving outcome as-is")
 
     return out
 
@@ -368,14 +380,16 @@ def filter_replications(out: pd.DataFrame) -> pd.DataFrame:
     out = out[out["type"].str.contains("replication", na=False)
               & ~out["type"].str.contains("reproduc", na=False)]
     out = out[out["outcome"].isin(OUTCOMES_KEEP)]
-    out = out.dropna(subset=["doi_o", "doi_r"]).drop_duplicates(subset=["doi_o", "doi_r"])
+    out = out.dropna(subset=["doi_o", "doi_r"]).drop_duplicates(
+        subset=["doi_o", "doi_r"])
     out["journal_r"] = out["journal_r"].replace("", np.nan)
 
     # Report size is based on all recorded pairs, before restricting outcomes.
     # It does not establish publication or peer-review status.
     n_originals_per_doi_r = all_targets
     out["n_originals_in_rep"] = out["doi_r"].map(n_originals_per_doi_r)
-    out["pub_status"] = np.where(out["n_originals_in_rep"] > 3, "large_project", "individual")
+    out["pub_status"] = np.where(
+        out["n_originals_in_rep"] > 3, "large_project", "individual")
 
     print(f"  Filtered: {n0} → {len(out)} (replications with known outcomes)")
     return out.reset_index(drop=True)
@@ -385,10 +399,6 @@ def load_flora() -> pd.DataFrame:
     """Back-compat: raw fetch + the replication filter, exactly as before this
     was split so build_study_data()'s event-study path is unaffected."""
     return filter_replications(load_flora_raw())
-
-
-from classification import parse_reproduction_outcome
-
 
 
 def filter_reproductions(out: pd.DataFrame) -> pd.DataFrame:
@@ -443,7 +453,8 @@ def fetch_oc_citations(doi: str) -> list[dict] | None:
             except Exception:
                 # A 200 whose body doesn't parse is transient (proxy/HTML error
                 # page); treat as a failure and do NOT cache it as zero citations.
-                print(f"  ! JSON parse error for {doi[:40]} (200); not caching")
+                print(
+                    f"  ! JSON parse error for {doi[:40]} (200); not caching")
                 return None
             out = []
             for row in rows:
@@ -533,11 +544,13 @@ def build_study_data(flora: pd.DataFrame) -> dict:
     )
 
     n_skipped = 0
-    conflated = []  # (doi_o, doi_r, kind) for replications OC can't tell from the original
+    # (doi_o, doi_r, kind) for replications OC can't tell from the original
+    conflated = []
 
     for doi_o in tqdm(originals):
         if should_stop():
-            print(f"⏰ Time budget exhausted; stopping at {len(studies)} originals.")
+            print(
+                f"⏰ Time budget exhausted; stopping at {len(studies)} originals.")
             break
 
         meta_o = meta_o_by_doi.get(doi_o, {})
@@ -554,8 +567,10 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         co = {c["citing"] for c in cites_o}
 
         rep_info = []
-        rep_citings_by_outcome = {"successful": set(), "failed": set(), "mixed": set()}
-        rep_citings_by_pubstatus = {"individual": set(), "large_project": set(), "unpublished": set()}
+        rep_citings_by_outcome = {
+            "successful": set(), "failed": set(), "mixed": set()}
+        rep_citings_by_pubstatus = {
+            "individual": set(), "large_project": set(), "unpublished": set()}
         outcome_min_year: dict = {}
         pubstatus_min_year: dict = {}
         entity_o = None  # original's OMID identifier set, fetched only when needed
@@ -601,20 +616,24 @@ def build_study_data(flora: pd.DataFrame) -> dict:
             # coincidences where a few papers happen to cite both works.
             cr = {c["citing"] for c in cites_r}
             if doi_r == doi_o:
-                conflated.append((doi_o, doi_r, "same-doi")); n_conflated += 1
+                conflated.append((doi_o, doi_r, "same-doi"))
+                n_conflated += 1
                 continue
             if cr and cr == co:
                 if entity_o is None:
                     entity_o = oc_entity_ids(doi_o)
                 if f"doi:{doi_r}" in entity_o:
-                    conflated.append((doi_o, doi_r, "omid-merge")); n_conflated += 1
+                    conflated.append((doi_o, doi_r, "omid-merge"))
+                    n_conflated += 1
                     continue
 
             rep_citings_by_outcome[row["outcome"]].update(cr)
             rep_citings_by_pubstatus[row["pub_status"]].update(cr)
             if year_r is not None:
-                outcome_min_year[row["outcome"]] = min(outcome_min_year.get(row["outcome"], year_r), year_r)
-                pubstatus_min_year[row["pub_status"]] = min(pubstatus_min_year.get(row["pub_status"], year_r), year_r)
+                outcome_min_year[row["outcome"]] = min(
+                    outcome_min_year.get(row["outcome"], year_r), year_r)
+                pubstatus_min_year[row["pub_status"]] = min(
+                    pubstatus_min_year.get(row["pub_status"], year_r), year_r)
 
         if rep_fetch_failed:
             RUN_STATS["originals_errored"] += 1
@@ -627,12 +646,14 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         cites_o = list({c["citing"]: c for c in cites_o}.values())
         per_year = {}
         for c in cites_o:
-            y = c["year"]; citing = c["citing"]
+            y = c["year"]
+            citing = c["citing"]
             bucket = per_year.setdefault(y, {
                 "only": 0, "with_successful": 0, "with_failed": 0,
                 "with_mixed": 0, "with_multiple": 0, "with_any": 0,
             })
-            cocited = {o for o, s in rep_citings_by_outcome.items() if citing in s}
+            cocited = {o for o, s in rep_citings_by_outcome.items()
+                       if citing in s}
             if not cocited:
                 bucket["only"] += 1
             else:
@@ -689,7 +710,8 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         title = str(meta_o.get("title") or "")[:300]
         author = parse_flora_authors(meta_o.get("author"))
         venue_raw = meta_o.get("venue")
-        venue = str(venue_raw)[:200] if pd.notna(venue_raw) and str(venue_raw).strip().lower() not in {"nan", "na", "none"} else ""
+        venue = str(venue_raw)[:200] if pd.notna(venue_raw) and str(
+            venue_raw).strip().lower() not in {"nan", "na", "none"} else ""
 
         outcome_mix = dict(reps_df["outcome"].value_counts())
         outcome_mix = {k: int(v) for k, v in outcome_mix.items()}
@@ -719,7 +741,8 @@ def build_study_data(flora: pd.DataFrame) -> dict:
             studies[doi_o]["cocit_conflated"] = n_conflated
 
     if n_skipped:
-        print(f"  ({n_skipped} originals skipped due to API issues; will retry next run)")
+        print(
+            f"  ({n_skipped} originals skipped due to API issues; will retry next run)")
     if RUN_STATS["originals_errored"]:
         print(f"  ({RUN_STATS['originals_errored']} originals errored: a replication's "
               f"citations could not be fetched; skipped to avoid under-counting, "
@@ -731,7 +754,8 @@ def build_study_data(flora: pd.DataFrame) -> dict:
               f"their original: {len(merges)} OMID merges, {len(same_doi)} same-DOI "
               f"FLoRA entries)")
         for o, r, kind in same_doi:
-            print(f"    same-DOI in FReD-data (fix upstream): original == replication {r}")
+            print(
+                f"    same-DOI in FReD-data (fix upstream): original == replication {r}")
         for o, r, kind in merges:
             print(f"    OpenCitations OMID merge: {o} <-> {r}")
     return studies
@@ -743,7 +767,8 @@ def build_panel(studies: dict) -> pd.DataFrame:
     for doi, s in studies.items():
         if s["year"] is None:
             continue
-        y_min = s["year"]; y_max = CURRENT_YEAR
+        y_min = s["year"]
+        y_max = CURRENT_YEAR
         # Distinct citing works per year. "only" and "with_any" are disjoint
         # (a work either co-cites no replication or is counted once in with_any),
         # so only+with_any avoids double-counting a work that co-cites
@@ -772,8 +797,8 @@ def build_panel(studies: dict) -> pd.DataFrame:
                 "outcome": s["first_replication_outcome"],
             })
     if not rows:
-        return pd.DataFrame(columns=["doi","year","age","n_cit","n_cocit",
-                                      "treat_year","outcome","event_time","post"])
+        return pd.DataFrame(columns=["doi", "year", "age", "n_cit", "n_cocit",
+                                     "treat_year", "outcome", "event_time", "post"])
     panel = pd.DataFrame(rows)
     panel["event_time"] = panel["year"] - panel["treat_year"]
     panel["post"] = (panel["event_time"] >= 0).astype(int)
@@ -791,7 +816,8 @@ def event_study(panel: pd.DataFrame, outcomes: list[str], depvar: str) -> dict:
     if panel.empty or "outcome" not in panel.columns:
         return empty
 
-    p = panel[panel["outcome"].isin(outcomes) & panel["treat_year"].notna()].copy()
+    p = panel[panel["outcome"].isin(
+        outcomes) & panel["treat_year"].notna()].copy()
     if p.empty:
         return empty
 
@@ -802,7 +828,8 @@ def event_study(panel: pd.DataFrame, outcomes: list[str], depvar: str) -> dict:
 
     p["y"] = np.log1p(p[depvar].astype(float))
 
-    dummies = pd.get_dummies(p["event_time"].astype(int), prefix="et", drop_first=False)
+    dummies = pd.get_dummies(p["event_time"].astype(
+        int), prefix="et", drop_first=False)
     if "et_-1" in dummies.columns:
         dummies = dummies.drop(columns=["et_-1"])
 
@@ -816,7 +843,8 @@ def event_study(panel: pd.DataFrame, outcomes: list[str], depvar: str) -> dict:
     try:
         for _ in range(20):
             for grp in ["doi", "year"]:
-                work[work_cols] = work[work_cols] - work.groupby(grp)[work_cols].transform("mean")
+                work[work_cols] = work[work_cols] - \
+                    work.groupby(grp)[work_cols].transform("mean")
     except Exception as e:
         print(f"  ! demean fail ({outcomes}, {depvar}): {e}")
         return empty | {"n_units": int(p["doi"].nunique())}
@@ -825,7 +853,7 @@ def event_study(panel: pd.DataFrame, outcomes: list[str], depvar: str) -> dict:
     y = work["y"].values
     try:
         ols = sm.OLS(y, X).fit(cov_type="cluster",
-                                cov_kwds={"groups": p["doi"].values})
+                               cov_kwds={"groups": p["doi"].values})
     except Exception as e:
         print(f"  ! event_study OLS fail ({outcomes}, {depvar}): {e}")
         return empty | {"n_units": int(p["doi"].nunique())}
@@ -836,12 +864,14 @@ def event_study(panel: pd.DataFrame, outcomes: list[str], depvar: str) -> dict:
     rows = []
     for t in range(lo, hi + 1):
         if t == -1:
-            rows.append({"event_time": t, "estimate": 0.0, "ci_low": 0.0, "ci_high": 0.0})
+            rows.append({"event_time": t, "estimate": 0.0,
+                        "ci_low": 0.0, "ci_high": 0.0})
             continue
         key = f"et_{t}"
         if key not in coef:
             continue
-        b = float(coef[key]); s = float(se[key])
+        b = float(coef[key])
+        s = float(se[key])
         rows.append({"event_time": t, "estimate": b,
                      "ci_low": b - 1.96 * s, "ci_high": b + 1.96 * s})
 
@@ -855,9 +885,9 @@ def event_study(panel: pd.DataFrame, outcomes: list[str], depvar: str) -> dict:
 
     return {
         "event_time": [r["event_time"] for r in rows],
-        "estimate":   [r["estimate"]   for r in rows],
-        "ci_low":     [r["ci_low"]     for r in rows],
-        "ci_high":    [r["ci_high"]    for r in rows],
+        "estimate":   [r["estimate"] for r in rows],
+        "ci_low":     [r["ci_low"] for r in rows],
+        "ci_high":    [r["ci_high"] for r in rows],
         "att": att, "att_ci": att_ci,
         "n_units": int(p["doi"].nunique()),
     }
@@ -879,7 +909,7 @@ def descriptive_trajectory(panel: pd.DataFrame, outcomes: list[str]) -> dict:
     return {
         "event_time":      g["event_time"].tolist(),
         "mean_citations":  g["cites"].round(3).tolist(),
-        "mean_cocitations":g["cocites"].round(3).tolist(),
+        "mean_cocitations": g["cocites"].round(3).tolist(),
         "n_units":         g["n"].tolist(),
     }
 
@@ -938,14 +968,18 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
     """
     citation_cache = {}
     entity_cache = {}
+
     def required_citations(doi):
         if doi not in citation_cache:
             if should_stop(60):
-                raise RuntimeError("Time budget exhausted; retaining previous reproduction summary")
+                raise RuntimeError(
+                    "Time budget exhausted; retaining previous reproduction summary")
             rows = fetch_oc_citations(doi)
             if rows is None:
-                raise RuntimeError(f"Citation lookup failed for {doi}; retaining previous reproduction summary")
-            citation_cache[doi] = {citing_key(c["citing"]) for c in rows if c.get("citing")}
+                raise RuntimeError(
+                    f"Citation lookup failed for {doi}; retaining previous reproduction summary")
+            citation_cache[doi] = {citing_key(
+                c["citing"]) for c in rows if c.get("citing")}
         return citation_cache[doi]
 
     def bucket_stats(bucket_col: str, buckets: list[str]) -> dict:
@@ -953,7 +987,8 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
         for b in buckets:
             sub = repro[repro[bucket_col] == b]
             n_citations_o = 0
-            n_citations_r = sum(len(required_citations(doi)) for doi in sub["doi_r"].unique())
+            n_citations_r = sum(len(required_citations(doi))
+                                for doi in sub["doi_r"].unique())
             n_cocitations = 0
             for doi_o, grp in sub.groupby("doi_o"):
                 co = required_citations(doi_o)
@@ -965,10 +1000,12 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
                         if cr and cr == co:
                             if doi_o not in entity_cache:
                                 if should_stop(105):
-                                    raise RuntimeError("Time budget exhausted; retaining previous reproduction summary")
+                                    raise RuntimeError(
+                                        "Time budget exhausted; retaining previous reproduction summary")
                                 ids = oc_entity_ids(doi_o)
                                 if not ids:
-                                    raise RuntimeError("Cannot verify merged citation records; retaining previous reproduction summary")
+                                    raise RuntimeError(
+                                        "Cannot verify merged citation records; retaining previous reproduction summary")
                                 entity_cache[doi_o] = ids
                             if f"doi:{row['doi_r']}" in entity_cache[doi_o]:
                                 continue
@@ -990,7 +1027,8 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
 
 def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     if not studies:
-        raise RuntimeError("No complete originals; retaining the previous citation outputs")
+        raise RuntimeError(
+            "No complete originals; retaining the previous citation outputs")
     panel = build_panel(studies)
     aggregate = {}
     for label, outcomes in [
@@ -1082,7 +1120,8 @@ def main():
                 "input_snapshot": json.loads((DATA_DIR / "flora_meta.json").read_text())["last_updated"],
                 "source": "OpenCitations; cached citation coverage varies by report",
             }, indent=2))
-            print(f"✔ wrote reproduction citation stats ({len(repro)} reproduction rows)")
+            print(
+                f"✔ wrote reproduction citation stats ({len(repro)} reproduction rows)")
         except Exception as e:
             print(f"! reproduction citation stats failed (non-fatal): {e}")
 
