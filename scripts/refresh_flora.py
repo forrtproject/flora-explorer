@@ -53,7 +53,7 @@ OUT_META = DATA_DIR / "flora_meta.json"
 KEEP_COLUMNS = [
     "doi_o", "title_o", "author_o", "journal_o", "year_o",
     "doi_r", "title_r", "author_r", "journal_r", "year_r", "url_r",
-    "outcome", "outcome_quote", "type",
+    "outcome", "outcome_quote", "outcome_quote_source", "type",
 ]
 
 

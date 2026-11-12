@@ -743,21 +743,36 @@ function stripClaimIds(text) {
         .trim();
 }
 
-function outcomeEvidenceParts(row) {
-    return String(row.outcome_quote || '').split('||').map(p => p.trim()).filter(Boolean).map(part => {
+function splitLabelledParts(value) {
+    return String(value || '').split('||').map(p => p.trim()).filter(p => p && p.toUpperCase() !== 'NA').map(part => {
         const m = part.match(/^(Computational|Robustness):\s*/);
-        const text = m ? part.slice(m[0].length) : part;
-        return { label: m ? m[1] : '', text: row.type === 'reproduction' ? stripClaimIds(text) : text };
+        return { label: m ? m[1] : '', text: m ? part.slice(m[0].length) : part };
     });
+}
+
+function outcomeEvidenceParts(row) {
+    return splitLabelledParts(row.outcome_quote).map(p => ({ ...p, text: row.type === 'reproduction' ? stripClaimIds(p.text) : p.text }));
+}
+
+function formatQuoteSource(text) {
+    return /^https?:\/\//.test(text) ? `<a href="${escapeHtml(text)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>` : escapeHtml(text);
 }
 
 function formatOutcomeEvidence(row) {
     const parts = outcomeEvidenceParts(row);
     if (!parts.length) return '<p class="small">No outcome evidence is recorded for this pair.</p>';
-    const items = parts.map(p => `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}</li>`).join('');
-    return `<div class="detail-label">Outcome evidence (quotation or coding note):</div>
+    const sources = splitLabelledParts(row.outcome_quote_source)
+        .filter((s, i, all) => all.findIndex(o => o.label === s.label && o.text.toLowerCase() === s.text.toLowerCase()) === i);
+    // Labelled sources (Computational/Robustness) sit next to their matching quote; the rest go on one line.
+    const bySource = label => sources.filter(s => label && s.label === label).map(s => formatQuoteSource(s.text)).join('; ');
+    const items = parts.map(p => {
+        const src = bySource(p.label);
+        return `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}${src ? ` <span class="small">(source: ${src})</span>` : ''}</li>`;
+    }).join('');
+    const rest = sources.filter(s => !s.label || !parts.some(p => p.label === s.label)).map(s => formatQuoteSource(s.text));
+    return `<div class="detail-label">${sources.length ? 'Outcome quote' : 'Outcome evidence'}:</div>
         <ul class="outcome-evidence">${items}</ul>
-        <p class="small">${row.outcome_quote_source ? `Source: ${escapeHtml(row.outcome_quote_source)}. ` : ''}This text may be quoted from the report or written by a coder, may cover only part of the findings and may not fully explain the recorded outcome.</p>`;
+        ${rest.length ? `<p class="small">Source: ${rest.join('; ')}</p>` : ''}`;
 }
 
 // ===== Browse: detail row =====

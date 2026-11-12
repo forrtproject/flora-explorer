@@ -1223,7 +1223,7 @@ test('filter state restored from a shared URL is not announced',async()=>{
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
 });
-test('Browse outcome evidence splits parts, hides claim IDs and labels coding notes neutrally',async()=>{
+test('Browse outcome evidence splits parts, hides claim IDs and shows quote sources',async()=>{
   const p=await page('?tab=browse');await p.waitForSelector('#flora-table tbody tr .title-clamp');
   const r=await p.evaluate(()=>{
     const strip=s=>outcomeEvidenceParts({type:'reproduction',outcome_quote:s}).map(x=>x.text).join(' | ');
@@ -1240,6 +1240,9 @@ test('Browse outcome evidence splits parts, hides claim IDs and labels coding no
       replication:outcomeEvidenceParts({type:'replication',outcome_quote:'Claim ID: 3n6x9n replicated'})[0].text,
       searchKeepsIds:matchesBrowseQuery({type:'reproduction',outcome_quote:'claims: gdyrdr, b7dlq4'},'b7dlq4'),
       empty:formatOutcomeEvidence({outcome_quote:' || '}),
+      sourced:formatOutcomeEvidence({type:'reproduction',outcome_quote:'Computational: code ran || Robustness: estimates match',outcome_quote_source:'Computational: results || Robustness: abstract'}),
+      plain:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'abstract || Abstract'}),
+      noSource:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'NA'}),
       escaped:tableTitleCell('<b>x</b>',JSON.stringify([{family:'Carney'},{family:'Cuddy'},{family:'Yap'}]),2010)
     };
   });
@@ -1253,6 +1256,12 @@ test('Browse outcome evidence splits parts, hides claim IDs and labels coding no
   assert.equal(r.replication,'Claim ID: 3n6x9n replicated');
   assert.ok(r.searchKeepsIds);
   assert.match(r.empty,/No outcome evidence is recorded/);
+  assert.match(r.sourced,/Outcome quote:/);
+  assert.match(r.sourced,/code ran <span class="small">\(source: results\)/);
+  assert.match(r.sourced,/estimates match <span class="small">\(source: abstract\)/);
+  assert.match(r.plain,/Source: abstract<\/p>/);
+  assert.match(r.noSource,/Outcome evidence:/);
+  assert.ok(!/may not fully explain/.test(r.sourced+r.plain+r.noSource));
   assert.ok(r.escaped.includes('&lt;b&gt;x&lt;/b&gt;')&&!r.escaped.includes('<b>'));
   assert.ok(r.escaped.includes('Carney et al. (2010)'));
   const cell=p.locator('#flora-table tbody tr').first().locator('td').nth(1);
@@ -1261,7 +1270,7 @@ test('Browse outcome evidence splits parts, hides claim IDs and labels coding no
   await p.locator('.study-details').first().click();
   const evidence=p.locator('.detail-row').first();
   if(await evidence.locator('.outcome-evidence').count()){
-    assert.equal(await evidence.getByText('Outcome evidence (quotation or coding note):').count(),1);
+    assert.equal(await evidence.getByText(/^Outcome (quote|evidence):$/).count(),1);
     assert.equal(await evidence.locator('.outcome-evidence li').first().evaluate(li=>getComputedStyle(li).fontStyle),'normal');
   }
   assert.equal(await p.getByText('Outcome quotation').count(),0);
