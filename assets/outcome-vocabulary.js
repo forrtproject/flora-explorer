@@ -27,10 +27,32 @@ window.FloraVocabulary = (() => {
     }
     const studyType = kind => vocabulary.study_types[kind] || kind;
     function definitions() {
+        const term = item => `<li class="${item.assessed ? 'verdict' : 'no-verdict'}"><span class="key-swatch" style="--swatch:var(--color-chart-${item.color})"></span><span class="key-text"><strong>${item.label}</strong><span>${item.definition}</span></span></li>`;
+        const panels = {replication: 'Replication', computational: 'Computational', robustness: 'Robustness', units: 'Units'};
+        const column = (dimension, title) => {
+            const [assessed, unassessed] = [entries(dimension).filter(item => item.assessed), entries(dimension).filter(item => !item.assessed)];
+            return `<section class="key-column" data-panel="${dimension}"><h3>${title}</h3><ul>${assessed.map(term).join('')}</ul><p class="key-subhead">No verdict</p><ul>${unassessed.map(term).join('')}</ul></section>`;
+        };
+        const units = '<section class="key-column key-units" data-panel="units"><h3>Counting units</h3><dl>'
+            + Object.entries(vocabulary.units).map(([label, definition]) => `<div><dt>${label}</dt><dd>${definition}</dd></div>`).join('') + '</dl></section>';
+        const preview = entries('replication').filter(item => item.assessed).map(item =>
+            `<span><span class="key-swatch" style="--swatch:var(--color-chart-${item.color})"></span>${item.label}</span>`).join('');
         document.querySelectorAll('[data-outcome-definitions]').forEach(container => {
-            container.innerHTML = '<summary>Outcome definitions</summary>' + ['replication', 'computational', 'robustness'].map(dimension =>
-                `<h3>${{replication:'Replication outcomes', computational:'Computational reproducibility', robustness:'Robustness'}[dimension]}</h3><dl>` + entries(dimension).map(item =>
-                    `<dt>${item.label}</dt><dd>${item.definition}</dd>`).join('') + '</dl>').join('') + '<h3>Units</h3><dl>' + Object.entries(vocabulary.units).map(([label, definition]) => `<dt>${label}</dt><dd>${definition}</dd>`).join('') + '</dl>';
+            container.dataset.panel ||= 'replication';
+            const tabs = Object.entries(panels).map(([key, name]) =>
+                `<button type="button" data-panel-tab="${key}" aria-pressed="${key === container.dataset.panel}">${name}</button>`).join('');
+            container.innerHTML = `<summary><span class="key-title">Outcome key</span><span class="key-preview" aria-hidden="true">${preview}</span></summary>`
+                + `<div class="key-tabs" role="group" aria-label="Outcome key section">${tabs}</div>`
+                + '<div class="key-grid"><div class="key-stack">' + column('replication', 'Replication') + units + '</div>'
+                + '<div class="key-stack">' + column('computational', 'Reproduction · computational') + column('robustness', 'Reproduction · robustness') + '</div></div>';
+            if (container.dataset.tabsBound) return;
+            container.dataset.tabsBound = 'true';
+            container.addEventListener('click', event => {
+                const tab = event.target.closest('[data-panel-tab]');
+                if (!tab) return;
+                container.dataset.panel = tab.dataset.panelTab;
+                container.querySelectorAll('[data-panel-tab]').forEach(button => button.setAttribute('aria-pressed', button === tab));
+            });
         });
         const tipList = items => '<ul class="tip-definitions">' + items.map(item =>
             `<li><span class="tip-swatch" style="background:var(--color-chart-${item.color})"></span><span><strong>${item.label}</strong> ${item.definition}</span></li>`).join('') + '</ul>';
@@ -42,7 +64,7 @@ window.FloraVocabulary = (() => {
             const [assessed, unassessed] = [entries(dimension).filter(item => item.assessed), entries(dimension).filter(item => !item.assessed)];
             tip.classList.add('info-tip-wide');
             tip.innerHTML = `<p class="tip-scope">${tip.dataset.scope}</p>` + tipList(assessed)
-                + `<p class="tip-subhead">No verdict</p><p class="tip-note">${unassessed.map(item => item.label).join(' · ')}. See <em>Outcome definitions</em> for each.</p>`;
+                + `<p class="tip-subhead">No verdict</p><p class="tip-note">${unassessed.map(item => item.label).join(' · ')}. See the <em>Outcome key</em> for each.</p>`;
         });
     }
     // A ?doi= deep link can draw charts before the vocabulary has loaded.
