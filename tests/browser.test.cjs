@@ -142,13 +142,12 @@ test('Mean Citedness clears stale models and all distribution outcomes reconcile
   assert.match(await p.locator('#mc-gam-chart').textContent(),/50% reference/);
   assert.deepEqual(p.errors,[]);await p.close();
 });
-test('citation deep links, exclusive counts, model intervals and modal keyboard focus',async()=>{
+test('citation deep links, exclusive counts and modal keyboard focus',async()=>{
   const p=await page('?tab=citations&doi=10.1177%2F0956797610383437');
   await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length>0);
   assert.equal(await p.locator('#ci-modal').getAttribute('role'),'dialog');
   assert.equal(await p.evaluate(()=>document.activeElement.id),'ci-modal-close');
   const total=await p.evaluate(()=>document.getElementById('study-plot').data.reduce((n,t)=>n+t.y.reduce((a,b)=>a+b,0),0));assert.equal(total,JSON.parse(fs.readFileSync('data/originals.json')).studies['10.1177/0956797610383437'].n_citations);
-  assert.ok(await p.evaluate(()=>document.getElementById('plot-cit-model').data[0].error_y.array.some(n=>n>0)));
   await p.keyboard.press('Shift+Tab');assert.ok(await p.evaluate(()=>document.getElementById('ci-modal').contains(document.activeElement)));
   await p.keyboard.press('Tab');assert.equal(await p.evaluate(()=>document.activeElement.id),'ci-modal-close');
   await p.keyboard.press('Escape');assert.ok(await p.locator('#ci-modal').isHidden());
@@ -158,9 +157,9 @@ test('citation deep links, exclusive counts, model intervals and modal keyboard 
 });
 test('shared citation outcome filters restore before asynchronous loading finishes',async()=>{
   const p=await page('?tab=citations&ci-outcome=failed');
-  await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length>0);
-  const expected=JSON.parse(fs.readFileSync('data/aggregate.json')).failed.citations_model.att.toFixed(3);
-  assert.ok((await p.locator('#att-callout').innerText()).includes(expected));
+  await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length>0);
+  const expected=Math.max(...JSON.parse(fs.readFileSync('data/aggregate.json')).failed.descriptive.n_units).toLocaleString('en-GB');
+  assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} originals`));
   assert.equal(await p.locator('#outcome-chips [data-value="failed"]').getAttribute('aria-pressed'),'true');
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -539,6 +538,11 @@ test('citation search waits for rendering even when the debounce fires late',asy
   assert.deepEqual(await citationSearch(p,'zz-another-missing-original'),[]);
   assert.deepEqual(p.errors,[]);await p.close();
 });
+test('every indexed original has its detail file',()=>{
+  const index=JSON.parse(fs.readFileSync('data/originals_index.json'));
+  assert.equal(index.length,JSON.parse(fs.readFileSync('data/meta.json')).n_originals);
+  assert.deepEqual(index.filter(s=>!fs.existsSync('data/originals/'+s.file)).map(s=>s.file),[]);
+});
 test('Citation Impact searches full author lists, including after an early DOI deep link',async()=>{
   const doi='10.1037/a0021524', fallbackDoi='10.1037/0022-3514.54.5.768';
   const index=JSON.parse(fs.readFileSync('data/originals_index.json'));
@@ -743,7 +747,7 @@ test('touch swipes scroll over every Plotly view while preserving chart ranges a
     assert.ok(after.scroll>before.scroll+30,`${selector} should scroll ${scroller}: ${before.scroll} → ${after.scroll}`);
     assert.deepEqual(after.ranges,before.ranges,selector+' ranges');
   }
-  for(const [tab,ids] of [['mc-tab',['mc-dist-chart','mc-gam-chart']],['overlap-tab',['ao-chart']],['pub-tab',['pub-chart','rr-chart','ls-chart']],['citation-tab',['plot-cit','plot-cit-model','plot-cocit','plot-cocit-model']]]){
+  for(const [tab,ids] of [['mc-tab',['mc-dist-chart','mc-gam-chart']],['overlap-tab',['ao-chart']],['pub-tab',['pub-chart','rr-chart','ls-chart']],['citation-tab',['plot-cit','plot-cocit']]]){
     await p.selectOption('#mobile-navigation',tab);
     for(const id of ids){
       await p.waitForFunction(id=>document.getElementById(id)?.data,id);
@@ -911,8 +915,6 @@ test('small stacked citation timelines and study denominators have integer ticks
   });
   await p.waitForFunction(()=>document.getElementById('study-plot')?._fullLayout);
   await assertIntegerCountTicks(p,'study-plot','yaxis');
-  await assertIntegerCountTicks(p,'plot-cit','yaxis2');
-  await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
   // The raw means are continuous quantities and must retain fractional ticks.
   // Plotly can leave _fullLayout.yaxis.dtick unset after a re-layout, so read the rendered labels.
   await p.waitForFunction(()=>{
@@ -938,7 +940,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     assert.match(await row.locator('td').nth(4).locator('span[title]').getAttribute('title'),/1,234 of 5,678/);
     assert.equal(await row.locator('.rep-count').textContent(),'1,234');
     assert.match(await row.locator('.rep-bar-wrap').getAttribute('title'),/1,234 Successful/);
-    assert.match(await p.locator('#att-callout').textContent(),/1,234 originals contribute at peak/);
+    assert.match(await p.locator('#plot-cit-sample').textContent(),/^Sample size: 1,234 originals /);
     const meta=JSON.parse(fs.readFileSync('data/meta.json'));
     assert.equal(await p.locator('#kpis .kpi-value').first().textContent(),meta.n_originals.toLocaleString('en-GB'));
     const breakdown=JSON.parse(fs.readFileSync('data/cocit_breakdown.json'));
@@ -949,7 +951,10 @@ test('citation counts use the same grouping under a non-English browser locale',
     await p.click('#ci-study-type [data-value="reproduction-numerical"]');
     const repro=JSON.parse(fs.readFileSync('data/reproduction_citations.json'))['reproduction-numerical'].successful;
     assert.equal(await p.locator('#ci-repro-table tbody tr').first().locator('td').first().textContent(),'Computationally reproducible');
-    assert.deepEqual((await p.locator('#ci-repro-table tbody tr').first().locator('td').allTextContents()).slice(1),['n_originals','n_citations_to_original','n_citations_to_reproduction','n_cocitations'].map(k=>repro[k].toLocaleString('en-GB')));
+    const fixed=(n,d)=>n.toLocaleString('en-GB',{minimumFractionDigits:d,maximumFractionDigits:d});
+    assert.deepEqual((await p.locator('#ci-repro-table tbody tr').first().locator('td').allTextContents()).slice(1),[
+      repro.n_originals.toLocaleString('en-GB'),fixed(repro.median_citations_per_original,1),
+      fixed(repro.mean_citations_per_reproduction,2),(rate=>rate>0&&rate<1?'<1':fixed(rate,1))(repro.mean_cocitation_rate*100)+'%']);
     assert.deepEqual(errors,[]);
   }finally{await p.close();}
 });
@@ -997,18 +1002,14 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
     assert.equal(+curve[i][key],+model.gam_curve[i][field].toFixed(5));
     assert.doesNotMatch(curve[i][key],/\.\d{6}/);
   }
-  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length);
+  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length);
   assert.ok(!requests.some(url=>url.endsWith('/fect_results.json')));
   assert.doesNotMatch(await p.locator('#plot-cit,#plot-cocit').allTextContents().then(t=>t.join(' ')),/Loading…/);
-  assert.ok((await p.locator('#att-callout').textContent()).includes(`based on ${aggregate.citations_model.n_units.toLocaleString('en-GB')} originals`));
-  assert.match(await p.locator('#att-callout').textContent(),/95% CI −?\d+\.\d{3} to −?\d+\.\d{3}/);
-  await p.evaluate(()=>{const plot=document.getElementById('plot-cit-model');Plotly.Fx.hover(plot,[{curveNumber:0,pointNumber:plot.data[0].x.indexOf(-5)}]);});
-  const hover=(await p.locator('#plot-cit-model .hoverlayer tspan.line').allTextContents()).join('\n');
-  assert.match(hover,/Years from first replication: −5/);assert.match(hover,/Coefficient: −?\d+\.\d{3}/);assert.match(hover,/95% CI:/);
-  assert.doesNotMatch(hover,/\d\.\d{4}|\+0\./);
+  assert.ok((await p.locator('#plot-cit-footnote').textContent()).includes(`N = ${Math.max(...aggregate.descriptive.n_units).toLocaleString('en-GB')} originals`));
   const nPoint=aggregate.descriptive.event_time.indexOf(-5);
-  await p.evaluate(i=>Plotly.Fx.hover('plot-cit',[{curveNumber:1,pointNumber:i}]),nPoint);
-  assert.ok((await p.locator('#plot-cit .hoverlayer').textContent()).includes('Distinct originals: '+aggregate.descriptive.n_units[nPoint].toLocaleString('en-GB')));
+  await p.evaluate(i=>Plotly.Fx.hover('plot-cit',[{curveNumber:0,pointNumber:i}]),nPoint);
+  const hover=(await p.locator('#plot-cit .hoverlayer tspan.line').allTextContents()).join('\n');
+  assert.match(hover,/Years from first replication: −5/);assert.match(hover,/Mean citations per year: \d+\.\d{2}/);
   await p.evaluate(()=>Plotly.Fx.hover('plot-cocit',[{curveNumber:0,pointNumber:0}]));
   assert.match(await p.locator('#plot-cocit .hoverlayer').textContent(),/Mean co-citations per year: \d+\.\d{2}/);
   assert.deepEqual(p.errors,[]);await p.close();
@@ -1346,7 +1347,7 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   });
   const csv=[headers,...rows.map(row=>headers.map(key=>row[key]))].map(row=>row.map(value=>'"'+value.replaceAll('"','""')+'"').join(',')).join('\n');
   const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({contentType:'text/csv',body:csv})));
-  assert.equal(await p.locator('[data-outcome-definitions]').count(),7);
+  assert.equal(await p.locator('[data-outcome-definitions]').count(),1);
   for(const selector of ['#browse .browse-kind-filter','#trends > .trend-filter','#ci-study-type','#mc-study-type','#ao-study-type','#pubtype-study-type']){
     assert.deepEqual(await p.locator(selector+' button').allTextContents(),[...(/browse|trends/.test(selector)?['All']:[]),'Replications','Numerical reproductions','Robustness reproductions']);
   }
@@ -1357,9 +1358,11 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   assert.deepEqual(await p.locator('#flora-table .badge').allTextContents(),[
     'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
     'Computational: Not checked','Robustness: Robust','Computational: Computationally reproducible','Robustness: Not checked']);
-  await p.locator('#browse [data-outcome-definitions] summary').click();
-  assert.ok(await p.locator('#browse [data-outcome-definitions]').getByText('The outcome is recorded as uninformative; no successful, failed or mixed verdict is supplied.',{exact:true}).isVisible());
-  await p.locator('#browse [data-outcome-definitions] summary').click();
+  await p.click('#overview-tab');
+  await p.locator('#overview [data-outcome-definitions] summary').click();
+  assert.ok(await p.locator('#overview [data-outcome-definitions]').getByText('The outcome is recorded as uninformative; no successful, failed or mixed verdict is supplied.',{exact:true}).isVisible());
+  await p.locator('#overview [data-outcome-definitions] summary').click();
+  await p.click('#browse-tab');
   const readDownload=async()=>{
     const event=p.waitForEvent('download');await p.click('#export-browse');const download=await event;
     const stream=await download.createReadStream();const chunks=[];for await(const chunk of stream)chunks.push(chunk);
@@ -1398,14 +1401,13 @@ test('zero categories stay in chart tables and exports while legends show only o
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   await p.click('#browse-outcome-chart-data-copy');
   const csv=await p.evaluate(()=>navigator.clipboard.readText());assert.match(csv,/Uninformative/);assert.doesNotMatch(csv,/Inconclusive/);
-  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length);
+  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length);
   const exportChart=async id=>{
     await p.click('#'+id+'-data-copy');
     return p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}));
   };
   const trajectory=await exportChart('plot-cit');assert.ok(!trajectory.meta.fields.includes('Reference-pair count'));
-  assert.ok(trajectory.data.some(row=>row.Series==='Distinct originals'&&row.Unit==='Distinct originals'));
-  const model=await exportChart('plot-cit-model');assert.ok(model.data.every(row=>row.Unit==='Coefficient: log(1 + count)'&&row['95% CI lower']!==''&&row['95% CI upper']!==''));
+  assert.ok(trajectory.data.length&&trajectory.data.every(row=>row.Unit==='Mean citations per original per year'));
   await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length);
   const timeline=await exportChart('study-plot');assert.ok(timeline.data.every(row=>row.Unit==='Citing works'));
   assert.equal(new Set(timeline.data.map(row=>row.Series)).size,5);

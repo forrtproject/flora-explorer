@@ -67,7 +67,7 @@ window.FloraVocabulary = (() => {
             const [assessed, unassessed] = [entries(dimension).filter(item => item.assessed), entries(dimension).filter(item => !item.assessed)];
             tip.classList.add('info-tip-wide');
             tip.innerHTML = `<p class="tip-scope">${tip.dataset.scope}</p>` + tipList(assessed)
-                + `<p class="tip-subhead">No verdict</p><p class="tip-note">${unassessed.map(item => item.label).join(' · ')}. See the <em>Outcome key</em> for each.</p>`;
+                + `<p class="tip-subhead">No verdict</p><p class="tip-note">${unassessed.map(item => item.label).join(' · ')}. See the <em>Outcome key</em> on the Overview tab for each.</p>`;
         });
     }
     // A ?doi= deep link can draw charts before the vocabulary has loaded.

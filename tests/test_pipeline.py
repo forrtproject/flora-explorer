@@ -175,6 +175,25 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         self.assertEqual(data['n_citations_to_reproduction'],1)
         self.assertEqual(data['n_citations_to_original'],2)
 
+    def test_reproduction_cocitation_rate_counts_only_citations_after_the_reproduction(self):
+        frame=pd.DataFrame([dict(doi_o='10.test/original',doi_r='10.test/reproduction',year_r='2020',computational_bucket='successful',robustness_bucket='robust')])
+        lists={'10.test/original':[{'citing':'early','year':2010},{'citing':'late','year':2021},{'citing':'both','year':2021}],
+               '10.test/reproduction':[{'citing':'both','year':2021}]}
+        with patch.object(pipeline,'fetch_oc_citations',side_effect=lambda doi:lists[doi]):
+            data=pipeline.compute_reproduction_citations(frame)['reproduction-numerical']['successful']
+        self.assertEqual(data['mean_cocitation_rate'],0.5)
+        self.assertEqual(data['n_citations_to_original'],3)
+
+    def test_panel_is_balanced_over_complete_years(self):
+        def study(year,treat):
+            return dict(year=year,first_replication_year=treat,first_replication_outcome='failed',
+                        timeline=[dict(year=y,only=1,with_successful=0,with_failed=1,with_mixed=0,with_any=1) for y in range(year,pipeline.CURRENT_YEAR+1)])
+        latest=pipeline.LAST_COMPLETE_YEAR-pipeline.EVENT_WINDOW[1]
+        studies={'eligible':study(latest-10,latest),'partial-year':study(latest-9,latest+1),'replicated-first':study(latest-2,latest-3)}
+        panel=pipeline.build_panel(studies,require_pre_window=False)
+        self.assertEqual(set(panel['doi']),{'eligible'})
+        self.assertEqual(panel['year'].max(),pipeline.LAST_COMPLETE_YEAR)
+
     def test_empty_run_preserves_committed_outputs(self):
         before=(ROOT/'data/meta.json').read_bytes()
         with self.assertRaisesRegex(RuntimeError,'retaining the previous'):
