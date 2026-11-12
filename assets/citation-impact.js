@@ -261,7 +261,7 @@
         const n = Math.max(0, ...((desc && desc.n_units) || []));
         const [lo, hi] = [Math.min(...(desc?.event_time || [0])), Math.max(...(desc?.event_time || [0]))];
         const group = CI.outcome === 'all' ? 'successful, failed or mixed' : FloraVocabulary.label(CI.outcome).toLowerCase();
-        el.innerHTML = n ? `Mean citations estimated for <strong><i>N</i> = ${FloraCharts.number(n)}</strong> originals (first replication ${group}; each observed over t = ${FloraCharts.number(lo)} to +${FloraCharts.number(hi)}).` : '';
+        el.innerHTML = n ? `Mean citations estimated for <strong><i>N</i> = ${FloraCharts.number(n)}</strong> originals (first replication ${group}; each observed over t = ${FloraCharts.number(lo)} to +${FloraCharts.number(hi)} years).` : '';
     }
 
     function renderSampleSize(id, desc, eventWindow, criterion) {
