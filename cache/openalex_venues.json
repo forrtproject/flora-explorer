@@ -4039,5 +4039,47 @@
     "display_name": "Journal of Biological Chemistry",
     "impact_factor": 2.1650485436893203
   },
-  "linguistic variation: models and methods": null
+  "linguistic variation: models and methods": null,
+  "american journal of education": {
+    "id": "https://openalex.org/S37813251",
+    "display_name": "American Journal of Education",
+    "impact_factor": 2.4404761904761907
+  },
+  "applied psychology: health and well-being": {
+    "id": "https://openalex.org/S168123707",
+    "display_name": "Applied Psychology Health and Well-Being",
+    "impact_factor": 4.3625
+  },
+  "archives of pediatrics & adolescent medicine": {
+    "id": "https://openalex.org/S4210192535",
+    "display_name": "Archives of Pediatrics and Adolescent Medicine",
+    "impact_factor": 8.278793418647167
+  },
+  "bioelectromagnetics": {
+    "id": "https://openalex.org/S78518477",
+    "display_name": "Bioelectromagnetics",
+    "impact_factor": 2.48
+  },
+  "cancer epidemiology, biomarkers & prevention": {
+    "id": "https://openalex.org/S8391440",
+    "display_name": "Cancer Epidemiology Biomarkers & Prevention",
+    "impact_factor": 0.8861283643892339
+  },
+  "child & family behavior therapy": {
+    "id": "https://openalex.org/S39297025",
+    "display_name": "Child & Family Behavior Therapy",
+    "impact_factor": 1.0731707317073171
+  },
+  "communications in computer and information science": null,
+  "journal of clinical child & adolescent psychology": {
+    "id": "https://openalex.org/S108595589",
+    "display_name": "Journal of Clinical Child & Adolescent Psychology",
+    "impact_factor": 5.1298076923076925
+  },
+  "thinking & reasoning": {
+    "id": "https://openalex.org/S177321595",
+    "display_name": "Thinking & Reasoning",
+    "impact_factor": 3.0847457627118646
+  },
+  "npj schizophrenia": null
 }

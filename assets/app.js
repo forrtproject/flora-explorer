@@ -66,7 +66,7 @@ function classifyOutcome(raw) {
 }
 
 function hasMatchedOutcome(row) {
-    const c = classifyOutcome(row.outcome);
+    const c = FloraVocabulary.replication(row);
     return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'qualified';
 }
 
@@ -74,9 +74,9 @@ function classifyKind(row) {
     const t = (row.type || '').toLowerCase();
     if (t.includes('reproduc')) return 'reproduction';
     if (t.includes('replic')) return 'replication';
-    const o = (row.outcome || '').toLowerCase();
-    if (o.includes('computational') || o.includes('robust')) return 'reproduction';
-    if (o && !FloraVocabulary.isMissing(o)) return 'replication';
+    const recorded = value => value && !FloraVocabulary.isMissing(value);
+    if (recorded(row.outcome_computation) || recorded(row.outcome_robustness)) return 'reproduction';
+    if (recorded(row.outcome_replication)) return 'replication';
     return 'unknown';
 }
 function reportKindLabel(row) {
@@ -94,8 +94,8 @@ function reportKindLabel(row) {
 // robustness) use this same two-part shape. Parsing positionally - part[0] only tested
 // against computational keywords, part[1] only against robustness keywords - avoids any
 // cross-contamination between the two dimensions' text.
-function parseReproductionOutcome(raw) {
-    return FloraVocabulary.reproduction(raw);
+function parseReproductionOutcome(row) {
+    return FloraVocabulary.reproduction(row);
 }
 
 // Computational and robustness are two independently-assessed dimensions (see
@@ -106,13 +106,13 @@ function parseReproductionOutcome(raw) {
 // so a reproduction whose robustness was never checked still appears under computational.
 function isComputationalAssessed(row) {
     if (classifyKind(row) !== 'reproduction') return false;
-    const { computational } = parseReproductionOutcome(row.outcome);
+    const { computational } = parseReproductionOutcome(row);
     return computational === 'successful' || computational === 'issues' || computational === 'technical_failure';
 }
 
 function isRobustnessAssessed(row) {
     if (classifyKind(row) !== 'reproduction') return false;
-    const { robustness } = parseReproductionOutcome(row.outcome);
+    const { robustness } = parseReproductionOutcome(row);
     return robustness === 'robust' || robustness === 'challenges';
 }
 
@@ -193,20 +193,19 @@ setupStudyTypeSelect('pubtype-study-type', kind => {
 });
 
 function getOutcomeBadge(row) {
-    const badge = (dimension, key, prefix = '') => {
+    const badge = (dimension, key, prefix = '', raw = '') => {
         const item = FloraVocabulary.item(dimension, key);
-        // The hidden colon keeps the text readable as "Computational: Reproduced" for screen readers and copy.
+        const title = key === 'unrecognised' ? `${item.definition} Recorded as: ${String(raw).trim()}` : item.definition;
+        // The hidden colon keeps the text readable as "Computational: Computationally reproducible" for screen readers and copy.
         const dim = prefix ? `<span class="badge-dim">${prefix}<span class="visually-hidden">:</span></span> ` : '';
-        // "Robustness challenges" under a "Robustness" heading reads as "Challenges".
-        const value = prefix && item.label.toLowerCase().startsWith(prefix.toLowerCase() + ' ')
-            ? item.label.slice(prefix.length + 1).replace(/^./, c => c.toUpperCase()) : item.label;
-        return `<span class="badge outcome-tag badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(item.definition)}">${dim}<span class="badge-value">${value}</span></span>`;
+        const value = item.label;
+        return `<span class="badge outcome-tag badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(title)}">${dim}<span class="badge-value">${value}</span></span>`;
     };
     if (classifyKind(row) === 'reproduction') {
-        const dimensions = parseReproductionOutcome(row.outcome);
-        return `<span class="outcome-tags">${badge('computational', dimensions.computational, 'Computational')} ${badge('robustness', dimensions.robustness, 'Robustness')}</span>`;
+        const dimensions = parseReproductionOutcome(row);
+        return `<span class="outcome-tags">${badge('computational', dimensions.computational, 'Computational', row.outcome_computation)} ${badge('robustness', dimensions.robustness, 'Robustness', row.outcome_robustness)}</span>`;
     }
-    return badge('replication', classifyOutcome(row.outcome));
+    return badge('replication', FloraVocabulary.replication(row), '', row.outcome_replication);
 }
 
 function getOutcomeBadgeShort(row) { return getOutcomeBadge(row); }
@@ -346,7 +345,7 @@ function computeKindChartData(data, kind) {
     const buckets = studyTypeOutcomeBuckets(replication ? 'replication' : kind === 'computational' ? 'reproduction-numerical' : 'reproduction-robustness');
     const counts = Object.fromEntries(buckets.map(bucket => [bucket.key, 0]));
     eligible.forEach(row => {
-        const key = replication ? classifyOutcome(row.outcome) : parseReproductionOutcome(row.outcome)[kind];
+        const key = replication ? FloraVocabulary.replication(row) : parseReproductionOutcome(row)[kind];
         if (counts[key] !== undefined) counts[key]++;
     });
     return {total:Object.values(counts).reduce((sum, count) => sum + count, 0),
@@ -426,7 +425,7 @@ function studyLink(doi, url, innerHtml, extraClass = '') {
 
 function renderRandomExamples(data) {
     const container = document.getElementById('random-examples');
-    const usable = data.filter(r => (r.title_o || r.author_o) && r.outcome);
+    const usable = data.filter(r => (r.title_o || r.author_o) && FloraVocabulary.sourceOutcome(r));
     if (usable.length === 0) { container.innerHTML = '<p class="text-muted">No examples available.</p>'; return; }
     // Fisher–Yates shuffle (unbiased, unlike sort with a random comparator).
     const pool = [...usable];
@@ -436,7 +435,7 @@ function renderRandomExamples(data) {
     }
     const shuffled = pool.slice(0, 4);
     container.innerHTML = shuffled.map(r => {
-        const cls = classifyOutcome(r.outcome);
+        const cls = FloraVocabulary.replication(r);
         const origTitle = r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`;
         const origMeta = [shortAuthors(r.author_o), r.year_o].filter(Boolean).join(' · ');
         const repTitle = r.title_r || `${shortAuthors(r.author_r)} (${r.year_r || 'n.d.'})`;
@@ -624,7 +623,7 @@ function parseFaqMarkdown(md) {
     const flushQA = () => { if (currentQA) {
         if (currentQA.question === venueQuestion) {
             currentQA.body = [
-                'The Publication Type tab groups reports by their recorded venue: repository or preprint, conference output, thesis or dissertation, other named venue, or unknown venue. A named venue does not confirm peer review. Missing venue information remains unknown.'
+                'The Publication Type tab groups reports by their recorded venue: repository or preprint, conference output, thesis or dissertation, other named venue, or unknown venue. A named venue does not confirm peer review. Missing venue information remains unknown. Where no venue name is recorded, the report’s DOI or URL is used: an identifier that points to a repository (for example OSF, PsyArXiv or bioRxiv) is grouped as repository or preprint instead.'
             ];
             venueAnswerCorrected = true;
         }
@@ -686,6 +685,126 @@ async function loadFaqs() {
     }
 }
 
+// ===== Browse: outcome evidence =====
+const CLAIM_ID_SEP = String.raw`(?:\s*,\s*(?:and\s+|\.\.\.\s*|…\s*)?|\s+and\s+)`;
+const CLAIM_ID_RUN = new RegExp(String.raw`(?<![\w/.@:-])[a-z0-9]{6}(?:'s)?(?:${CLAIM_ID_SEP}[a-z0-9]{6}(?:'s)?)*(?![\w/-])`, 'g');
+const ONE_CLAIM_ID = '\u0001', MANY_CLAIM_IDS = '\u0002';
+const isCodedClaimId = t => /\d/.test(t) && /[a-z]/.test(t);
+// Letter-only IDs (e.g. "gdyrdr") look like words; at most one vowel keeps six-letter words such as "claims" out.
+const looksLikeLetterClaimId = t => /^[a-z]{6}$/.test(t) && (t.match(/[aeiou]/g) || []).length <= 1;
+
+function markClaimIds(text) {
+    return text.replace(/"([a-z0-9]{6})"/g, (m, id) => isCodedClaimId(id) ? id : m).replace(CLAIM_ID_RUN, (run, offset, whole) => {
+        const parts = run.split(new RegExp(`(${CLAIM_ID_SEP})`));
+        const raw = parts.filter((_, i) => i % 2 === 0);
+        const seps = parts.filter((_, i) => i % 2 === 1);
+        const ids = raw.map(t => t.replace(/'s$/, ''));
+        const followedByVerdict = /^\s+"did/.test(whole.slice(offset + run.length));
+        const isId = ids.map((t, i) => isCodedClaimId(t) || (looksLikeLetterClaimId(t) &&
+            ([ids[i - 1], ids[i + 1]].some(n => n && isCodedClaimId(n)) || (i === ids.length - 1 && followedByVerdict))));
+        if (!isId.some(Boolean)) return run;
+        let out = '';
+        for (let i = 0; i < raw.length;) {
+            if (!isId[i]) { out += (i ? seps[i - 1] : '') + raw[i]; i++; continue; }
+            let j = i; while (j + 1 < raw.length && isId[j + 1]) j++;
+            out += (i ? seps[i - 1] : '') + (j > i ? MANY_CLAIM_IDS : ONE_CLAIM_ID) + (raw[j].endsWith("'s") ? "'s" : '');
+            i = j + 1;
+        }
+        return out;
+    });
+}
+
+// Display only: exports and search keep the raw text. IDs that name a claim become "one claim"/"some claims".
+function stripClaimIds(text) {
+    if (!text || !/claim/i.test(text)) return text;
+    const marked = markClaimIds(text);
+    if (!/[\u0001\u0002]/.test(marked)) return text;
+    const X = '[\u0001\u0002]';
+    const label = id => id === MANY_CLAIM_IDS ? 'some claims' : 'one claim';
+    return marked
+        .replace(new RegExp(String.raw`\s*\(\s*${X}\s*\)`, 'g'), '')
+        .replace(new RegExp(String.raw`([(;])\s*${X}\s*[,/]\s*`, 'g'), (m, p) => p === ';' ? '; ' : p)
+        .replace(new RegExp(String.raw`${X}\s*/\s*`, 'g'), '')
+        .replace(new RegExp(String.raw`:\s*${X}(?=\s*[)\];,.]|"|$)`, 'g'), '')
+        .replace(new RegExp(String.raw`\b(claims?)\s+${X}\s*:`, 'gi'), '$1:')
+        .replace(new RegExp(String.raw`\bclaim\s+(${X})'s`, 'gi'), (m, id) => `${label(id)}'s`)
+        .replace(new RegExp(String.raw`(${X})'s`, 'g'), (m, id) => `${label(id)}'s`)
+        .replace(new RegExp(String.raw`\bclaims\s+${X}(?=\s+[a-z])`, 'g'), 'some claims')
+        .replace(new RegExp(String.raw`(^|[;,(]\s*|\b(?:while|but|and|for)\s+)claim\s+(${X})`, 'g'), (m, p, id) => p + label(id))
+        .replace(new RegExp(String.raw`\b(for|of|but|while)\s+(${X})`, 'g'), (m, w, id) => `${w} ${label(id)}`)
+        .replace(new RegExp(String.raw`(${X})(?=\s+")`, 'g'), (m, id) => label(id))
+        .replace(new RegExp(String.raw`${X}\s*:\s*`, 'g'), '')
+        .replace(new RegExp(String.raw`\s*,\s*${X}`, 'g'), '')
+        .replace(new RegExp(X, 'g'), '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\s+([,;:)])/g, '$1')
+        .replace(/\(\s+/g, '(')
+        .trim();
+}
+
+const hasValue = v => { const t = String(v ?? '').trim(); return t !== '' && t.toUpperCase() !== 'NA'; };
+const splitParts = v => String(v || '').split('||').map(p => p.trim());
+
+// Reproductions record each axis in its own columns; the combined outcome_quote(_source) is not used for them.
+const REPRODUCTION_QUOTE_AXES = [
+    ['Computational', 'outcome_computational_quote', 'out_quote_computational_source'],
+    ['Robustness', 'outcome_robustness_quote', 'out_quote_robust_source'],
+];
+
+// Returns the quote parts, each with its source where one can be paired, plus any sources left unpaired.
+function outcomeEvidenceParts(row) {
+    if (row.type === 'reproduction') {
+        const parts = REPRODUCTION_QUOTE_AXES.filter(([, q]) => hasValue(row[q]))
+            .map(([label, q, src]) => ({ label, text: stripClaimIds(row[q].trim()), source: hasValue(row[src]) ? row[src].trim() : '' }));
+        return { parts, unpaired: [] };
+    }
+    const quotes = splitParts(row.outcome_replication_quote);
+    const sources = splitParts(row.out_quote_replication_source);
+    // Pair by position when the counts match (before dropping missing parts, so positions hold);
+    // otherwise list the distinct sources once below the quotes.
+    const paired = sources.length === quotes.length;
+    const present = sources.filter(hasValue);
+    return {
+        parts: quotes.map((text, i) => ({ label: '', text, source: paired && hasValue(sources[i]) ? sources[i] : '' }))
+            .filter(p => hasValue(p.text)),
+        unpaired: paired ? [] : present.filter((s, i) => present.findIndex(o => o.toLowerCase() === s.toLowerCase()) === i),
+    };
+}
+
+// Links each URL inside a source and keeps the surrounding text.
+function formatQuoteSource(text) {
+    return String(text).split(/(https?:\/\/[^\s;,)]+)/).map((piece, i) => i % 2
+        ? `<a href="${escapeHtml(piece)}" target="_blank" rel="noopener">${escapeHtml(piece)}</a>` : escapeHtml(piece)).join('');
+}
+
+// Sources that record a coder's note rather than a location in the report. flora-validation marks
+// each such source part with a "coding note" prefix (flora-validation#31). TODO: drop the other
+// markers after the first release that includes it; they cover rows coded before.
+const CODING_NOTE_SOURCE = /^coding note\b|project rule|^data file\b|github\.com\/forrtproject\/fred-data\/issues/i;
+
+// "coding note: <basis>" shows as "coding note: <basis>"; a bare "coding note" records no basis.
+function formatSourceNote(source) {
+    if (!CODING_NOTE_SOURCE.test(source)) return `source: ${formatQuoteSource(source)}`;
+    const basis = source.replace(/^coding note:?\s*/i, '');
+    return basis ? `coding note: ${formatQuoteSource(basis)}` : 'coding note';
+}
+
+function formatOutcomeEvidence(row) {
+    const { parts, unpaired } = outcomeEvidenceParts(row);
+    if (!parts.length) return '<p class="small">No outcome evidence is recorded for this pair.</p>';
+    const isNote = s => CODING_NOTE_SOURCE.test(s);
+    const items = parts.map(p => {
+        const src = p.source ? ` <span class="small">(${formatSourceNote(p.source)})</span>` : '';
+        return `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}${src}</li>`;
+    }).join('');
+    const sources = [...parts.map(p => p.source).filter(Boolean), ...unpaired];
+    const allQuotes = parts.every(p => p.source) || (unpaired.length && !parts.some(p => p.source));
+    const heading = allQuotes && !sources.some(isNote) ? 'Outcome quote' : 'Outcome evidence';
+    return `<div class="detail-label">${heading}:</div>
+        <ul class="outcome-evidence">${items}</ul>
+        ${unpaired.length ? `<p class="small">Source: ${unpaired.map(s => isNote(s) ? formatSourceNote(s) : formatQuoteSource(s)).join('; ')}</p>` : ''}`;
+}
+
 // ===== Browse: detail row =====
 function formatDetailRow(rowData) {
     return `
@@ -716,22 +835,27 @@ function formatDetailRow(rowData) {
                 <h6>Recorded evidence</h6>
                 <div class="detail-section">
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData)}</span></div>
-                    <div><span class="detail-label">Source outcome:</span> <span class="detail-value">${escapeHtml(rowData.outcome)}</span></div>
-                    ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome quotation:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div><p class="small">${rowData.outcome_quote_source ? `Source: ${escapeHtml(rowData.outcome_quote_source)}. ` : ""}This excerpt may cover only part of the findings and may not fully explain the recorded outcome.</p>` : '<p class="small">No supporting quotation is recorded for this pair.</p>'}
+                    ${formatOutcomeEvidence(rowData)}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
                 </div>
             </div>
         </div>`;
 }
 
+function tableTitleCell(title, authorData, year) {
+    const text = title || shortAuthors(authorData) || '-';
+    const byline = bmAuthorYear(authorData, year);
+    return `<span class="title-clamp" title="${escapeHtml(text)}">${escapeHtml(text)}</span>${byline ? `<span class="title-byline">${escapeHtml(byline)}</span>` : ''}`;
+}
+
 function initDataTable(data) {
     const tableData = data.map(row => [
         null,
-        { display: truncateText(row.title_o || row.author_o, 50), search: `${row.title_o || ''} ${searchAuthorNames(row.author_o)} ${row.journal_o || ''}` },
+        { display: tableTitleCell(row.title_o, row.author_o, row.year_o), search: `${row.title_o || ''} ${searchAuthorNames(row.author_o)} ${row.journal_o || ''}` },
         row.year_o || '-',
-        { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
+        { display: tableTitleCell(row.title_r, row.author_r, row.year_r), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
         row.year_r || '-',
-        { display: getOutcomeBadgeShort(row), search: row.outcome || '' },
+        { display: getOutcomeBadgeShort(row), search: FloraVocabulary.sourceOutcome(row) },
         truncateText(row.type, 15) || '-',
         { display: formatDOI(row.doi_o, true), search: row.doi_o || '' },
         { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '', sort: urlOrDoiShortText(row.url_r, row.doi_r) }
@@ -779,7 +903,7 @@ function bmSearchableText(row) {
         const urlDoi = /^https?:\/\/(?:dx\.)?doi\.org\//i.test(row.url_r || '') ? row.url_r : '';
         bmSearchText.set(row, normalizedQuery([row.title_o, searchAuthorNames(row.author_o), row.journal_o, row.year_o, row.doi_o,
             row.title_r, searchAuthorNames(row.author_r), row.journal_r, row.year_r, row.doi_r, urlDoi,
-            row.outcome_quote, row.type].filter(Boolean).join(' | ')));
+            row.outcome_replication_quote, row.outcome_computational_quote, row.outcome_robustness_quote, row.type].filter(Boolean).join(' | ')));
     }
     return bmSearchText.get(row);
 }
@@ -803,7 +927,7 @@ function bmCardHtml(row) {
             <div class="bm-row"><div class="bm-row-label">Original report</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
             <div class="bm-divider"></div>
             <div class="bm-row"><div class="bm-row-label">${reportKindLabel(row)} report</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
-            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study evidence and outcome quotation</summary>${formatDetailRow(row)}</details>
+            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study and outcome evidence</summary>${formatDetailRow(row)}</details>
         </div>`;
 }
 function bmApplySearch(query) {
@@ -889,7 +1013,7 @@ function updateBrowseResults(redraw = true) {
     if (dataTable) {
         const [column, direction] = dataTable.order()[0] || [4, 'desc'];
         const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o'}[column] || 'year_r';
-        const key = column === 8 ? r => urlOrDoiShortText(r.url_r, r.doi_r) : r => String(r[field] || '');
+        const key = column === 8 ? r => urlOrDoiShortText(r.url_r, r.doi_r) : column === 5 ? r => FloraVocabulary.sourceOutcome(r) : r => String(r[field] || '');
         bmFiltered.sort((a,b) => bmSortCollator.compare(key(a), key(b)) * (direction === 'desc' ? -1 : 1));
         // order.dt also fires during a draw: refresh cards/charts without a second draw.
         if (redraw) dataTable.draw(false);
@@ -1028,9 +1152,9 @@ function updateTrendsCount() {
 // Which outcome bucket (per studyTypeOutcomeBuckets/trendOutcomeBuckets) a row falls
 // into, for whichever study type is currently selected in the trend filter.
 function outcomeBucketKeyForRow(row, kind) {
-    if (kind === 'reproduction-numerical') return parseReproductionOutcome(row.outcome).computational || 'not_coded';
-    if (kind === 'reproduction-robustness') return parseReproductionOutcome(row.outcome).robustness || 'not_coded';
-    return classifyOutcome(row.outcome);
+    if (kind === 'reproduction-numerical') return parseReproductionOutcome(row).computational || 'not_coded';
+    if (kind === 'reproduction-robustness') return parseReproductionOutcome(row).robustness || 'not_coded';
+    return FloraVocabulary.replication(row);
 }
 
 // Reproduction selections include assessed verdicts only. Replication selections
@@ -1655,7 +1779,7 @@ function renderRRCharts() {
                 '<td>' + escapeHtml(s.title_r) + '</td>' +
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '<div class="small">Source outcome: ' + escapeHtml(s.outcome) + '</div></td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -1788,7 +1912,7 @@ function renderPubStatusCharts() {
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + statusBadge + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '<div class="small">Source outcome: ' + escapeHtml(s.outcome) + '</div></td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -1989,6 +2113,18 @@ const STAMP_URLS = {
     pub_status: PUB_STATUS_META_URL
 };
 
+// Verdict columns keep "NA" as recorded so downloads show the coder's value; classify() reads it as missing.
+const OUTCOME_CODE_COLUMNS = new Set(['outcome', 'outcome_replication', 'outcome_computation', 'outcome_robustness']);
+// TODO: remove after the first FLoRA release that ships the replication columns. Until then they
+// are copied from the combined fields, which hold identical values for replications.
+const REPLICATION_FALLBACK = {outcome_replication: 'outcome', outcome_replication_quote: 'outcome_quote', out_quote_replication_source: 'outcome_quote_source'};
+function withReplicationColumns(row) {
+    for (const [column, combined] of Object.entries(REPLICATION_FALLBACK)) {
+        if (!(column in row) && combined in row) row[column] = classifyKind({type: row.type}) === 'reproduction' ? '' : row[combined];
+    }
+    return row;
+}
+
 async function loadDataStamps() {
     const cache = {};
     const sources = Array.from(new Set(Array.from(document.querySelectorAll('.data-stamp')).map(el => el.dataset.stampSource)));
@@ -2099,8 +2235,8 @@ async function loadData() {
 
     if (results.errors && results.errors.length > 0) console.warn('CSV parsing warnings:', results.errors);
     const data = results.data.map(row => {
-        Object.keys(row).forEach(key => { if (key !== 'outcome' && row[key] === 'NA') row[key] = ''; });
-        return row;
+        Object.keys(row).forEach(key => { if (!OUTCOME_CODE_COLUMNS.has(key) && row[key] === 'NA') row[key] = ''; });
+        return withReplicationColumns(row);
     });
     fullRowData = data;
 
