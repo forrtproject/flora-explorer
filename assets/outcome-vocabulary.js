@@ -23,6 +23,15 @@ window.FloraVocabulary = (() => {
     const sourceOutcome = row => classifyKind(row) === 'reproduction'
         ? [row.outcome_computation, row.outcome_robustness].map(v => String(v ?? '').trim()).filter(Boolean).join(', ')
         : String(row.outcome_replication ?? '').trim();
+    // The recorded text only when it adds something to the badge, e.g. "partial" behind "Mixed".
+    function distinctSourceOutcome(row) {
+        const same = (raw, dimension, key) => { const v = String(raw ?? '').trim().toLowerCase(); return !v || v === label(key, dimension).toLowerCase(); };
+        if (classifyKind(row) === 'reproduction') {
+            const d = reproduction(row);
+            if (same(row.outcome_computation, 'computational', d.computational) && same(row.outcome_robustness, 'robustness', d.robustness)) return '';
+        } else if (same(row.outcome_replication, 'replication', replication(row))) return '';
+        return sourceOutcome(row);
+    }
     function outcomeLabel(row) {
         if (classifyKind(row) !== 'reproduction') return label(replication(row));
         const dimensions = reproduction(row);
@@ -73,5 +82,5 @@ window.FloraVocabulary = (() => {
     // A ?doi= deep link can draw charts before the vocabulary has loaded.
     const unitDefinition = label => vocabulary?.units[label] || '';
     const isMissing = raw => Boolean(vocabulary?.missing_markers.includes(normalise(raw)));
-    return {ready, entries, classify, item, label, reproduction, replication, sourceOutcome, outcomeLabel, studyType, definitions, unitDefinition, isMissing};
+    return {ready, entries, classify, item, label, reproduction, replication, sourceOutcome, distinctSourceOutcome, outcomeLabel, studyType, definitions, unitDefinition, isMissing};
 })();

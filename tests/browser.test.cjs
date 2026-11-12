@@ -1341,6 +1341,11 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   assert.deepEqual(await p.evaluate(()=>fullRowData.map(row=>FloraVocabulary.outcomeLabel(row))),[
     'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
     'Computational: Not checked; Robustness: Robust','Computational: Reproduced; Robustness: Not checked']);
+  assert.deepEqual(await p.evaluate(()=>[
+    {type:'replication',outcome_replication:'Mixed'},{type:'replication',outcome_replication:'partial'},{type:'replication',outcome_replication:''},
+    {type:'reproduction',outcome_computation:'not checked',outcome_robustness:'robust'},
+    {type:'reproduction',outcome_computation:'computationally reproducible',outcome_robustness:'robust'},
+  ].map(row=>FloraVocabulary.distinctSourceOutcome(row))),['','partial','','','computationally reproducible, robust']);
   assert.deepEqual(await p.locator('#flora-table .badge').allTextContents(),[
     'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
     'Computational: Not checked','Robustness: Robust','Computational: Reproduced','Robustness: Not checked']);

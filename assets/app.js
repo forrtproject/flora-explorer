@@ -209,6 +209,11 @@ function getOutcomeBadge(row) {
     return badge('replication', FloraVocabulary.replication(row));
 }
 
+function sourceOutcomeNote(row) {
+    const text = FloraVocabulary.distinctSourceOutcome(row);
+    return text ? '<div class="small">Source outcome: ' + escapeHtml(text) + '</div>' : '';
+}
+
 function getOutcomeBadgeShort(row) { return getOutcomeBadge(row); }
 
 function escapeHtml(text) {
@@ -831,7 +836,7 @@ function formatDetailRow(rowData) {
                 <h6>Recorded evidence</h6>
                 <div class="detail-section">
                     <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData)}</span></div>
-                    <div><span class="detail-label">Source outcome:</span> <span class="detail-value">${escapeHtml(FloraVocabulary.sourceOutcome(rowData))}</span></div>
+                    ${FloraVocabulary.distinctSourceOutcome(rowData) ? `<div><span class="detail-label">Source outcome:</span> <span class="detail-value">${escapeHtml(FloraVocabulary.distinctSourceOutcome(rowData))}</span></div>` : ''}
                     ${formatOutcomeEvidence(rowData)}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
                 </div>
@@ -1776,7 +1781,7 @@ function renderRRCharts() {
                 '<td>' + escapeHtml(s.title_r) + '</td>' +
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '<div class="small">Source outcome: ' + escapeHtml(FloraVocabulary.sourceOutcome({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'})) + '</div></td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + sourceOutcomeNote({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -1909,7 +1914,7 @@ function renderPubStatusCharts() {
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + statusBadge + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '<div class="small">Source outcome: ' + escapeHtml(FloraVocabulary.sourceOutcome({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'})) + '</div></td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + sourceOutcomeNote({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
