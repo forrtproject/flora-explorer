@@ -197,9 +197,7 @@ function getOutcomeBadge(row) {
         const item = FloraVocabulary.item(dimension, key);
         // The hidden colon keeps the text readable as "Computational: Computationally reproducible" for screen readers and copy.
         const dim = prefix ? `<span class="badge-dim">${prefix}<span class="visually-hidden">:</span></span> ` : '';
-        // "Robustness challenges" under a "Robustness" heading reads as "Challenges".
-        const value = prefix && item.label.toLowerCase().startsWith(prefix.toLowerCase() + ' ')
-            ? item.label.slice(prefix.length + 1).replace(/^./, c => c.toUpperCase()) : item.label;
+        const value = item.label;
         return `<span class="badge outcome-tag badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(item.definition)}">${dim}<span class="badge-value">${value}</span></span>`;
     };
     if (classifyKind(row) === 'reproduction') {
