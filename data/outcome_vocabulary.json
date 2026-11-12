@@ -1,0 +1,224 @@
+{
+  "missing_markers": [
+    "",
+    "na",
+    "nan",
+    "none",
+    "null",
+    "#n/a",
+    "#n/a n/a",
+    "#na",
+    "-1.#ind",
+    "-1.#qnan",
+    "-nan",
+    "1.#ind",
+    "1.#qnan",
+    "<na>",
+    "n/a"
+  ],
+  "replication": [
+    {
+      "key": "successful",
+      "label": "Successful",
+      "definition": "The central finding is recorded as replicated, based on the replication report.",
+      "aliases": [
+        "successful",
+        "replicated"
+      ],
+      "assessed": true,
+      "color": "successful"
+    },
+    {
+      "key": "failed",
+      "label": "Failed",
+      "definition": "The central finding is recorded as not replicated, following FLoRA’s coding rules.",
+      "aliases": [
+        "failed",
+        "not replicated"
+      ],
+      "assessed": true,
+      "color": "failed"
+    },
+    {
+      "key": "mixed",
+      "label": "Mixed",
+      "definition": "The report contains a mixture of replication results, recorded as mixed.",
+      "aliases": [
+        "mixed",
+        "partial"
+      ],
+      "assessed": true,
+      "color": "mixed"
+    },
+    {
+      "key": "qualified",
+      "label": "Statistically successful but flawed",
+      "definition": "Statistical success is recorded with a qualification about flaws.",
+      "aliases": [
+        "statistically successful but flawed"
+      ],
+      "assessed": true,
+      "color": "qualified"
+    },
+    {
+      "key": "descriptive",
+      "label": "Descriptive only",
+      "definition": "Descriptive results are recorded without a success or failure verdict.",
+      "aliases": [
+        "descriptive only"
+      ],
+      "assessed": false,
+      "color": "other"
+    },
+    {
+      "key": "uninformative",
+      "label": "Uninformative",
+      "definition": "The outcome is recorded as uninformative; no successful, failed or mixed verdict is supplied.",
+      "aliases": [
+        "uninformative"
+      ],
+      "assessed": false,
+      "color": "other"
+    },
+    {
+      "key": "missing",
+      "label": "Missing outcome",
+      "definition": "No outcome code is recorded.",
+      "aliases": [],
+      "assessed": false,
+      "color": "other"
+    },
+    {
+      "key": "unrecognised",
+      "label": "Unrecognised outcome",
+      "definition": "A recorded value falls outside the supported vocabulary.",
+      "aliases": [],
+      "assessed": false,
+      "color": "other"
+    }
+  ],
+  "computational": [
+    {
+      "key": "successful",
+      "label": "Computationally reproducible",
+      "definition": "The original numerical results were reproduced.",
+      "aliases": [
+        "computationally reproducible",
+        "computationally successful"
+      ],
+      "assessed": true,
+      "color": "successful"
+    },
+    {
+      "key": "issues",
+      "label": "Computational issues",
+      "definition": "Problems were recorded in reproducing the numerical results.",
+      "aliases": [
+        "computational issues"
+      ],
+      "assessed": true,
+      "color": "failed"
+    },
+    {
+      "key": "technical_failure",
+      "label": "Technical failure",
+      "definition": "A technical failure was recorded during numerical reproduction.",
+      "aliases": [
+        "technical failure",
+        "failed"
+      ],
+      "assessed": true,
+      "color": "technical-failure"
+    },
+    {
+      "key": "not_checked",
+      "label": "Not checked",
+      "definition": "The record explicitly says this dimension was not checked.",
+      "aliases": [
+        "not checked",
+        "computation not checked"
+      ],
+      "assessed": false,
+      "color": "other"
+    },
+    {
+      "key": "missing",
+      "label": "Missing verdict",
+      "definition": "No verdict is recorded for this dimension.",
+      "aliases": [],
+      "assessed": false,
+      "color": "other"
+    },
+    {
+      "key": "unrecognised",
+      "label": "Unrecognised verdict",
+      "definition": "A recorded value falls outside the supported vocabulary.",
+      "aliases": [],
+      "assessed": false,
+      "color": "other"
+    }
+  ],
+  "robustness": [
+    {
+      "key": "robust",
+      "label": "Robust",
+      "definition": "The findings held under the alternative analyses assessed.",
+      "aliases": [
+        "robust"
+      ],
+      "assessed": true,
+      "color": "successful"
+    },
+    {
+      "key": "challenges",
+      "label": "Robustness challenges",
+      "definition": "The alternative analyses assessed challenged the findings.",
+      "aliases": [
+        "robustness challenges"
+      ],
+      "assessed": true,
+      "color": "failed"
+    },
+    {
+      "key": "not_checked",
+      "label": "Not checked",
+      "definition": "The record explicitly says this dimension was not checked.",
+      "aliases": [
+        "not checked",
+        "robustness not checked"
+      ],
+      "assessed": false,
+      "color": "other"
+    },
+    {
+      "key": "missing",
+      "label": "Missing verdict",
+      "definition": "No verdict is recorded for this dimension.",
+      "aliases": [],
+      "assessed": false,
+      "color": "other"
+    },
+    {
+      "key": "unrecognised",
+      "label": "Unrecognised verdict",
+      "definition": "A recorded value falls outside the supported vocabulary.",
+      "aliases": [],
+      "assessed": false,
+      "color": "other"
+    }
+  ],
+  "study_types": {
+    "all": "All",
+    "replication": "Replications",
+    "reproduction": "Reproductions",
+    "reproduction-numerical": "Numerical reproductions",
+    "reproduction-robustness": "Robustness reproductions"
+  },
+  "units": {
+    "Reference pair": "One database row linking an original report to a replication or reproduction report. Reports can occur in several reference pairs.",
+    "Distinct originals": "Original reports counted once within the stated selection, using the available identifiers.",
+    "Replication report / Reproduction report": "The report linked to the original in a reference pair.",
+    "Citing works": "Distinct later works citing the specified report within the stated period.",
+    "Citation links": "Links from citing works to cited reports; one citing work can contribute several links."
+  }
+}

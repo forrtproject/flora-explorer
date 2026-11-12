@@ -5,14 +5,14 @@ A static dashboard for the [FORRT Library of Reproduction and Replication Attemp
 | View | Purpose | Data refresh |
 |---|---|---|
 | Overview | Reference-pair counts and separate replication, computational and robustness outcomes | Daily |
-| Browse Studies | Shared desktop/mobile search, full evidence, outcome quotations, links and filtered CSV export | Daily |
+| Browse reference pairs | Shared desktop/mobile search, full evidence, outcome quotes with their source, links and filtered CSV export | Daily |
 | Years & Disciplines | Outcome counts by year, venue and discipline | Daily |
 | Citation Impact | Citation trajectories, adjusted associations, co-citation rates and individual timelines | Weekly |
 | Mean Citedness | Journal-level citation metric distributions and a conditional replication-success model | Weekly |
 | Authorship Overlap | Within-group outcome percentages based on surname overlap | Daily |
 | Publication Type | Recorded venue categories, Registered Reports matching and reports with multiple original targets | Daily / weekly |
 
-Every chart has a nearby data table and a compact button to copy its CSV data. Browse Studies also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
+Every chart has a nearby data table and a compact button to copy its CSV data. Browse reference pairs also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
 
 ## Run locally
 
@@ -26,13 +26,13 @@ Open <http://127.0.0.1:8876/>. Third-party browser libraries load from their CDN
 
 ## Data and interpretation
 
-- **Replication outcomes:** explicit mappings retain “statistically successful but flawed” as a separate qualified category. Unknown, descriptive-only and uninformative outcomes remain visible under other/not coded. They are excluded from the binary Mean Citedness model and the successful/failed/mixed citation cohort.
+- **Replication outcomes:** explicit mappings retain “statistically successful but flawed” as a separate qualified category. Descriptive only, Uninformative, Missing outcome and Unrecognised outcome remain separate. Unsupported values, including a future “inconclusive” code, remain unrecognised. Labels, definitions and aliases are shared in `data/outcome_vocabulary.json`. Only unqualified successful and failed outcomes enter the binary Mean Citedness model; the citation cohort uses successful, failed and mixed outcomes.
 - **Reproduction outcomes:** computational reproducibility and robustness are independent dimensions. Each includes only assessed outcomes. The same pair can appear in both subsets. Reproduction models are not fitted; their summaries are descriptive.
 - **Publication venues:** recognisable repositories/preprints, conference outputs and theses are separated. Missing venues remain unknown. “Other named venue” does not verify journal publication or peer review.
 - **Registered Reports:** matching uses the [RRDB CSV](https://github.com/LukasRoeseler/RRDB/blob/main/zotero_registered_reports.csv). A non-match is not evidence that a report was not registered.
 - **Report size:** more than three distinct original targets defines a multiple-target report. This does not establish the number of laboratories or membership of a coordinated project. Charts count pairs; evidence lists count reports. Different snapshots/cohorts can have different coverage.
 - **Citation timelines:** stacked categories are mutually exclusive. A work citing replications from multiple outcome categories appears once in a separate segment. Outcome-specific rate tables overlap and must not be summed.
-- **Citation models:** coefficient plots show OLS estimates and 95% intervals on the `log(1 + count)` scale, relative to year −1, separately from raw trajectories. The model adjusts for original and calendar-year effects. These are adjusted associations, not established causal effects or percentage changes in raw counts. Outcome groups use the earliest recorded replication year; same-year ties follow stored record order.
+- **Citation trajectories:** descriptive only; no regression model is fitted. Each original is aligned at its first recorded replication (t = 0). Citation means use a balanced panel of originals observed from t = −5 to +5; co-citation means use originals observed from t = 0 to +5, since co-citation is impossible before a replication exists. Counts stop at the last complete calendar year. Outcome groups use the earliest recorded replication year; same-year ties follow stored record order.
 - **Mean Citedness:** OpenAlex's two-year journal-level metric is retrieved at enrichment time, not matched to the original publication year. The logistic smooth conditions on unqualified successful/failed outcomes with matched OMC below 35. The histogram retains other outcomes. The 50% line is a reference, not a chance baseline.
 
 The data are not representative of all research. Shared reports, repeated targets, journals and projects create dependence. Read the coverage and matching caveats alongside each view.
@@ -82,6 +82,8 @@ python scripts/rebuild_cached_citations.py
 ```
 
 This validates cache availability, recomputes the timelines and models, and writes the compact index and individual records. The original coverage date stays unchanged; a separate recalculation date records the computation. It does not expand the citation cohort. `scripts/run_fect.R` is retained as an optional research analysis and is not part of the deployed OLS figures or scheduled workflows.
+
+For vocabulary-only RR summaries, `python scripts/compute_rr_status.py --cached-matches` reuses the committed positive matches, checks that coverage is unchanged and retains its coverage date.
 
 ## Validate changes
 

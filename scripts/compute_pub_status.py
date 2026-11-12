@@ -1,8 +1,9 @@
 """Summarise recorded publication venues and reports with more than three targets.
 
 Venue categories are metadata heuristics, not verified peer-review status.
-Unknown venues remain unknown. Counts refer to reference pairs; project lists
-contain one record per repetition report.
+Blank venues are labelled repository / preprint only when their own DOI or URL points
+to a repository learned from the data; all others remain unknown. Counts refer to
+reference pairs; project lists contain one record per repetition report.
 """
 from __future__ import annotations
 
@@ -10,7 +11,8 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from classification import classify_outcome, classify_venue, REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS
+from classification import (classify_outcome, classify_venue, venue_only, legacy_classify_venue, learn_repositories, url_host,
+                            REPLICATION_OUTCOMES, MULTI_TARGET_THRESHOLD, VENUE_LABELS)
 import pandas as pd
 
 ROOT     = Path(__file__).resolve().parents[1]
@@ -18,11 +20,12 @@ DATA_DIR = ROOT / "data"
 IN_CSV   = DATA_DIR / "flora.csv"
 OUT_DATA = DATA_DIR / "pub_status_data.json"
 OUT_META = DATA_DIR / "pub_status_meta.json"
+OUT_CHANGES = DATA_DIR / "pub_status_changes.csv"
 
 if not IN_CSV.exists():
     raise SystemExit(f"{IN_CSV} not found.")
 
-from classification import parse_reproduction_outcome, reference_key
+from classification import load_outcome_columns, reproduction_dimensions, study_outcome_fields, reference_key
 
 
 
@@ -42,7 +45,8 @@ ROBUSTNESS_BUCKETS = ["robust", "challenges"]
 
 def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) -> dict:
     sub = sub.copy()
-    sub["pub_status"] = sub.get("journal_r", pd.Series(index=sub.index, dtype=str)).apply(classify_venue)
+    sub["pub_status"] = sub.apply(
+        lambda r: classify_venue(r.get("journal_r"), r.get("doi_r"), r.get("url_r"), REPOS), axis=1)
     n_total = len(sub)
     counts = sub["pub_status"].value_counts().to_dict()
     n_journal, n_preprint, n_unknown = (int(counts.get(k, 0)) for k in ['journal','preprint','unknown'])
@@ -55,7 +59,7 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
             "title_r": _clean(row.get("title_r")),
             "journal_r": _clean(row.get("journal_r")),
             "year_r": _clean(row.get("year_r")),
-            "outcome": _clean(row.get("outcome")),
+            **study_outcome_fields(row),
             "doi_r": _clean(row.get("doi_r")),
             "url_r": _clean(row.get("url_r")),
             "pub_status": row["pub_status"],
@@ -134,17 +138,23 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
 
 # ── Load & split by study type ─────────────────────────────────────────────────
 df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+# Preserve source outcome codes; pandas also applies NA conversion after converters.
+for column, values in load_outcome_columns(IN_CSV).items():
+    df[column] = values
 for suffix, key in [("r", "report_key"), ("o", "target_key")]:
     df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
 df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+df["outcome_lc"] = df["outcome_replication"].astype(str).str.lower().str.strip()
+
+# Repository DOI prefixes / URL hosts are learned from rows with a recorded venue.
+REPOS = learn_repositories(df)
 
 is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
 is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
 df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
 repro_df = df[is_reproduction].copy()
-repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+repro_dims = repro_df.apply(reproduction_dimensions, axis=1)
 repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
 repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 
@@ -159,6 +169,46 @@ result = {
 result["replication"]["large_scale"] = compute_large_scale_result(df[is_replication], "outcome_lc", REPLICATION_OUTCOMES)
 result["reproduction-numerical"]["large_scale"] = compute_large_scale_result(repro_comp_df, "computational_bucket", COMPUTATIONAL_BUCKETS)
 result["reproduction-robustness"]["large_scale"] = compute_large_scale_result(repro_robust_df, "robustness_bucket", ROBUSTNESS_BUCKETS)
+
+# ── Audit (nothing hardcoded: everything below is derived from the data) ──────
+def _audit():
+    rep = df[is_replication]
+    print("\n[audit] venues containing 'proceedings' (replication pairs):")
+    procs = rep[rep["journal_r"].astype(str).str.lower().str.contains("proceedings", na=False)]
+    for venue, n in procs["journal_r"].value_counts().items():
+        print(f"  {n:>3}  {venue_only(venue):<10} {venue}")
+    before = rep["journal_r"].apply(venue_only)
+    after = rep.apply(lambda r: classify_venue(r["journal_r"], r["doi_r"], r["url_r"], REPOS), axis=1)
+    n_before, n_after = int((before == "unknown").sum()), int((after == "unknown").sum())
+    print(f"\n[audit] unknown venues: {n_before} before, {n_after} after; reclassified as preprint: {n_before - n_after}")
+    print(f"[audit] learned DOI prefixes: {sorted(REPOS['doi_prefixes'])}")
+    print(f"[audit] learned URL hosts:    {sorted(REPOS['hosts'])}")
+    print(f"[audit] repository tokens:    {sorted(REPOS['tokens'])}")
+    left = rep[after == "unknown"]
+    hosts = left["url_r"].apply(url_host).replace("", "(no url)")
+    prefixes = left["doi_r"].apply(lambda d: str(d).split("/")[0] if isinstance(d, str) else "(no doi)")
+    print("[audit] remaining unknowns by URL host:", {k: int(v) for k, v in hosts.value_counts().items()})
+    print("[audit] remaining unknowns by DOI prefix:", {k: int(v) for k, v in prefixes.value_counts().items()})
+
+    # Pairs whose category differs from the previous rules, over every row of flora.csv.
+    old_cat = df["journal_r"].apply(legacy_classify_venue)
+    new_cat = df.apply(lambda r: classify_venue(r["journal_r"], r["doi_r"], r["url_r"], REPOS), axis=1)
+    mask = old_cat != new_cat
+    chg = df.loc[mask, ["type", "journal_r", "doi_r", "url_r", "title_r", "doi_o", "title_o"]].copy()
+    chg.insert(0, "csv_row", chg.index + 2)          # line in flora.csv (header = line 1)
+    chg["old_category"], chg["new_category"] = old_cat[mask], new_cat[mask]
+    print(f"\n[audit] pairs whose category changes: {len(chg)} "
+          f"({int((chg['type'].str.contains('reproduc', na=False)).sum())} reproductions)")
+    for (o, n), g in chg.groupby(["old_category", "new_category"]):
+        print(f"\n  {VENUE_LABELS[o]} -> {VENUE_LABELS[n]}: {len(g)}")
+        for r in g.itertuples():
+            venue = r.journal_r if isinstance(r.journal_r, str) else "-"
+            ident = r.doi_r if isinstance(r.doi_r, str) else (r.url_r if isinstance(r.url_r, str) else "-")
+            print(f"    row {r.csv_row:>5}  {r.type[:5]:<5}  {venue[:45]:<45}  {ident}")
+    chg.to_csv(OUT_CHANGES, index=False)
+    print(f"\n[audit] full list written to {OUT_CHANGES}")
+
+_audit()
 
 OUT_DATA.write_text(json.dumps(result), encoding="utf-8")
 OUT_META.write_text(json.dumps({

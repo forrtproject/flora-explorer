@@ -2,45 +2,228 @@
 
 Qualified success remains separate from unqualified success. Venue labels describe
 recorded metadata; they do not establish peer review.
+
+Venue rules:
+  * "Proceedings" alone is ambiguous (PNAS, Academy of Management Proceedings are
+    journals). It only counts as a conference when the name also carries an event
+    marker (a number such as "57th"/"2019", or words like congress/meeting/annual).
+  * Venues that are blank stay "unknown" unless the report's own DOI or URL points
+    to a repository, in which case they are labelled repository / preprint. The
+    repository identifiers (DOI prefixes, URL hosts) are learned from the data.
 """
 import re
+from collections import Counter
+from urllib.parse import urlparse
+import json
+from pathlib import Path
 
-REPLICATION_OUTCOMES = ['successful', 'failed', 'mixed', 'inconclusive', 'qualified', 'other']
+OUTCOME_VOCABULARY = json.loads((Path(__file__).resolve().parents[1] / "data/outcome_vocabulary.json").read_text(encoding="utf-8"))
+
+REPLICATION_OUTCOMES = [item['key'] for item in OUTCOME_VOCABULARY['replication']]
 MULTI_TARGET_THRESHOLD = 3
 VENUE_LABELS = {'journal': 'Other named venue', 'preprint': 'Repository / preprint',
                 'conference': 'Conference output', 'thesis': 'Thesis / dissertation', 'unknown': 'Unknown venue'}
 
-def classify_outcome(raw):
-    return {'successful': 'successful', 'replicated': 'successful', 'failed': 'failed',
-            'not replicated': 'failed', 'mixed': 'mixed', 'partial': 'mixed',
-            'inconclusive': 'inconclusive', 'statistically successful but flawed': 'qualified'}.get(str(raw or '').strip().lower(), 'other')
+def classify_outcome(raw, dimension='replication'):
+    value = str(raw if raw is not None else '').strip().lower()
+    if value in OUTCOME_VOCABULARY['missing_markers']:
+        return 'missing'
+    return next((item['key'] for item in OUTCOME_VOCABULARY[dimension]
+                 if value in item['aliases']), 'unrecognised')
 
-def classify_venue(raw):
+PREPRINT_KEYS = ['osf', 'arxiv', 'preprint', 'ssrn', 'working paper', 'repository', 'registries', 'biorxiv',
+                 'medrxiv', 'psyarxiv', 'psycharchiv', 'zenodo']
+THESIS_KEYS = ['thesis', 'theses', 'dissertation', 'dissertaç', 'teses']
+STRONG_CONFERENCE_KEYS = ['conference', 'symposium', 'workshop']
+EVENT_KEYS = ['congress', 'meeting', 'annual']
+_MISSING = ('', 'na', 'nan', 'none', 'null')
+
+
+def _is_conference(j):
+    if any(k in j for k in STRONG_CONFERENCE_KEYS):
+        return True
+    if 'proceedings' in j:
+        # Ambiguous on its own: journals such as PNAS or Academy of Management Proceedings
+        # have no event marker; real proceedings name an edition, a year or an event.
+        return bool(re.search(r'\d', j)) or any(k in j for k in EVENT_KEYS)
+    return False
+
+
+def venue_only(raw):
+    """Venue rules applied to the recorded venue name alone (no DOI/URL fallback)."""
     j = str(raw or '').strip().lower()
-    if j in ('', 'na', 'nan', 'none', 'null'):
+    if j in _MISSING:
         return 'unknown'
-    if any(k in j for k in ['thesis', 'theses', 'dissertation', 'dissertaç', 'teses']):
+    if any(k in j for k in THESIS_KEYS):
         return 'thesis'
-    if any(k in j for k in ['conference', 'proceedings', 'symposium', 'workshop']):
+    if _is_conference(j):
         return 'conference'
-    if any(k in j for k in ['osf', 'arxiv', 'preprint', 'ssrn', 'working paper', 'repository', 'registries', 'biorxiv', 'medrxiv', 'psyarxiv', 'psycharchiv', 'zenodo']):
+    if any(k in j for k in PREPRINT_KEYS):
         return 'preprint'
     return 'journal'
+
+
+def _tokens(s):
+    """Alphabetic tokens (3+ letters) of an identifier; digits-bearing ids and versions are ignored."""
+    return {t for t in re.split(r'[^a-z0-9]+', str(s or '').lower()) if len(t) >= 3 and t.isalpha()}
+
+
+def doi_prefix(doi):
+    d = normalize_doi(doi)
+    return d.split('/')[0] if '/' in d else ''
+
+
+def _host(url):
+    u = str(url or '').strip().lower()
+    if u in _MISSING:
+        return ''
+    host = urlparse(u if '//' in u else '//' + u).netloc.split(':')[0]
+    return host[4:] if host.startswith('www.') else host
+
+_SECOND_LEVEL = {'co', 'ac', 'com', 'org', 'net', 'gov', 'edu'}
+
+
+def url_host(url):
+    """Registered domain of a URL (shs.hal.science -> hal.science; x.univ.ac.uk -> univ.ac.uk); '' when absent."""
+    host = _host(url)
+    labels = host.split('.') if host else []
+    if len(labels) < 2:
+        return host
+    n = 3 if len(labels) >= 3 and len(labels[-1]) == 2 and labels[-2] in _SECOND_LEVEL else 2
+    return '.'.join(labels[-n:])
+
+
+def _identifier_signals(doi, url):
+    """Three kinds of identifier evidence for one reference: DOI prefix, URL host, name tokens."""
+    d = normalize_doi(doi)
+    suffix = d.split('/', 1)[1] if '/' in d else d
+    host_labels = _host(url).split('.')[:-1]  # drop the top-level domain (org, com, ...)
+    return {'doi_prefixes': {doi_prefix(d)} - {''},
+            'hosts': {url_host(url)} - {''},
+            'tokens': _tokens(suffix) | _tokens('.'.join(host_labels))}
+
+
+def learn_repositories(df, venue_col='journal_r', doi_col='doi_r', url_col='url_r', min_n=2, min_share=0.5):
+    """Learn repository identifiers from the data, with no names supplied.
+
+    Over rows with a recorded venue, every DOI prefix, URL host and identifier word (e.g. the
+    "osf" in 10.31234/osf.io/abc, the "arxiv" in 10.48550/arxiv.2101.1) is scored by the share of
+    rows that the venue rules label preprint. A signal is kept when a majority (> min_share) of at
+    least min_n rows are preprints. Returns {'doi_prefixes', 'hosts', 'tokens'} as sets.
+    """
+    tot = {k: Counter() for k in ('doi_prefixes', 'hosts', 'tokens')}
+    pre = {k: Counter() for k in tot}
+    for venue, doi, url in zip(df[venue_col], df[doi_col], df[url_col]):
+        status = venue_only(venue)
+        if status == 'unknown':
+            continue
+        for kind, keys in _identifier_signals(doi, url).items():
+            for key in keys:
+                tot[kind][key] += 1
+                pre[kind][key] += (status == 'preprint')
+    return {k: {x for x, n in tot[k].items() if n >= min_n and pre[k][x] / n > min_share} for k in tot}
+
+
+def is_repository_reference(doi=None, url=None, repos=None):
+    if not repos:
+        return False
+    return any(sig & repos[kind] for kind, sig in _identifier_signals(doi, url).items())
+
+
+def classify_venue(raw, doi=None, url=None, repos=None):
+    """Venue label. For blank venues, a repository DOI/URL gives 'preprint'; otherwise 'unknown'."""
+    status = venue_only(raw)
+    if status == 'unknown' and is_repository_reference(doi, url, repos):
+        return 'preprint'
+    return status
+
+
+def legacy_classify_venue(raw):
+    """Previous venue rules (any "proceedings" is a conference; no identifier fallback).
+
+    Kept only as the baseline for the audit in compute_pub_status.py, which lists the pairs
+    whose category differs from these rules. Not used to produce the published data.
+    """
+    j = str(raw or '').strip().lower()
+    if j in _MISSING:
+        return 'unknown'
+    if any(k in j for k in THESIS_KEYS):
+        return 'thesis'
+    if any(k in j for k in STRONG_CONFERENCE_KEYS + ['proceedings']):
+        return 'conference'
+    if any(k in j for k in PREPRINT_KEYS):
+        return 'preprint'
+    return 'journal'
+
 
 def normalize_doi(raw):
     d = str(raw or '').strip().lower()
     if d in ('nan', 'na', 'none'): return ''
     return re.sub(r'^(https?://(dx\.)?doi\.org/|doi:\s*)', '', d).strip('/ ')
 
-def parse_reproduction_outcome(raw):
-    """Read independent computational and robustness dimensions, in that order."""
-    parts = str(raw or '').lower().split(',')
-    computational = {'computationally reproducible':'successful', 'computationally successful':'successful',
-                     'computational issues':'issues', 'technical failure':'technical_failure',
-                     'failed':'technical_failure', 'not checked':'not_checked'}
-    robustness = {'robust':'robust', 'robustness challenges':'challenges', 'not checked':'not_checked',
-                  'robustness not checked':'not_checked'}
-    return computational.get(parts[0].strip()), robustness.get(parts[1].strip() if len(parts)>1 else '')
+# Each study type is described by its own columns. The combined outcome, outcome_quote and
+# outcome_quote_source stay in flora.csv for backward compatibility only; nothing classifies them.
+REPLICATION_COLUMNS = ("outcome_replication", "outcome_replication_quote", "out_quote_replication_source")
+REPRODUCTION_OUTCOME_COLUMNS = ("outcome_computation", "outcome_robustness")
+OUTCOME_COLUMNS = ("outcome_replication",) + REPRODUCTION_OUTCOME_COLUMNS
+# TODO: remove after the first FLoRA release that ships the replication columns. Until then
+# they are copied from the combined fields, which hold identical values for replications.
+_REPLICATION_FALLBACK = dict(zip(REPLICATION_COLUMNS, ("outcome", "outcome_quote", "outcome_quote_source")))
+
+
+def is_reproduction(row) -> bool:
+    return "reproduc" in str(row.get("type") or "").lower()
+
+
+def with_outcome_columns(df):
+    """Return a DataFrame that has the replication columns (see _REPLICATION_FALLBACK)."""
+    import pandas as pd
+    df = df.copy()
+    # The same type-column names load_flora_raw accepts; no type column means all replications.
+    type_col = next((c for name in ("type", "study_type", "ref_type") for c in df.columns if c.lower() == name), None)
+    reproduction = (df[type_col].astype(str).str.lower().str.contains("reproduc", na=False)
+                    if type_col else pd.Series(False, index=df.index))
+    for column, combined in _REPLICATION_FALLBACK.items():
+        if column not in df.columns and combined in df.columns:
+            df[column] = df[combined].where(~reproduction, "")
+    return df
+
+
+def add_outcome_columns(rows: list[dict]) -> list[dict]:
+    """The same fallback as with_outcome_columns(), for csv.DictReader rows."""
+    for row in rows:
+        for column, combined in _REPLICATION_FALLBACK.items():
+            if column not in row and combined in row:
+                row[column] = "" if is_reproduction(row) else row[combined]
+    return rows
+
+
+def load_outcome_columns(path):
+    """Outcome columns of flora.csv as recorded, without pandas turning "NA" into a missing value."""
+    import pandas as pd
+    raw = with_outcome_columns(pd.read_csv(path, keep_default_na=False, dtype=str))
+    return raw[[column for column in OUTCOME_COLUMNS if column in raw.columns]]
+
+
+def replication_outcome(row) -> str:
+    return classify_outcome(row.get("outcome_replication"))
+
+
+def reproduction_dimensions(row):
+    """Classify a reproduction row's two independent verdicts from their own columns."""
+    return (classify_outcome(row.get("outcome_computation"), "computational"),
+            classify_outcome(row.get("outcome_robustness"), "robustness"))
+
+
+def study_outcome_fields(row) -> dict:
+    """Verdict columns to carry into a per-study summary for this row's study type."""
+    columns = REPRODUCTION_OUTCOME_COLUMNS if is_reproduction(row) else ("outcome_replication",)
+    return {column: _clean_text(row.get(column)) for column in columns}
+
+
+def _clean_text(value):
+    text = "" if value is None or value != value else str(value).strip()  # value != value: NaN
+    return text or None
 
 
 def reference_key(doi, url=None):
