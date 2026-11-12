@@ -22,7 +22,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import requests
-import statsmodels.api as sm
 from tqdm import tqdm
 
 from classification import REPRODUCTION_OUTCOME_COLUMNS, reproduction_dimensions, with_outcome_columns
@@ -43,6 +42,8 @@ EMAIL = os.environ.get("MY_EMAIL", "").strip()
 
 CACHE_TTL_DAYS = 30
 CURRENT_YEAR = datetime.now(timezone.utc).year
+# The current calendar year is only partly observed, so per-year counts stop at the year before.
+LAST_COMPLETE_YEAR = CURRENT_YEAR - 1
 EVENT_WINDOW = (-5, 5)
 
 MAX_RUNTIME_SECONDS = int(os.environ.get("MAX_RUNTIME_SECONDS", 5 * 3600))
@@ -715,12 +716,15 @@ def build_panel(studies: dict, require_pre_window: bool = True) -> pd.DataFrame:
         if s["year"] is None:
             continue
         treat_year = s["first_replication_year"]
-        if treat_year is None or treat_year > CURRENT_YEAR - EVENT_WINDOW[1]:
+        if treat_year is None or treat_year > LAST_COMPLETE_YEAR - EVENT_WINDOW[1]:
+            continue
+        # A replication dated before its original has no event-year 0 row and would unbalance the panel.
+        if treat_year < s["year"]:
             continue
         if require_pre_window and treat_year - s["year"] < -EVENT_WINDOW[0]:
             continue
         y_min = s["year"]
-        y_max = CURRENT_YEAR
+        y_max = LAST_COMPLETE_YEAR
         # Distinct citing works per year. "only" and "with_any" are disjoint
         # (a work either co-cites no replication or is counted once in with_any),
         # so only+with_any avoids double-counting a work that co-cites
@@ -755,94 +759,6 @@ def build_panel(studies: dict, require_pre_window: bool = True) -> pd.DataFrame:
     panel["event_time"] = panel["year"] - panel["treat_year"]
     panel["post"] = (panel["event_time"] >= 0).astype(int)
     return panel
-
-
-def event_study(panel: pd.DataFrame, outcomes: list[str], depvar: str) -> dict:
-    """
-    Event-study with study + year fixed effects via manual two-way demeaning.
-    Outcome is log(1+y); coefficients are interpreted as approx. log effects.
-    Robust to thousands of units.
-    """
-    empty = {"event_time": [], "estimate": [], "ci_low": [], "ci_high": [],
-             "att": None, "att_ci": None, "n_units": 0}
-    if panel.empty or "outcome" not in panel.columns:
-        return empty
-
-    p = panel[panel["outcome"].isin(
-        outcomes) & panel["treat_year"].notna()].copy()
-    if p.empty:
-        return empty
-
-    lo, hi = EVENT_WINDOW
-    p = p[p["event_time"].between(lo, hi)].copy()
-    if p.empty or p["doi"].nunique() < 5:
-        return empty | {"n_units": int(p["doi"].nunique())}
-
-    p["y"] = np.log1p(p[depvar].astype(float))
-
-    dummies = pd.get_dummies(p["event_time"].astype(
-        int), prefix="et", drop_first=False)
-    if "et_-1" in dummies.columns:
-        dummies = dummies.drop(columns=["et_-1"])
-
-    work_cols = ["y"] + list(dummies.columns)
-    work = pd.concat([
-        p[["doi", "year", "y"]].reset_index(drop=True),
-        dummies.reset_index(drop=True).astype(float),
-    ], axis=1)
-
-    # Iterative two-way within transformation
-    try:
-        for _ in range(20):
-            for grp in ["doi", "year"]:
-                work[work_cols] = work[work_cols] - \
-                    work.groupby(grp)[work_cols].transform("mean")
-    except Exception as e:
-        print(f"  ! demean fail ({outcomes}, {depvar}): {e}")
-        return empty | {"n_units": int(p["doi"].nunique())}
-
-    X = work[list(dummies.columns)].values
-    y = work["y"].values
-    try:
-        ols = sm.OLS(y, X).fit(cov_type="cluster",
-                               cov_kwds={"groups": p["doi"].values})
-    except Exception as e:
-        print(f"  ! event_study OLS fail ({outcomes}, {depvar}): {e}")
-        return empty | {"n_units": int(p["doi"].nunique())}
-
-    coef = dict(zip(dummies.columns, ols.params))
-    se = dict(zip(dummies.columns, ols.bse))
-
-    rows = []
-    for t in range(lo, hi + 1):
-        if t == -1:
-            rows.append({"event_time": t, "estimate": 0.0,
-                        "ci_low": 0.0, "ci_high": 0.0})
-            continue
-        key = f"et_{t}"
-        if key not in coef:
-            continue
-        b = float(coef[key])
-        s = float(se[key])
-        rows.append({"event_time": t, "estimate": b,
-                     "ci_low": b - 1.96 * s, "ci_high": b + 1.96 * s})
-
-    post = [r for r in rows if r["event_time"] >= 0]
-    att = float(np.mean([r["estimate"] for r in post])) if post else None
-    att_ci = None
-    if post:
-        ses = [(r["ci_high"] - r["estimate"]) / 1.96 for r in post]
-        avg_se = float(np.sqrt(np.mean(np.square(ses))) / np.sqrt(len(post)))
-        att_ci = [att - 1.96 * avg_se, att + 1.96 * avg_se]
-
-    return {
-        "event_time": [r["event_time"] for r in rows],
-        "estimate":   [r["estimate"] for r in rows],
-        "ci_low":     [r["ci_low"] for r in rows],
-        "ci_high":    [r["ci_high"] for r in rows],
-        "att": att, "att_ci": att_ci,
-        "n_units": int(p["doi"].nunique()),
-    }
 
 
 def descriptive_trajectory(panel: pd.DataFrame, outcomes: list[str]) -> dict:
@@ -919,6 +835,7 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
     No reproduction event-study model is fitted.
     """
     citation_cache = {}
+    citation_years = {}
     entity_cache = {}
 
     def required_citations(doi):
@@ -930,8 +847,9 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
             if rows is None:
                 raise RuntimeError(
                     f"Citation lookup failed for {doi}; retaining previous reproduction summary")
-            citation_cache[doi] = {citing_key(
-                c["citing"]) for c in rows if c.get("citing")}
+            citation_years[doi] = {citing_key(c["citing"]): c.get("year")
+                                   for c in rows if c.get("citing")}
+            citation_cache[doi] = set(citation_years[doi])
         return citation_cache[doi]
 
     def bucket_stats(bucket_col: str, buckets: list[str]) -> dict:
@@ -949,6 +867,7 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
                 n_citations_o += len(co)
                 per_original.append(len(co))
                 rep_citing = set()
+                rep_years = []
                 for _, row in grp.iterrows():
                     if row["doi_r"] != doi_o:
                         cr = required_citations(row["doi_r"])
@@ -965,10 +884,17 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
                             if f"doi:{row['doi_r']}" in entity_cache[doi_o]:
                                 continue
                         rep_citing.update(cr)
-                n_cocit_o = sum(1 for c in co if c in rep_citing)
-                n_cocitations += n_cocit_o
-                if co:
-                    cocit_rates.append(n_cocit_o / len(co))
+                        rep_years.append(parse_year(row.get("year_r")))
+                n_cocitations += sum(1 for c in co if c in rep_citing)
+                # Rate counts only citations from the earliest reproduction's year, when co-citation became possible.
+                known_years = [y for y in rep_years if y is not None]
+                if known_years:
+                    since = min(known_years)
+                    co_since = [c for c, y in citation_years[doi_o].items()
+                                if y is not None and y >= since]
+                    if co_since:
+                        cocit_rates.append(
+                            sum(1 for c in co_since if c in rep_citing) / len(co_since))
             out[b] = {
                 "n_originals": int(sub["doi_o"].nunique()),
                 "n_reproductions": int(sub["doi_r"].nunique()),
@@ -1004,8 +930,6 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
         aggregate[label] = {
             "descriptive":       descriptive_trajectory(panel, outcomes),
             "descriptive_cocit": descriptive_trajectory(cocit_panel, outcomes),
-            "citations_model":   event_study(panel, outcomes, "n_cit"),
-            "cocitations_model": event_study(cocit_panel, outcomes, "n_cocit"),
         }
 
     originals_index = []

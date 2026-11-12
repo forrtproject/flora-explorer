@@ -237,8 +237,8 @@
         renderSampleSize('plot-cocit-sample', data.descriptive_cocit || data.descriptive, COCIT_EVENT_WINDOW, 'with 5 years of citation data after the first replication');
         renderCocitDenominator();
         renderCitFootnote(data.descriptive);
-        drawAggregatePlot('plot-cit', data, 'mean_citations', 'citations_model', 'Mean citations per year', CI.outcome);
-        drawAggregatePlot('plot-cocit', { ...data, descriptive: data.descriptive_cocit || data.descriptive }, 'mean_cocitations', 'cocitations_model', 'Mean co-citations per year', CI.outcome, COCIT_EVENT_WINDOW);
+        drawAggregatePlot('plot-cit', data, 'mean_citations', 'Mean citations per year', CI.outcome);
+        drawAggregatePlot('plot-cocit', { ...data, descriptive: data.descriptive_cocit || data.descriptive }, 'mean_cocitations', 'Mean co-citations per year', CI.outcome, COCIT_EVENT_WINDOW);
     }
 
 
@@ -253,7 +253,7 @@
             ? CI.index.filter(s => s.n_citations_post_first_rep > 0).length
             : CI.cocitBreakdown?.outcome?.[CI.outcome]?.n_originals;
         const group = CI.outcome === 'all' ? 'replication' : `${FloraVocabulary.label(CI.outcome).toLowerCase()} replication`;
-        el.innerHTML = n == null ? '' : `Co-citation rate defined for <strong><i>N</i> = ${FloraCharts.number(n)}</strong> originals (≥ 1 ${group}; ≥ 1 citation since the first ${group}).`;
+        el.innerHTML = n == null ? '' : `The co-citation rate table below covers <strong><i>N</i> = ${FloraCharts.number(n)}</strong> originals (≥ 1 ${group}; ≥ 1 citation since the first ${group}), a wider set than the plotted panel above.`;
     }
 
     function renderCitFootnote(desc) {
@@ -280,11 +280,10 @@
         return out;
     }
 
-    function drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome, eventWindow) {
-        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, modelField, ylabel, outcome, eventWindow)); return; }
+    function drawAggregatePlot(divId, data, descField, ylabel, outcome, eventWindow) {
+        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, ylabel, outcome, eventWindow)); return; }
         const rawDesc = data.descriptive || {};
         const desc = eventWindow && rawDesc.event_time ? sliceDescriptive(rawDesc, eventWindow) : rawDesc;
-        const model = data[modelField] || {};
         const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
         const traces = [];
 
@@ -304,10 +303,6 @@
             margin: { t: 30, r: 50, b: 50, l: 60 },
             xaxis: { title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font },
             yaxis: { title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero' },
-            yaxis2: {
-                title: 'Distinct originals', ...FloraCharts.countAxis(Math.max(0,...(desc.n_units || []))), overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
-                tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
-            },
             shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: t.primary, width: 1.5, dash: 'dash' } }],
             annotations: [{ x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: { size: 11, color: t.primary } }],
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,

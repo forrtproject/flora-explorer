@@ -250,7 +250,6 @@ window.FloraCharts = (() => {
             return Plotly.react(el, display, layout, config);
         }
         const rows=[];
-        const coefficient = id.endsWith('-model');
         const timeline = id === 'study-plot';
         const trajectory = id === 'plot-cit' || id === 'plot-cocit';
         const hasIntervals = display.some(trace => trace.error_x || trace.error_y);
@@ -258,7 +257,7 @@ window.FloraCharts = (() => {
             const horizontal=t.orientation==='h';
             const category=horizontal ? t.y?.[i] : x;
             const value=horizontal ? x : t.y?.[i]; const err=horizontal ? t.error_x : t.error_y;
-            const unit = coefficient ? 'Coefficient: log(1 + count)' : timeline ? 'Citing works' : trajectory ? t.yaxis === 'y2' ? 'Distinct originals' : id === 'plot-cit' ? 'Mean citations per original per year' : 'Mean co-citations per original per year' : 'Reference pairs';
+            const unit = timeline ? 'Citing works' : trajectory ? id === 'plot-cit' ? 'Mean citations per original per year' : 'Mean co-citations per original per year' : 'Reference pairs';
             const row = [t.name || 'Series',category,value,unit];
             if (hasIntervals) row.push(err ? value-(err.arrayminus?.[i] ?? err.array?.[i] ?? 0) : '', err ? value+(err.array?.[i]??0) : '');
             rows.push(row);

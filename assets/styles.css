@@ -432,12 +432,6 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
 .chip.active { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); }
 
-.att-callout {
-    margin: 1rem 0; background: var(--color-surface-subtle);
-    border-left: 4px solid var(--color-primary); padding: 0.85rem 1.1rem;
-    border-radius: 0 6px 6px 0; font-size: var(--text-md); color: var(--color-text);
-}
-.att-callout strong { color: var(--color-primary); }
 .plot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1rem; }
 @media (max-width: 900px) { .plot-grid { grid-template-columns: 1fr; } }
 .plot-card {
@@ -445,7 +439,8 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
     border-radius: 8px; padding: 1rem; box-shadow: 0 1px 2px var(--color-shadow);
 }
 .plot-card h3 { margin: 0 0 0.5rem; font-size: 0.98rem; color: var(--color-primary); font-family: var(--font-display); font-weight: 600; }
-.plot-sample { margin: -0.3rem 0 0.5rem; font-size: 0.82rem; }
+/* Outranks .ci-card .muted, which would otherwise reset the size. */
+.plot-card .plot-sample { margin: -0.3rem 0 0.5rem; font-size: 0.82rem; }
 .plot { width: 100%; height: 360px; }
 .plot-footnote { margin: 0.75rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--color-border); font-size: 0.82rem; line-height: 1.4; color: var(--color-text-secondary); }
 .plot-footnote:empty { display: none; }
@@ -652,7 +647,6 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .top-bar.navigation-collapsed .mobile-navigation {display:flex;gap:.5rem;align-items:center;color:white;flex:1;min-width:0;}
 .mobile-navigation select {max-width:100%;min-width:0;width:100%;padding:.4rem;background:#333;color:white;border:1px solid #aaa;border-radius:.3rem;}
 .top-bar.navigation-collapsed .nav-tabs {display:none;}
-.coefficient-plot {min-height:340px;margin-top:1rem;}
 .tab-cite-block {margin:1rem 0;}
 .tab-cite-block:not([open]) {padding:.6rem 1rem;}
 @media(max-width:767px) {
