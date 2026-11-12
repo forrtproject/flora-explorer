@@ -138,6 +138,8 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
 
 # ── Load & split by study type ─────────────────────────────────────────────────
 df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
+# Preserve source outcome codes; pandas also applies NA conversion after converters.
+df["outcome"] = pd.read_csv(IN_CSV, usecols=["outcome"], keep_default_na=False)["outcome"]
 for suffix, key in [("r", "report_key"), ("o", "target_key")]:
     df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
 df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()

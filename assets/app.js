@@ -33,15 +33,6 @@ const FAQ_URL = 'https://raw.githubusercontent.com/forrtproject/fred-data/refs/h
 
 // Getters read --color-chart-* tokens at render time so charts follow the theme.
 const chartToken = key => FloraCharts.token('--color-chart-' + key);
-const OUTCOME_COLORS = {
-    get successful()   { return chartToken('successful'); },
-    get failed()       { return chartToken('failed'); },
-    get mixed()        { return chartToken('mixed'); },
-    get inconclusive() { return chartToken('inconclusive'); },
-    get qualified()    { return chartToken('qualified'); },
-    get other()        { return chartToken('other'); },
-};
-
 // Filled at runtime from data/disciplines.json
 let DISCIPLINES = {};
 let JOURNAL_TO_DISCIPLINE = {};
@@ -71,14 +62,12 @@ let trendsInitialized = false;
 
 // ===== Utilities =====
 function classifyOutcome(raw) {
-    return ({ successful: 'successful', replicated: 'successful', failed: 'failed',
-        'not replicated': 'failed', mixed: 'mixed', partial: 'mixed', inconclusive: 'inconclusive',
-        'statistically successful but flawed': 'qualified' })[String(raw || '').trim().toLowerCase()] || 'other';
+    return FloraVocabulary.classify(raw);
 }
 
 function hasMatchedOutcome(row) {
     const c = classifyOutcome(row.outcome);
-    return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'inconclusive' || c === 'qualified';
+    return c === 'successful' || c === 'failed' || c === 'mixed' || c === 'qualified';
 }
 
 function classifyKind(row) {
@@ -87,7 +76,7 @@ function classifyKind(row) {
     if (t.includes('replic')) return 'replication';
     const o = (row.outcome || '').toLowerCase();
     if (o.includes('computational') || o.includes('robust')) return 'reproduction';
-    if (o) return 'replication';
+    if (o && !FloraVocabulary.isMissing(o)) return 'replication';
     return 'unknown';
 }
 function reportKindLabel(row) {
@@ -95,8 +84,8 @@ function reportKindLabel(row) {
 }
 
 // Splits a reproduction row's compound outcome string (e.g. "computationally successful,
-// robustness challenges") into its two independent dimensions. Either field is null when
-// that dimension hasn't been coded yet (including plain "NA").
+// robustness challenges") into its two independent dimensions. Missing, unrecognised
+// and explicitly unchecked verdicts have separate keys.
 // Reproduction outcome is a comma-joined "computational, robustness" string, always in
 // that fixed order - both the legacy vocabulary ("computationally successful, robust")
 // and the current one sourced from FReD-data's two-axis reproductions spreadsheet
@@ -106,11 +95,7 @@ function reportKindLabel(row) {
 // against computational keywords, part[1] only against robustness keywords - avoids any
 // cross-contamination between the two dimensions' text.
 function parseReproductionOutcome(raw) {
-    const parts = String(raw || '').toLowerCase().split(',').map(s=>s.trim());
-    const computational = {'computationally reproducible':'successful', 'computationally successful':'successful',
-        'computational issues':'issues', 'technical failure':'technical_failure', failed:'technical_failure', 'not checked':'not_checked'};
-    const robustness = {robust:'robust', 'robustness challenges':'challenges', 'not checked':'not_checked', 'robustness not checked':'not_checked'};
-    return {computational:computational[parts[0]] || null, robustness:robustness[parts[1]] || null};
+    return FloraVocabulary.reproduction(raw);
 }
 
 // Computational and robustness are two independently-assessed dimensions (see
@@ -168,30 +153,12 @@ const ANALYSIS_MIN_N = 5;
 
 // Outcome-bucket definitions shared by Authorship Overlap and Registered Reports, whose
 // by_outcome/by_rr breakdowns use the same bucket vocabulary as the Overview/Browse charts:
-// replications keep the canonical 4-outcome vocabulary; reproductions are split into their
+// replications keep the canonical outcome vocabulary; reproductions are split into their
 // two independently-coded dimensions (see parseReproductionOutcome).
 function studyTypeOutcomeBuckets(kind) {
-    if (kind === 'reproduction-numerical') {
-        return [
-            { key: 'successful', label: 'Successful', color: REPRODUCTION_COLORS.successful },
-            { key: 'issues', label: 'Computational issues', color: REPRODUCTION_COLORS.issues },
-            { key: 'technical_failure', label: 'Technical failure', color: REPRODUCTION_COLORS.technical_failure },
-        ];
-    }
-    if (kind === 'reproduction-robustness') {
-        return [
-            { key: 'robust', label: 'Robust', color: REPRODUCTION_COLORS.robust },
-            { key: 'challenges', label: 'Robustness challenges', color: REPRODUCTION_COLORS.challenges },
-        ];
-    }
-    return [
-        { key: 'successful', label: 'Successful', color: OUTCOME_COLORS.successful },
-        { key: 'failed', label: 'Failed', color: OUTCOME_COLORS.failed },
-        { key: 'mixed', label: 'Mixed', color: OUTCOME_COLORS.mixed },
-        { key: 'inconclusive', label: 'Inconclusive', color: OUTCOME_COLORS.inconclusive },
-        { key: 'qualified', label: 'Successful but flawed', color: OUTCOME_COLORS.qualified },
-        { key: 'other', label: 'Other / not coded', color: OUTCOME_COLORS.other },
-    ];
+    const dimension = kind === 'reproduction-numerical' ? 'computational' : kind === 'reproduction-robustness' ? 'robustness' : 'replication';
+    return FloraVocabulary.entries(dimension).filter(item => dimension === 'replication' || item.assessed)
+        .map(item => ({key:item.key, label:item.label, color:chartToken(item.color)}));
 }
 
 // Static copy that depends on the selected study type carries its three variants in
@@ -206,9 +173,7 @@ function applyKindText(root, kind) {
 }
 
 function studyTypeLabel(kind) {
-    if (kind === 'reproduction-numerical') return 'numerical reproductions';
-    if (kind === 'reproduction-robustness') return 'robustness reproductions';
-    return 'replications';
+    return FloraVocabulary.studyType(kind).toLowerCase();
 }
 
 let mcKind = 'replication';
@@ -227,19 +192,24 @@ setupStudyTypeSelect('pubtype-study-type', kind => {
     renderLargeScaleCharts();
 });
 
-function getOutcomeBadge(outcome) {
-    const raw = String(outcome || 'Not coded');
-    if (raw.includes(',') || /computational|robustness/i.test(raw)) {
-        const d = parseReproductionOutcome(raw);
-        const labels = {successful: 'Reproducible', issues: 'Computational issues', technical_failure: 'Technical failure',
-            robust: 'Robust', challenges: 'Robustness challenges', not_checked: 'Not checked'};
-        return [['Computational', d.computational], ['Robustness', d.robustness]].map(([label, key]) =>
-            `<span class="badge badge-${key === 'successful' || key === 'robust' ? 'successful' : key === 'issues' || key === 'challenges' || key === 'technical_failure' ? 'failed' : 'unknown'}">${label}: ${labels[key] || 'Not coded'}</span>`).join(' ');
+function getOutcomeBadge(row) {
+    const badge = (dimension, key, prefix = '') => {
+        const item = FloraVocabulary.item(dimension, key);
+        // The hidden colon keeps the text readable as "Computational: Reproduced" for screen readers and copy.
+        const dim = prefix ? `<span class="badge-dim">${prefix}<span class="visually-hidden">:</span></span> ` : '';
+        // "Robustness challenges" under a "Robustness" heading reads as "Challenges".
+        const value = prefix && item.label.toLowerCase().startsWith(prefix.toLowerCase() + ' ')
+            ? item.label.slice(prefix.length + 1).replace(/^./, c => c.toUpperCase()) : item.label;
+        return `<span class="badge outcome-tag badge-${item.key === 'technical_failure' ? 'failed' : item.color}" title="${escapeHtml(item.definition)}">${dim}<span class="badge-value">${value}</span></span>`;
+    };
+    if (classifyKind(row) === 'reproduction') {
+        const dimensions = parseReproductionOutcome(row.outcome);
+        return `<span class="outcome-tags">${badge('computational', dimensions.computational, 'Computational')} ${badge('robustness', dimensions.robustness, 'Robustness')}</span>`;
     }
-    return `<span class="badge badge-${classifyOutcome(raw)}">${escapeHtml(raw)}</span>`;
+    return badge('replication', classifyOutcome(row.outcome));
 }
 
-function getOutcomeBadgeShort(outcome) { return getOutcomeBadge(outcome); }
+function getOutcomeBadgeShort(row) { return getOutcomeBadge(row); }
 
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
@@ -273,6 +243,10 @@ function formatUrlOrDoiShort(url, doi) {
     const href = safeHref(url);
     if (href) return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" class="doi-link" title="${escapeHtml(url)}">${escapeHtml(url.replace(/^https?:\/\/(www\.)?/i, ''))}</a>`;
     return formatDOI(doi, true);
+}
+function urlOrDoiShortText(url, doi) {
+    if (safeHref(url)) return url.replace(/^https?:\/\/(www\.)?/i, '');
+    return doi ? String(doi).replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '') : '';
 }
 
 function formatAuthors(authorData) {
@@ -362,53 +336,21 @@ function updateOverviewStats(data) {
     document.getElementById('ov-reproductions').textContent = reproductions.toLocaleString();
 }
 
-// Muted grays for "not yet coded"/"not checked" - distinct from the successful/failed/
-// mixed palette so an unassessed reproduction never reads as an outcome.
-const REPRODUCTION_COLORS = {
-    get successful()        { return chartToken('successful'); },
-    get issues()            { return chartToken('failed'); },
-    get technical_failure() { return chartToken('technical-failure'); },
-    get robust()            { return chartToken('successful'); },
-    get challenges()        { return chartToken('failed'); },
-    get not_checked()       { return chartToken('not-checked'); },
-    get not_coded()         { return chartToken('not-coded'); },
-};
-
 // Builds the {datasets, total} for one of the three outcome dimensions shown on the
 // Overview and Browse Studies tabs. 'replicability' mirrors the original single-chart
 // logic (replications only); 'computational'/'robustness' bucket reproduction rows by
 // the two independent dimensions parsed out of their compound outcome string.
 function computeKindChartData(data, kind) {
-    if (kind === 'replicability') {
-        const eligible = data.filter(r => classifyKind(r) === 'replication');
-        const buckets = studyTypeOutcomeBuckets('replication');
-        const counts = Object.fromEntries(buckets.map(b => [b.key, 0]));
-        eligible.forEach(row => counts[classifyOutcome(row.outcome)]++);
-        return { total: eligible.length, datasets: buckets.map(b => ({label: b.label, data: [counts[b.key]], backgroundColor: b.color})) };
-    }
-    const repro = data.filter(r => classifyKind(r) === 'reproduction');
-    if (kind === 'computational') {
-        const counts = { successful: 0, issues: 0, technical_failure: 0 };
-        repro.forEach(r => { const c = parseReproductionOutcome(r.outcome).computational; if (counts[c] !== undefined) counts[c]++; });
-        return {
-            total: counts.successful + counts.issues + counts.technical_failure,
-            datasets: [
-                { label: 'Successful',           data: [counts.successful],        backgroundColor: REPRODUCTION_COLORS.successful },
-                { label: 'Computational issues', data: [counts.issues],            backgroundColor: REPRODUCTION_COLORS.issues },
-                { label: 'Technical failure',    data: [counts.technical_failure], backgroundColor: REPRODUCTION_COLORS.technical_failure }
-            ]
-        };
-    }
-    // robustness
-    const counts = { robust: 0, challenges: 0 };
-    repro.forEach(r => { const rb = parseReproductionOutcome(r.outcome).robustness; if (counts[rb] !== undefined) counts[rb]++; });
-    return {
-        total: counts.robust + counts.challenges,
-        datasets: [
-            { label: 'Robust',                data: [counts.robust],     backgroundColor: REPRODUCTION_COLORS.robust },
-            { label: 'Robustness challenges', data: [counts.challenges], backgroundColor: REPRODUCTION_COLORS.challenges }
-        ]
-    };
+    const replication = kind === 'replicability';
+    const eligible = data.filter(row => classifyKind(row) === (replication ? 'replication' : 'reproduction'));
+    const buckets = studyTypeOutcomeBuckets(replication ? 'replication' : kind === 'computational' ? 'reproduction-numerical' : 'reproduction-robustness');
+    const counts = Object.fromEntries(buckets.map(bucket => [bucket.key, 0]));
+    eligible.forEach(row => {
+        const key = replication ? classifyOutcome(row.outcome) : parseReproductionOutcome(row.outcome)[kind];
+        if (counts[key] !== undefined) counts[key]++;
+    });
+    return {total:Object.values(counts).reduce((sum, count) => sum + count, 0),
+        datasets:buckets.map(bucket => ({label:bucket.label, data:[counts[bucket.key]], backgroundColor:bucket.color}))};
 }
 
 // Visible caption giving each outcome chart's denominator, exclusions and counts, so
@@ -417,13 +359,18 @@ function kindChartCaption(data, kind) {
     const { datasets, total } = computeKindChartData(data, kind);
     const pct = n => FloraCharts.percent(n, total);
     const counts = datasets.map(d => `${d.label} ${d.data[0].toLocaleString()} (${pct(d.data[0])}%)`).join(' · ');
-    if (kind === 'replicability') return `${total.toLocaleString()} replication ${total === 1 ? 'pair' : 'pairs'}: ${counts}.`;
+    if (kind === 'replicability') return `${total.toLocaleString()} replication reference ${total === 1 ? 'pair' : 'pairs'}: ${counts}.`;
     const eligible = data.filter(r => classifyKind(r) === 'reproduction').length;
     const dimension = kind === 'computational' ? 'a computational verdict' : 'a robustness verdict';
     const scope = total === eligible
-        ? `${total.toLocaleString()} reproduction ${total === 1 ? 'pair has' : 'pairs have'} ${dimension}`
-        : `${total.toLocaleString()} of ${eligible.toLocaleString()} reproduction pairs have ${dimension}; ${(eligible - total).toLocaleString()} not checked or not coded`;
+        ? `${total.toLocaleString()} reproduction reference ${total === 1 ? 'pair has' : 'pairs have'} ${dimension}`
+        : `${total.toLocaleString()} of ${eligible.toLocaleString()} reproduction reference pairs have ${dimension}; ${(eligible - total).toLocaleString()} not checked or not coded`;
     return `${scope}. ${total ? counts + '. ' : ''}A reference pair can contribute to both dimensions.`;
+}
+function omitEmptyCategoryTiles(container) {
+    container.querySelectorAll('.mc-stat, .mc-stat-box').forEach(tile => {
+        if (tile.querySelector('.mc-stat-value')?.textContent.trim() === '0') tile.remove();
+    });
 }
 function setCaption(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
 
@@ -495,12 +442,12 @@ function renderRandomExamples(data) {
         const repTitle = r.title_r || `${shortAuthors(r.author_r)} (${r.year_r || 'n.d.'})`;
         const repMeta = [shortAuthors(r.author_r), r.year_r].filter(Boolean).join(' · ');
         const origInner = `
-            <span class="ex-line-label">Original</span>
+            <span class="ex-line-label">Original report</span>
             <span class="ex-line-title">${escapeHtml(truncateText(origTitle, 110))}</span>
             ${origMeta ? `<span class="ex-line-meta">${escapeHtml(origMeta)}</span>` : ''}
         `;
         const repInner = `
-            <span class="ex-line-label">${reportKindLabel(r)}</span>
+            <span class="ex-line-label">${reportKindLabel(r)} report</span>
             <span class="ex-line-title">${escapeHtml(truncateText(repTitle, 110))}</span>
             ${repMeta ? `<span class="ex-line-meta">${escapeHtml(repMeta)}</span>` : ''}
         `;
@@ -509,7 +456,7 @@ function renderRandomExamples(data) {
             <div class="example-card outcome-${cls}">
                 ${studyLink(r.doi_o, null, origInner)}
                 ${hasRep ? studyLink(r.doi_r, r.url_r, repInner) : ''}
-                <div class="ex-outcome">${getOutcomeBadge(r.outcome)}${r.type ? '<span class="badge bg-light text-dark">' + escapeHtml(r.type) + '</span>' : ''}</div>
+                <div class="ex-outcome">${getOutcomeBadge(r)}${r.type ? '<span class="badge bg-light text-dark">' + escapeHtml(r.type) + '</span>' : ''}</div>
             </div>
         `;
     }).join('');
@@ -739,13 +686,87 @@ async function loadFaqs() {
     }
 }
 
+// ===== Browse: outcome evidence =====
+const CLAIM_ID_SEP = String.raw`(?:\s*,\s*(?:and\s+|\.\.\.\s*|…\s*)?|\s+and\s+)`;
+const CLAIM_ID_RUN = new RegExp(String.raw`(?<![\w/.@:-])[a-z0-9]{6}(?:'s)?(?:${CLAIM_ID_SEP}[a-z0-9]{6}(?:'s)?)*(?![\w/-])`, 'g');
+const ONE_CLAIM_ID = '\u0001', MANY_CLAIM_IDS = '\u0002';
+const isCodedClaimId = t => /\d/.test(t) && /[a-z]/.test(t);
+// Letter-only IDs (e.g. "gdyrdr") look like words; at most one vowel keeps six-letter words such as "claims" out.
+const looksLikeLetterClaimId = t => /^[a-z]{6}$/.test(t) && (t.match(/[aeiou]/g) || []).length <= 1;
+
+function markClaimIds(text) {
+    return text.replace(/"([a-z0-9]{6})"/g, (m, id) => isCodedClaimId(id) ? id : m).replace(CLAIM_ID_RUN, (run, offset, whole) => {
+        const parts = run.split(new RegExp(`(${CLAIM_ID_SEP})`));
+        const raw = parts.filter((_, i) => i % 2 === 0);
+        const seps = parts.filter((_, i) => i % 2 === 1);
+        const ids = raw.map(t => t.replace(/'s$/, ''));
+        const followedByVerdict = /^\s+"did/.test(whole.slice(offset + run.length));
+        const isId = ids.map((t, i) => isCodedClaimId(t) || (looksLikeLetterClaimId(t) &&
+            ([ids[i - 1], ids[i + 1]].some(n => n && isCodedClaimId(n)) || (i === ids.length - 1 && followedByVerdict))));
+        if (!isId.some(Boolean)) return run;
+        let out = '';
+        for (let i = 0; i < raw.length;) {
+            if (!isId[i]) { out += (i ? seps[i - 1] : '') + raw[i]; i++; continue; }
+            let j = i; while (j + 1 < raw.length && isId[j + 1]) j++;
+            out += (i ? seps[i - 1] : '') + (j > i ? MANY_CLAIM_IDS : ONE_CLAIM_ID) + (raw[j].endsWith("'s") ? "'s" : '');
+            i = j + 1;
+        }
+        return out;
+    });
+}
+
+// Display only: exports and search keep the raw text. IDs that name a claim become "one claim"/"some claims".
+function stripClaimIds(text) {
+    if (!text || !/claim/i.test(text)) return text;
+    const marked = markClaimIds(text);
+    if (!/[\u0001\u0002]/.test(marked)) return text;
+    const X = '[\u0001\u0002]';
+    const label = id => id === MANY_CLAIM_IDS ? 'some claims' : 'one claim';
+    return marked
+        .replace(new RegExp(String.raw`\s*\(\s*${X}\s*\)`, 'g'), '')
+        .replace(new RegExp(String.raw`([(;])\s*${X}\s*[,/]\s*`, 'g'), (m, p) => p === ';' ? '; ' : p)
+        .replace(new RegExp(String.raw`${X}\s*/\s*`, 'g'), '')
+        .replace(new RegExp(String.raw`:\s*${X}(?=\s*[)\];,.]|"|$)`, 'g'), '')
+        .replace(new RegExp(String.raw`\b(claims?)\s+${X}\s*:`, 'gi'), '$1:')
+        .replace(new RegExp(String.raw`\bclaim\s+(${X})'s`, 'gi'), (m, id) => `${label(id)}'s`)
+        .replace(new RegExp(String.raw`(${X})'s`, 'g'), (m, id) => `${label(id)}'s`)
+        .replace(new RegExp(String.raw`\bclaims\s+${X}(?=\s+[a-z])`, 'g'), 'some claims')
+        .replace(new RegExp(String.raw`(^|[;,(]\s*|\b(?:while|but|and|for)\s+)claim\s+(${X})`, 'g'), (m, p, id) => p + label(id))
+        .replace(new RegExp(String.raw`\b(for|of|but|while)\s+(${X})`, 'g'), (m, w, id) => `${w} ${label(id)}`)
+        .replace(new RegExp(String.raw`(${X})(?=\s+")`, 'g'), (m, id) => label(id))
+        .replace(new RegExp(String.raw`${X}\s*:\s*`, 'g'), '')
+        .replace(new RegExp(String.raw`\s*,\s*${X}`, 'g'), '')
+        .replace(new RegExp(X, 'g'), '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\s+([,;:)])/g, '$1')
+        .replace(/\(\s+/g, '(')
+        .trim();
+}
+
+function outcomeEvidenceParts(row) {
+    return String(row.outcome_quote || '').split('||').map(p => p.trim()).filter(Boolean).map(part => {
+        const m = part.match(/^(Computational|Robustness):\s*/);
+        const text = m ? part.slice(m[0].length) : part;
+        return { label: m ? m[1] : '', text: row.type === 'reproduction' ? stripClaimIds(text) : text };
+    });
+}
+
+function formatOutcomeEvidence(row) {
+    const parts = outcomeEvidenceParts(row);
+    if (!parts.length) return '<p class="small">No outcome evidence is recorded for this pair.</p>';
+    const items = parts.map(p => `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}</li>`).join('');
+    return `<div class="detail-label">Outcome evidence (quotation or coding note):</div>
+        <ul class="outcome-evidence">${items}</ul>
+        <p class="small">${row.outcome_quote_source ? `Source: ${escapeHtml(row.outcome_quote_source)}. ` : ''}This text may be quoted from the report or written by a coder, may cover only part of the findings and may not fully explain the recorded outcome.</p>`;
+}
+
 // ===== Browse: detail row =====
 function formatDetailRow(rowData) {
     return `
         <div class="detail-row">
             <div class="detail-grid">
                 <div class="detail-card">
-                    <h6>Original Study</h6>
+                    <h6>Original report</h6>
                     <div class="detail-section">
                         <div><span class="detail-label">Title:</span> <span class="detail-value">${escapeHtml(rowData.title_o) || '-'}</span></div>
                         <div><span class="detail-label">Authors:</span> <span class="detail-value">${formatAuthors(rowData.author_o)}</span></div>
@@ -768,39 +789,47 @@ function formatDetailRow(rowData) {
             <div class="detail-card mt-3">
                 <h6>Recorded evidence</h6>
                 <div class="detail-section">
-                    <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData.outcome)}</span></div>
-                    ${rowData.outcome_quote ? `<div><span class="detail-label">Outcome quotation:</span> <span class="detail-value" style="font-style: italic;">"${escapeHtml(rowData.outcome_quote)}"</span></div><p class="small">${rowData.outcome_quote_source ? `Source: ${escapeHtml(rowData.outcome_quote_source)}. ` : ""}This excerpt may cover only part of the findings and may not fully explain the recorded outcome.</p>` : '<p class="small">No supporting quotation is recorded for this pair.</p>'}
+                    <div><span class="detail-label">Outcome:</span> <span class="detail-value">${getOutcomeBadge(rowData)}</span></div>
+                    <div><span class="detail-label">Source outcome:</span> <span class="detail-value">${escapeHtml(rowData.outcome)}</span></div>
+                    ${formatOutcomeEvidence(rowData)}
                     <div><span class="detail-label">Type:</span> <span class="detail-value">${escapeHtml(rowData.type) || '-'}</span></div>
                 </div>
             </div>
         </div>`;
 }
 
+function tableTitleCell(title, authorData, year) {
+    const text = title || shortAuthors(authorData) || '-';
+    const byline = bmAuthorYear(authorData, year);
+    return `<span class="title-clamp" title="${escapeHtml(text)}">${escapeHtml(text)}</span>${byline ? `<span class="title-byline">${escapeHtml(byline)}</span>` : ''}`;
+}
+
 function initDataTable(data) {
     const tableData = data.map(row => [
         null,
-        { display: truncateText(row.title_o || row.author_o, 50), search: `${row.title_o || ''} ${searchAuthorNames(row.author_o)} ${row.journal_o || ''}` },
+        { display: tableTitleCell(row.title_o, row.author_o, row.year_o), search: `${row.title_o || ''} ${searchAuthorNames(row.author_o)} ${row.journal_o || ''}` },
         row.year_o || '-',
-        { display: truncateText(row.title_r || row.author_r, 50), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
+        { display: tableTitleCell(row.title_r, row.author_r, row.year_r), search: `${row.title_r || ''} ${searchAuthorNames(row.author_r)} ${row.journal_r || ''}` },
         row.year_r || '-',
-        { display: getOutcomeBadgeShort(row.outcome), search: row.outcome || '' },
+        { display: getOutcomeBadgeShort(row), search: row.outcome || '' },
         truncateText(row.type, 15) || '-',
         { display: formatDOI(row.doi_o, true), search: row.doi_o || '' },
-        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '' }
+        { display: formatUrlOrDoiShort(row.url_r, row.doi_r), search: row.doi_r || '', sort: urlOrDoiShortText(row.url_r, row.doi_r) }
     ]);
 
     dataTable = $('#flora-table').DataTable({
         data: tableData, responsive: false, autoWidth: false, deferRender: true, pageLength: 25, dom: 'lrtip',
         lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
         order: [[4, 'desc']],
-        language: { search: "Search:", searchPlaceholder: "Filter studies (searches full references)...", zeroRecords: "No matching reference pairs", emptyTable: "No matching reference pairs" },
+        infoCallback: (settings, start, end, max, total) => `Showing ${total ? start.toLocaleString('en-GB') + ' to ' + end.toLocaleString('en-GB') + ' of ' : ''}${total.toLocaleString('en-GB')} reference ${total === 1 ? 'pair' : 'pairs'}${max !== total ? ` (filtered from ${max.toLocaleString('en-GB')} reference ${max === 1 ? 'pair' : 'pairs'})` : ''}`,
+        language: { lengthMenu: "Show _MENU_ reference pairs", search: "Search:", searchPlaceholder: "Filter reference pairs (searches full references)...", info: "Showing _START_ to _END_ of _TOTAL_ reference pairs", infoEmpty: "Showing 0 reference pairs", infoFiltered: "(filtered from _MAX_ reference pairs)", zeroRecords: "No matching reference pairs", emptyTable: "No matching reference pairs" },
         columnDefs: [
             { targets: 0, className: 'details-control', orderable: false, data: null, defaultContent: '<button type="button" class="study-details" aria-label="Show study evidence" aria-expanded="false"></button>', width: '3%' },
             { targets: [1, 3], width: '22%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: [2, 4], width: '5%' },
             { targets: 5, width: '9%', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) },
             { targets: 6, width: '8%', className: 'type-cell' },
-            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => t === 'display' ? (typeof d === 'object' ? d.display : d) : (typeof d === 'object' ? d.search : d) }
+            { targets: [7, 8], width: '13%', className: 'link-cell', render: (d, t) => typeof d !== 'object' ? d : t === 'display' ? d.display : t === 'sort' && d.sort !== undefined ? d.sort : d.search }
         ],
         createdRow: (row, d, dataIndex) => { $(row).attr('data-index', dataIndex); row.querySelector('.study-details').setAttribute('aria-label', 'Show evidence for ' + (data[dataIndex].title_o || 'original report')); }
     });
@@ -847,14 +876,14 @@ function bmCardHtml(row) {
     const oMeta = [bmAuthorYear(row.author_o, row.year_o), row.journal_o].filter(Boolean).map(escapeHtml).join(' · ');
     const rTitle = bmRenderTitleLine(row.title_r, shortAuthors(row.author_r), safeHref(row.url_r) ? null : row.doi_r, row.url_r);
     const rMeta = [bmAuthorYear(row.author_r, row.year_r), row.journal_r].filter(Boolean).map(escapeHtml).join(' · ');
-    const tagsParts = [getOutcomeBadge(row.outcome)];
+    const tagsParts = [getOutcomeBadge(row)];
     if (row.type) tagsParts.push(`<span class="bm-tag-type">${escapeHtml(row.type)}</span>`);
     return `
         <div class="bm-card">
-            <div class="bm-row"><div class="bm-row-label">Original</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
+            <div class="bm-row"><div class="bm-row-label">Original report</div><div class="bm-row-title">${oTitle}</div>${oMeta ? `<div class="bm-row-meta">${oMeta}</div>` : ''}</div>
             <div class="bm-divider"></div>
-            <div class="bm-row"><div class="bm-row-label">${reportKindLabel(row)}</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
-            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study evidence and outcome quotation</summary>${formatDetailRow(row)}</details>
+            <div class="bm-row"><div class="bm-row-label">${reportKindLabel(row)} report</div><div class="bm-row-title">${rTitle}</div>${rMeta ? `<div class="bm-row-meta">${rMeta}</div>` : ''}</div>
+            <div class="bm-tags">${tagsParts.join('')}</div><details class="bm-evidence"><summary>Study and outcome evidence</summary>${formatDetailRow(row)}</details>
         </div>`;
 }
 function bmApplySearch(query) {
@@ -939,8 +968,9 @@ function updateBrowseResults(redraw = true) {
     bmFiltered = getChartData();
     if (dataTable) {
         const [column, direction] = dataTable.order()[0] || [4, 'desc'];
-        const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o',8:'doi_r'}[column] || 'year_r';
-        bmFiltered.sort((a,b) => bmSortCollator.compare(String(a[field] || ''), String(b[field] || '')) * (direction === 'desc' ? -1 : 1));
+        const field = {1:'title_o',2:'year_o',3:'title_r',4:'year_r',5:'outcome',6:'type',7:'doi_o'}[column] || 'year_r';
+        const key = column === 8 ? r => urlOrDoiShortText(r.url_r, r.doi_r) : r => String(r[field] || '');
+        bmFiltered.sort((a,b) => bmSortCollator.compare(key(a), key(b)) * (direction === 'desc' ? -1 : 1));
         // order.dt also fires during a draw: refresh cards/charts without a second draw.
         if (redraw) dataTable.draw(false);
     }
@@ -967,7 +997,7 @@ function syncBrowseUrl() {
 }
 
 // ===== Browse kind filter =====
-const BROWSE_KIND_LABELS = {all: 'All studies', replication: 'Replications', reproduction: 'Reproductions', 'reproduction-numerical': 'Numerical Reproductions', 'reproduction-robustness': 'Robustness Reproductions'};
+const BROWSE_KIND_LABELS = {all: 'All studies', replication: 'Replications', reproduction: 'Reproductions', 'reproduction-numerical': 'Numerical reproductions', 'reproduction-robustness': 'Robustness reproductions'};
 function normalizeBrowseKind(kind) {
     return Object.hasOwn(BROWSE_KIND_LABELS, kind) ? kind : 'all';
 }
@@ -1083,9 +1113,8 @@ function outcomeBucketKeyForRow(row, kind) {
     return classifyOutcome(row.outcome);
 }
 
-// Reproduction bucket lists already cover every row (not_checked/not_coded catch-all);
-// replications need an explicit "other" bucket added so unmatched outcomes still count
-// toward the bar's total height instead of silently vanishing from the stack.
+// Reproduction selections include assessed verdicts only. Replication selections
+// retain every category, including missing and unrecognised outcomes.
 function trendOutcomeBuckets(kind) {
     if (kind === 'reproduction-numerical' || kind === 'reproduction-robustness') return studyTypeOutcomeBuckets(kind);
     return studyTypeOutcomeBuckets(kind);
@@ -1297,27 +1326,8 @@ window._mcData = null;
 // n_successful) while its histogram keys are "successful" - inconsistent with each
 // other, but real, so both are tracked explicitly rather than assumed to match.
 function mcBucketConfig(kind) {
-    if (kind === 'reproduction-numerical') {
-        return [
-            { histKey: 'successful', overviewKey: 'n_successful', label: 'Successful', color: REPRODUCTION_COLORS.successful },
-            { histKey: 'issues', overviewKey: 'n_issues', label: 'Computational issues', color: REPRODUCTION_COLORS.issues },
-            { histKey: 'technical_failure', overviewKey: 'n_technical_failure', label: 'Technical failure', color: REPRODUCTION_COLORS.technical_failure },
-        ];
-    }
-    if (kind === 'reproduction-robustness') {
-        return [
-            { histKey: 'robust', overviewKey: 'n_robust', label: 'Robust', color: REPRODUCTION_COLORS.robust },
-            { histKey: 'challenges', overviewKey: 'n_challenges', label: 'Robustness challenges', color: REPRODUCTION_COLORS.challenges },
-        ];
-    }
-    return [
-        { histKey: 'successful', overviewKey: 'n_success', label: 'Successful', color: OUTCOME_COLORS.successful },
-        { histKey: 'failed', overviewKey: 'n_failed', label: 'Failed', color: OUTCOME_COLORS.failed },
-        { histKey: 'mixed', overviewKey: 'n_mixed', label: 'Mixed', color: OUTCOME_COLORS.mixed },
-        { histKey: 'inconclusive', overviewKey: 'n_inconclusive', label: 'Inconclusive', color: OUTCOME_COLORS.inconclusive },
-        { histKey: 'qualified', overviewKey: 'n_qualified', label: 'Successful but flawed', color: OUTCOME_COLORS.qualified },
-        { histKey: 'other', overviewKey: 'n_other', label: 'Other / not coded', color: OUTCOME_COLORS.other },
-    ];
+    return studyTypeOutcomeBuckets(kind).map(bucket => ({...bucket, histKey:bucket.key,
+        overviewKey:kind === 'replication' && bucket.key === 'successful' ? 'n_success' : 'n_' + bucket.key}));
 }
 
 function renderMcCharts() {
@@ -1416,7 +1426,7 @@ function renderMcCharts() {
           hovertemplate: 'OMC = %{x:.2f}<br>P(success) = %{y:.1%}<extra>Smooth fit</extra>' },
         { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), type: 'scatter', mode: 'markers',
           marker: { color: t.point, size: 5, line: { width: 0 } },
-          name: 'Studies', text: jitter2.map(p => p.lbl),
+          name: 'Reference pairs', text: jitter2.map(p => p.lbl),
           hovertemplate: 'OMC = %{x:.2f}<br>%{text}<extra></extra>' },
     ];
     const gamLayout = {
@@ -1527,7 +1537,6 @@ function renderOverlapCharts() {
     const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
-    const kindNoun = aoKind === 'replication' ? 'Replications' : 'Reproductions';
 
     // ── Overview boxes ─────────────────────────────────────────────────────────
     const ovEl = document.getElementById('ao-overview');
@@ -1535,7 +1544,7 @@ function renderOverlapCharts() {
         ovEl.innerHTML =
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + (aoKind === 'replication' ? 'Replication' : 'Reproduction') + ' pairs included</div>' +
+                '<div class="mc-stat-label">' + (aoKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs included</div>' +
             '</div>' +
             '<div class="mc-stat-box">' +
                 '<div class="mc-stat-value">' + (ov.n_overlap || 0).toLocaleString() + '</div>' +
@@ -1549,6 +1558,7 @@ function renderOverlapCharts() {
                 '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
                 '<div class="mc-stat-label">Overlap unknown</div>' +
             '</div>';
+        omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
 
@@ -1574,7 +1584,7 @@ function renderOverlapCharts() {
         legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
         margin: { l: 50, r: 20, t: 20, b: 80 },
         yaxis: {
-            title: 'Number of ' + kindNoun.toLowerCase(),
+            title: 'Reference pairs',
             gridcolor: th.grid,
             zerolinecolor: th.grid,
             tickfont: { color: th.font },
@@ -1652,7 +1662,6 @@ function renderRRCharts() {
     const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
-    const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
 
     // ── Overview boxes ─────────────────────────────────────────────────────────
     const ovEl = document.getElementById('rr-overview');
@@ -1660,7 +1669,7 @@ function renderRRCharts() {
         ovEl.innerHTML =
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' pairs checked</div>' +
+                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs checked</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_rr || 0).toLocaleString() + '</div>' +
@@ -1674,6 +1683,7 @@ function renderRRCharts() {
                 '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
                 '<div class="mc-stat-label">Not checkable</div>' +
             '</div>';
+        omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
 
@@ -1699,7 +1709,7 @@ function renderRRCharts() {
         legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
         margin: { l: 50, r: 20, t: 20, b: 80 },
         yaxis: {
-            title: 'Number of ' + kindNoun.toLowerCase(),
+            title: 'Reference pairs',
             gridcolor: th.grid,
             zerolinecolor: th.grid,
             tickfont: { color: th.font },
@@ -1725,7 +1735,7 @@ function renderRRCharts() {
                 '<td>' + escapeHtml(s.title_r) + '</td>' +
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + escapeHtml(s.outcome) + '</td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '<div class="small">Source outcome: ' + escapeHtml(s.outcome) + '</div></td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -1797,14 +1807,14 @@ function renderPubStatusCharts() {
     const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
-    const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
 
     // ── Overview boxes ─────────────────────────────────────────────────────────
     const ovEl = document.getElementById('pub-overview');
     if (ovEl) {
         const venueLabels = {journal:'Other named venue', preprint:'Repository / preprint', conference:'Conference output', thesis:'Thesis / dissertation', unknown:'Unknown venue'};
         ovEl.innerHTML = `<div class="mc-stat"><div class="mc-stat-value">${ov.n_total.toLocaleString('en-GB')}</div><div class="mc-stat-label">Reference pairs</div></div>` +
-            Object.entries(venueLabels).map(([key,label])=>`<div class="mc-stat"><div class="mc-stat-value">${(ov['n_'+key] || 0).toLocaleString('en-GB')}</div><div class="mc-stat-label">${label} (${escapeHtml(FloraCharts.percent(ov['n_'+key] || 0, ov.n_total))}%)</div></div>`).join('');
+            Object.entries(venueLabels).filter(([key]) => ov['n_'+key] > 0).map(([key,label])=>`<div class="mc-stat"><div class="mc-stat-value">${(ov['n_'+key] || 0).toLocaleString('en-GB')}</div><div class="mc-stat-label">${label} (${escapeHtml(FloraCharts.percent(ov['n_'+key] || 0, ov.n_total))}%)</div></div>`).join('');
+        omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
 
@@ -1830,7 +1840,7 @@ function renderPubStatusCharts() {
         legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
         margin: { l: 50, r: 20, t: 20, b: 80 },
         yaxis: {
-            title: 'Number of ' + kindNoun.toLowerCase(),
+            title: 'Reference pairs',
             gridcolor: th.grid,
             zerolinecolor: th.grid,
             tickfont: { color: th.font },
@@ -1858,7 +1868,7 @@ function renderPubStatusCharts() {
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + statusBadge + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + escapeHtml(s.outcome) + '</td>' +
+                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '<div class="small">Source outcome: ' + escapeHtml(s.outcome) + '</div></td>' +
                 '<td>' + doiLink + '</td>' +
             '</tr>';
         }).join('');
@@ -1933,14 +1943,13 @@ function renderLargeScaleCharts() {
     const th = FloraCharts.theme();
     const ov = d.overview;
     const by = d.by_outcome;
-    const kindNoun = pubTypeKind === 'replication' ? 'Replications' : 'Reproductions';
 
     // ── Overview boxes ─────────────────────────────────────────────────────────
     if (overviewEl) {
         overviewEl.innerHTML =
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' pairs checked</div>' +
+                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs checked</div>' +
             '</div>' +
             '<div class="mc-stat">' +
                 '<div class="mc-stat-value">' + (ov.n_individual || 0).toLocaleString() + '</div>' +
@@ -1950,6 +1959,7 @@ function renderLargeScaleCharts() {
                 '<div class="mc-stat-value">' + (ov.n_large_scale || 0).toLocaleString() + '</div>' +
                 '<div class="mc-stat-label">Multiple-target report (' + escapeHtml(FloraCharts.percent(ov.n_large_scale, ov.n_total)) + '%)</div>' +
             '</div>';
+        omitEmptyCategoryTiles(overviewEl);
         overviewEl.style.display = '';
     }
 
@@ -1975,7 +1985,7 @@ function renderLargeScaleCharts() {
         legend: { orientation: 'h', y: -0.18, font: { color: th.font } },
         margin: { l: 50, r: 20, t: 20, b: 80 },
         yaxis: {
-            title: 'Number of ' + kindNoun.toLowerCase(),
+            title: 'Reference pairs',
             gridcolor: th.grid,
             zerolinecolor: th.grid,
             tickfont: { color: th.font },
@@ -2127,7 +2137,27 @@ function parseCsvFromUrl(url) {
     });
 }
 
+function showGlobalError(message) {
+    document.getElementById('global-loading').style.display = 'none';
+    const err = document.getElementById('global-error');
+    err.style.display = 'block';
+    err.textContent = message + ' ';
+    const reload = document.createElement('button');
+    reload.type = 'button'; reload.className = 'btn btn-sm btn-outline-danger'; reload.textContent = 'Reload';
+    reload.addEventListener('click', () => location.reload());
+    err.appendChild(reload);
+}
+
 async function loadData() {
+    try {
+        await FloraVocabulary.ready;
+    } catch (e) {
+        console.error(e);
+        showGlobalError('Error loading the outcome definitions: ' + (e.message || e));
+        return;
+    }
+    FloraVocabulary.definitions();
+    FloraCharts.updateContexts();
     // Disciplines and the CSV are independent - fetch them concurrently rather than
     // waiting on the (small) disciplines request before starting the (large) CSV one.
     const disciplinesPromise = loadDisciplines();
@@ -2141,10 +2171,7 @@ async function loadData() {
         try {
             results = await parseCsvFromUrl(REMOTE_CSV_URL);
         } catch (e2) {
-            document.getElementById('global-loading').style.display = 'none';
-            const err = document.getElementById('global-error');
-            err.style.display = 'block';
-            err.textContent = 'Error loading FLoRA data: ' + (e2.message || e2);
+            showGlobalError('Error loading FLoRA data: ' + (e2.message || e2));
             return;
         }
     }
@@ -2152,7 +2179,7 @@ async function loadData() {
 
     if (results.errors && results.errors.length > 0) console.warn('CSV parsing warnings:', results.errors);
     const data = results.data.map(row => {
-        Object.keys(row).forEach(key => { if (row[key] === 'NA') row[key] = ''; });
+        Object.keys(row).forEach(key => { if (key !== 'outcome' && row[key] === 'NA') row[key] = ''; });
         return row;
     });
     fullRowData = data;

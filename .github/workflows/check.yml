@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Use the Chrome preinstalled on GitHub's Ubuntu runners: installing Playwright's
+      # Chromium with --with-deps needs the Ubuntu package mirror, which can be unreachable.
+      - run: google-chrome --version
       - run: npm test
         env:
-          BROWSER_CHANNEL: chromium
+          BROWSER_CHANNEL: chrome

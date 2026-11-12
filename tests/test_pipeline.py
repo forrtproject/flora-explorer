@@ -20,14 +20,103 @@ class PipelineTests(unittest.TestCase):
     def test_qualified_success_and_reproduction_dimensions(self):
         self.assertEqual(c.classify_outcome('statistically successful but flawed'),'qualified')
         self.assertEqual(c.classify_outcome('successful'),'successful')
-        self.assertEqual(c.classify_outcome('uncoded'),'other')
+        self.assertEqual(c.classify_outcome('uncoded'),'unrecognised')
         for raw,expected in [
             ('computationally reproducible, robustness challenges',('successful','challenges')),
             ('technical failure, not checked',('technical_failure','not_checked')),
             ('not checked, robust',('not_checked','robust')),
-            ('NA',(None,None)),
+            ('NA',('missing','missing')),
         ]:
             self.assertEqual(c.parse_reproduction_outcome(raw),expected)
+
+    def test_shared_outcome_cases_and_r_replication_classifier(self):
+        cases=json.loads((ROOT/'tests/fixtures/outcome-vocabulary.json').read_text(encoding='utf-8'))
+        for case in cases:
+            with self.subTest(case=case):
+                self.assertEqual(c.classify_outcome(case['raw'],case['dimension']),case['key'])
+        import shutil
+        import subprocess
+        if not shutil.which('Rscript'):
+            self.skipTest('Rscript is unavailable; Python cases passed')
+        code = """library(jsonlite)
+root <- normalizePath('.')
+source('scripts/outcome_vocabulary.R')
+cases <- fromJSON('tests/fixtures/outcome-vocabulary.json')
+cases <- cases[cases$dimension == 'replication', ]
+stopifnot(identical(classify_outcome(cases$raw), cases$key))
+"""
+        result=subprocess.run(['Rscript','-e',code],cwd=ROOT,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_cached_rr_matches_allow_reproduction_rebucketing_but_not_new_coverage(self):
+        source=pd.read_csv(ROOT/'data/flora.csv',keep_default_na=False,dtype=str)
+        snapshot=(ROOT/'data/rr_status_data.json').read_text(encoding='utf-8')
+        repro=source.index[source['type'].str.lower().str.contains('reproduc')
+                           & source['outcome'].str.lower().str.startswith('computationally reproducible')][0]
+        rebucketed=source.copy(); rebucketed.loc[repro,'outcome']='not yet coded'
+        extra_replication=pd.concat([source,source[source['type'].str.lower()=='replication'].head(1).assign(doi_r='10.0/new',title_r='New report')])
+        for frame,should_pass in [(rebucketed,True),(extra_replication,False)]:
+            with self.subTest(should_pass=should_pass), tempfile.TemporaryDirectory() as tmp:
+                csv_path,out=Path(tmp)/'flora.csv',Path(tmp)/'rr.json'
+                frame.to_csv(csv_path,index=False); out.write_text(snapshot,encoding='utf-8')
+                with patch.object(rr,'IN_CSV',csv_path), patch.object(rr,'OUT_DATA',out), patch.object(rr,'OUT_META',Path(tmp)/'meta.json'):
+                    if should_pass:
+                        rr.main(['--cached-matches'])
+                        self.assertLess(json.loads(out.read_text(encoding='utf-8'))['reproduction-numerical']['overview']['n_total'],
+                                        json.loads(snapshot)['reproduction-numerical']['overview']['n_total'])
+                    else:
+                        with self.assertRaises(ValueError):
+                            rr.main(['--cached-matches'])
+                        self.assertEqual(out.read_text(encoding='utf-8'),snapshot)
+
+    def test_snapshot_outcomes_and_model_eligibility_stay_separate(self):
+        from collections import Counter
+        with (ROOT/'data/flora.csv').open(encoding='utf-8') as source:
+            rows=list(csv.DictReader(source))
+        rep=[row for row in rows if 'replication' in row['type'].lower() and 'reproduc' not in row['type'].lower()]
+        counts=Counter(c.classify_outcome(row['outcome']) for row in rep)
+        publication=json.loads((ROOT/'data/pub_status_data.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(rep),publication['replication']['overview']['n_total'])
+        self.assertEqual(Counter(row['outcome'] for row in publication['replication']['pub_studies']),
+                         Counter(row['outcome'] for row in rep))
+        groups=publication['replication']['by_outcome'].values()
+        keys=set(counts)|{key for group in groups for key in group}
+        self.assertEqual({key:counts.get(key,0) for key in keys},{key:sum(group.get(key,0) for group in groups) for key in keys})
+        dims=[c.parse_reproduction_outcome(row['outcome']) for row in rows if 'reproduc' in row['type'].lower()]
+        comp={'successful','issues','technical_failure'}
+        robust={'robust','challenges'}
+        self.assertEqual(sum(d[0] in comp for d in dims),publication['reproduction-numerical']['overview']['n_total'])
+        self.assertEqual(sum(d[1] in robust for d in dims),publication['reproduction-robustness']['overview']['n_total'])
+        self.assertTrue(any(d[0] in comp and d[1] in robust for d in dims))
+        self.assertTrue(any(d[0]=='not_checked' for d in dims))
+        with (ROOT/'data/flora_with_omc.csv').open(encoding='utf-8') as source:
+            matched=[row for row in csv.DictReader(source) if 'replication' in row['type'].lower()
+                     and 'reproduc' not in row['type'].lower() and row['impact_factor']
+                     and float(row['impact_factor'])<35]
+        matched_counts=Counter(c.classify_outcome(row['outcome']) for row in matched)
+        result=json.loads((ROOT/'data/impact_factor_data.json').read_text(encoding='utf-8'))
+        self.assertEqual(result['overview']['n_total'],len(matched))
+        self.assertEqual(result['stats']['n_model'],matched_counts['successful']+matched_counts['failed'])
+        for key in c.REPLICATION_OUTCOMES:
+            self.assertEqual(sum(bin[key] for bin in result['histogram']),matched_counts[key],key)
+        self.assertEqual(result['overview']['n_classified'],sum(matched_counts[key] for key in ['successful','failed','mixed']))
+        # Saved RR matches reproduce the recorded coverage without a live library lookup.
+        snapshot=json.loads((ROOT/'data/rr_status_data.json').read_text(encoding='utf-8'))
+        dois,titles=rr.cached_matches(snapshot)
+        self.assertTrue(dois)
+        self.assertTrue(titles)
+        with self.assertRaises(ValueError):
+            rr.cached_matches({})
+        with patch.object(rr,'rr_dois',dois,create=True), patch.object(rr,'rr_titles',titles,create=True):
+            # RR coverage has its own snapshot date, independent of the daily CSV.
+            frame=pd.DataFrame(snapshot['replication']['rr_studies'])
+            frame['bucket']=frame['outcome'].map(c.classify_outcome)
+            rebuilt=rr.compute_rr_result(frame,'bucket',c.REPLICATION_OUTCOMES)
+        self.assertEqual(rebuilt['overview']['n_rr'],snapshot['replication']['overview']['n_rr'])
+        self.assertEqual(rebuilt['overview']['n_non_rr'],0)
+        self.assertEqual(rebuilt['by_outcome']['rr'],snapshot['replication']['by_outcome']['rr'])
+        for result in snapshot.values():
+            self.assertEqual(sum(sum(group.values()) for group in result['by_outcome'].values()),result['overview']['n_total'])
 
     def test_venue_evidence_does_not_infer_peer_review(self):
         self.assertEqual(c.classify_venue(None),'unknown')
@@ -118,12 +207,34 @@ class PipelineTests(unittest.TestCase):
             meta=Path(tmp)/'meta.json'; meta.write_text('previous metadata')
             for text in ['error\nService unavailable\n','DOI,title\n,\n','DOI,title,itemType\n10.test/a,Attachment,attachment\n']:
                 response=Mock(text=text)
-                with patch.object(rr.requests,'get',return_value=response), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
+                with patch.object(rr.requests,'get',return_value=response), patch.object(rr,'fetch_non_rr_keys',return_value={'READING'}), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
                     with self.assertRaises(ValueError): rr.main()
                 self.assertEqual(output.read_text(),'previous data')
                 self.assertEqual(meta.read_text(),'previous metadata')
-            with patch.object(rr.requests,'get',return_value=Mock(text='DOI,title\nhttps://doi.org/10.test/A,Example title\n')):
+            # A failed reading-list lookup must not replace the outputs either.
+            valid=Mock(text='key,DOI,title\nRR1,10.test/a,Example title\n')
+            for failure in [ValueError('no reading-list items'), rr.requests.HTTPError('503')]:
+                with patch.object(rr.requests,'get',return_value=valid), patch.object(rr,'fetch_non_rr_keys',side_effect=failure), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
+                    with self.assertRaises(type(failure)): rr.main()
+                self.assertEqual(output.read_text(),'previous data')
+                self.assertEqual(meta.read_text(),'previous metadata')
+            csv_text='key,DOI,title\nRR1,https://doi.org/10.test/A,Example title\nREADING,10.1126/science.aac4716,Estimating the reproducibility of psychological science\n'
+            with patch.object(rr.requests,'get',return_value=Mock(text=csv_text)), patch.object(rr,'fetch_non_rr_keys',return_value={'READING'}):
                 self.assertEqual(rr.fetch_rr_library(),({'10.test/a'},{'exampletitle'}))
+
+    def test_rrdb_skips_items_filed_only_in_the_reading_list(self):
+        def page(items,total):
+            return Mock(json=Mock(return_value=items),headers={'Total-Results':str(total)},raise_for_status=Mock())
+        only_list={'key':'A','data':{'key':'A','collections':['BB5B9YHG']}}
+        also_rr={'key':'B','data':{'key':'B','collections':['BB5B9YHG','RRCOLL']}}
+        unfiled={'key':'C','data':{'key':'C','collections':[]}}
+        with patch.object(rr.requests,'get',side_effect=[page([only_list,also_rr],3),page([unfiled],3)]) as get:
+            self.assertEqual(rr.fetch_non_rr_keys(),{'A'})
+        self.assertEqual(get.call_args_list[1].kwargs['params']['start'],2)
+        with patch.object(rr.requests,'get',return_value=page([],0)):
+            with self.assertRaises(ValueError): rr.fetch_non_rr_keys()
+        with patch.object(rr.requests,'get',return_value=page([also_rr],1)):
+            self.assertEqual(rr.fetch_non_rr_keys(),set())
 
     def test_cache_rebuild_preserves_report_size_outside_surviving_cohort(self):
         previous={'studies':{'one':dict(doi='one',title='O',author='A',year=2010,venue='',replications=[

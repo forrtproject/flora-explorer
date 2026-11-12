@@ -14,16 +14,22 @@ Venue rules:
 import re
 from collections import Counter
 from urllib.parse import urlparse
+import json
+from pathlib import Path
 
-REPLICATION_OUTCOMES = ['successful', 'failed', 'mixed', 'inconclusive', 'qualified', 'other']
+OUTCOME_VOCABULARY = json.loads((Path(__file__).resolve().parents[1] / "data/outcome_vocabulary.json").read_text(encoding="utf-8"))
+
+REPLICATION_OUTCOMES = [item['key'] for item in OUTCOME_VOCABULARY['replication']]
 MULTI_TARGET_THRESHOLD = 3
 VENUE_LABELS = {'journal': 'Other named venue', 'preprint': 'Repository / preprint',
                 'conference': 'Conference output', 'thesis': 'Thesis / dissertation', 'unknown': 'Unknown venue'}
 
-def classify_outcome(raw):
-    return {'successful': 'successful', 'replicated': 'successful', 'failed': 'failed',
-            'not replicated': 'failed', 'mixed': 'mixed', 'partial': 'mixed',
-            'inconclusive': 'inconclusive', 'statistically successful but flawed': 'qualified'}.get(str(raw or '').strip().lower(), 'other')
+def classify_outcome(raw, dimension='replication'):
+    value = str(raw if raw is not None else '').strip().lower()
+    if value in OUTCOME_VOCABULARY['missing_markers']:
+        return 'missing'
+    return next((item['key'] for item in OUTCOME_VOCABULARY[dimension]
+                 if value in item['aliases']), 'unrecognised')
 
 PREPRINT_KEYS = ['osf', 'arxiv', 'preprint', 'ssrn', 'working paper', 'repository', 'registries', 'biorxiv',
                  'medrxiv', 'psyarxiv', 'psycharchiv', 'zenodo']
@@ -150,13 +156,9 @@ def normalize_doi(raw):
 
 def parse_reproduction_outcome(raw):
     """Read independent computational and robustness dimensions, in that order."""
-    parts = str(raw or '').lower().split(',')
-    computational = {'computationally reproducible':'successful', 'computationally successful':'successful',
-                     'computational issues':'issues', 'technical failure':'technical_failure',
-                     'failed':'technical_failure', 'not checked':'not_checked'}
-    robustness = {'robust':'robust', 'robustness challenges':'challenges', 'not checked':'not_checked',
-                  'robustness not checked':'not_checked'}
-    return computational.get(parts[0].strip()), robustness.get(parts[1].strip() if len(parts)>1 else '')
+    parts = str(raw if raw is not None else '').split(',')
+    return (classify_outcome(parts[0], 'computational'),
+            classify_outcome(parts[1] if len(parts) > 1 else '', 'robustness'))
 
 
 def reference_key(doi, url=None):
