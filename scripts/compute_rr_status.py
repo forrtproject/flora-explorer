@@ -141,7 +141,7 @@ def fetch_rr_library() -> tuple[set[str], set[str]]:
 
 
 
-from classification import parse_reproduction_outcome
+from classification import load_outcome_columns, reproduction_dimensions, study_outcome_fields
 
 
 
@@ -193,7 +193,7 @@ def compute_rr_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) ->
             "title_r": _clean(row.get("title_r")),
             "journal_r": _clean(row.get("journal_r")),
             "year_r": _clean(row.get("year_r")),
-            "outcome": _clean(row.get("outcome")),
+            **study_outcome_fields(row),
             "doi_r": _clean(row.get("doi_r")),
             "url_r": _clean(row.get("url_r")),
         }
@@ -244,16 +244,17 @@ def main(argv=()):
     # ── Load & split by study type ─────────────────────────────────────────────────
     df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
     # Preserve source outcome codes; pandas also applies NA conversion after converters.
-    df["outcome"] = pd.read_csv(IN_CSV, usecols=["outcome"], keep_default_na=False)["outcome"]
+    for column, values in load_outcome_columns(IN_CSV).items():
+        df[column] = values
     df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-    df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+    df["outcome_lc"] = df["outcome_replication"].astype(str).str.lower().str.strip()
 
     is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
     is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
     df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
     repro_df = df[is_reproduction].copy()
-    repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+    repro_dims = repro_df.apply(reproduction_dimensions, axis=1)
     repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
     repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 

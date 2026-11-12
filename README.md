@@ -5,7 +5,7 @@ A static dashboard for the [FORRT Library of Reproduction and Replication Attemp
 | View | Purpose | Data refresh |
 |---|---|---|
 | Overview | Reference-pair counts and separate replication, computational and robustness outcomes | Daily |
-| Browse reference pairs | Shared desktop/mobile search, full evidence, outcome evidence (quotations or coding notes), links and filtered CSV export | Daily |
+| Browse reference pairs | Shared desktop/mobile search, full evidence, outcome quotes with their source, links and filtered CSV export | Daily |
 | Years & Disciplines | Outcome counts by year, venue and discipline | Daily |
 | Citation Impact | Citation trajectories, adjusted associations, co-citation rates and individual timelines | Weekly |
 | Mean Citedness | Journal-level citation metric distributions and a conditional replication-success model | Weekly |

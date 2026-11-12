@@ -66,7 +66,9 @@ is_reproduction <- grepl("reproduc", raw$type_lc)
 is_replication  <- grepl("replication", raw$type_lc) & !is_reproduction
 
 df_all  <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 35 & is_replication, ]
-df_all$outcome_class <- classify_outcome(df_all$outcome)
+# Replications are classified from their own column; compute_omc.py fills it from the
+# combined `outcome` until FLoRA ships it.
+df_all$outcome_class <- classify_outcome(df_all$outcome_replication)
 oc_all <- df_all$outcome_class
 
 # ── Overview stats ───────────────────────────────────────────────────────────

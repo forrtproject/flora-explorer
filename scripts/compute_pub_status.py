@@ -25,7 +25,7 @@ OUT_CHANGES = DATA_DIR / "pub_status_changes.csv"
 if not IN_CSV.exists():
     raise SystemExit(f"{IN_CSV} not found.")
 
-from classification import parse_reproduction_outcome, reference_key
+from classification import load_outcome_columns, reproduction_dimensions, study_outcome_fields, reference_key
 
 
 
@@ -59,7 +59,7 @@ def compute_pub_status_result(sub: pd.DataFrame, bucket_col: str, buckets: list[
             "title_r": _clean(row.get("title_r")),
             "journal_r": _clean(row.get("journal_r")),
             "year_r": _clean(row.get("year_r")),
-            "outcome": _clean(row.get("outcome")),
+            **study_outcome_fields(row),
             "doi_r": _clean(row.get("doi_r")),
             "url_r": _clean(row.get("url_r")),
             "pub_status": row["pub_status"],
@@ -139,11 +139,12 @@ def compute_large_scale_result(sub: pd.DataFrame, bucket_col: str, buckets: list
 # ── Load & split by study type ─────────────────────────────────────────────────
 df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
 # Preserve source outcome codes; pandas also applies NA conversion after converters.
-df["outcome"] = pd.read_csv(IN_CSV, usecols=["outcome"], keep_default_na=False)["outcome"]
+for column, values in load_outcome_columns(IN_CSV).items():
+    df[column] = values
 for suffix, key in [("r", "report_key"), ("o", "target_key")]:
     df[key] = df.apply(lambda row: reference_key(row.get("doi_" + suffix), row.get("url_" + suffix)), axis=1)
 df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+df["outcome_lc"] = df["outcome_replication"].astype(str).str.lower().str.strip()
 
 # Repository DOI prefixes / URL hosts are learned from rows with a recorded venue.
 REPOS = learn_repositories(df)
@@ -153,7 +154,7 @@ is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_repro
 df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
 repro_df = df[is_reproduction].copy()
-repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+repro_dims = repro_df.apply(reproduction_dimensions, axis=1)
 repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
 repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 

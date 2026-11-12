@@ -161,11 +161,69 @@ def normalize_doi(raw):
     if d in ('nan', 'na', 'none'): return ''
     return re.sub(r'^(https?://(dx\.)?doi\.org/|doi:\s*)', '', d).strip('/ ')
 
-def parse_reproduction_outcome(raw):
-    """Read independent computational and robustness dimensions, in that order."""
-    parts = str(raw if raw is not None else '').split(',')
-    return (classify_outcome(parts[0], 'computational'),
-            classify_outcome(parts[1] if len(parts) > 1 else '', 'robustness'))
+# Each study type is described by its own columns. The combined outcome, outcome_quote and
+# outcome_quote_source stay in flora.csv for backward compatibility only; nothing classifies them.
+REPLICATION_COLUMNS = ("outcome_replication", "outcome_replication_quote", "out_quote_replication_source")
+REPRODUCTION_OUTCOME_COLUMNS = ("outcome_computation", "outcome_robustness")
+OUTCOME_COLUMNS = ("outcome_replication",) + REPRODUCTION_OUTCOME_COLUMNS
+# TODO: remove after the first FLoRA release that ships the replication columns. Until then
+# they are copied from the combined fields, which hold identical values for replications.
+_REPLICATION_FALLBACK = dict(zip(REPLICATION_COLUMNS, ("outcome", "outcome_quote", "outcome_quote_source")))
+
+
+def is_reproduction(row) -> bool:
+    return "reproduc" in str(row.get("type") or "").lower()
+
+
+def with_outcome_columns(df):
+    """Return a DataFrame that has the replication columns (see _REPLICATION_FALLBACK)."""
+    import pandas as pd
+    df = df.copy()
+    # The same type-column names load_flora_raw accepts; no type column means all replications.
+    type_col = next((c for name in ("type", "study_type", "ref_type") for c in df.columns if c.lower() == name), None)
+    reproduction = (df[type_col].astype(str).str.lower().str.contains("reproduc", na=False)
+                    if type_col else pd.Series(False, index=df.index))
+    for column, combined in _REPLICATION_FALLBACK.items():
+        if column not in df.columns and combined in df.columns:
+            df[column] = df[combined].where(~reproduction, "")
+    return df
+
+
+def add_outcome_columns(rows: list[dict]) -> list[dict]:
+    """The same fallback as with_outcome_columns(), for csv.DictReader rows."""
+    for row in rows:
+        for column, combined in _REPLICATION_FALLBACK.items():
+            if column not in row and combined in row:
+                row[column] = "" if is_reproduction(row) else row[combined]
+    return rows
+
+
+def load_outcome_columns(path):
+    """Outcome columns of flora.csv as recorded, without pandas turning "NA" into a missing value."""
+    import pandas as pd
+    raw = with_outcome_columns(pd.read_csv(path, keep_default_na=False, dtype=str))
+    return raw[[column for column in OUTCOME_COLUMNS if column in raw.columns]]
+
+
+def replication_outcome(row) -> str:
+    return classify_outcome(row.get("outcome_replication"))
+
+
+def reproduction_dimensions(row):
+    """Classify a reproduction row's two independent verdicts from their own columns."""
+    return (classify_outcome(row.get("outcome_computation"), "computational"),
+            classify_outcome(row.get("outcome_robustness"), "robustness"))
+
+
+def study_outcome_fields(row) -> dict:
+    """Verdict columns to carry into a per-study summary for this row's study type."""
+    columns = REPRODUCTION_OUTCOME_COLUMNS if is_reproduction(row) else ("outcome_replication",)
+    return {column: _clean_text(row.get(column)) for column in columns}
+
+
+def _clean_text(value):
+    text = "" if value is None or value != value else str(value).strip()  # value != value: NaN
+    return text or None
 
 
 def reference_key(doi, url=None):

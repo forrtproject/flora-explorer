@@ -21,13 +21,36 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(c.classify_outcome('statistically successful but flawed'),'qualified')
         self.assertEqual(c.classify_outcome('successful'),'successful')
         self.assertEqual(c.classify_outcome('uncoded'),'unrecognised')
-        for raw,expected in [
-            ('computationally reproducible, robustness challenges',('successful','challenges')),
-            ('technical failure, not checked',('technical_failure','not_checked')),
-            ('not checked, robust',('not_checked','robust')),
-            ('NA',('missing','missing')),
+        for computational,robustness,expected in [
+            ('computationally reproducible','robustness challenges',('successful','challenges')),
+            ('technical failure','not checked',('technical_failure','not_checked')),
+            ('not checked','robust',('not_checked','robust')),
+            ('NA','',('missing','missing')),
         ]:
-            self.assertEqual(c.parse_reproduction_outcome(raw),expected)
+            # The combined outcome is never read when the per-axis columns are present.
+            row=dict(type='reproduction',outcome='computationally reproducible, robust',
+                     outcome_computation=computational,outcome_robustness=robustness)
+            self.assertEqual(c.reproduction_dimensions(row),expected)
+        self.assertEqual(c.replication_outcome(dict(type='replication',outcome='successful',outcome_replication='failed')),'failed')
+
+    def test_replication_columns_fall_back_to_combined_fields_only_when_absent(self):
+        rows=[dict(type='replication',outcome='failed',outcome_quote='q',outcome_quote_source='abstract'),
+              dict(type='reproduction',outcome='computational issues, robust',outcome_quote='Computational: q',outcome_quote_source='results')]
+        frame=c.with_outcome_columns(pd.DataFrame(rows))
+        self.assertEqual(list(frame['outcome_replication']),['failed',''])
+        self.assertEqual(list(frame['outcome_replication_quote']),['q',''])
+        self.assertEqual(list(frame['out_quote_replication_source']),['abstract',''])
+        dicts=c.add_outcome_columns([dict(row) for row in rows])
+        self.assertEqual([row['outcome_replication'] for row in dicts],['failed',''])
+        shipped=c.with_outcome_columns(pd.DataFrame([dict(type='replication',outcome='failed',outcome_replication='mixed')]))
+        self.assertEqual(shipped.loc[0,'outcome_replication'],'mixed')
+        alt=c.with_outcome_columns(pd.DataFrame([dict(Study_Type='reproduction',outcome='robust'),dict(Study_Type='replication',outcome='failed')]))
+        self.assertEqual(list(alt['outcome_replication']),['','failed'])
+        untyped=c.with_outcome_columns(pd.DataFrame([dict(outcome='failed')]))
+        self.assertEqual(untyped.loc[0,'outcome_replication'],'failed')
+        self.assertEqual(c.study_outcome_fields(dict(type='reproduction',outcome_computation='computational issues',outcome_robustness=float('nan'))),
+                         {'outcome_computation':'computational issues','outcome_robustness':None})
+        self.assertEqual(c.study_outcome_fields(dict(type='replication',outcome_replication='failed')),{'outcome_replication':'failed'})
 
     def test_shared_outcome_cases_and_r_replication_classifier(self):
         cases=json.loads((ROOT/'tests/fixtures/outcome-vocabulary.json').read_text(encoding='utf-8'))
@@ -52,8 +75,8 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         source=pd.read_csv(ROOT/'data/flora.csv',keep_default_na=False,dtype=str)
         snapshot=(ROOT/'data/rr_status_data.json').read_text(encoding='utf-8')
         repro=source.index[source['type'].str.lower().str.contains('reproduc')
-                           & source['outcome'].str.lower().str.startswith('computationally reproducible')][0]
-        rebucketed=source.copy(); rebucketed.loc[repro,'outcome']='not yet coded'
+                           & source['outcome_computation'].str.lower().eq('computationally reproducible')][0]
+        rebucketed=source.copy(); rebucketed.loc[repro,'outcome_computation']='not yet coded'
         extra_replication=pd.concat([source,source[source['type'].str.lower()=='replication'].head(1).assign(doi_r='10.0/new',title_r='New report')])
         for frame,should_pass in [(rebucketed,True),(extra_replication,False)]:
             with self.subTest(should_pass=should_pass), tempfile.TemporaryDirectory() as tmp:
@@ -72,17 +95,17 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
     def test_snapshot_outcomes_and_model_eligibility_stay_separate(self):
         from collections import Counter
         with (ROOT/'data/flora.csv').open(encoding='utf-8') as source:
-            rows=list(csv.DictReader(source))
+            rows=c.add_outcome_columns(list(csv.DictReader(source)))
         rep=[row for row in rows if 'replication' in row['type'].lower() and 'reproduc' not in row['type'].lower()]
-        counts=Counter(c.classify_outcome(row['outcome']) for row in rep)
+        counts=Counter(c.replication_outcome(row) for row in rep)
         publication=json.loads((ROOT/'data/pub_status_data.json').read_text(encoding='utf-8'))
         self.assertEqual(len(rep),publication['replication']['overview']['n_total'])
-        self.assertEqual(Counter(row['outcome'] for row in publication['replication']['pub_studies']),
-                         Counter(row['outcome'] for row in rep))
+        self.assertEqual(Counter(row['outcome_replication'] for row in publication['replication']['pub_studies']),
+                         Counter(row['outcome_replication'] or None for row in rep))
         groups=publication['replication']['by_outcome'].values()
         keys=set(counts)|{key for group in groups for key in group}
         self.assertEqual({key:counts.get(key,0) for key in keys},{key:sum(group.get(key,0) for group in groups) for key in keys})
-        dims=[c.parse_reproduction_outcome(row['outcome']) for row in rows if 'reproduc' in row['type'].lower()]
+        dims=[c.reproduction_dimensions(row) for row in rows if 'reproduc' in row['type'].lower()]
         comp={'successful','issues','technical_failure'}
         robust={'robust','challenges'}
         self.assertEqual(sum(d[0] in comp for d in dims),publication['reproduction-numerical']['overview']['n_total'])
@@ -93,7 +116,7 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
             matched=[row for row in csv.DictReader(source) if 'replication' in row['type'].lower()
                      and 'reproduc' not in row['type'].lower() and row['impact_factor']
                      and float(row['impact_factor'])<35]
-        matched_counts=Counter(c.classify_outcome(row['outcome']) for row in matched)
+        matched_counts=Counter(c.replication_outcome(row) for row in matched)
         result=json.loads((ROOT/'data/impact_factor_data.json').read_text(encoding='utf-8'))
         self.assertEqual(result['overview']['n_total'],len(matched))
         self.assertEqual(result['stats']['n_model'],matched_counts['successful']+matched_counts['failed'])
@@ -110,7 +133,7 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         with patch.object(rr,'rr_dois',dois,create=True), patch.object(rr,'rr_titles',titles,create=True):
             # RR coverage has its own snapshot date, independent of the daily CSV.
             frame=pd.DataFrame(snapshot['replication']['rr_studies'])
-            frame['bucket']=frame['outcome'].map(c.classify_outcome)
+            frame['bucket']=frame['outcome_replication'].map(c.classify_outcome)
             rebuilt=rr.compute_rr_result(frame,'bucket',c.REPLICATION_OUTCOMES)
         self.assertEqual(rebuilt['overview']['n_rr'],snapshot['replication']['overview']['n_rr'])
         self.assertEqual(rebuilt['overview']['n_non_rr'],0)
@@ -264,17 +287,9 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         result=json.loads((ROOT/'data/impact_factor_data.json').read_text())
         self.assertEqual(result['overview']['n_total'],len(rep))
         reproductions=json.loads((ROOT/'data/impact_factor_reproductions.json').read_text())
-        repro=[c.parse_reproduction_outcome(r['outcome']) for r in eligible if 'reproduc' in r['type'].lower()]
+        repro=[c.reproduction_dimensions(r) for r in eligible if 'reproduc' in r['type'].lower()]
         for index,kind,buckets in [(0,'reproduction-numerical',{'successful','issues','technical_failure'}),(1,'reproduction-robustness',{'robust','challenges'})]:
             self.assertEqual(reproductions[kind]['overview']['n_total'],sum(d[index] in buckets for d in repro))
-
-    def test_reproduction_outcome_sheet_rejects_malformed_or_unusable_records(self):
-        header='validation,doi_r,outcome_computational,outcome_robustness\n'
-        for text in ['error\nUnavailable\n',header,header+',10.test/a,,\n',header+'validated - discarded,10.test/a,computationally reproducible,robust\n']:
-            with patch.object(pipeline.requests,'get',return_value=Mock(text=text)):
-                with self.assertRaises(ValueError): pipeline.fetch_reproduction_outcomes()
-        with patch.object(pipeline.requests,'get',return_value=Mock(text=header+',https://doi.org/10.test/a,computationally reproducible,\n')):
-            self.assertEqual(pipeline.fetch_reproduction_outcomes(),{'10.test/a':'computationally reproducible, '})
 
     def test_merged_reproduction_dois_are_not_cocitations(self):
         frame=pd.DataFrame([dict(doi_o='original',doi_r='report',computational_bucket='successful',robustness_bucket='robust')])

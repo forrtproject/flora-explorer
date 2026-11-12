@@ -24,6 +24,7 @@ import requests
 import statsmodels.api as sm
 from tqdm import tqdm
 
+from classification import REPRODUCTION_OUTCOME_COLUMNS, reproduction_dimensions, with_outcome_columns
 from split_originals import write_split
 
 # ------------------------------------------------------------------ config
@@ -34,10 +35,6 @@ DATA_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
 
 FLORA_URL = "https://raw.githubusercontent.com/forrtproject/FReD-data/main/output/flora.csv"
-REPRODUCTIONS_GSHEET_URL = (
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vT0VnLyrf9GCYXtN6l1DgaoLlg6H5r-08Op9eJzSripS1QBSHL031Arc27yUDe0YY7cB4TOnYMm2Vh1"
-    "/pub?gid=984458430&single=true&output=csv"
-)
 OC_BASE = "https://opencitations.net/index/api/v2"
 OC_META = "https://opencitations.net/meta/api/v1"
 OC_KEY = os.environ.get("OC_API_KEY", "").strip()
@@ -268,43 +265,13 @@ def fetch_text(url: str, attempts: int = 3, timeout: int = 60) -> str:
     raise SystemExit(f"Failed to fetch {url} after {attempts} attempts: {last_err}")
 
 
-def fetch_reproduction_outcomes() -> dict:
-    """Load the reproductions Google Sheet, returning normalised doi_r -> "computational,
-    robustness" combined outcome string. FReD-data's pipeline now sources reproductions
-    from this two-axis sheet but has a bug where that data never reaches flora.csv's
-    single `outcome` column (bind_rows() silently drops it - see scripts/refresh_flora.py
-    for the full rationale). Until that's fixed upstream, this backfills the same way
-    refresh_flora.py does, since this script fetches FLORA_URL directly rather than
-    reading the locally-patched data/flora.csv."""
-    r = requests.get(REPRODUCTIONS_GSHEET_URL, timeout=60)
-    r.raise_for_status()
-    gsheet = pd.read_csv(io.StringIO(r.text), low_memory=False).fillna("")
-    required = {"validation", "doi_r", "outcome_computational", "outcome_robustness"}
-    missing = required - set(gsheet.columns)
-    if missing:
-        raise ValueError(f"Reproduction outcome sheet is missing columns: {sorted(missing)}")
-    by_doi: dict[str, str] = {}
-    for _, row in gsheet.iterrows():
-        if str(row.get("validation") or "").strip().lower() == "validated - discarded":
-            continue
-        computational = str(row.get("outcome_computational") or "").strip()
-        robustness = str(row.get("outcome_robustness") or "").strip()
-        if not computational and not robustness:
-            continue
-        doi_key = doi_clean(row.get("doi_r", ""))
-        if doi_key:
-            by_doi[doi_key] = f"{computational}, {robustness}"
-    if not by_doi:
-        raise ValueError("Reproduction outcome sheet has no usable outcome records")
-    return by_doi
-
-
 def load_flora_raw() -> pd.DataFrame:
     """Fetch + parse FLoRA into the common column shape, before any type/outcome
     filtering - so both filter_replications() and filter_reproductions() can work
     from the same parsed frame."""
     print("Fetching FLoRA…")
     df = pd.read_csv(DATA_DIR / "flora.csv", low_memory=False) if (DATA_DIR / "flora.csv").exists() else pd.read_csv(io.StringIO(fetch_text(FLORA_URL)), low_memory=False)
+    df = with_outcome_columns(df)
     print(f"  {len(df)} rows; columns: {list(df.columns)[:14]}…")
 
     def find_col(names, required=True, default=None):
@@ -318,7 +285,6 @@ def load_flora_raw() -> pd.DataFrame:
 
     col_doi_o   = find_col(["doi_o"])
     col_doi_r   = find_col(["doi_r"])
-    col_outcome = find_col(["result", "outcome", "result_class"], required=False)
     col_type    = find_col(["type", "study_type", "ref_type"], required=False)
 
     col_title_o = find_col(["title_o", "ref_o"], required=False)
@@ -334,7 +300,8 @@ def load_flora_raw() -> pd.DataFrame:
     out = pd.DataFrame({
         "doi_o":     df[col_doi_o].map(doi_clean),
         "doi_r":     df[col_doi_r].map(doi_clean),
-        "outcome":   df[col_outcome].astype(str).str.lower().str.strip() if col_outcome else "unknown",
+        # Replication verdict; reproductions are bucketed from their per-axis columns instead.
+        "outcome":   df["outcome_replication"].astype(str).str.lower().str.strip(),
         "type":      df[col_type].astype(str).str.lower().str.strip() if col_type else "replication",
         "title_o":   df[col_title_o] if col_title_o else "",
         "author_o":  df[col_auth_o] if col_auth_o else "",
@@ -345,19 +312,8 @@ def load_flora_raw() -> pd.DataFrame:
         "year_r":    df[col_year_r] if col_year_r else None,
         "journal_r": df[col_journal_r] if col_journal_r else "",
     })
-
-    is_reproduction = out["type"].str.contains("reproduc", na=False)
-    missing_outcome = out["outcome"].isna() | out["outcome"].isin(["", "na", "nan"])
-    needs_backfill = is_reproduction & missing_outcome
-    if needs_backfill.any():
-        try:
-            by_doi = fetch_reproduction_outcomes()
-            filled = out.loc[needs_backfill, "doi_r"].map(by_doi)
-            out.loc[needs_backfill, "outcome"] = filled.combine_first(out.loc[needs_backfill, "outcome"])
-            print(f"  Backfilled outcome for {filled.notna().sum()}/{needs_backfill.sum()} "
-                  f"reproduction rows from the Google Sheet")
-        except requests.exceptions.RequestException as e:
-            print(f"  ! could not fetch reproduction outcomes ({e}); leaving outcome as-is")
+    for column in REPRODUCTION_OUTCOME_COLUMNS:
+        out[column] = df[column] if column in df.columns else ""
 
     return out
 
@@ -387,7 +343,7 @@ def load_flora() -> pd.DataFrame:
     return filter_replications(load_flora_raw())
 
 
-from classification import parse_reproduction_outcome
+
 
 
 
@@ -402,7 +358,7 @@ def filter_reproductions(out: pd.DataFrame) -> pd.DataFrame:
              .dropna(subset=["doi_o", "doi_r"])
              .drop_duplicates(subset=["doi_o", "doi_r"])
              .copy())
-    dims = repro["outcome"].apply(parse_reproduction_outcome)
+    dims = repro.apply(reproduction_dimensions, axis=1)
     repro["computational_bucket"] = dims.apply(lambda t: t[0] or "not_coded")
     repro["robustness_bucket"] = dims.apply(lambda t: t[1] or "not_coded")
     return repro.reset_index(drop=True)
