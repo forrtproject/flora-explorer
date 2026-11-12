@@ -208,7 +208,7 @@ def load_disciplines() -> dict:
     return mapping
 
 
-from classification import parse_reproduction_outcome
+from classification import REPLICATION_COLUMNS, add_outcome_columns, reproduction_dimensions
 
 
 
@@ -229,7 +229,7 @@ def compute_reproduction_impact_stats(rows: list[dict]) -> None:
             impact = None
         if impact is None or impact >= 35:
             continue
-        computational, robustness = parse_reproduction_outcome(row.get("outcome"))
+        computational, robustness = reproduction_dimensions(row)
         journal = (row.get("journal_o") or "").strip()
         repro_rows.append({
             "impact_factor": impact,
@@ -287,8 +287,9 @@ def main():
 
     with IN_CSV.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
-        rows = list(reader)
-        base_columns = reader.fieldnames or []
+        rows = add_outcome_columns(list(reader))
+        base_columns = list(reader.fieldnames or [])
+    base_columns += [c for c in REPLICATION_COLUMNS if c not in base_columns and rows and c in rows[0]]
 
     extra_cols = ["openalex_venue_id", "openalex_venue_name", "impact_factor"]
     out_columns = list(base_columns) + [c for c in extra_cols if c not in base_columns]

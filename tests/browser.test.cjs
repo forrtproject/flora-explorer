@@ -515,7 +515,7 @@ test('Browse and Citation Impact share accent, quote, token and DOI search rules
   for(const q of ['family','given','sequence']) assert.ok((await browseSearch(q)).length<100,`${q} must not match author JSON keys`);
   // Search every author's name, including given-only and group names, without metadata.
   assert.deepEqual(await p.evaluate(()=>{
-    const row={author_o:JSON.stringify([{given:'Zoë',family:'Müller',ORCID:'metadata-only'},{given:'Søren'},{name:'Research collective'}]),outcome:'raw_outcome_code',url_r:'https://url-only.invalid',outcome_quote:'A distinctive quotation'};
+    const row={author_o:JSON.stringify([{given:'Zoë',family:'Müller',ORCID:'metadata-only'},{given:'Søren'},{name:'Research collective'}]),outcome_replication:'raw_outcome_code',url_r:'https://url-only.invalid',outcome_replication_quote:'A distinctive quotation'};
     return ['Zoe Muller','Søren','Research collective','metadata-only','raw_outcome_code','url-only.invalid','distinctive quotation'].map(q=>matchesBrowseQuery(row,q));
   }),[true,true,true,false,false,false,true]);
   await p.click('#citation-tab');await p.waitForSelector('.timeline-open');
@@ -1237,15 +1237,17 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
       perClaim:strip('Computational: Per-claim outcomes: m63jjk "did reproduce", gjrjjk "did reproduce", blw99o "did not reproduce"'),
       claimsWord:strip('Computational: (stated for both completed claims, l8d8wj and 6rvr3z)'),
       nonClaim:strip('Computational: packages (e.g. ivreg2, eststo, esttab) were available'),
-      replication:outcomeEvidenceParts({type:'replication',outcome_quote:'Claim ID: 3n6x9n replicated'}).parts[0].text,
+      replication:outcomeEvidenceParts({type:'replication',outcome_replication_quote:'Claim ID: 3n6x9n replicated'}).parts[0].text,
       searchKeepsIds:matchesBrowseQuery({type:'reproduction',outcome_computational_quote:'claims: gdyrdr, b7dlq4'},'b7dlq4'),
-      empty:formatOutcomeEvidence({outcome_quote:' || '}),
+      empty:formatOutcomeEvidence({outcome_replication_quote:' || '}),
       sourced:formatOutcomeEvidence({type:'reproduction',outcome_computational_quote:'code ran',out_quote_computational_source:'results',outcome_robustness_quote:'estimates match',out_quote_robust_source:'abstract'}),
       reproNote:formatOutcomeEvidence({type:'reproduction',outcome_computational_quote:'Rated as reproduced',out_quote_computational_source:'coding note: project rule',outcome_robustness_quote:'NA'}),
-      plain:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'abstract || Abstract'}),
-      note:formatOutcomeEvidence({type:'replication',outcome_quote:'Survival increased || PAPER-LEVEL: 1/2 experiments successful',outcome_quote_source:'abstract || coding note: project rule'}),
-      legacyNote:formatOutcomeEvidence({type:'replication',outcome_quote:'Replicate = 0',outcome_quote_source:'data file at https://osf.io/fgjvw'}),
-      noSource:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'NA'}),
+      plain:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'It replicated',out_quote_replication_source:'abstract || Abstract',outcome_quote:'Combined field is not read'}),
+      note:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'Survival increased || PAPER-LEVEL: 1/2 experiments successful',out_quote_replication_source:'abstract || Coding note: project rule'}),
+      bareNote:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'Outcome classified as failed',out_quote_replication_source:'coding note'}),
+      legacyNote:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'Replicate = 0',out_quote_replication_source:'data file at https://osf.io/fgjvw'}),
+      noSource:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'It replicated',out_quote_replication_source:'NA'}),
+      deduplicated:formatOutcomeEvidence({type:'replication',outcome_replication_quote:'First || Second',out_quote_replication_source:'abstract'}),
       escaped:tableTitleCell('<b>x</b>',JSON.stringify([{family:'Carney'},{family:'Cuddy'},{family:'Yap'}]),2010)
     };
   });
@@ -1267,10 +1269,12 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
   assert.match(r.note,/Outcome evidence:/);
   assert.match(r.note,/Survival increased <span class="small">\(source: abstract\)/);
   assert.match(r.note,/successful <span class="small">\(coding note: project rule\)/);
+  assert.match(r.bareNote,/Outcome evidence:[\s\S]*failed <span class="small">\(coding note\)<\/span>/);
+  assert.match(r.deduplicated,/<li>First<\/li><li>Second<\/li>[\s\S]*Source: abstract<\/p>/);
   assert.match(r.legacyNote,/Outcome evidence:[\s\S]*\(coding note: data file at https:\/\/osf\.io\/fgjvw\)/);
   assert.match(r.reproNote,/Outcome evidence:[\s\S]*Computational:<\/span> Rated as reproduced <span class="small">\(coding note: project rule\)/);
   assert.ok(!/Robustness/.test(r.reproNote));
-  assert.ok(!/may not fully explain/.test(r.sourced+r.plain+r.noSource));
+  assert.ok(!/may not fully explain|Combined field/.test(r.sourced+r.plain+r.noSource));
   assert.ok(!/ignored/.test(r.items.join(' ')));
   assert.ok(r.escaped.includes('&lt;b&gt;x&lt;/b&gt;')&&!r.escaped.includes('<b>'));
   assert.ok(r.escaped.includes('Carney et al. (2010)'));
@@ -1319,7 +1323,14 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   const cases=JSON.parse(fs.readFileSync('tests/fixtures/outcome-vocabulary.json'));
   const headers=fs.readFileSync('tests/fixtures/browse.csv','utf8').split('\n')[0].split(',');
   const outcomes=['statistically successful but flawed','uninformative','NA','inconclusive','successful || computationally reproducible, robustness not checked','computation not checked, robust','computationally reproducible, robustness not checked'];
-  const rows=outcomes.map((outcome,i)=>({...Object.fromEntries(headers.map(key=>[key,''])),title_o:'Original '+i,title_r:'Report '+i,type:i<5?'replication':'reproduction',outcome}));
+  // Reproductions are classified from their per-axis columns; the combined outcome is kept but not read.
+  // Replications have no outcome_replication column here, so they exercise the fallback to `outcome`.
+  headers.push('outcome_computation','outcome_robustness');
+  const rows=outcomes.map((outcome,i)=>{
+    const [outcome_computation,outcome_robustness]=i<5?['','']:outcome.split(', ');
+    return {...Object.fromEntries(headers.map(key=>[key,''])),title_o:'Original '+i,title_r:'Report '+i,type:i<5?'replication':'reproduction',
+      outcome:i<5?outcome:'successful',outcome_computation,outcome_robustness};
+  });
   const csv=[headers,...rows.map(row=>headers.map(key=>row[key]))].map(row=>row.map(value=>'"'+value.replaceAll('"','""')+'"').join(',')).join('\n');
   const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({contentType:'text/csv',body:csv})));
   assert.equal(await p.locator('[data-outcome-definitions]').count(),7);
@@ -1342,13 +1353,15 @@ test('shared vocabulary preserves source codes, full badges and independent repr
     return p.evaluate(text=>Papa.parse(text,{header:true,skipEmptyLines:true}),Buffer.concat(chunks).toString('utf8'));
   };
   const full=await readDownload();
-  assert.deepEqual(full.meta.fields,['Export context',...headers.flatMap(key=>key==='outcome'?[key,'outcome_label']:[key])]);
-  assert.deepEqual(full.data.map(row=>row.outcome),outcomes);
+  assert.deepEqual(full.meta.fields,['Export context',...headers.flatMap(key=>key==='outcome'?[key,'outcome_label']:[key]),
+    // The fallback adds only the columns whose combined field is in the file (no outcome_quote_source here).
+    'outcome_replication','outcome_replication_quote']);
+  assert.deepEqual(full.data.map(row=>row.outcome_replication),[...outcomes.slice(0,5),'','']);
   assert.ok(full.data.every(row=>row['Export context'].includes('Study type: All')));
   assert.equal(full.data[2].outcome_label,'Missing outcome');
   await p.click('.browse-kind-btn[data-kind="reproduction-numerical"]');
   const filtered=await readDownload();assert.equal(filtered.data.length,1);
-  assert.equal(filtered.data[0].outcome,outcomes[6]);
+  assert.equal([filtered.data[0].outcome_computation,filtered.data[0].outcome_robustness].join(', '),outcomes[6]);
   assert.equal(filtered.data[0].outcome_label,'Computational: Reproduced; Robustness: Not checked');
   assert.match(filtered.data[0]['Export context'],/Study type: Numerical reproductions/);
   await p.fill('#browse-mobile-input','zzzz-missing');await p.waitForFunction(()=>getChartData().length===0);
@@ -1402,8 +1415,9 @@ test('outcome vocabulary failures show the page error with a reload action',asyn
 
 test('missing outcome markers do not make an untyped row a replication, and the reproduction export names its study type',async()=>{
   const p=await page('?tab=browse&kind=reproduction');
-  assert.deepEqual(await p.evaluate(()=>['NA','N/A',' #n/a ','','successful'].map(outcome=>classifyKind({type:'',outcome}))),
+  assert.deepEqual(await p.evaluate(()=>['NA','N/A',' #n/a ','','successful'].map(outcome_replication=>classifyKind({type:'',outcome_replication,outcome:'computational issues, robust'}))),
     ['unknown','unknown','unknown','unknown','replication']);
+  assert.equal(await p.evaluate(()=>classifyKind({type:'',outcome_computation:'computational issues'})),'reproduction');
   const event=p.waitForEvent('download');await p.click('#export-browse');
   const text=fs.readFileSync(await (await event).path(),'utf8');
   assert.match(text,/Study type: Reproductions/);
