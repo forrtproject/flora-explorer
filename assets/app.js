@@ -758,21 +758,29 @@ function formatQuoteSource(text) {
     return /^https?:\/\//.test(text) ? `<a href="${escapeHtml(text)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>` : escapeHtml(text);
 }
 
+// Sources that record a coder's note rather than a location in the report. "coding note" is the
+// convention requested upstream (FReD-data); the other markers cover rows coded before it existed.
+const CODING_NOTE_SOURCE = /^coding note\b|project rule|^data file\b|github\.com\/forrtproject\/fred-data\/issues/i;
+
 function formatOutcomeEvidence(row) {
     const parts = outcomeEvidenceParts(row);
     if (!parts.length) return '<p class="small">No outcome evidence is recorded for this pair.</p>';
-    const sources = splitLabelledParts(row.outcome_quote_source)
-        .filter((s, i, all) => all.findIndex(o => o.label === s.label && o.text.toLowerCase() === s.text.toLowerCase()) === i);
-    // Labelled sources (Computational/Robustness) sit next to their matching quote; the rest go on one line.
-    const bySource = label => sources.filter(s => label && s.label === label).map(s => formatQuoteSource(s.text)).join('; ');
-    const items = parts.map(p => {
-        const src = bySource(p.label);
-        return `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}${src ? ` <span class="small">(source: ${src})</span>` : ''}</li>`;
+    const sources = splitLabelledParts(row.outcome_quote_source);
+    // Pair each quote with its source: by Computational/Robustness label, or by position when the counts match.
+    const byPosition = sources.length === parts.length && sources.every(s => !s.label);
+    const paired = parts.map((p, i) => ({ ...p, source: byPosition ? sources[i] : sources.find(s => p.label && s.label === p.label) }));
+    const unpaired = sources.filter(s => !paired.some(p => p.source === s))
+        .filter((s, i, all) => all.findIndex(o => o.text.toLowerCase() === s.text.toLowerCase()) === i);
+    const isNote = s => s && CODING_NOTE_SOURCE.test(s.text);
+    const items = paired.map(p => {
+        const note = isNote(p.source);
+        const src = p.source ? ` <span class="small">(${note ? 'coding note; basis' : 'source'}: ${formatQuoteSource(p.source.text)})</span>` : '';
+        return `<li>${p.label ? `<span class="evidence-part-label">${p.label}:</span> ` : ''}${escapeHtml(p.text)}${src}</li>`;
     }).join('');
-    const rest = sources.filter(s => !s.label || !parts.some(p => p.label === s.label)).map(s => formatQuoteSource(s.text));
-    return `<div class="detail-label">${sources.length ? 'Outcome quote' : 'Outcome evidence'}:</div>
+    const allQuotes = sources.length && !sources.some(isNote);
+    return `<div class="detail-label">${allQuotes ? 'Outcome quote' : 'Outcome evidence'}:</div>
         <ul class="outcome-evidence">${items}</ul>
-        ${rest.length ? `<p class="small">Source: ${rest.join('; ')}</p>` : ''}`;
+        ${unpaired.length ? `<p class="small">Source: ${unpaired.map(s => formatQuoteSource(s.text)).join('; ')}</p>` : ''}`;
 }
 
 // ===== Browse: detail row =====

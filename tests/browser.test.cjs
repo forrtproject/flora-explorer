@@ -1242,6 +1242,7 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
       empty:formatOutcomeEvidence({outcome_quote:' || '}),
       sourced:formatOutcomeEvidence({type:'reproduction',outcome_quote:'Computational: code ran || Robustness: estimates match',outcome_quote_source:'Computational: results || Robustness: abstract'}),
       plain:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'abstract || Abstract'}),
+      note:formatOutcomeEvidence({type:'replication',outcome_quote:'Survival increased || PAPER-LEVEL: 1/2 experiments successful',outcome_quote_source:'abstract || project rule'}),
       noSource:formatOutcomeEvidence({type:'replication',outcome_quote:'It replicated',outcome_quote_source:'NA'}),
       escaped:tableTitleCell('<b>x</b>',JSON.stringify([{family:'Carney'},{family:'Cuddy'},{family:'Yap'}]),2010)
     };
@@ -1261,6 +1262,9 @@ test('Browse outcome evidence splits parts, hides claim IDs and shows quote sour
   assert.match(r.sourced,/estimates match <span class="small">\(source: abstract\)/);
   assert.match(r.plain,/Source: abstract<\/p>/);
   assert.match(r.noSource,/Outcome evidence:/);
+  assert.match(r.note,/Outcome evidence:/);
+  assert.match(r.note,/Survival increased <span class="small">\(source: abstract\)/);
+  assert.match(r.note,/successful <span class="small">\(coding note; basis: project rule\)/);
   assert.ok(!/may not fully explain/.test(r.sourced+r.plain+r.noSource));
   assert.ok(r.escaped.includes('&lt;b&gt;x&lt;/b&gt;')&&!r.escaped.includes('<b>'));
   assert.ok(r.escaped.includes('Carney et al. (2010)'));
