@@ -34,7 +34,7 @@ npm ci
 npm test
 ```
 
-The tests serve `dist/` from their own Python HTTP server on port 8897 (set `TEST_PORT` to change it) and use installed Chrome by default. To use bundled Chromium instead:
+The tests serve `dist/` from their own local server on port 8897 (set `TEST_PORT` to change it) and use installed Chrome by default. To use bundled Chromium instead:
 
 ```sh
 npx playwright install chromium

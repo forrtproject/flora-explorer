@@ -1,22 +1,31 @@
 const {test, before, after} = require('node:test');
 const assert = require('node:assert/strict');
 const {chromium} = require('playwright');
-const {spawn} = require('node:child_process');
+const http = require('node:http');
+const path = require('node:path');
 const fs = require('node:fs');
 let browser, server;
 const port = process.env.TEST_PORT || '8897';
 const base = `http://127.0.0.1:${port}/`;
+const TYPES={'.html':'text/html; charset=utf-8','.js':'text/javascript','.css':'text/css','.json':'application/json','.csv':'text/csv; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'};
+// Python's http.server resets connections under the page's burst of parallel requests, which made unrelated tests time out.
+function serveDist(){
+  const root=path.resolve('dist');
+  return http.createServer((req,res)=>{
+    const file=path.join(root,decodeURIComponent(new URL(req.url,base).pathname).replace(/\/$/,'/index.html'));
+    if(!file.startsWith(root)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end('Not found');return;}
+    res.writeHead(200,{'Content-Type':TYPES[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'});
+    fs.createReadStream(file).pipe(res);
+  });
+}
 before(async()=>{
-  server=spawn(process.env.PYTHON || 'python3',['-m','http.server',port,'--bind','127.0.0.1','--directory','dist'],{stdio:'ignore'});
-  // A server that exits early usually means the port is taken; fail rather than test another server's files.
-  let exited=false;server.on('exit',()=>{exited=true;});
-  // Consume the readiness response so its open stream does not outlive the hook.
-  for(let i=0;i<50;i++){try{await (await fetch(base)).arrayBuffer();break;}catch{await new Promise(r=>setTimeout(r,100));}}
-  await new Promise(r=>setTimeout(r,200));
-  if(exited) throw new Error(`Test server could not start on port ${port}; set TEST_PORT to a free port.`);
+  if(!fs.existsSync('dist/index.html')) throw new Error('dist/ is missing; run `npm run build` (or `npm test`, which builds first).');
+  server=serveDist();
+  // A failed listen usually means the port is taken; fail rather than test another server's files.
+  await new Promise((resolve,reject)=>{server.once('error',()=>reject(new Error(`Test server could not start on port ${port}; set TEST_PORT to a free port.`)));server.listen(Number(port),'127.0.0.1',resolve);});
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
 });
-after(async()=>{await browser?.close();server?.kill();});
+after(async()=>{await browser?.close();server?.closeAllConnections();server?.close();});
 async function page(query, width=1280, setup){
   const p=await browser.newPage({viewport:{width,height:900}});p.errors=[];
   p.on('pageerror',e=>p.errors.push(e.message));
