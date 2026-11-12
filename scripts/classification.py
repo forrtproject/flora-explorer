@@ -35,7 +35,7 @@ PREPRINT_KEYS = ['osf', 'arxiv', 'preprint', 'ssrn', 'working paper', 'repositor
                  'medrxiv', 'psyarxiv', 'psycharchiv', 'zenodo']
 THESIS_KEYS = ['thesis', 'theses', 'dissertation', 'dissertaç', 'teses']
 STRONG_CONFERENCE_KEYS = ['conference', 'symposium', 'workshop']
-EVENT_KEYS = ['congress', 'meeting', 'annual', 'international']
+EVENT_KEYS = ['congress', 'meeting', 'annual']
 _MISSING = ('', 'na', 'nan', 'none', 'null')
 
 
@@ -80,20 +80,27 @@ def _host(url):
     host = urlparse(u if '//' in u else '//' + u).netloc.split(':')[0]
     return host[4:] if host.startswith('www.') else host
 
+_SECOND_LEVEL = {'co', 'ac', 'com', 'org', 'net', 'gov', 'edu'}
+
 
 def url_host(url):
-    """Registered domain of a URL (shs.hal.science -> hal.science); '' when absent."""
+    """Registered domain of a URL (shs.hal.science -> hal.science; x.univ.ac.uk -> univ.ac.uk); '' when absent."""
     host = _host(url)
-    return '.'.join(host.split('.')[-2:]) if host else ''
+    labels = host.split('.') if host else []
+    if len(labels) < 2:
+        return host
+    n = 3 if len(labels) >= 3 and len(labels[-1]) == 2 and labels[-2] in _SECOND_LEVEL else 2
+    return '.'.join(labels[-n:])
 
 
 def _identifier_signals(doi, url):
     """Three kinds of identifier evidence for one reference: DOI prefix, URL host, name tokens."""
     d = normalize_doi(doi)
     suffix = d.split('/', 1)[1] if '/' in d else d
+    host_labels = _host(url).split('.')[:-1]  # drop the top-level domain (org, com, ...)
     return {'doi_prefixes': {doi_prefix(d)} - {''},
             'hosts': {url_host(url)} - {''},
-            'tokens': _tokens(suffix) | _tokens(_host(url))}
+            'tokens': _tokens(suffix) | _tokens('.'.join(host_labels))}
 
 
 def learn_repositories(df, venue_col='journal_r', doi_col='doi_r', url_col='url_r', min_n=2, min_share=0.5):
