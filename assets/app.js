@@ -677,7 +677,7 @@ function parseFaqMarkdown(md) {
     const flushQA = () => { if (currentQA) {
         if (currentQA.question === venueQuestion) {
             currentQA.body = [
-                'The Publication Type tab groups reports by their recorded venue: repository or preprint, conference output, thesis or dissertation, other named venue, or unknown venue. A named venue does not confirm peer review. Missing venue information remains unknown.'
+                'The Publication Type tab groups reports by their recorded venue: repository or preprint, conference output, thesis or dissertation, other named venue, or unknown venue. A named venue does not confirm peer review. Where no venue name is recorded, the report’s DOI or URL is used: an identifier that points to a repository (for example OSF, PsyArXiv or bioRxiv) is grouped as repository or preprint, and anything else remains unknown.'
             ];
             venueAnswerCorrected = true;
         }
