@@ -140,17 +140,7 @@
     // parseReproductionOutcome() in assets/app.js). Unlike the replication view, there's no
     // event-study model here - too few reproductions for that to be meaningful - so this
     // just shows the simple counts refresh_data.py's compute_reproduction_citations() wrote.
-    const CI_REPRO_BUCKETS = {
-        'reproduction-numerical': [
-            { key: 'successful', label: 'Successful' },
-            { key: 'issues', label: 'Computational issues' },
-            { key: 'technical_failure', label: 'Technical failure' },
-        ],
-        'reproduction-robustness': [
-            { key: 'robust', label: 'Robust' },
-            { key: 'challenges', label: 'Robustness challenges' },
-        ],
-    };
+    const ciReproductionBuckets = kind => studyTypeOutcomeBuckets(kind);
     const CI_REPRO_MIN_N = 5;
 
     function renderCiKindGate(kind) {
@@ -167,7 +157,7 @@
         }
         if (contentEl) contentEl.style.display = 'none';
 
-        const buckets = CI_REPRO_BUCKETS[kind] || [];
+        const buckets = ciReproductionBuckets(kind);
         const data = CI.repro && CI.repro[kind];
         const totalOriginals = data
             ? buckets.reduce((sum, b) => sum + ((data[b.key] && data[b.key].n_originals) || 0), 0)
@@ -232,10 +222,10 @@
         const c = (CI.meta && CI.meta.outcome_counts) || {};
         const fmt = n => (n == null ? '—' : FloraCharts.number(n));
         document.getElementById('kpis').innerHTML = `
-            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Original reports with complete citation data</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Distinct originals with complete citation data</div></div>
             <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_replications)}</div><div class="kpi-label">Eligible replication reference pairs</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(c.failed)}</div><div class="kpi-label">Eligible pairs: failed</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(c.successful)}</div><div class="kpi-label">Eligible pairs: successful</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(c.failed)}</div><div class="kpi-label">Eligible reference pairs: Failed</div></div>
+            <div class="kpi"><div class="kpi-value">${fmt(c.successful)}</div><div class="kpi-label">Eligible reference pairs: Successful</div></div>
             <p class="muted kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</p>`;
     }
 
@@ -279,8 +269,8 @@
             traces.push({
                 x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines',
                 line: { color: plotlyTheme().rule, width: 1, dash: 'dot' },
-                name: 'N (right axis)', yaxis: 'y2',
-                text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>Original reports: ${FloraCharts.number(desc.n_units[i])}`),
+                name: 'Distinct originals', yaxis: 'y2',
+                text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>Distinct originals: ${FloraCharts.number(desc.n_units[i])}`),
                 hovertemplate: '%{text}<extra></extra>'
             });
         }
@@ -320,7 +310,7 @@
             xaxis: { title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font },
             yaxis: { title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero' },
             yaxis2: {
-                title: 'N studies', ...FloraCharts.countAxis(Math.max(0,...(desc.n_units || []))), overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
+                title: 'Distinct originals', ...FloraCharts.countAxis(Math.max(0,...(desc.n_units || []))), overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero',
                 tickfont: { color: t.muted, size: 10 }, titlefont: { color: t.muted, size: 10 }
             },
             shapes: [{ type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: { color: t.primary, width: 1.5, dash: 'dash' } }],
@@ -335,16 +325,16 @@
     function renderOutcomeBar(outcomeMix, nReplications) {
         if (!outcomeMix || !nReplications) return '—';
         const total = nReplications;
-        const ORDERS = ['failed', 'mixed', 'successful'];
+        const ORDERS = FloraVocabulary.entries('replication').filter(item => ['successful','failed','mixed'].includes(item.key)).map(item => item.key);
         const segments = ORDERS.map(o => {
             const count = outcomeMix[o] || 0;
             if (!count) return '';
             const pct = (count / total * 100).toFixed(1);
-            const label = `${FloraCharts.number(count)} ${o}`;
+            const label = `${FloraCharts.number(count)} ${FloraVocabulary.label(o)}`;
             return `<div class="rep-seg ${o}" style="width:${pct}%" title="${label}"></div>`;
         }).join('');
-        const tooltipParts = ORDERS.filter(o => outcomeMix[o]).map(o => `${FloraCharts.number(outcomeMix[o])} ${o}`).join(', ');
-        return `<div class="rep-bar-wrap" title="${tooltipParts}">
+        const tooltipParts = ORDERS.filter(o => outcomeMix[o]).map(o => `${FloraCharts.number(outcomeMix[o])} ${FloraVocabulary.label(o)}`).join(', ');
+        return `<div class="rep-bar-wrap" role="img" aria-label="${tooltipParts}; ${FloraCharts.number(total)} reference pairs" title="${tooltipParts}">
             <div class="rep-bar">${segments}</div>
             <span class="rep-count">${FloraCharts.number(total)}</span>
         </div>`;
@@ -353,7 +343,7 @@
     const PUBSTATUS_LABELS = {
         individual: 'Up to 3 targets', large_project: 'Multiple-target report (>3 targets)'
     };
-    const BREAKDOWN_OUTCOME_LABELS = { successful: 'Successful', failed: 'Failed', mixed: 'Mixed' };
+    const breakdownOutcomeLabels = () => Object.fromEntries(['successful','failed','mixed'].map(key => [key, FloraVocabulary.label(key)]));
 
     function renderBreakdownTable(title, dim, labels, note) {
         const rows = Object.keys(labels).map(key => {
@@ -384,7 +374,7 @@
         if (!bd) { el.innerHTML = '<p class="muted">Not available yet — this analysis is included from the next scheduled data refresh.</p>'; return; }
         el.innerHTML =
             renderBreakdownTable('By replication report size', bd.pub_status || {}, PUBSTATUS_LABELS) +
-            renderBreakdownTable('By outcome of the replication', bd.outcome || {}, BREAKDOWN_OUTCOME_LABELS);
+            renderBreakdownTable('By outcome of the replication', bd.outcome || {}, breakdownOutcomeLabels());
     }
 
     function renderCocitCell(s) {
@@ -534,7 +524,7 @@
         const reps = chronologicalReplications(s).map((r, i) => `
             <li>
                 <span class="rep-marker" role="img" style="color:${OUTCOME_COLORS[r.outcome] || 'inherit'}" aria-label="Marker ${i + 1}">${i + 1}</span>
-                <span class="outcome-badge ${r.outcome}">${r.outcome}</span>
+                <span class="outcome-badge ${r.outcome}">${FloraVocabulary.label(r.outcome)}</span>
                 <strong>${escapeHtml(formatAuthors(r.author, 2))} (${r.year || '?'})</strong>
                 ${r.title ? '— ' + escapeHtml(r.title) : ''}
                 ${r.doi ? `<br><a href="https://doi.org/${escapeHtml(r.doi)}" target="_blank" class="small">${escapeHtml(r.doi)}</a>` : ''}
@@ -602,16 +592,18 @@
         const years = tl.map(t => t.year);
         const traces = [
             { x: years, y: tl.map(t => t.only),            name: 'Cites original only',    type: 'bar', marker: { color: FloraCharts.token('--color-chart-neutral') } },
-            { x: years, y: tl.map(t => t.with_failed),     name: 'Co-cites failed rep',    type: 'bar', marker: { color: OUTCOME_COLORS.failed } },
-            { x: years, y: tl.map(t => t.with_mixed),      name: 'Co-cites mixed rep',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
-            { x: years, y: tl.map(t => t.with_successful), name: 'Co-cites successful rep',type: 'bar', marker: { color: OUTCOME_COLORS.successful } },
-            { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Co-cites multiple outcome categories', type: 'bar', marker: {color: FloraCharts.token('--color-chart-qualified')} }
-        ].filter(trace=>trace.y.some(v=>v>0));
+            { x: years, y: tl.map(t => t.with_failed),     name: 'Also cites Failed replication',    type: 'bar', marker: { color: OUTCOME_COLORS.failed } },
+            { x: years, y: tl.map(t => t.with_mixed),      name: 'Also cites Mixed replication',     type: 'bar', marker: { color: OUTCOME_COLORS.mixed } },
+            { x: years, y: tl.map(t => t.with_successful), name: 'Also cites Successful replication',type: 'bar', marker: { color: OUTCOME_COLORS.successful } },
+            { x: years, y: tl.map(t => t.with_multiple || 0), name: 'Also cites replications with multiple outcomes', type: 'bar', marker: {color: FloraCharts.token('--color-chart-qualified')} }
+        ];
+        // Empty series stay in the data table and export but not in the legend.
+        traces.forEach(trace => { if (!trace.y.some(v => v > 0)) trace.showlegend = false; });
         // The coverage year stays partial even if this snapshot is viewed in a later year.
         const partialYear = Number((CI.meta?.last_updated || '').slice(0,4)) || new Date().getFullYear();
         traces.forEach(trace=>{
             trace.marker.opacity = years.map(year=>year===partialYear ? 0.45 : 1);
-            trace.hovertemplate = 'Year: %{x}<br>Citations: %{y:,.0f}<extra>%{fullData.name}</extra>';
+            trace.hovertemplate = 'Year: %{x}<br>Citing works: %{y:,.0f}<extra>%{fullData.name}</extra>';
         });
         const maxYearlyCount = Math.max(0,...years.map((_,i)=>traces.reduce((n,trace)=>n+trace.y[i],0)));
         const t = plotlyTheme();
@@ -624,7 +616,7 @@
         chronologicalReplications(s).forEach((r, i) => {
             if (!r.year) return;
             shapes.push({ type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: { color: OUTCOME_COLORS[r.outcome] || t.primary, width: 2, dash: 'dash' } });
-            const label = narrow ? String(i + 1) : `${i + 1} · ${r.outcome} ${r.year}`;
+            const label = narrow ? String(i + 1) : `${i + 1} · ${FloraVocabulary.label(r.outcome)} ${r.year}`;
             const x = (r.year-minYear)*width/span, half = label.length*(narrow ? 3.5 : 3)+5;
             let row = lanes.findIndex(end=>end+6 < x-half);
             if (row < 0) row = lanes.length;
@@ -635,7 +627,7 @@
         const layout = {
             barmode: 'stack', margin: { t: 50, r: 10, b: 40, l: 50 },
             xaxis: { title: 'Year', gridcolor: t.grid, color: t.font },
-            yaxis: { title: 'Citing preprints / papers', ...FloraCharts.countAxis(maxYearlyCount), gridcolor: t.grid, color: t.font },
+            yaxis: { title: 'Citing works', ...FloraCharts.countAxis(maxYearlyCount), gridcolor: t.grid, color: t.font },
             shapes, annotations, hoverlabel:{namelength:-1},
             plot_bgcolor: t.plot, paper_bgcolor: t.paper,
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
@@ -759,6 +751,10 @@
 
     // A DOI deep link can load citation data before the main CSV finishes.
     document.addEventListener('flora-ready', () => {
+        // Plots drawn while the page was hidden keep a broken autorange until a full re-layout.
+        document.querySelectorAll('#floraTabsContent .js-plotly-plot').forEach(el => {
+            if (el.offsetParent) Plotly.Plots.resize(el).catch(() => {});
+        });
         if (!CI.index) return;
         CI.index = buildSearchIndex(CI.index);
         if (CI.loaded) renderTable();

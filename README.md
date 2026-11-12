@@ -5,14 +5,14 @@ A static dashboard for the [FORRT Library of Reproduction and Replication Attemp
 | View | Purpose | Data refresh |
 |---|---|---|
 | Overview | Reference-pair counts and separate replication, computational and robustness outcomes | Daily |
-| Browse Studies | Shared desktop/mobile search, full evidence, outcome evidence (quotations or coding notes), links and filtered CSV export | Daily |
+| Browse reference pairs | Shared desktop/mobile search, full evidence, outcome evidence (quotations or coding notes), links and filtered CSV export | Daily |
 | Years & Disciplines | Outcome counts by year, venue and discipline | Daily |
 | Citation Impact | Citation trajectories, adjusted associations, co-citation rates and individual timelines | Weekly |
 | Mean Citedness | Journal-level citation metric distributions and a conditional replication-success model | Weekly |
 | Authorship Overlap | Within-group outcome percentages based on surname overlap | Daily |
 | Publication Type | Recorded venue categories, Registered Reports matching and reports with multiple original targets | Daily / weekly |
 
-Every chart has a nearby data table and a compact button to copy its CSV data. Browse Studies also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
+Every chart has a nearby data table and a compact button to copy its CSV data. Browse reference pairs also offers a CSV download of the current selection. Group comparisons default to within-group percentages, with a count toggle and group denominators. Search, study-type selections and key controls are recorded in the URL. Citation timelines have independently shareable links.
 
 ## Run locally
 
@@ -26,7 +26,7 @@ Open <http://127.0.0.1:8876/>. Third-party browser libraries load from their CDN
 
 ## Data and interpretation
 
-- **Replication outcomes:** explicit mappings retain “statistically successful but flawed” as a separate qualified category. Unknown, descriptive-only and uninformative outcomes remain visible under other/not coded. They are excluded from the binary Mean Citedness model and the successful/failed/mixed citation cohort.
+- **Replication outcomes:** explicit mappings retain “statistically successful but flawed” as a separate qualified category. Descriptive only, Uninformative, Missing outcome and Unrecognised outcome remain separate. Unsupported values, including a future “inconclusive” code, remain unrecognised. Labels, definitions and aliases are shared in `data/outcome_vocabulary.json`. Only unqualified successful and failed outcomes enter the binary Mean Citedness model; the citation cohort uses successful, failed and mixed outcomes.
 - **Reproduction outcomes:** computational reproducibility and robustness are independent dimensions. Each includes only assessed outcomes. The same pair can appear in both subsets. Reproduction models are not fitted; their summaries are descriptive.
 - **Publication venues:** recognisable repositories/preprints, conference outputs and theses are separated. Missing venues remain unknown. “Other named venue” does not verify journal publication or peer review.
 - **Registered Reports:** matching uses the [RRDB CSV](https://github.com/LukasRoeseler/RRDB/blob/main/zotero_registered_reports.csv). A non-match is not evidence that a report was not registered.
@@ -82,6 +82,8 @@ python scripts/rebuild_cached_citations.py
 ```
 
 This validates cache availability, recomputes the timelines and models, and writes the compact index and individual records. The original coverage date stays unchanged; a separate recalculation date records the computation. It does not expand the citation cohort. `scripts/run_fect.R` is retained as an optional research analysis and is not part of the deployed OLS figures or scheduled workflows.
+
+For vocabulary-only RR summaries, `python scripts/compute_rr_status.py --cached-matches` reuses the committed positive matches, checks that coverage is unchanged and retains its coverage date.
 
 ## Validate changes
 

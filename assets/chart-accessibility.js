@@ -31,10 +31,17 @@ window.FloraCharts = (() => {
     let resizeTimer;
     window.addEventListener('resize',()=>{
         clearTimeout(resizeTimer);
-        resizeTimer=setTimeout(()=>plots.forEach((args,id)=>{
-            const el=document.getElementById(id);
-            if (id !== 'study-plot' && el?.getClientRects().length) plot(el,...args);
-        }),120);
+        resizeTimer=setTimeout(()=>{
+            // A type switch followed by narrowing can leave a canvas at its old width
+            // when Chart.js misses the container resize. Fit visible charts explicitly.
+            if (typeof Chart !== 'undefined') Object.values(Chart.instances).forEach(chart=>{
+                if (chart.canvas?.getClientRects().length) chart.resize();
+            });
+            plots.forEach((args,id)=>{
+                const el=document.getElementById(id);
+                if (id !== 'study-plot' && el?.getClientRects().length) plot(el,...args);
+            });
+        },120);
     });
     function csvText(headers, rows, notes = '') {
         // Prefix formula-like text so spreadsheet programs treat it as data.
@@ -51,7 +58,11 @@ window.FloraCharts = (() => {
         const pane = el.closest('.tab-pane');
         const stamp = (pane ? [...pane.querySelectorAll('.data-stamp')].map(s=>s.textContent.trim()).filter(Boolean).join('; ') : document.querySelector('#citation-impact .data-stamp')?.textContent.trim()) || 'Snapshot date: see tab update stamp';
         const filters = [...(pane?.querySelectorAll('.chip.active, .trend-filter-btn.active') || [])].map(e => e.textContent.trim()).join('; ');
-        return `${stamp}. ${filters ? 'Selection: ' + filters + '. ' : ''}Values and units correspond to the labelled series. Reference pairs can share reports; reproduction dimensions can overlap.`;
+        const selected = pane?.querySelector('.chip.active, .trend-filter-btn.active');
+        const kind = selected?.dataset.kind || selected?.dataset.value;
+        const reportKind = kind?.startsWith('reproduction') ? 'reproduction' : kind === 'replication' ? 'replication' : 'replication or reproduction';
+        const unitDefinition = FloraVocabulary.unitDefinition('Reference pair').replace('replication or reproduction', reportKind);
+        return `${stamp}. ${filters ? 'Selection: ' + filters + '. ' : ''}Values and units correspond to the labelled series. ${unitDefinition ? unitDefinition + ' ' : ''}Reproduction dimensions can overlap.`;
     }
     // Captions and accessible names come from the chart's visible heading, not its element ID.
     function visibleTitle(el) {
@@ -126,10 +137,14 @@ window.FloraCharts = (() => {
         const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
         const isOutcome = /outcome|computational|robustness/.test(el.id);
         const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
-        const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success and other/uncoded outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
+        const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success, descriptive, uninformative, missing and unrecognised outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
         table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
-        if (config.options.plugins?.legend) config.options.plugins.legend.reverse = false;
+        if (config.options.plugins?.legend) {
+            config.options.plugins.legend.reverse = false;
+            config.options.plugins.legend.labels ||= {};
+            config.options.plugins.legend.labels.filter = item => datasets[item.datasetIndex].data.some(value => Number(value) > 0);
+        }
         Chart.defaults.font.family = theme().fontFamily;
         if (matchMedia('(prefers-reduced-motion: reduce)').matches) config.options.animation = false;
         return new Chart(ctx, config);
@@ -154,7 +169,7 @@ window.FloraCharts = (() => {
             else el.textContent = 'Chart library unavailable. Reload to retry.';
             return Promise.resolve();
         }
-        let display = traces.map(t=>({...t}));
+        let display = traces.map(t=>({...t, showlegend:t.type === 'bar' && !(t.y || []).some(value => Number(value) > 0) ? false : t.showlegend}));
         layout = {...layout, autosize:true, legend:{...layout.legend,traceorder:'normal'}};
         for (const key of Object.keys(layout).filter(k=>/^[xy]axis\d*$/.test(k))) {
             const axis = layout[key], title = typeof axis.title === 'string' ? {text:axis.title} : axis.title;
@@ -174,7 +189,7 @@ window.FloraCharts = (() => {
             layout.xaxis = {...layout.xaxis,tickangle:0};
             const maxCount = Math.max(0,...traces.flatMap(t=>t.y));
             layout.yaxis = {...layout.yaxis,title:{text:counts ? 'Reference pairs' : 'Within-group percentage',standoff:12}, ...(counts ? countAxis(maxCount) : {tickformat:'.0f',dtick:undefined}), range:counts ? undefined : [0,100]};
-            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. Other and qualified outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
+            summary = 'Denominator: all reference pairs in each group with the metadata required by this analysis. All recorded outcome categories and missing outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
             let toggle = document.getElementById(id+'-mode');
             if (!toggle) {
                 toggle=document.createElement('button');toggle.id=id+'-mode';toggle.type='button';toggle.className='chart-mode';el.before(toggle);
@@ -235,13 +250,20 @@ window.FloraCharts = (() => {
             return Plotly.react(el, display, layout, config);
         }
         const rows=[];
+        const coefficient = id.endsWith('-model');
+        const timeline = id === 'study-plot';
+        const trajectory = id === 'plot-cit' || id === 'plot-cocit';
+        const hasIntervals = display.some(trace => trace.error_x || trace.error_y);
         display.forEach(t => (t.x || []).forEach((x,i)=>{
             const horizontal=t.orientation==='h';
             const category=horizontal ? t.y?.[i] : x;
             const value=horizontal ? x : t.y?.[i]; const err=horizontal ? t.error_x : t.error_y;
-            rows.push([t.name || 'Series',category,value, err ? value-(err.arrayminus?.[i] ?? err.array?.[i] ?? 0) : '', err ? value+(err.array?.[i]??0) : '',t.customdata?.[i]?.[0] ?? '']);
+            const unit = coefficient ? 'Coefficient: log(1 + count)' : timeline ? 'Citing works' : trajectory ? t.yaxis === 'y2' ? 'Distinct originals' : id === 'plot-cit' ? 'Mean citations per original per year' : 'Mean co-citations per original per year' : 'Reference pairs';
+            const row = [t.name || 'Series',category,value,unit];
+            if (hasIntervals) row.push(err ? value-(err.arrayminus?.[i] ?? err.array?.[i] ?? 0) : '', err ? value+(err.array?.[i]??0) : '');
+            rows.push(row);
         }));
-        table(el,rows,['Series','X / category','Value','95% CI lower','95% CI upper','Reference-pair count'],summary);
+        table(el,rows,['Series','X / category','Value','Unit', ...(hasIntervals ? ['95% CI lower','95% CI upper'] : [])],summary);
         return Plotly.react(el, display, layout, config);
     }
     function updateContexts() {

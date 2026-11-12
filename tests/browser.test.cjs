@@ -15,7 +15,23 @@ before(async()=>{
   await new Promise(r=>setTimeout(r,200));
   if(exited) throw new Error(`Test server could not start on port ${port}; set TEST_PORT to a free port.`);
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
+  // Download each CDN library once per run; per-page CDN fetches made unrelated tests time out at random.
+  const newContext=browser.newContext.bind(browser);
+  browser.newContext=async(...args)=>{const context=await newContext(...args);await context.route(CDN_HOSTS,serveCdn);return context;};
 });
+const CDN_HOSTS=/^https:\/\/(code\.jquery\.com|cdn\.jsdelivr\.net|cdn\.datatables\.net|cdnjs\.cloudflare\.com|cdn\.plot\.ly)\//;
+const cdnCache=new Map();
+async function serveCdn(route){
+  const url=route.request().url();
+  if(!cdnCache.has(url)) cdnCache.set(url,(async()=>{
+    for(let attempt=0;;attempt++){
+      try{const res=await route.fetch({timeout:20000});if(!res.ok()) throw new Error(`${res.status()} ${url}`);return {status:res.status(),headers:res.headers(),body:await res.body()};}
+      catch(e){if(attempt>=3) throw e;await new Promise(r=>setTimeout(r,1000*(attempt+1)));}
+    }
+  })());
+  try{await route.fulfill(await cdnCache.get(url));}
+  catch{cdnCache.delete(url);await route.abort();}
+}
 after(async()=>{await browser?.close();server?.kill();});
 async function page(query, width=1280, setup){
   const p=await browser.newPage({viewport:{width,height:900}});p.errors=[];
@@ -155,7 +171,7 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
   }
   await p.click('#pub-tab');await p.waitForFunction(()=>document.getElementById('pub-chart')?.data?.length>0);
   assert.ok(await p.evaluate(()=>['overview-outcome-chart','trend-orig-year','trend-field'].every(id=>{
-    const c=Chart.getChart(id);return JSON.stringify(c.legend.legendItems.map(d=>d.text))===JSON.stringify(c.getSortedVisibleDatasetMetas().map(d=>c.data.datasets[d.index].label));
+    const c=Chart.getChart(id);return JSON.stringify(c.legend.legendItems.map(d=>d.text))===JSON.stringify(c.getSortedVisibleDatasetMetas().filter(d=>c.data.datasets[d.index].data.some(value=>value>0)).map(d=>c.data.datasets[d.index].label));
   })));
   const sums=await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].x.map((_,i)=>t.reduce((n,s)=>n+s.y[i],0));});
   assert.ok(sums.every(s=>Math.abs(s-100)<1e-8));
@@ -281,7 +297,7 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   assert.ok(firstRow<830,`first result ends at ${firstRow}px`);
   await p.click('.browse-kind-btn[data-kind="replication"]');
   assert.ok(await p.locator('#browse-outcome-card').isVisible());
-  assert.match(await p.locator('#browse-outcome-caption').innerText(),/^4 replication pairs: .*Failed 3 \(75%\).*Mixed 1 \(25%\)/);
+  assert.match(await p.locator('#browse-outcome-caption').innerText(),/^4 replication reference pairs: .*Failed 3 \(75%\).*Mixed 1 \(25%\)/);
   await p.fill('#browse-mobile-input','unicornzzzz');await p.waitForFunction(()=>getChartData().length===0);
   assert.match(await p.locator('#browse-empty').innerText(),/No replications match “unicornzzzz”/);
   await p.click('[data-browse-action="clear-search"]');
@@ -301,13 +317,13 @@ test('Browse explains empty selections, offers recovery and keeps results near t
 test('Overview charts state denominators; placeholders, labels and headings stay legible',async()=>{
   const p=await page('?tab=overview',1280,p=>p.route('**/flora_faq.md',route=>route.fulfill({contentType:'text/markdown',body:'# FAQ title\n\n## Coding\n\n### What if a paper includes reproduction *and* replication?\n\nIt is listed twice.\n'})));
   const expected=await p.evaluate(()=>{const repro=fullRowData.filter(r=>classifyKind(r)==='reproduction').length;const comp=fullRowData.filter(isComputationalAssessed).length;return {repro,comp};});
-  assert.match(await p.locator('#overview-computational-caption').innerText(),new RegExp(`^${expected.comp.toLocaleString('en-US')} of ${expected.repro.toLocaleString('en-US')} reproduction pairs have a computational verdict; ${(expected.repro-expected.comp).toLocaleString('en-US')} not checked`));
+  assert.match(await p.locator('#overview-computational-caption').innerText(),new RegExp(`^${expected.comp.toLocaleString('en-US')} of ${expected.repro.toLocaleString('en-US')} reproduction reference pairs have a computational verdict; ${(expected.repro-expected.comp).toLocaleString('en-US')} not checked`));
   assert.ok(await p.locator('.coverage-caution').isVisible());
   assert.ok(await p.locator('.coverage-caution').evaluate(el=>el.getBoundingClientRect().top<document.getElementById('overview-computational-chart').getBoundingClientRect().top));
   await p.waitForSelector('.faq-question');
   assert.equal(await p.locator('.faq-question em').textContent(),'and');
   assert.doesNotMatch(await p.locator('.faq-question').first().innerText(),/\*/);
-  assert.deepEqual(await p.locator('#overview .chart-data caption').allTextContents(),['Computational Reproducibility','Robustness','Replicability']);
+  assert.deepEqual(await p.locator('#overview .chart-data caption').allTextContents(),['Computational reproducibility','Robustness','Replication outcomes']);
   // Placeholder instructions meet 4.5:1 in both themes.
   const contrast=async()=>p.evaluate(()=>{
     const rgb=c=>c.match(/[\d.]+/g).map(Number);
@@ -322,7 +338,7 @@ test('Overview charts state denominators; placeholders, labels and headings stay
   // Actions stay outside headings, and Trends chart headings sit under a panel heading.
   await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
   assert.equal(await p.locator(':is(h1,h2,h3,h4,h5,h6) .chart-copy').count(),0);
-  assert.deepEqual(await p.locator('#trends :is(h2,h3)').evaluateAll(hs=>hs.map(h=>h.tagName)),['H2','H3','H3','H3','H3','H3']);
+  assert.deepEqual(await p.locator('#trends > h2, #trends .trend-desc h3').evaluateAll(hs=>hs.map(h=>h.tagName)),['H2','H3','H3','H3','H3','H3']);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('Trends follow the selected study type, keep calendar spacing and reflow after narrowing',async()=>{
@@ -338,10 +354,10 @@ test('Trends follow the selected study type, keep calendar spacing and reflow af
   const withYear=await p.evaluate(()=>trendsFilteredData().filter(r=>{const m=String(r.year_o||'').match(/\d{4}/);return m&&+m[0]>=1800&&+m[0]<=2100;}).length);
   assert.equal(plotted,withYear);
   await p.click('#trends .trend-filter-btn[data-kind="reproduction-numerical"]');
-  assert.deepEqual(await p.locator('#trends h3').allInnerTexts(),['Outcomes by original study year','Outcomes by reproduction report year','Outcomes by original journal','Outcomes by recorded reproduction venue','Outcomes by field']);
+  assert.deepEqual(await p.locator('#trends .trend-desc h3').allInnerTexts(),['Outcomes by original study year','Outcomes by reproduction report year','Outcomes by original journal','Outcomes by recorded reproduction venue','Outcomes by field']);
   assert.doesNotMatch(await p.locator('#trends-charts').innerText(),/\breplications?\b/i);
   await p.click('#trends .trend-filter-btn[data-kind="replication"]');
-  for(const width of [390,1440,390]){
+  for(const width of [390,1440,390,1440,390]){
     await p.setViewportSize({width,height:844});await p.waitForTimeout(700);
     const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, canvas')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
     assert.deepEqual(overflow,[],`clipped at ${width}px`);
@@ -367,7 +383,7 @@ test('narrow citation timelines number replication events to match the list',asy
       const el=document.getElementById('study-plot');
       const boxes=[...el.querySelectorAll('.annotation')].filter(e=>/^\d+$/.test(e.textContent)).map(e=>e.getBoundingClientRect());
       return {overlap:boxes.some((a,i)=>boxes.slice(i+1).some(b=>a.left<b.right+2&&b.left<a.right+2&&a.top<b.bottom+2&&b.top<a.bottom+2)),
-        empty:el.data.filter(t=>!t.y.some(v=>v>0)).map(t=>t.name),legend:el._fullLayout.legend.traceorder,
+        empty:el.data.filter(t=>t.showlegend!==false&&!t.y.some(v=>v>0)).map(t=>t.name),legend:el._fullLayout.legend.traceorder,
         partial:el.layout.annotations.some(a=>/2026.*partial year/i.test(a.text))&&el.data.every(t=>t.marker.opacity.every((v,i)=>v===(t.x[i]===2026 ? 0.45 : 1))),hover:el._fullLayout.hoverlabel.namelength};
     });
     assert.equal(details.overlap,false,`timeline markers touch at ${width}px`);
@@ -423,12 +439,13 @@ test('Mean Citedness omits empty KPI tiles and avoids a lone tile on the last ro
 });
 
 test('seven Mean Citedness tiles fill desktop rows as 1 + 3 + 3',async()=>{
-  // Give one outcome an empty count so the real renderer produces seven tiles.
+  // Retain four observed categories so the real renderer produces seven tiles.
   const p=await page('?tab=mean-citedness',1280,p=>p.route('**/data/impact_factor_data.json',route=>{
     const data=JSON.parse(fs.readFileSync('data/impact_factor_data.json','utf8'));
-    data.overview.n_success+=data.overview.n_qualified;
-    data.overview.n_qualified=0;
-    data.histogram.forEach(bin=>{bin.successful+=bin.qualified;bin.qualified=0;});
+    for(const key of ['qualified','uninformative','missing','unrecognised']){
+      data.overview.n_success+=data.overview['n_'+key];data.overview['n_'+key]=0;
+      data.histogram.forEach(bin=>{bin.successful+=bin[key];bin[key]=0;});
+    }
     return route.fulfill({json:data});
   }));
   await p.waitForSelector('#mc-overview .mc-stat');
@@ -460,7 +477,7 @@ test('comparison N labels and Plotly axis titles stay clear of legends and ticks
     }));
     assert.deepEqual(issues,[],`N labels clipped/overlapped at ${width}px`);
     assert.ok(await p.evaluate(()=>['pub-chart','rr-chart','ls-chart'].every(id=>{
-      const el=document.getElementById(id);return JSON.stringify([...el.querySelectorAll('.legendtext')].map(e=>e.textContent))===JSON.stringify(el.data.map(t=>t.name));
+      const el=document.getElementById(id);return JSON.stringify([...el.querySelectorAll('.legendtext')].map(e=>e.textContent))===JSON.stringify(el.data.filter(t=>t.showlegend!==false).map(t=>t.name));
     })));
     const clippedTitles=await p.evaluate(()=>['pub-chart','rr-chart','ls-chart'].filter(id=>{
       const el=document.getElementById(id), r=el.getBoundingClientRect(), title=el.querySelector('.g-xtitle')?.getBoundingClientRect();
@@ -775,7 +792,7 @@ test('copy follows each study type and preserves complete rendered sentences',as
   assert.equal(await p.getByText('FLoRA Annotator',{exact:false}).count(),0);
   const repro=await p.evaluate(()=>{const r=fullRowData.find(r=>classifyKind(r)==='reproduction');renderRandomExamples([r]);return reportKindLabel(r);});
   assert.equal(repro,'Reproduction');
-  assert.deepEqual(await p.locator('#random-examples .ex-line-label').allTextContents(),['Original','Reproduction']);
+  assert.deepEqual(await p.locator('#random-examples .ex-line-label').allTextContents(),['Original report','Reproduction report']);
   const views=[['trends-tab','#trends','#trends .trend-filter-btn','kind'],['mc-tab','#mean-citedness','#mc-study-type .chip','value'],['overlap-tab','#authorship-overlap','#ao-study-type .chip','value'],['pub-tab','#publication-type','#pubtype-study-type .chip','value'],['citation-tab','#citation-impact','#ci-study-type .chip','value']];
   for(const [tab,pane,controls,key] of views){
     await p.click('#'+tab);
@@ -794,7 +811,8 @@ test('copy follows each study type and preserves complete rendered sentences',as
   for(const kind of ['reproduction-numerical','reproduction-robustness','replication','all']){
     await p.click(`.browse-kind-btn[data-kind="${kind}"]`);
     const expected=kind==='all'?'Replication or reproduction':kind==='replication'?'Replication':'Reproduction';
-    assert.deepEqual(await p.locator('[data-browse-report-kind]').allTextContents(),[expected,expected]);
+    assert.deepEqual(await p.locator('[data-browse-report-kind]').allTextContents(),[expected]);
+    assert.equal(await p.locator('#flora-table thead th').last().textContent(),'Report link');
   }
   await p.click('#trends-tab');
   assert.deepEqual(await p.locator('#rep-journal-top-n option').allTextContents(),['10 venues','15 venues','25 venues','50 venues']);
@@ -896,7 +914,11 @@ test('small stacked citation timelines and study denominators have integer ticks
   await assertIntegerCountTicks(p,'plot-cit','yaxis2');
   await assertIntegerCountTicks(p,'plot-cocit','yaxis2');
   // The raw means are continuous quantities and must retain fractional ticks.
-  assert.ok(await p.evaluate(()=>document.getElementById('plot-cocit')._fullLayout.yaxis.dtick<1));
+  // Plotly can leave _fullLayout.yaxis.dtick unset after a re-layout, so read the rendered labels.
+  await p.waitForFunction(()=>{
+    const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
+    return labels.length>=2&&labels.some(v=>v>0&&v<1)&&labels.every(v=>v<1);
+  });
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -915,7 +937,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     assert.match(await row.locator('td').nth(4).textContent(),/^1,234.*of 5,678/);
     assert.match(await row.locator('td').nth(4).locator('span[title]').getAttribute('title'),/1,234 of 5,678/);
     assert.equal(await row.locator('.rep-count').textContent(),'1,234');
-    assert.match(await row.locator('.rep-bar-wrap').getAttribute('title'),/1,234 successful/);
+    assert.match(await row.locator('.rep-bar-wrap').getAttribute('title'),/1,234 Successful/);
     assert.match(await p.locator('#att-callout').textContent(),/1,234 originals contribute at peak/);
     const meta=JSON.parse(fs.readFileSync('data/meta.json'));
     assert.equal(await p.locator('#kpis .kpi-value').first().textContent(),meta.n_originals.toLocaleString('en-GB'));
@@ -926,6 +948,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     await p.keyboard.press('Escape');
     await p.click('#ci-study-type [data-value="reproduction-numerical"]');
     const repro=JSON.parse(fs.readFileSync('data/reproduction_citations.json'))['reproduction-numerical'].successful;
+    assert.equal(await p.locator('#ci-repro-table tbody tr').first().locator('td').first().textContent(),'Reproduced');
     assert.deepEqual((await p.locator('#ci-repro-table tbody tr').first().locator('td').allTextContents()).slice(1),['n_originals','n_citations_to_original','n_citations_to_reproduction','n_cocitations'].map(k=>repro[k].toLocaleString('en-GB')));
     assert.deepEqual(errors,[]);
   }finally{await p.close();}
@@ -941,7 +964,7 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   const qualified=await p.evaluate(()=>fullRowData.filter(r=>classifyKind(r)==='replication'&&classifyOutcome(r.outcome)==='qualified').length);
   assert.ok(qualified>0&&qualified/pub.n_total<0.01);
-  assert.ok((await p.locator('#overview-outcome-caption').innerText()).includes(`Successful but flawed ${qualified.toLocaleString('en-GB')} (<1%)`));
+  assert.ok((await p.locator('#overview-outcome-caption').innerText()).includes(`Statistically successful but flawed ${qualified.toLocaleString('en-GB')} (<1%)`));
   assert.ok((await p.locator('#overview-outcome-chart-data .chart-summary').textContent()).includes(`Included in the plot: ${pub.n_total.toLocaleString('en-GB')}`));
   assert.deepEqual(await p.evaluate(()=>[FloraCharts.percent(0,1000),FloraCharts.percent(1,1000),FloraCharts.percent(7,2692),FloraCharts.percent(1,4),FloraCharts.number(-0.033,3)]),['0','<1','<1','25','−0.033']);
   await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-journal'));
@@ -985,7 +1008,7 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   assert.doesNotMatch(hover,/\d\.\d{4}|\+0\./);
   const nPoint=aggregate.descriptive.event_time.indexOf(-5);
   await p.evaluate(i=>Plotly.Fx.hover('plot-cit',[{curveNumber:1,pointNumber:i}]),nPoint);
-  assert.ok((await p.locator('#plot-cit .hoverlayer').textContent()).includes('Original reports: '+aggregate.descriptive.n_units[nPoint].toLocaleString('en-GB')));
+  assert.ok((await p.locator('#plot-cit .hoverlayer').textContent()).includes('Distinct originals: '+aggregate.descriptive.n_units[nPoint].toLocaleString('en-GB')));
   await p.evaluate(()=>Plotly.Fx.hover('plot-cocit',[{curveNumber:0,pointNumber:0}]));
   assert.match(await p.locator('#plot-cocit .hoverlayer').textContent(),/Mean co-citations per year: \d+\.\d{2}/);
   assert.deepEqual(p.errors,[]);await p.close();
@@ -1066,11 +1089,11 @@ test('mobile paging focuses the results heading; counts and chip changes have on
   await p.selectOption('#mobile-navigation','trends-tab');
   await p.locator('#trends .trend-filter-btn[data-kind="reproduction-numerical"]').click();
   assert.equal(await p.locator('#trend-filter-count').getAttribute('role'),'status');
-  assert.match(await p.locator('#trend-filter-count').textContent(),/Numerical Reproductions/);
+  assert.match(await p.locator('#trend-filter-count').textContent(),/Numerical reproductions/);
   await p.selectOption('#mobile-navigation','mc-tab');
   await p.waitForSelector('#mc-dist-chart-data');
   await p.locator('#mc-study-type [data-value="reproduction-numerical"]').click();
-  assert.equal(await p.locator('#analysis-feedback').textContent(),'Mean Citedness study type: Numerical Reproductions selected.');
+  assert.equal(await p.locator('#analysis-feedback').textContent(),'Mean Citedness study type: Numerical reproductions selected.');
   await p.selectOption('#mobile-navigation','overview-tab');
   const tip=p.locator('#overview .info-icon').first();await tip.focus();
   assert.equal(await tip.getAttribute('role'),'img');
@@ -1110,8 +1133,8 @@ test('Browse URL kinds and zero-result announcements match the filtered studies'
     ['all','All studies','all'],
     ['replication','Replications','replication'],
     ['reproduction','Reproductions','reproduction'],
-    ['reproduction-numerical','Numerical Reproductions','reproduction-numerical'],
-    ['reproduction-robustness','Robustness Reproductions','reproduction-robustness'],
+    ['reproduction-numerical','Numerical reproductions','reproduction-numerical'],
+    ['reproduction-robustness','Robustness reproductions','reproduction-robustness'],
     ['unknown','All studies','all'],
   ]) {
     const p=await page('?tab=browse&kind='+kind,390);
@@ -1244,4 +1267,155 @@ test('Browse outcome evidence splits parts, hides claim IDs and labels coding no
   assert.equal(await p.getByText('Outcome quotation').count(),0);
   assert.deepEqual(p.errors,[]);
   await p.close();
+});
+test('Replication report column sorts by its displayed link text on desktop and mobile',async()=>{
+  const p=await page('?tab=browse&kind=all&sort=8:asc');
+  const {shown,mobile}=await p.evaluate(()=>{
+    const text=html=>{const d=document.createElement('div');d.innerHTML=html;return d.textContent;};
+    return {shown:dataTable.rows({order:'applied',search:'applied'}).data().toArray().map(r=>text(r[8].display)),
+      mobile:bmFiltered.map(r=>text(formatUrlOrDoiShort(r.url_r,r.doi_r)))};
+  });
+  assert.ok(shown.some(t=>/^osf\.io\//.test(t)),'data should include URL-only links');
+  // DataTables compares plain lowercase strings; mobile cards use a numeric collator.
+  assert.deepEqual(shown,[...shown].sort((a,b)=>a.toLowerCase()<b.toLowerCase()?-1:a.toLowerCase()>b.toLowerCase()?1:0));
+  assert.deepEqual(mobile,[...mobile].sort(new Intl.Collator(undefined,{numeric:true}).compare));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('Outcome column groups rows by outcome in both directions',async()=>{
+  const p=await page('?tab=browse&kind=all&sort=5:asc');
+  const grouped=async dir=>{
+    await p.evaluate(dir=>dataTable.order([[5,dir]]).draw(),dir);
+    const outcomes=await p.evaluate(()=>dataTable.rows({order:'applied',search:'applied'}).data().toArray().map(r=>r[5].search));
+    const runs=outcomes.filter((o,i)=>o!==outcomes[i-1]);
+    assert.equal(runs.length,new Set(outcomes).size,`${dir}: outcomes split into ${runs.join(', ')}`);
+    return runs;
+  };
+  const asc=await grouped('asc');
+  assert.deepEqual(await grouped('desc'),[...asc].reverse());
+  assert.ok(await p.locator('#flora-table tbody .badge').count()>0);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('shared vocabulary preserves source codes, full badges and independent reproduction dimensions',async()=>{
+  const cases=JSON.parse(fs.readFileSync('tests/fixtures/outcome-vocabulary.json'));
+  const headers=fs.readFileSync('tests/fixtures/browse.csv','utf8').split('\n')[0].split(',');
+  const outcomes=['statistically successful but flawed','uninformative','NA','inconclusive','successful || computationally reproducible, robustness not checked','computation not checked, robust','computationally reproducible, robustness not checked'];
+  const rows=outcomes.map((outcome,i)=>({...Object.fromEntries(headers.map(key=>[key,''])),title_o:'Original '+i,title_r:'Report '+i,type:i<5?'replication':'reproduction',outcome}));
+  const csv=[headers,...rows.map(row=>headers.map(key=>row[key]))].map(row=>row.map(value=>'"'+value.replaceAll('"','""')+'"').join(',')).join('\n');
+  const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({contentType:'text/csv',body:csv})));
+  assert.equal(await p.locator('[data-outcome-definitions]').count(),7);
+  for(const selector of ['#browse .browse-kind-filter','#trends > .trend-filter','#ci-study-type','#mc-study-type','#ao-study-type','#pubtype-study-type']){
+    assert.deepEqual(await p.locator(selector+' button').allTextContents(),[...(/browse|trends/.test(selector)?['All']:[]),'Replications','Numerical reproductions','Robustness reproductions']);
+  }
+  assert.deepEqual(await p.evaluate(cases=>cases.map(test=>FloraVocabulary.classify(test.raw,test.dimension)),cases),cases.map(test=>test.key));
+  assert.deepEqual(await p.evaluate(()=>fullRowData.map(row=>FloraVocabulary.outcomeLabel(row))),[
+    'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
+    'Computational: Not checked; Robustness: Robust','Computational: Reproduced; Robustness: Not checked']);
+  assert.deepEqual(await p.locator('#flora-table .badge').allTextContents(),[
+    'Statistically successful but flawed','Uninformative','Missing outcome','Unrecognised outcome','Unrecognised outcome',
+    'Computational: Not checked','Robustness: Robust','Computational: Reproduced','Robustness: Not checked']);
+  await p.locator('#browse [data-outcome-definitions] summary').click();
+  assert.ok(await p.locator('#browse [data-outcome-definitions]').getByText('The outcome is recorded as uninformative; no successful, failed or mixed verdict is supplied.',{exact:true}).isVisible());
+  await p.locator('#browse [data-outcome-definitions] summary').click();
+  const readDownload=async()=>{
+    const event=p.waitForEvent('download');await p.click('#export-browse');const download=await event;
+    const stream=await download.createReadStream();const chunks=[];for await(const chunk of stream)chunks.push(chunk);
+    return p.evaluate(text=>Papa.parse(text,{header:true,skipEmptyLines:true}),Buffer.concat(chunks).toString('utf8'));
+  };
+  const full=await readDownload();
+  assert.deepEqual(full.meta.fields,['Export context',...headers.flatMap(key=>key==='outcome'?[key,'outcome_label']:[key])]);
+  assert.deepEqual(full.data.map(row=>row.outcome),outcomes);
+  assert.ok(full.data.every(row=>row['Export context'].includes('Study type: All')));
+  assert.equal(full.data[2].outcome_label,'Missing outcome');
+  await p.click('.browse-kind-btn[data-kind="reproduction-numerical"]');
+  const filtered=await readDownload();assert.equal(filtered.data.length,1);
+  assert.equal(filtered.data[0].outcome,outcomes[6]);
+  assert.equal(filtered.data[0].outcome_label,'Computational: Reproduced; Robustness: Not checked');
+  assert.match(filtered.data[0]['Export context'],/Study type: Numerical reproductions/);
+  await p.fill('#browse-mobile-input','zzzz-missing');await p.waitForFunction(()=>getChartData().length===0);
+  const empty=await readDownload();assert.deepEqual(empty.meta.fields,full.meta.fields);assert.deepEqual(empty.data,[]);
+  await p.fill('#browse-mobile-input','');await p.click('.browse-kind-btn[data-kind="all"]');
+  await p.waitForFunction(()=>getChartData().length===fullRowData.length&&document.querySelectorAll('.bm-card').length===fullRowData.length);
+  await p.setViewportSize({width:390,height:900});
+  assert.deepEqual(await p.locator('.bm-card .bm-tags .badge').allTextContents(),await p.locator('#flora-table .badge').allTextContents());
+  await p.locator('.bm-evidence summary').nth(2).click();
+  const evidence=p.locator('.bm-evidence[open]');assert.match(await evidence.innerText(),/Source outcome:\s*NA/);
+  assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('zero categories stay in chart tables and exports while legends show only observed outcomes',async()=>{
+  const p=await page('?tab=browse&kind=replication',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
+  const chart=await p.evaluate(()=>{const chart=Chart.getChart('browse-outcome-chart');return {labels:chart.data.datasets.map(d=>d.label),legend:chart.legend.legendItems.map(d=>d.text)};});
+  assert.deepEqual(chart.labels,['Successful','Failed','Mixed','Statistically successful but flawed','Descriptive only','Uninformative','Missing outcome','Unrecognised outcome']);
+  assert.deepEqual(chart.legend,['Failed','Mixed']);
+  assert.deepEqual((await p.locator('#browse-outcome-chart-data th').allTextContents()).slice(1,9),chart.labels);
+  await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
+  await p.click('#browse-outcome-chart-data-copy');
+  const csv=await p.evaluate(()=>navigator.clipboard.readText());assert.match(csv,/Uninformative/);assert.doesNotMatch(csv,/Inconclusive/);
+  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit-model')?.data?.length);
+  const exportChart=async id=>{
+    await p.click('#'+id+'-data-copy');
+    return p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}));
+  };
+  const trajectory=await exportChart('plot-cit');assert.ok(!trajectory.meta.fields.includes('Reference-pair count'));
+  assert.ok(trajectory.data.some(row=>row.Series==='Distinct originals'&&row.Unit==='Distinct originals'));
+  const model=await exportChart('plot-cit-model');assert.ok(model.data.every(row=>row.Unit==='Coefficient: log(1 + count)'&&row['95% CI lower']!==''&&row['95% CI upper']!==''));
+  await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length);
+  const timeline=await exportChart('study-plot');assert.ok(timeline.data.every(row=>row.Unit==='Citing works'));
+  assert.equal(new Set(timeline.data.map(row=>row.Series)).size,5);
+  await p.keyboard.press('Escape');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('outcome vocabulary failures show the page error with a reload action',async()=>{
+  for(const [name,respond] of [['request',route=>route.abort()],['status',route=>route.fulfill({status:404,body:'missing'})],['json',route=>route.fulfill({contentType:'application/json',body:'{not json'})]]){
+    const p=await browser.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
+    await p.route('**/data/outcome_vocabulary.json',respond);
+    await p.goto(base+'?tab=overview');
+    await p.locator('#global-error').waitFor({state:'visible'});
+    assert.match(await p.locator('#global-error').innerText(),/outcome definitions/,name);
+    assert.ok(await p.locator('#global-error button',{hasText:'Reload'}).isVisible(),name);
+    assert.ok(!(await p.locator('#global-loading').isVisible()),name);
+    assert.deepEqual(errors,[],name);await p.close();
+  }
+});
+
+test('missing outcome markers do not make an untyped row a replication, and the reproduction export names its study type',async()=>{
+  const p=await page('?tab=browse&kind=reproduction');
+  assert.deepEqual(await p.evaluate(()=>['NA','N/A',' #n/a ','','successful'].map(outcome=>classifyKind({type:'',outcome}))),
+    ['unknown','unknown','unknown','unknown','replication']);
+  const event=p.waitForEvent('download');await p.click('#export-browse');
+  const text=fs.readFileSync(await (await event).path(),'utf8');
+  assert.match(text,/Study type: Reproductions/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('citation headline counts keep real zeros',async()=>{
+  const meta=JSON.parse(fs.readFileSync('data/meta.json'));meta.outcome_counts={...meta.outcome_counts,failed:0};
+  const p=await page('?tab=citations',1280,p=>p.route('**/data/meta.json',route=>route.fulfill({json:meta})));
+  await p.waitForFunction(()=>document.querySelectorAll('#kpis .kpi').length);
+  const tiles=await p.locator('#kpis .kpi').evaluateAll(tiles=>tiles.map(t=>[t.querySelector('.kpi-label').textContent,t.querySelector('.kpi-value').textContent]));
+  assert.deepEqual(tiles.find(([label])=>/Failed/.test(label))?.[1],'0');
+  assert.equal(tiles.length,4);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('citation charts drawn before the main CSV loads re-fit their axes once shown',async()=>{
+  const entry=JSON.parse(fs.readFileSync('data/originals_index.json'))[0];
+  const aggregate={all:{descriptive:{event_time:[0,1,2],mean_citations:[0,0.5,1],mean_cocitations:[0,0.1,0.2],n_units:[0,1,2]}}};
+  const p=await browser.newPage({viewport:{width:1280,height:900}});p.errors=[];
+  p.on('pageerror',e=>p.errors.push(e.message));
+  await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
+  let releaseCsv;const csvHeld=new Promise(r=>{releaseCsv=r;});
+  await p.route('**/data/flora.csv',async route=>{await csvHeld;await route.continue();});
+  await p.goto(base+'?tab=citations&doi='+encodeURIComponent(entry.doi));
+  await p.waitForFunction(()=>document.getElementById('plot-cocit')?._fullLayout);
+  assert.equal(await p.evaluate(()=>getComputedStyle(document.querySelector('#floraTabsContent')).display),'none',
+    'the chart must be drawn while the page is still hidden');
+  releaseCsv();
+  await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
+  await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')._fullLayout.yaxis;const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
+    return axis.range[1]>0.2&&axis.range[1]<0.5&&labels.some(v=>v>0&&v<1);},null,{timeout:5000});
+  assert.deepEqual(p.errors,[]);await p.close();
 });

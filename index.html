@@ -45,13 +45,13 @@
                 </span>
             </a>
 
-            <label class="mobile-navigation"><span>Explore</span> <select id="mobile-navigation" aria-label="Choose explorer tab"><option value="overview-tab">Overview</option><option value="browse-tab">Browse Studies</option><option value="trends-tab">Years &amp; Disciplines</option><option value="citation-tab">Citation Impact</option><option value="mc-tab">Mean Citedness</option><option value="overlap-tab">Authorship Overlap</option><option value="pub-tab">Publication Type</option></select></label>
+            <label class="mobile-navigation"><span>Explore</span> <select id="mobile-navigation" aria-label="Choose explorer tab"><option value="overview-tab">Overview</option><option value="browse-tab">Browse reference pairs</option><option value="trends-tab">Years &amp; Disciplines</option><option value="citation-tab">Citation Impact</option><option value="mc-tab">Mean Citedness</option><option value="overlap-tab">Authorship Overlap</option><option value="pub-tab">Publication Type</option></select></label>
             <ul class="nav nav-tabs" id="floraTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">Overview</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab">Browse Studies</button>
+                    <button class="nav-link" id="browse-tab" data-bs-toggle="tab" data-bs-target="#browse" type="button" role="tab">Browse reference pairs</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="trends-tab" data-bs-toggle="tab" data-bs-target="#trends" type="button" role="tab">Years &amp; Disciplines</button>
@@ -92,13 +92,13 @@
             <!-- ============================ OVERVIEW ============================ -->
             <div class="tab-pane fade show active" id="overview" role="tabpanel">
 
-                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>The <strong>FORRT Library of Reproduction and Replication Attempts (FLoRA)</strong> is a project of the Framework for Open and Reproducible Research Training (FORRT).</p><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. Use <a href="?tab=browse" data-tab-link="browse-tab">Browse Studies</a> to search and filter reference pairs here, or the <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Replication Atlas</a> to see the replication history of one original study.</p></section>
+                <section class="explorer-intro"><h1>Explore replication and reproduction evidence</h1><p>The <strong>FORRT Library of Reproduction and Replication Attempts (FLoRA)</strong> is a project of the Framework for Open and Reproducible Research Training (FORRT).</p><p>Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. Use <a href="?tab=browse" data-tab-link="browse-tab">Browse reference pairs</a> to search and filter reference pairs here, or the <a href="https://forrt.org/flora-replication-atlas/" target="_blank" rel="noopener noreferrer">Replication Atlas</a> to see the replication history of one original study.</p></section>
                 <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <div class="row mb-3">
                     <div class="col-6 col-md-4"><div class="stats-card"><div class="number" id="ov-total">-</div><div class="label">Reference pairs</div></div></div>
-                    <div class="col-6 col-md-4"><div class="stats-card"><div class="number" id="ov-replications">-</div><div class="label">Replications</div></div></div>
-                    <div class="col-6 col-md-4"><div class="stats-card"><div class="number" id="ov-reproductions">-</div><div class="label">Reproductions</div></div></div>
+                    <div class="col-6 col-md-4"><div class="stats-card"><div class="number" id="ov-replications">-</div><div class="label">Replication reference pairs</div></div></div>
+                    <div class="col-6 col-md-4"><div class="stats-card"><div class="number" id="ov-reproductions">-</div><div class="label">Reproduction reference pairs</div></div></div>
                 </div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -111,9 +111,10 @@
                     <h2 class="card-header">Outcome Breakdown</h2>
                     <div class="card-body">
                         <p class="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage">Coverage limits</a></p>
+                        <details class="outcome-definitions" data-outcome-definitions></details>
                         <div class="outcome-chart-row">
                             <div class="outcome-chart-label">
-                                <span>Computational Reproducibility</span>
+                                <span>Computational reproducibility</span>
                                 <span class="info-icon" role="img" tabindex="0" aria-label="Info about computational reproducibility">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Covers <strong>reproductions only</strong>: were the original results obtained? Reproduction coverage is still small, so this chart will fill in as more are added.</span>
@@ -139,7 +140,7 @@
                         </div>
                         <div class="outcome-chart-row">
                             <div class="outcome-chart-label">
-                                <span>Replicability</span>
+                                <span>Replication outcomes</span>
                                 <span class="info-icon" role="img" tabindex="0" aria-label="Info about replicability">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Currently, this distribution covers <strong>replications only</strong>. Reproductions are shown separately above, since they're coded along different dimensions.</span>
@@ -170,13 +171,13 @@
                                     <li>Identify a specific target study (or studies)</li>
                                     <li>Replicate a study or experiment: a central claim, not just any empirical pattern</li>
                                 </ul>
-                                <p>Replications range from <strong>close/direct</strong> (same methods, same population) to <strong>conceptual</strong> (same hypothesis, different methods). Most outcomes are tagged <strong>Successful</strong>, <strong>Failed</strong>, or <strong>Mixed</strong> based on how the replication authors characterise their results. A few are recorded as <strong>Successful but flawed</strong>, and some as other or not yet coded (for example, descriptive only); charts show these separately.</p>
+                                <p>Replications range from <strong>close/direct</strong> (same methods, same population) to <strong>conceptual</strong> (same hypothesis, different methods). Outcomes describe the central finding tested and follow the replication authors’ account, interpreted under FLoRA’s coding rules. They are not an independent assessment of study quality.</p>
 
                                 <h3>What is a reproduction?</h3>
                                 <p>Reproductions verify whether reported results can be obtained from the original study's data and methods. They are coded on two dimensions:</p>
                                 <ul>
-                                    <li><strong>Computational success</strong>: were the original results obtained? (Computationally Successful, Computational Issues, or Technical Failure)</li>
-                                    <li><strong>Robustness</strong>: do results hold under reasonable alternative specifications? (Robust or Robustness Challenges)</li>
+                                    <li><strong>Computational reproducibility</strong>: were the original results obtained? (Reproduced, Computational issues, or Technical failure)</li>
+                                    <li><strong>Robustness</strong>: do results hold under reasonable alternative specifications? (Robust or Robustness challenges)</li>
                                 </ul>
                                 <p>The two dimensions are assessed independently, and not every reproduction is assessed on both. Each chart counts reference pairs with a verdict on that dimension. ‘Not checked’ and uncoded values are excluded. A pair can appear in both charts.</p>
 
@@ -330,16 +331,17 @@
 
             <!-- ============================ BROWSE ============================ -->
             <div class="tab-pane fade" id="browse" role="tabpanel">
-                <h1 class="visually-hidden">Browse Studies</h1>
+                <h1 class="visually-hidden">Browse reference pairs</h1>
+                <details class="outcome-definitions" data-outcome-definitions></details>
                 <div class="data-stamp" data-stamp-source="flora"></div>
                 <div class="browse-filter-panel">
                     <div class="browse-search"><label for="browse-mobile-input">Find a reference pair</label><div class="browse-search-row"><input type="search" id="browse-mobile-input" class="form-control" placeholder="Title, author, year, DOI or DOI URL" autocomplete="off"><button type="button" id="share-view" class="icon-action" aria-label="Copy current view link" title="Copy current view link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button><button type="button" id="export-browse" class="browse-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg><span>Download full CSV</span></button></div><span id="view-feedback" role="status"></span></div>
-                    <div class="trend-filter browse-kind-filter" role="group" aria-label="Filter by study kind">
-                        <span class="trend-filter-label">Show:</span>
-                        <button type="button" class="trend-filter-btn browse-kind-btn active" data-kind="all" aria-pressed="true">All studies</button>
-                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="replication" aria-pressed="false">Replications only</button>
-                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
-                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
+                    <div class="trend-filter browse-kind-filter" role="group" aria-label="Study type">
+                        <span class="trend-filter-label">Study type:</span>
+                        <button type="button" class="trend-filter-btn browse-kind-btn active" data-kind="all" aria-pressed="true">All</button>
+                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="replication" aria-pressed="false">Replications</button>
+                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                        <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
                         <span class="trend-filter-count" id="browse-kind-count"></span>
                     </div>
                     <p id="browse-chart-hint" class="study-type-note">Choose a study type to see its outcome breakdown.</p>
@@ -357,7 +359,7 @@
                     <div class="card-body">
                         <div class="outcome-chart-row" id="browse-computational-row" style="display:none;">
                             <div class="outcome-chart-label">
-                                <span>Computational Reproducibility</span>
+                                <span>Computational reproducibility</span>
                                 <span class="info-icon" role="img" tabindex="0" aria-label="Info about computational reproducibility">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Reflects the reproductions in the table below: were the original results obtained?</span>
@@ -383,7 +385,7 @@
                         </div>
                         <div class="outcome-chart-row" id="browse-replicability-row" style="display:none;">
                             <div class="outcome-chart-label">
-                                <span>Replicability</span>
+                                <span>Replication outcomes</span>
                                 <span class="info-icon" role="img" tabindex="0" aria-label="Info about replicability">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     <span class="info-tip">Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are shown separately when their filter is selected.</span>
@@ -398,21 +400,21 @@
                 </div>
 
                 <div class="card">
-                    <h2 class="card-header" id="browse-results-heading" tabindex="-1">Studies Database</h2>
+                    <h2 class="card-header" id="browse-results-heading" tabindex="-1">Reference pairs</h2>
                     <div class="card-body">
                         <div class="browse-desktop">
                             <table id="flora-table" class="table table-striped table-hover" style="width:100%;">
                                 <thead>
                                     <tr>
                                         <th scope="col"><span class="visually-hidden">Study evidence</span></th>
-                                        <th>Original Study</th>
-                                        <th>Year</th>
-                                        <th><span data-browse-report-kind>Replication or reproduction</span> study</th>
-                                        <th>Year</th>
-                                        <th>Outcome</th>
-                                        <th>Type</th>
-                                        <th>Original DOI</th>
+                                        <th>Original report</th>
+                                        <th>Original year</th>
                                         <th><span data-browse-report-kind>Replication or reproduction</span> report</th>
+                                        <th>Report year</th>
+                                        <th>Outcome</th>
+                                        <th>Study type</th>
+                                        <th>Original DOI</th>
+                                        <th>Report link</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -444,23 +446,24 @@
             <div class="tab-pane fade" id="trends" role="tabpanel">
                 <h1 class="visually-hidden">Years &amp; Disciplines</h1>
                 <h2 class="visually-hidden">Outcome summaries</h2>
+                <details class="outcome-definitions" data-outcome-definitions></details>
                 <div class="data-stamp" data-stamp-source="flora"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
                     <div class="tab-cite-block-label">How to cite</div>
                     <div class="cite-ref">Röseler, L. et al. (in preparation). <em>The FORRT Library of Reproduction and Replication Attempts: Documenting the Reproducibility and Replicability of the Sciences and Humanities.</em></div></details>
 
-                <div class="trend-filter" role="group" aria-label="Filter by study kind">
-                    <span class="trend-filter-label">Show:</span>
-                    <button type="button" class="trend-filter-btn" data-kind="all" aria-pressed="false">All studies</button>
-                    <button type="button" class="trend-filter-btn active" data-kind="replication" aria-pressed="true">Replications only</button>
-                    <button type="button" class="trend-filter-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
-                    <button type="button" class="trend-filter-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
+                <div class="trend-filter" role="group" aria-label="Study type">
+                    <span class="trend-filter-label">Study type:</span>
+                    <button type="button" class="trend-filter-btn" data-kind="all" aria-pressed="false">All</button>
+                    <button type="button" class="trend-filter-btn active" data-kind="replication" aria-pressed="true">Replications</button>
+                    <button type="button" class="trend-filter-btn" data-kind="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                    <button type="button" class="trend-filter-btn" data-kind="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
                     <span class="trend-filter-count" id="trend-filter-count" role="status"></span>
                 </div>
 
                 <div id="trends-placeholder" class="coming-soon-placeholder" style="display:none;">
-                    Select a study type above (Replications, Numerical Reproductions, or Robustness Reproductions) to see year, journal, and field breakdowns. "All studies" mixes two different outcome vocabularies, so it isn't shown here.
+                    All mixes replication and reproduction reference pairs, which use different outcome categories, so no outcome charts are shown. Choose a study type to see year, journal and field breakdowns.
                 </div>
 
                 <div id="trends-charts">
@@ -537,6 +540,7 @@
             <!-- ============================ CITATION IMPACT ============================ -->
             <div class="tab-pane fade" id="citation-impact" role="tabpanel">
                 <h1 class="visually-hidden">Citation Impact</h1>
+                <details class="outcome-definitions" data-outcome-definitions></details>
                 <div class="data-stamp" data-stamp-source="citations"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -547,9 +551,10 @@
                 <div class="ci-intro">
                     <h2 class="ci-h2" data-kind-text="Citation patterns around the first replication|Citation counts for numerical reproductions|Citation counts for robustness reproductions">Citation patterns around the first replication</h2>
                     <div class="chip-group study-type-select" id="ci-study-type" role="group" aria-label="Citation Impact study type">
+                        <span class="filter-label">Study type:</span>
                         <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
-                        <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
-                        <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
+                        <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                        <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
                     </div>
                     <div class="study-type-note">Numerical and robustness reproductions show descriptive citation counts. No reproduction event-study model is fitted.</div>
                     <p class="ci-lede">
@@ -704,6 +709,7 @@
             <!-- ============================ MEAN CITEDNESS ============================ -->
             <div class="tab-pane fade" id="mean-citedness" role="tabpanel">
                 <h1 class="visually-hidden">Mean Citedness</h1>
+                <details class="outcome-definitions" data-outcome-definitions></details>
                 <div class="data-stamp" data-stamp-source="impact_factor"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -719,9 +725,10 @@
                             Mean Citedness is a journal-level measure from OpenAlex: the mean citations to its works published in the previous two years. It is retrieved at enrichment time, not matched to the original publication year, and is not the original article’s citation count. The update stamp identifies the analysis snapshot. Any fitted model describes an association.
                         </p>
                         <div class="chip-group study-type-select" id="mc-study-type" role="group" aria-label="Mean Citedness study type">
+                        <span class="filter-label">Study type:</span>
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
-                            <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
-                            <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
+                            <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                            <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
                         </div>
                         <div class="study-type-note">Reproduction summaries include only pairs with a verdict on the selected dimension and an available OMC below 35. Unchecked and uncoded dimensions are excluded; the two subsets can overlap.</div>
                         <div id="mc-placeholder" class="coming-soon-placeholder" style="display:none;">Not computed yet for this study type — coming soon.</div>
@@ -751,6 +758,7 @@
             <!-- ==================== AUTHORSHIP OVERLAP ==================== -->
             <div class="tab-pane fade" id="authorship-overlap" role="tabpanel">
                 <h1 class="visually-hidden">Authorship Overlap</h1>
+                <details class="outcome-definitions" data-outcome-definitions></details>
                 <div class="data-stamp" data-stamp-source="author_overlap"></div>
 
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
@@ -769,11 +777,12 @@
                             unrelated researchers share a surname.
                         </p>
                         <div class="chip-group study-type-select" id="ao-study-type" role="group" aria-label="Authorship Overlap study type">
+                        <span class="filter-label">Study type:</span>
                             <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
-                            <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
-                            <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
+                            <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                            <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
                         </div>
-                        <div class="study-type-note">Each reproduction dimension includes only assessed outcomes. Unchecked dimensions are excluded; the numerical and robustness subsets can overlap.</div>
+                        <div class="study-type-note">Numerical reproductions include reference pairs with a computational verdict. Robustness reproductions include reference pairs with a robustness verdict. The selections can overlap. Pairs without a verdict on the selected dimension are excluded.</div>
                         <div id="ao-placeholder" class="coming-soon-placeholder" style="display:none;">Not computed yet for this study type — coming soon.</div>
                         <div id="ao-content">
                         <div id="ao-loading" class="note note-loading">Loading analysis…</div>
@@ -781,7 +790,7 @@
                         <div id="ao-overview" class="mc-overview-grid" style="display:none;"></div>
 
                         <div id="ao-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
-                            <h3 class="mc-chart-title"><span data-kind-text="Replication outcomes|Computational verdicts|Robustness verdicts">Replication outcomes</span> by authorship overlap</h3>
+                            <h3 class="mc-chart-title"><span data-kind-text="Replication outcomes|Computational reproducibility|Robustness">Replication outcomes</span> by authorship overlap</h3>
                             <div class="mc-chart-wrap"><div id="ao-chart"></div></div>
                         </div>
 
@@ -803,14 +812,16 @@
             <!-- ==================== PUBLICATION TYPE ==================== -->
             <div class="tab-pane fade" id="publication-type" role="tabpanel">
                 <h1 class="visually-hidden">Publication Type</h1>
+                <details class="outcome-definitions" data-outcome-definitions></details>
                 <details class="tab-cite-block"><summary>Citation and reuse guidance</summary>
                     <div class="tab-cite-block-label">How to cite</div>
                     <div class="cite-ref">Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" class="doi-link">https://forrt.org/flora-explorer/</a></div></details>
 
                 <div class="chip-group study-type-select" id="pubtype-study-type" role="group" aria-label="Publication Type study type (all three comparisons)">
+                        <span class="filter-label">Study type:</span>
                     <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
-                    <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical Reproductions</button>
-                    <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness Reproductions</button>
+                    <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                    <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
                 </div>
                 <div class="study-type-note">This filter applies to all three analyses below. It is computed for all three study types; reproduction results may show a low-data message given how few reproductions exist so far.</div>
 
@@ -850,7 +861,7 @@
                         </div>
 
                         <details id="pub-studies-card" class="mc-chart-card rr-studies-details" style="display:none;margin-top:1.25rem;">
-                            <summary class="mc-chart-title">All studies with publication-status data <span id="pub-studies-count" class="rr-studies-count"></span></summary>
+                            <summary class="mc-chart-title">Reference pairs with publication-status data <span id="pub-studies-count" class="rr-studies-count"></span></summary>
                             <div class="table-wrap" style="margin-top:0.75rem;">
                                 <table class="table table-striped table-hover" id="pub-studies-table" style="width:100%;">
                                     <thead>
@@ -905,7 +916,7 @@
                         <div id="rr-overview" class="mc-overview-grid" style="display:none;"></div>
 
                         <div id="rr-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
-                            <h3 class="mc-chart-title"><span data-kind-text="Replication outcomes|Computational verdicts|Robustness verdicts">Replication outcomes</span> by Registered Report status</h3>
+                            <h3 class="mc-chart-title"><span data-kind-text="Replication outcomes|Computational reproducibility|Robustness">Replication outcomes</span> by Registered Report status</h3>
                             <div class="mc-chart-wrap"><div id="rr-chart"></div></div>
                         </div>
 
@@ -978,10 +989,10 @@
                                 <table class="table table-striped table-hover" id="ls-studies-table" style="width:100%;">
                                     <thead>
                                         <tr>
-                                            <th>Project</th>
+                                            <th>Replication or reproduction report</th>
                                             <th>Journal</th>
                                             <th>Year</th>
-                                            <th>Targets</th>
+                                            <th>Distinct originals</th>
                                             <th>Outcome mix</th>
                                             <th>DOI</th>
                                         </tr>
@@ -1033,6 +1044,7 @@
     <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
+    <script src="assets/outcome-vocabulary.js"></script>
     <script src="assets/chart-accessibility.js"></script>
     <script src="assets/app.js"></script>
     <script src="assets/view-controls.js"></script>
