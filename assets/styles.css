@@ -613,7 +613,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
     color: var(--color-muted-fg); font-size: 0.82rem; margin: 0 0 1rem;
 }
 
-/* "Not computed yet" / "select a study type" placeholders (Trends + the 4 analysis tabs) */
+/* "Not computed yet" placeholders on the analysis tabs */
 .coming-soon-placeholder {
     text-align: center; padding: 2rem 1rem; color: var(--color-muted-fg);
     background: var(--color-surface-subtle); border: 1px solid var(--color-border);

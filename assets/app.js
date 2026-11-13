@@ -162,8 +162,8 @@ function studyTypeOutcomeBuckets(kind) {
 }
 
 // Static copy that depends on the selected study type carries its three variants in
-// data-kind-text="replication|numerical|robustness"; the markup is authored, not data.
-const KIND_TEXT_INDEX = {replication: 0, 'reproduction-numerical': 1, 'reproduction-robustness': 2};
+// data-kind-text="replication|numerical|robustness[|all]"; the markup is authored, not data.
+const KIND_TEXT_INDEX = {replication: 0, 'reproduction-numerical': 1, 'reproduction-robustness': 2, all: 3};
 function applyKindText(root, kind) {
     const i = KIND_TEXT_INDEX[kind]; if (i === undefined || !root) return;
     root.querySelectorAll('[data-kind-text]').forEach(el => {
@@ -1194,27 +1194,25 @@ function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
 function updateTrendsCount() {
     const el = document.getElementById('trend-filter-count'); if (!el) return;
     const n = trendsFilteredData().length; const total = fullRowData.length;
-    const count = trendsKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference ${total === 1 ? "pair" : "pairs"}`;
+    const count = trendsKind === 'all' ? nPairs(n) : `${n.toLocaleString('en-GB')} of ${nPairs(total)}`;
     el.innerHTML = `<span class="visually-hidden">${BROWSE_KIND_LABELS[trendsKind]}: </span>${count}`;
 }
 
-// Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
-// stacked these by outcome, but for 'reproduction-numerical'/'reproduction-robustness' kinds
-// the label fell back to the row's full raw (compound) outcome string regardless of which
-// dimension was selected, so both dimensions showed up under either kind. Simple counts sidestep
-// that entirely and are also the more legible default for a "how many, by category" view.
-// Which outcome bucket (per studyTypeOutcomeBuckets/trendOutcomeBuckets) a row falls
-// into, for whichever study type is currently selected in the trend filter.
+// Which bucket (per trendOutcomeBuckets) a row falls into for the selected study type.
 function outcomeBucketKeyForRow(row, kind) {
+    if (kind === 'all') return classifyKind(row);
     if (kind === 'reproduction-numerical') return parseReproductionOutcome(row).computational || 'not_coded';
     if (kind === 'reproduction-robustness') return parseReproductionOutcome(row).robustness || 'not_coded';
     return FloraVocabulary.replication(row);
 }
 
-// Reproduction selections include assessed verdicts only. Replication selections
-// retain every category, including missing and unrecognised outcomes.
+// "All" stacks by study type: replication and reproduction outcome vocabularies cannot share a bar.
 function trendOutcomeBuckets(kind) {
-    if (kind === 'reproduction-numerical' || kind === 'reproduction-robustness') return studyTypeOutcomeBuckets(kind);
+    if (kind === 'all') return [
+        {key: 'replication', label: 'Replication', color: FloraCharts.token('--color-primary')},
+        {key: 'reproduction', label: 'Reproduction', color: FloraCharts.token('--color-link')},
+        {key: 'unknown', label: 'Study type not recorded', color: chartToken('not-coded')},
+    ];
     return studyTypeOutcomeBuckets(kind);
 }
 
@@ -1407,12 +1405,9 @@ function renderTrendField() {
 function renderAllTrends() {
     updateTrendsCount();
     const chartsEl = document.getElementById('trends-charts');
-    const placeholderEl = document.getElementById('trends-placeholder');
-    const show = trendsKind !== 'all';
-    if (chartsEl) chartsEl.style.display = show ? '' : 'none';
-    if (placeholderEl) placeholderEl.style.display = show ? 'none' : '';
-    if (!show) return;
-    applyKindText(document.getElementById('trends-charts'), trendsKind);
+    const allNote = document.getElementById('trends-all-note');
+    if (allNote) allNote.hidden = trendsKind !== 'all';
+    applyKindText(chartsEl, trendsKind);
     renderTrendOrigYear(); renderTrendRepYear();
     renderTrendJournal(); renderTrendRepJournal();
     renderTrendField();
