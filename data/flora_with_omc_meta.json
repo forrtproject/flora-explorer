@@ -1,6 +1,17 @@
 {
-  "last_updated": "2026-11-12T13:23:27.999381+00:00",
+  "last_updated": "2026-11-13T08:14:17.191335+00:00",
   "n_rows": 2881,
-  "n_with_omc": 2716,
+  "n_with_omc": 2647,
+  "window_years": [
+    2024,
+    2025
+  ],
+  "min_window_works": 20,
+  "placeholder_min_citations": 100,
+  "placeholder_max_share": 0.1,
+  "n_set_aside": {
+    "too_few_papers": 61,
+    "placeholder_record": 5
+  },
   "source": "OpenAlex Sources API (summary_stats.2yr_mean_citedness)"
 }
