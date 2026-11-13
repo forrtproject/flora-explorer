@@ -384,13 +384,14 @@ function renderKindStackedBar(canvasId, existingChart, data, kind, categoryLabel
     const ctx = canvas.getContext('2d');
     if (existingChart) existingChart.destroy();
     const ac = themeAxisColors();
+    const compact = window.matchMedia('(max-width: 767px)').matches;
     return FloraCharts.chart(ctx, {
         type: 'bar',
         data: { labels: [categoryLabel], datasets },
         options: {
             responsive: true, maintainAspectRatio: false, indexAxis: 'y',
             plugins: {
-                legend: { position: 'bottom', labels: { color: ac.legend, boxWidth: 14, padding: 14, font: { size: 12 } } },
+                legend: { position: 'bottom', labels: { color: ac.legend, boxWidth: compact ? 10 : 14, padding: compact ? 8 : 14, font: { size: compact ? 11 : 12 } } },
                 tooltip: { callbacks: { label: ctx => {
                     const v = ctx.parsed.x; const pct = FloraCharts.percent(v, total, 1);
                     return `${ctx.dataset.label}: ${v.toLocaleString()} (${pct}%)`;

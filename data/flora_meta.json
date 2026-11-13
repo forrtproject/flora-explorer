@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-11-12T13:21:36.881031+00:00",
+  "last_updated": "2026-11-13T06:17:21.213367+00:00",
   "source_url": "https://raw.githubusercontent.com/forrtproject/FReD-data/refs/heads/main/output/flora.csv",
   "n_rows": 2881,
   "columns": [
@@ -15,6 +15,9 @@
     "year_r",
     "url_r",
     "type",
+    "outcome_replication",
+    "outcome_replication_quote",
+    "out_quote_replication_source",
     "outcome_computation",
     "outcome_computational_quote",
     "out_quote_computational_source",
