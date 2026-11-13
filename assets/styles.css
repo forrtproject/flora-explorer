@@ -308,7 +308,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 
 /* Charts */
 .chart-container { position: relative; height: 400px; width: 100%; }
-.chart-container-stack { position: relative; height: 90px; width: 100%; }
+.chart-container-stack { position: relative; height: 100px; width: 100%; }
 
 /* One combined box holding the computational/robustness/replicability rows */
 .outcome-chart-row { margin-bottom: 1.5rem; }
@@ -655,7 +655,10 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
  .top-bar .nav-tabs {display:none;}
  .top-bar-inner {gap:.65rem;}
  .brand-mark {flex-shrink:0;}
- .chart-container-stack {height:220px;}
+ .chart-container-stack {height:120px;}
+ .card:has(> .card-body .outcome-chart-row) > .card-header {display:none;} /* drop "Outcome Breakdown" title and its space on mobile */
+ .chart-caption {display:none;} /* statistics line is desktop-only; same numbers remain in "View chart data" */
+
  .detail-grid {grid-template-columns:1fr;}
  .mc-chart-wrap {overflow:visible;}
  .chart-data {padding:.5rem;}
@@ -818,4 +821,30 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 
 .study-type-select > .filter-label, .trend-filter-label {
     text-transform: none; letter-spacing: normal; align-self: center;
+}
+
+/* Study-type filter: compact layout on phones.
+   Header row (label + count) on top, buttons in a 2-column grid below. */
+@media (max-width: 600px) {
+    .trend-filter {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.4rem;
+        padding: 0.6rem 0.75rem;
+        margin-bottom: 1rem;
+    }
+    .browse-kind-filter { padding: 0.7rem 0 0; margin-top: 0.7rem; }
+    .trend-filter-label { grid-column: 1; grid-row: 1; margin-right: 0; font-size: 0.78rem; }
+    .trend-filter-count { grid-column: 2; grid-row: 1; margin-left: 0; text-align: right; font-size: 0.78rem; line-height: 1.2; }
+    .trend-filter-btn {
+        padding: 0.35rem 0.4rem;
+        font-size: 0.8rem;
+        line-height: 1.2;
+        text-align: center;
+        min-height: 2.25rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .outcome-chart-row > .chart-data { display: none; }
 }
