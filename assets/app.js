@@ -368,7 +368,8 @@ function coverageText(n, m, reasons = [], noun = 'reference pairs', kind = null)
     const stated = listed.reduce((sum, [k]) => sum + k, 0);
     const total = Math.max(m || 0, n + stated);
     if (kind && total - n - stated > 0) listed.push([total - n - stated, unexplainedReason(kind)]);
-    return `Included in the plot: ${fmt(n)} of ${fmt(total)} ${noun}; ` +
+    const counted = total === 1 ? noun.replace(/\b(pairs|originals|works)\b/, w => w.slice(0, -1)) : noun;
+    return `Included in the plot: ${fmt(n)} of ${fmt(total)} ${counted}; ` +
         (listed.length ? `excluded: ${listed.map(([k, why]) => `${fmt(k)} ${why}`).join(', ')}.` : 'none excluded.');
 }
 function setCoverage(chartId, text) { setCaption(chartId + '-n', text); return text; }

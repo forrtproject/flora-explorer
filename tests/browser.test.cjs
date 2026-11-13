@@ -159,7 +159,8 @@ test('shared citation outcome filters restore before asynchronous loading finish
   const p=await page('?tab=citations&ci-outcome=failed');
   await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length>0);
   const expected=Math.max(...JSON.parse(fs.readFileSync('data/aggregate.json')).failed.descriptive.n_units).toLocaleString('en-GB');
-  assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} of `));
+  const failedOriginals=JSON.parse(fs.readFileSync('data/originals_index.json')).filter(s=>s.first_replication_outcome==='failed').length.toLocaleString('en-GB');
+  assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} of ${failedOriginals} originals `));
   assert.equal(await p.locator('#outcome-chips [data-value="failed"]').getAttribute('aria-pressed'),'true');
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -1508,6 +1509,8 @@ test('every chart states N of M in its chart data',async()=>{
   for(const id of ['overview-outcome-chart-data','browse-outcome-chart-data','trend-journal-data','plot-cit-data','plot-cocit-data','mc-dist-chart-data','mc-gam-chart-data','ao-chart-data','pub-chart-data','rr-chart-data','ls-chart-data']) assert.ok(seen.has(id),id);
   for(const id of ['ao-chart-n','pub-chart-n','rr-chart-n','ls-chart-n']) assert.match(await p.locator('#'+id).textContent(),nOfM,id);
   // Browse charts count only their own study type, as on Overview.
-  assert.match(await p.locator('#browse-computational-chart-data .chart-summary').textContent(),/Included in the plot: 222 of 226 reference pairs; excluded from this selection: 4 reference pairs\./);
+  const [plotted,reproductions]=await p.evaluate(()=>[computeKindChartData(getChartData(),'computational').total,getChartData().filter(r=>classifyKind(r)==='reproduction').length]);
+  assert.ok(plotted<reproductions&&reproductions<await p.evaluate(()=>getChartData().length));
+  assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
   assert.deepEqual(p.errors,[]);await p.close();
 });

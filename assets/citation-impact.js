@@ -268,16 +268,20 @@
 
     // Originals whose first replication falls in the selected outcome group.
     function outcomeGroupOriginals() {
-        return (CI.index || []).filter(s => CI.outcome === 'all' ? s.first_replication_outcome : s.first_replication_outcome === CI.outcome).length;
+        return (CI.index || []).filter(s => CI.outcome === 'all' ? s.first_replication_outcome : s.first_replication_outcome === CI.outcome);
     }
 
     function renderSampleSize(id, desc, eventWindow, criterion, excludedWhy) {
         const el = document.getElementById(id);
         const shown = desc && desc.event_time && eventWindow ? sliceDescriptive(desc, eventWindow) : desc;
         const n = Math.max(0, ...((shown && shown.n_units) || []));
-        const m = Math.max(n, outcomeGroupOriginals());
+        const group = outcomeGroupOriginals();
+        const m = Math.max(n, group.length);
+        // build_panel() in refresh_data.py drops these before any window check.
+        const badYears = group.filter(s => !s.year || !s.first_replication_year || s.first_replication_year < s.year).length;
         if (el) el.textContent = n ? `Sample size: ${FloraCharts.number(n)} of ${FloraCharts.number(m)} originals ${criterion}` : '';
-        return coverageText(n, m, [[m - n, excludedWhy]], 'originals');
+        return coverageText(n, m, [[badYears, 'with a missing original or replication year, or a replication dated before its original'],
+            [m - n - badYears, excludedWhy]], 'originals');
     }
 
     function sliceDescriptive(desc, [lo, hi]) {
