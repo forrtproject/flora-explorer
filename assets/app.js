@@ -2281,6 +2281,81 @@ function withReplicationColumns(row) {
     return row;
 }
 
+const EXCLUSION_REASONS = {
+    own_fetch_failed: 'its citation fetch failed',
+    replication_fetch_failed: 'a replication’s citation fetch failed',
+    time_budget: 'the refresh ran out of time before reaching it',
+    not_processed: 'it was not processed in this refresh'
+};
+const EXCLUSION_CHIPS = {
+    own_fetch_failed: ['Citation fetch failed', 'error'],
+    replication_fetch_failed: ['Replication fetch failed', 'warning'],
+    time_budget: ['Refresh time limit', 'muted'],
+    not_processed: ['Not processed', 'muted']
+};
+function exclusionReason(code) {
+    return EXCLUSION_REASONS[code] || EXCLUSION_REASONS.not_processed;
+}
+function excludedOriginalLabel(e) {
+    const authors = String(e.author || '').split(';').map(a => a.trim()).filter(Boolean);
+    const who = authors.length ? authors[0] + (authors.length > 1 ? ' et al.' : '') : '';
+    return [who, e.year ? `(${e.year})` : ''].filter(Boolean).join(' ') || e.doi;
+}
+function excludedOriginalRows(list) {
+    return list.map(e => {
+        const [chip, tone] = EXCLUSION_CHIPS[e.reason] || EXCLUSION_CHIPS.not_processed;
+        return `<li class="excluded-row">
+            <div class="excluded-row-main">
+                <span class="excluded-row-who">${escapeHtml(excludedOriginalLabel(e))}</span>
+                ${e.title ? `<span class="excluded-row-title">${escapeHtml(e.title)}</span>` : ''}
+            </div>
+            <div class="excluded-row-meta">
+                <span class="excluded-chip excluded-chip-${tone}" title="Left out because ${escapeHtml(exclusionReason(e.reason))}">${chip}</span>
+                <a class="doi-link excluded-row-doi" href="https://doi.org/${encodeURI(e.doi)}" target="_blank" rel="noopener">${escapeHtml(e.doi)}</a>
+            </div>
+        </li>`;
+    }).join('');
+}
+function citationCoverageSentence(meta) {
+    const fmt = v => v.toLocaleString('en-GB');
+    return `${fmt(meta.n_originals)} of ${fmt(meta.n_originals_eligible)} eligible originals included`;
+}
+function renderExcludedOriginals(stamp, meta) {
+    const next = stamp.nextElementSibling;
+    if (next && next.classList.contains('excluded-originals')) next.remove();
+    const excluded = meta ? meta.excluded_originals : [];
+    stamp.classList.toggle('partial', excluded.length > 0);
+    if (!excluded.length) return;
+    const fmt = v => v.toLocaleString('en-GB');
+    const n = excluded.length;
+    // A handful of exclusions out of thousands would otherwise be an invisible sliver.
+    const pct = Math.min(meta.n_originals / meta.n_originals_eligible * 100, 98);
+    const pairs = meta.n_pairs_excluded ? `${fmt(meta.n_pairs_excluded)} reference ${meta.n_pairs_excluded === 1 ? 'pair' : 'pairs'} · ` : '';
+    const details = document.createElement('details');
+    details.className = 'excluded-originals';
+    details.innerHTML = `<summary>
+            <svg class="excluded-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9"/><path d="M10 5.5v5.5M10 13.8v.2"/></svg>
+            <span class="excluded-summary-text">
+                <span class="excluded-headline">${fmt(n)} original${n === 1 ? '' : 's'} left out of this snapshot</span>
+                <span class="excluded-sub">${pairs}omitted from the figures below, not counted as zero · retried next refresh</span>
+            </span>
+            <span class="excluded-toggle" aria-hidden="true"></span>
+        </summary>
+        <div class="excluded-coverage">
+            <div class="excluded-bar" role="img" aria-label="${fmt(meta.n_originals)} included, ${fmt(n)} left out, of ${fmt(meta.n_originals_eligible)} eligible originals">
+                <span style="width:${pct}%"></span>
+            </div>
+            <div class="excluded-legend">
+                <span><i class="dot-included"></i>${fmt(meta.n_originals)} included</span>
+                <span><i class="dot-excluded"></i>${fmt(n)} left out</span>
+                <span>${fmt(meta.n_originals_eligible)} eligible</span>
+            </div>
+        </div>
+        <p class="excluded-note">These originals are in FLoRA, but their citation data could not be completed in this refresh. They are <strong>left out</strong> of every figure on this tab rather than counted as having no citations.</p>
+        <ul class="excluded-list">${excludedOriginalRows(excluded)}</ul>`;
+    stamp.after(details);
+}
+
 async function loadDataStamps() {
     const cache = {};
     const sources = Array.from(new Set(Array.from(document.querySelectorAll('.data-stamp')).map(el => el.dataset.stampSource)));
@@ -2313,8 +2388,11 @@ async function loadDataStamps() {
                 el.innerHTML += ` · <span title="${escapeHtml(String(meta.input_snapshot))}">input snapshot: ${escapeHtml(label)}</span>`;
             }
             if (meta.recalculated_at) el.innerHTML += ` · recalculated: ${new Date(meta.recalculated_at).toLocaleDateString()}`;
-            if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
+            const coverage = Array.isArray(meta.excluded_originals) && meta.n_originals_eligible ? meta : null;
+            if (coverage) el.innerHTML += ' · ' + citationCoverageSentence(coverage);
+            else if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
             if (meta.source_url) el.innerHTML += ` · <a class="doi-link" href="${meta.source_url}" target="_blank">${escapeHtml(label)} source</a>`;
+            renderExcludedOriginals(el, coverage);
         } else {
             el.classList.add('missing');
             el.innerHTML = `${label}: <em>no snapshot yet</em>`;

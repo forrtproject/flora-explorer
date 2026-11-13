@@ -570,6 +570,36 @@ test('Citation Impact searches full author lists, including after an early DOI d
     assert.deepEqual(p.errors,[]);await p.close();
   }
 });
+test('Citation Impact reconciles snapshot coverage and explains excluded originals in search',async()=>{
+  const real=JSON.parse(fs.readFileSync('data/meta.json'));
+  const excluded=[{doi:'10.test/zz-own',reason:'own_fetch_failed',title:'Zzyzx own fetch',author:'Qwertz, A.',year:2003},
+                  {doi:'10.test/zz-rep',reason:'replication_fetch_failed',title:'Zzyzx replication fetch',author:'Asdfg, B.',year:2009}];
+  const meta={...real,n_originals_eligible:real.n_originals+2,excluded_originals:excluded,n_pairs_excluded:3,partial_run:true};
+  const p=await page('?tab=citations',1280,p=>p.route('**/data/meta.json',route=>route.fulfill({json:meta})));
+  const stamp=p.locator('.data-stamp[data-stamp-source="citations"]');
+  await p.waitForFunction(()=>/eligible originals/.test(document.querySelector('.data-stamp[data-stamp-source="citations"]').textContent));
+  const fmt=v=>v.toLocaleString('en-GB');
+  assert.match(await stamp.innerText(),new RegExp(`${fmt(real.n_originals)} of ${fmt(real.n_originals+2)} eligible originals included`));
+  assert.doesNotMatch(await stamp.innerText(),/Partial refresh/);
+  assert.ok(await stamp.evaluate(el=>el.classList.contains('partial')));
+  const list=p.locator('#citation-impact .excluded-originals');
+  assert.match(await list.locator('summary').innerText(),/2 originals left out of this snapshot[\s\S]*3 reference pairs[\s\S]*retried next refresh/);
+  assert.equal(await list.locator('.excluded-row').count(),2);
+  await list.locator('summary').click();assert.match(await list.innerText(),/rather than counted as having no citations/);
+  assert.deepEqual(await list.locator('.excluded-chip').allInnerTexts(),['Citation fetch failed','Replication fetch failed']);
+  await p.waitForSelector('.timeline-open');
+  assert.deepEqual(await citationSearch(p,'Qwertz'),[]);
+  assert.match(await p.locator('#ci-search-empty-message').innerText(),/Qwertz, A\. \(2003\) is in FLoRA but not in this citation snapshot: its citation fetch failed/);
+  assert.equal(await p.locator('#ci-search-excluded .excluded-row').count(),1);
+  await citationSearch(p,'zzyzx');
+  assert.match(await p.locator('#ci-search-empty-message').innerText(),/2 originals matching “zzyzx” are in FLoRA but not in this citation snapshot/);
+  assert.equal(await p.locator('#ci-search-excluded .excluded-row').count(),2);
+  await citationSearch(p,'zz-no-such-original');
+  assert.match(await p.locator('#ci-search-empty-message').innerText(),/No originals match/);
+  assert.ok(await p.locator('#ci-search-excluded').isHidden());
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
 test('search input is debounced, Show all draws once and Citation Impact offers empty-state recovery',async()=>{
   const p=await page('?tab=browse');
   // deferRender creates only the first page until more rows are requested.

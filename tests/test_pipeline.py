@@ -212,6 +212,34 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
             pipeline.write_outputs({},pd.DataFrame(),partial=True)
         self.assertEqual((ROOT/'data/meta.json').read_bytes(),before)
 
+    def test_excluded_originals_are_listed_with_reasons_and_left_out_of_the_index(self):
+        def pair(doi_o,doi_r,title):
+            return dict(doi_o=doi_o,doi_r=doi_r,outcome='failed',title_o=title,author_o='Caspi, A.',year_o=2003,
+                        journal_o='Venue',title_r='Rep',author_r='Author',year_r=2015,pub_status='individual')
+        frame=pd.DataFrame([pair('10.test/a-own','10.test/r-ok','Own fails'),
+                            pair('10.test/b-rep','10.test/r-bad','Rep fails B'),
+                            pair('10.test/c-rep','10.test/r-bad','Rep fails C'),
+                            pair('10.test/d-ok','10.test/r-ok','Included')])
+        lists={'10.test/a-own':None,'10.test/b-rep':[{'citing':'x','year':2016}],'10.test/c-rep':[{'citing':'x','year':2016}],
+               '10.test/d-ok':[{'citing':'x','year':2016}],'10.test/r-ok':[{'citing':'x','year':2016}],'10.test/r-bad':None}
+        stats=dict(rep_fetch_error_dois=[],originals_errored=0,originals_skipped=0,excluded_reasons={})
+        with tempfile.TemporaryDirectory() as tmp, patch.object(pipeline,'RUN_STATS',stats), \
+             patch.object(pipeline,'DATA_DIR',Path(tmp)), \
+             patch.object(pipeline,'fetch_oc_citations',side_effect=lambda doi:lists[doi]), \
+             patch.object(pipeline,'should_stop',return_value=False):
+            pipeline.write_outputs(pipeline.build_study_data(frame),frame,partial=True)
+            meta=json.loads((Path(tmp)/'meta.json').read_text())
+            index=json.loads((Path(tmp)/'originals_index.json').read_text())
+        self.assertEqual({e['doi']:e['reason'] for e in meta['excluded_originals']},
+                         {'10.test/a-own':'own_fetch_failed','10.test/b-rep':'replication_fetch_failed','10.test/c-rep':'replication_fetch_failed'})
+        self.assertEqual(meta['excluded_originals'][0]['title'],'Own fails')
+        self.assertEqual(meta['n_originals_eligible'],meta['n_originals']+len(meta['excluded_originals']))
+        self.assertEqual(meta['n_pairs_excluded'],3)
+        self.assertEqual(meta['rep_fetch_failed_attempts'],2)
+        self.assertEqual(meta['n_fetch_error_dois'],1)
+        self.assertEqual(meta['fetch_error_dois'],['10.test/r-bad'])
+        self.assertEqual({row['doi'] for row in index},{'10.test/d-ok'})
+
     def test_journal_matching_rejects_generic_overlap_and_old_cache_hits(self):
         for query, candidate in [
             ('Journal of Clinical Psychology','Journal of Cognitive Psychology'),
