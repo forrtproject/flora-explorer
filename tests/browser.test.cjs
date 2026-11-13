@@ -1467,3 +1467,32 @@ test('citation charts drawn before the main CSV loads re-fit their axes once sho
     return axis.range[1]>0.2&&axis.range[1]<0.5&&labels.some(v=>v>0&&v<1);},null,{timeout:5000});
   assert.deepEqual(p.errors,[]);await p.close();
 });
+test('analysis charts show N of M with exclusions and distinct report counts beside pair counts',async()=>{
+  const model=JSON.parse(fs.readFileSync('data/impact_factor_data.json'));
+  const rrData=JSON.parse(fs.readFileSync('data/rr_status_data.json')).replication;
+  const n=v=>v.toLocaleString('en-GB');
+  const p=await page('?tab=overview');
+  const distinct=await p.evaluate(()=>distinctReportCounts(fullRowData.filter(r=>classifyKind(r)==='replication')));
+  assert.ok(distinct.reports>0&&distinct.reports<Number((await p.locator('#ov-replications').textContent()).replace(/,/g,'')));
+  assert.match(await p.locator('#ov-replications-distinct').textContent(),new RegExp(`^${n(distinct.reports)} distinct repetition reports · ${n(distinct.originals)} distinct original DOIs`));
+  await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-journal'));
+  for(const id of ['trend-orig-year-n','trend-rep-year-n','trend-journal-n','trend-rep-journal-n','trend-field-n'])
+    assert.match(await p.locator('#'+id).textContent(),/^[\d,]+ of [\d,]+ reference pairs shown; (excluded: .+|none excluded)\.$/,id);
+  assert.match(await p.locator('#trend-journal-n').textContent(),/outside the top 15 journals/);
+  await p.click('#mc-tab');await p.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
+  const ov=model.overview;
+  assert.match(await p.locator('#mc-eligible').textContent(),new RegExp(`^${n(ov.n_total)} of ${n(ov.n_input)} replication reference pairs have an OMC; ${n(ov.n_excluded)} reference pairs excluded`));
+  const stats=(await p.locator('#mc-gam-stats').textContent()).replace(/\s+/g,' ');
+  assert.ok(stats.includes(`N = ${n(model.stats.n_model)} of ${n(ov.n_total)} reference pairs with OMC`));
+  assert.ok(stats.includes(`mixed ${n(ov.n_mixed)}`));
+  assert.ok(stats.includes(`χ² = ${Number(model.stats.chi_sq).toLocaleString('en-GB',{maximumSignificantDigits:2})}`));
+  assert.ok(!stats.includes(String(model.stats.chi_sq)),'full precision stays out of the visible note');
+  await p.click('#pub-tab');await p.waitForSelector('#rr-chart-data');
+  assert.match(await p.locator('#rr-overview').textContent(),new RegExp(`pairs from ${n(rrData.overview.n_rr_reports)} distinct reports`));
+  assert.equal(await p.locator('#rr-studies-table tbody tr').count(),rrData.overview.n_rr_reports);
+  assert.equal(await p.locator('#rr-studies-count').textContent(),`(${n(rrData.overview.n_rr)} reference pairs from ${n(rrData.overview.n_rr_reports)} reports)`);
+  assert.ok(await p.locator('#rr-snapshot-note').isHidden());
+  await p.evaluate(()=>{window._pubData.replication.overview.n_total+=37;renderPubTypeSnapshotNote();});
+  assert.match(await p.locator('#rr-snapshot-note').textContent(),/refreshed from different FLoRA snapshots/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});

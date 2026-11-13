@@ -140,18 +140,21 @@
                             <div class="stats-card">
                                 <div class="number" id="ov-total">-</div>
                                 <div class="label">Reference pairs</div>
+                                <div class="distinct" id="ov-total-distinct"></div>
                             </div>
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="stats-card">
                                 <div class="number" id="ov-replications">-</div>
                                 <div class="label">Replication reference pairs</div>
+                                <div class="distinct" id="ov-replications-distinct"></div>
                             </div>
                         </div>
                         <div class="col-6 col-md-4">
                             <div class="stats-card">
                                 <div class="number" id="ov-reproductions">-</div>
                                 <div class="label">Reproduction reference pairs</div>
+                                <div class="distinct" id="ov-reproductions-distinct"></div>
                             </div>
                         </div>
                     </div>
@@ -738,8 +741,7 @@
                                         </p>
                                         <p id="trend-orig-year-axis-note">The axis runs year by year, so years without
                                             any recorded pair appear as gaps and elapsed time keeps its scale.</p>
-                                        <p class="trend-note">Reference pairs without a recorded original publication
-                                            year are excluded.</p>
+                                        <p class="trend-note" id="trend-orig-year-n"></p>
                                     </div>
                                     <div class="chart-container"><canvas id="trend-orig-year"></canvas></div>
                                 </div>
@@ -761,9 +763,7 @@
                                             outcome profiles have shifted over time.</p>
                                         <p>The rightmost years may reflect ongoing data entry rather than a genuine
                                             decline in activity.</p>
-                                        <p class="trend-note">Reference pairs without a recorded <span
-                                                data-kind-text="replication|reproduction|reproduction">replication</span>
-                                            year are excluded.</p>
+                                        <p class="trend-note" id="trend-rep-year-n"></p>
                                     </div>
                                     <div class="chart-container"><canvas id="trend-rep-year"></canvas></div>
                                 </div>
@@ -785,6 +785,7 @@
                                                 data-kind-text="Frequency shows where replication effort has gone, not how replicable a journal's research is.|Frequency shows where reproduction effort has gone, not how reproducible a journal's research is.|Frequency shows where reproduction effort has gone, not how robust a journal's research is.">Frequency
                                                 shows where replication effort has gone, not how replicable a journal's
                                                 research is.</span></p>
+                                        <p class="trend-note" id="trend-journal-n"></p>
                                         <div class="mt-3">
                                             <label for="journal-top-n" class="note note-label">Show top:</label>
                                             <select id="journal-top-n" class="form-select d-inline-block top-n-select">
@@ -822,6 +823,7 @@
                                                 data-kind-text="replication|reproduction|reproduction">replication</span>-journal
                                             data is a work in progress; some journals may be missing or
                                             under-represented at the moment.</p>
+                                        <p class="trend-note" id="trend-rep-journal-n"></p>
                                         <div class="mt-3">
                                             <label for="rep-journal-top-n" class="note note-label">Show top:</label>
                                             <select id="rep-journal-top-n"
@@ -859,6 +861,7 @@
                                         </p>
                                         <p class="trend-note">Coverage is still growing. Journals that are not yet
                                             classified may leave some fields under-represented.</p>
+                                        <p class="trend-note" id="trend-field-n"></p>
                                     </div>
                                     <div class="chart-container" id="trend-field-container"><canvas
                                             id="trend-field"></canvas></div>
@@ -1160,6 +1163,7 @@
                             <div id="mc-content">
                                 <div id="mc-loading" class="note note-loading">Loading analysis…</div>
                                 <div id="mc-overview" class="mc-overview-grid" style="display:none;"></div>
+                                <p id="mc-eligible" class="mc-model-note" style="display:none;"></p>
                                 <div id="mc-dist-card" class="mc-chart-card" style="display:none;">
                                     <h3 class="mc-chart-title">Distribution of reference pairs by journal Mean Citedness
                                     </h3>
@@ -1423,6 +1427,7 @@
                                 <div id="rr-loading" class="note note-loading">Loading analysis…</div>
 
                                 <div id="rr-overview" class="mc-overview-grid" style="display:none;"></div>
+                                <p id="rr-snapshot-note" class="study-type-note" style="display:none;"></p>
 
                                 <div id="rr-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
                                     <h3 class="mc-chart-title"><span
@@ -1451,9 +1456,9 @@
 
                                 <details id="rr-studies-card" class="mc-chart-card rr-studies-details"
                                     style="display:none;margin-top:1.25rem;">
-                                    <summary class="mc-chart-title">Reference pairs whose <span
-                                            data-kind-text="replication|reproduction|reproduction">replication</span>
-                                        report matches the Registered Reports database <span id="rr-studies-count"
+                                    <summary class="mc-chart-title"><span
+                                            data-kind-text="Replication|Reproduction|Reproduction">Replication</span>
+                                        reports that match the Registered Reports database <span id="rr-studies-count"
                                             class="rr-studies-count"></span></summary>
                                     <div class="table-wrap" style="margin-top:0.75rem;">
                                         <table class="table table-striped table-hover" id="rr-studies-table"
@@ -1465,7 +1470,8 @@
                                                         report</th>
                                                     <th>Journal</th>
                                                     <th>Year</th>
-                                                    <th>Outcome</th>
+                                                    <th>Reference pairs</th>
+                                                    <th>Outcomes</th>
                                                     <th>DOI</th>
                                                 </tr>
                                             </thead>
