@@ -58,6 +58,7 @@ RUN_STATS = {
     "rep_fetch_error_dois": [],   # replications whose citations we couldn't fetch
     "originals_errored": 0,       # originals skipped because a replication fetch failed
     "originals_skipped": 0,       # originals skipped because their own fetch failed
+    "excluded_reasons": {},       # doi_o -> own_fetch_failed / replication_fetch_failed / time_budget
 }
 
 session = requests.Session()
@@ -495,10 +496,12 @@ def build_study_data(flora: pd.DataFrame) -> dict:
     # (doi_o, doi_r, kind) for replications OC can't tell from the original
     conflated = []
 
-    for doi_o in tqdm(originals):
+    for i, doi_o in enumerate(tqdm(originals)):
         if should_stop():
             print(
                 f"⏰ Time budget exhausted; stopping at {len(studies)} originals.")
+            for unreached in originals[i:]:
+                RUN_STATS["excluded_reasons"][unreached] = "time_budget"
             break
 
         meta_o = meta_o_by_doi.get(doi_o, {})
@@ -506,6 +509,7 @@ def build_study_data(flora: pd.DataFrame) -> dict:
         if cites_o is None:
             n_skipped += 1
             RUN_STATS["originals_skipped"] += 1
+            RUN_STATS["excluded_reasons"][doi_o] = "own_fetch_failed"
             continue
 
         reps_df = flora[flora["doi_o"] == doi_o][
@@ -583,12 +587,15 @@ def build_study_data(flora: pd.DataFrame) -> dict:
                 pubstatus_min_year[row["pub_status"]] = min(
                     pubstatus_min_year.get(row["pub_status"], year_r), year_r)
 
+        if budget_exhausted:
+            print(f"⏰ Time budget exhausted mid-study; stopping at "
+                  f"{len(studies)} originals (current original deferred).")
+            for unreached in originals[i:]:
+                RUN_STATS["excluded_reasons"][unreached] = "time_budget"
+            break  # stop the outer loop; this original retries next run
         if rep_fetch_failed:
             RUN_STATS["originals_errored"] += 1
-            if budget_exhausted:
-                print(f"⏰ Time budget exhausted mid-study; stopping at "
-                      f"{len(studies)} originals (current original deferred).")
-                break  # stop the outer loop; this original retries next run
+            RUN_STATS["excluded_reasons"][doi_o] = "replication_fetch_failed"
             continue  # don't publish under-counted co-citations; retry next run
 
         cites_o = list({c["citing"]: c for c in cites_o}.values())
@@ -913,6 +920,21 @@ def compute_reproduction_citations(repro: pd.DataFrame) -> dict:
     }
 
 
+def excluded_originals_list(studies: dict, flora: pd.DataFrame) -> list[dict]:
+    reasons = RUN_STATS["excluded_reasons"]
+    rows = (flora[~flora["doi_o"].isin(studies.keys())]
+            .drop_duplicates(subset=["doi_o"])
+            .sort_values("doi_o"))
+    # Title/author/year let the frontend match a search against an excluded original.
+    return [{
+        "doi": r["doi_o"],
+        "reason": reasons.get(r["doi_o"], "not_processed"),
+        "title": str(r.get("title_o") or "")[:300] if pd.notna(r.get("title_o")) else "",
+        "author": parse_flora_authors(r.get("author_o")),
+        "year": parse_year(r.get("year_o")),
+    } for _, r in rows.iterrows()]
+
+
 def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
     if not studies:
         raise RuntimeError(
@@ -946,15 +968,22 @@ def write_outputs(studies: dict, flora: pd.DataFrame, partial: bool = False):
             "first_replication_outcome": s["first_replication_outcome"],
         })
 
+    excluded_originals = excluded_originals_list(studies, flora)
+    excluded_dois = {e["doi"] for e in excluded_originals}
+    rep_fetch_error_dois = list(dict.fromkeys(RUN_STATS["rep_fetch_error_dois"]))
     meta = {
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "n_originals": len(studies),
+        "n_originals_eligible": int(flora["doi_o"].nunique()),
         "n_replications": int(flora.shape[0]),
         "outcome_counts": {k: int(v) for k, v in flora["outcome"].value_counts().items()},
         "pub_status_counts": {k: int(v) for k, v in flora["pub_status"].value_counts().items()},
         "partial_run": partial,
-        "fetch_errors": len(RUN_STATS["rep_fetch_error_dois"]),
-        "fetch_error_dois": RUN_STATS["rep_fetch_error_dois"][:50],
+        "excluded_originals": excluded_originals,
+        "n_pairs_excluded": int(flora["doi_o"].isin(excluded_dois).sum()),
+        "rep_fetch_failed_attempts": len(RUN_STATS["rep_fetch_error_dois"]),
+        "n_fetch_error_dois": len(rep_fetch_error_dois),
+        "fetch_error_dois": rep_fetch_error_dois[:50],
         "originals_errored": RUN_STATS["originals_errored"],
         "originals_skipped": RUN_STATS["originals_skipped"],
     }

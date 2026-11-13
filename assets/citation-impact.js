@@ -6,7 +6,7 @@
     const COCIT_EVENT_WINDOW = [0, 5];
 
     const CI = {
-        meta: null, agg: null, index: null, cocitBreakdown: null,
+        meta: null, agg: null, index: null, excluded: [], cocitBreakdown: null,
         studyCache: {}, currentDoi: null,
         outcome: ['all','failed','mixed','successful'].includes(new URLSearchParams(location.search).get('ci-outcome')) ? new URLSearchParams(location.search).get('ci-outcome') : 'all', page: 1, perPage: 20,
         sortCol: 'n_citations', sortDir: 'desc',
@@ -72,7 +72,7 @@
         });
     }
 
-    function buildSearchIndex(index) {
+    function floraAuthorsByDoi() {
         // The citation snapshot's display names stop after six authors. The
         // already-loaded FLoRA pairs retain full names; collect all records for
         // each original and keep the snapshot names as a fallback.
@@ -84,15 +84,41 @@
             if (!authorsByDoi.has(doi)) authorsByDoi.set(doi, new Set());
             authorsByDoi.get(doi).add(names);
         }
+        return authorsByDoi;
+    }
+
+    function searchTextFor(s, authorsByDoi) {
+        const authors = [...(authorsByDoi.get(normalizeDoi(s.doi)) || [])];
+        return normalizedQuery([s.title, searchAuthorNames(s.author), ...authors, s.year, s.venue, s.doi].filter(Boolean).join(' | '));
+    }
+
+    function buildSearchIndex(index, authorsByDoi) {
         return index.map(s => {
             // Denominator is citations since the first replication, not lifetime
             // citations — citing works published before any replication existed
             // could never have co-cited one.
             const cocit_prop = s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0;
-            const authors = [...(authorsByDoi.get(normalizeDoi(s.doi)) || [])];
-            const searchText = normalizedQuery([s.title, searchAuthorNames(s.author), ...authors, s.year, s.venue, s.doi].filter(Boolean).join(' | '));
-            return { ...s, cocit_prop, searchText };
+            return { ...s, cocit_prop, searchText: searchTextFor(s, authorsByDoi) };
         });
+    }
+
+    function buildExcludedIndex(meta, authorsByDoi) {
+        const excluded = Array.isArray(meta && meta.excluded_originals) ? meta.excluded_originals : [];
+        return excluded.map(e => ({ ...e, searchText: searchTextFor(e, authorsByDoi) }));
+    }
+
+    function renderEmptySearch(q, tokens) {
+        const query = q.trim();
+        const excluded = query ? CI.excluded.filter(e => matchesSearchTokens(e.searchText, tokens)) : [];
+        const list = document.getElementById('ci-search-excluded');
+        list.hidden = !excluded.length;
+        list.innerHTML = excludedOriginalRows(excluded.slice(0, 5));
+        let message;
+        if (!query) message = 'No originals match the current outcome selection.';
+        else if (!excluded.length) message = `No originals match “${query}” with the current outcome selection.`;
+        else if (excluded.length === 1) message = `${excludedOriginalLabel(excluded[0])} is in FLoRA but not in this citation snapshot: ${exclusionReason(excluded[0].reason)}. It is left out, not counted as zero, and will be retried next refresh.`;
+        else message = `${excluded.length} originals matching “${query}” are in FLoRA but not in this citation snapshot. They are left out, not counted as zero, and will be retried next refresh.`;
+        document.getElementById('ci-search-empty-message').textContent = message;
     }
 
     async function init() {
@@ -108,7 +134,9 @@
             if (!metaRes.ok || !aggRes.ok || !idxRes.ok) { showPlaceholder(); return; }
             CI.meta = await metaRes.json();
             CI.agg = await aggRes.json();
-            CI.index = buildSearchIndex(await idxRes.json());
+            const authorsByDoi = floraAuthorsByDoi();
+            CI.index = buildSearchIndex(await idxRes.json(), authorsByDoi);
+            CI.excluded = buildExcludedIndex(CI.meta, authorsByDoi);
 
             // Optional: co-citation breakdown by pub status / outcome (may not exist on first run)
             try {
@@ -432,7 +460,7 @@
         const total = rows.length;
         const empty = document.getElementById('ci-search-empty');
         empty.hidden = total > 0;
-        document.getElementById('ci-search-empty-message').textContent = q.trim() ? `No originals match “${q.trim()}” with the current outcome selection.` : 'No originals match the current outcome selection.';
+        renderEmptySearch(q, tokens);
         document.getElementById('ci-clear-search').hidden = !q.trim();
         const pages = Math.max(1, Math.ceil(total / CI.perPage));
         if (CI.page > pages) CI.page = 1;
@@ -761,7 +789,9 @@
             if (el.offsetParent) Plotly.Plots.resize(el).catch(() => {});
         });
         if (!CI.index) return;
-        CI.index = buildSearchIndex(CI.index);
+        const authorsByDoi = floraAuthorsByDoi();
+        CI.index = buildSearchIndex(CI.index, authorsByDoi);
+        CI.excluded = buildExcludedIndex(CI.meta, authorsByDoi);
         if (CI.loaded) renderTable();
     });
 
