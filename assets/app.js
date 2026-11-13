@@ -1469,6 +1469,9 @@ function renderMcCharts() {
     const minOmc = Math.min(...gc.map(p => p.omc), ...jitter2.map(p => p.omc));
     const maxOmc = curve ? curve.end_omc : Math.max(...gc.map(p => p.omc), ...jitter2.map(p => p.omc));
     const omcTicks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].filter(v => v >= minOmc && v <= maxOmc);
+    const xRange = [Math.log1p(minOmc) - 0.05, Math.log1p(maxOmc) + 0.05];
+    // Pairs past the window are left out of the plot; the chart data still lists them.
+    const shownPairs = jitter2.filter(p => p.x <= xRange[1]);
     const gamTraces = [
         { x: curveX, y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
@@ -1476,15 +1479,15 @@ function renderMcCharts() {
           type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: t.band,
           line: { width: 0 }, name: '95% confidence interval',
           hovertemplate: 'OMC = %{customdata[0]:.2f}<br>95% CI: %{customdata[1]:.1%} to %{customdata[2]:.1%}<extra></extra>' },
-        { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), customdata: jitter2.map(p => p.omc), type: 'scatter', mode: 'markers',
+        { x: shownPairs.map(p => p.x), y: shownPairs.map(p => p.y), customdata: shownPairs.map(p => p.omc), type: 'scatter', mode: 'markers',
           marker: { color: t.point, size: 5, line: { width: 0 } },
-          name: 'Reference pairs', text: jitter2.map(p => p.lbl),
+          name: 'Reference pairs', text: shownPairs.map(p => p.lbl),
           hovertemplate: 'OMC = %{customdata:.2f}<br>%{text}<extra></extra>' },
     ];
     const gamLayout = {
         height: 640,
         margin: { t: 10, r: 10, b: 50, l: 60 },
-        xaxis: { title: 'OpenAlex Mean Citedness (OMC, log scale)', range: [Math.log1p(minOmc) - 0.05, Math.log1p(maxOmc) + 0.05],
+        xaxis: { title: 'OpenAlex Mean Citedness (OMC, log scale)', range: xRange,
                  tickvals: omcTicks.map(Math.log1p), ticktext: omcTicks.map(String),
                  gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         yaxis: { title: 'P(success | successful or failed)', range: [-0.08, 1.08],

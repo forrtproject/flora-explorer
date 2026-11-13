@@ -282,16 +282,20 @@ def fetch_placeholders(ids: list[str]) -> dict:
     found: dict[str, list[dict]] = {}
     for i in range(0, len(ids), ID_BATCH):
         batch = ids[i:i + ID_BATCH]
-        data = openalex_get(OPENALEX_WORKS, {
-            "filter": ",".join([
-                "primary_location.source.id:" + "|".join(short_id(s) for s in batch),
-                "type:paratext", f"cited_by_count:>{PLACEHOLDER_MIN_CITATIONS - 1}"]),
-            "per-page": "200", "select": "id,doi,cited_by_count,primary_location"})
-        for work in data.get("results", []):
-            source = ((work.get("primary_location") or {}).get("source") or {}).get("id")
-            if source:
-                found.setdefault(source, []).append(
-                    {"id": work.get("id"), "doi": work.get("doi"), "cited_by_count": work.get("cited_by_count")})
+        cursor = "*"
+        while cursor:
+            data = openalex_get(OPENALEX_WORKS, {
+                "filter": ",".join([
+                    "primary_location.source.id:" + "|".join(short_id(s) for s in batch),
+                    "type:paratext", f"cited_by_count:>{PLACEHOLDER_MIN_CITATIONS - 1}"]),
+                "per-page": "200", "cursor": cursor, "select": "id,doi,cited_by_count,primary_location"})
+            results = data.get("results", [])
+            for work in results:
+                source = ((work.get("primary_location") or {}).get("source") or {}).get("id")
+                if source:
+                    found.setdefault(source, []).append(
+                        {"id": work.get("id"), "doi": work.get("doi"), "cited_by_count": work.get("cited_by_count")})
+            cursor = (data.get("meta") or {}).get("next_cursor") if results else None
     return found
 
 

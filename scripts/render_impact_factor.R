@@ -96,7 +96,8 @@ overview <- list(
 )
 
 # ── Histogram data (bin width 0.5, 0 to just past the largest OMC) ───────────
-breaks    <- seq(0, floor(max(df_all$impact_factor) / 0.5) * 0.5 + 0.5, by = 0.5)
+# A snapshot with no OMC values yields no bins rather than seq() failing on max() = -Inf.
+breaks    <- if (nrow(df_all) > 0) seq(0, floor(max(df_all$impact_factor) / 0.5) * 0.5 + 0.5, by = 0.5) else 0
 hist_data <- lapply(seq_len(length(breaks) - 1), function(i) {
   lo <- breaks[i]; hi <- breaks[i + 1]
   sub <- df_all[df_all$impact_factor >= lo & df_all$impact_factor < hi, ]

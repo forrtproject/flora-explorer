@@ -236,6 +236,16 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         checked=[cache[omc.normalize_name(j)]['checked'] for j in due[1:]]
         self.assertEqual(checked,sorted(checked))
 
+    def test_placeholder_search_reads_every_page(self):
+        work=lambda n,src:{'id':f'W{n}','doi':None,'cited_by_count':150,'primary_location':{'source':{'id':src}}}
+        pages=[{'results':[work(1,'S1')],'meta':{'next_cursor':'abc'}},
+               {'results':[work(2,'S2')],'meta':{'next_cursor':'def'}},
+               {'results':[],'meta':{'next_cursor':None}}]
+        with patch.object(omc,'openalex_get',side_effect=pages) as get:
+            found=omc.fetch_placeholders(['S1','S2'])
+        self.assertEqual(sorted(found),['S1','S2'])
+        self.assertEqual([c.args[1]['cursor'] for c in get.call_args_list],['*','abc','def'])
+
     def test_omc_jumps_flag_large_relative_changes_only(self):
         jumps=omc.omc_jumps({'a':2.0,'b':2.0,'c':0.2,'d':0.0,'e':5.0},{'a':4.1,'b':3.0,'c':0.5,'d':3.0,'f':9.0})
         self.assertEqual([j[0] for j in jumps],['a','d'])
