@@ -6,152 +6,6 @@
     "id": "https://openalex.org/S4210178519",
     "display_name": "Annual Review of Cognitive Linguistics"
   },
-  "applied linguistics": {
-    "id": "https://openalex.org/S183798913",
-    "display_name": "Applied Linguistics"
-  },
-  "applied neuropsychology": {
-    "id": "https://openalex.org/S4210172113",
-    "display_name": "Applied Neuropsychology"
-  },
-  "applied neuropsychology: adult": {
-    "id": "https://openalex.org/S4210220878",
-    "display_name": "Applied Neuropsychology Adult"
-  },
-  "applied psycholinguistics": {
-    "id": "https://openalex.org/S38427009",
-    "display_name": "Applied Psycholinguistics"
-  },
-  "archives of general psychiatry": {
-    "id": "https://openalex.org/S126359496",
-    "display_name": "Archives of General Psychiatry"
-  },
-  "archives of sexual behavior": {
-    "id": "https://openalex.org/S28964699",
-    "display_name": "Archives of Sexual Behavior"
-  },
-  "arguing about science": {
-    "id": null
-  },
-  "art therapy": {
-    "id": "https://openalex.org/S4210187226",
-    "display_name": "Art Therapy"
-  },
-  "arthritis & rheumatism": {
-    "id": "https://openalex.org/S132787887",
-    "display_name": "Arthritis & Rheumatism"
-  },
-  "arthritis & rheumatology": {
-    "id": "https://openalex.org/S4210186158",
-    "display_name": "Arthritis & Rheumatology"
-  },
-  "arthritis research & therapy": {
-    "id": "https://openalex.org/S149170128",
-    "display_name": "Arthritis Research & Therapy"
-  },
-  "attention, perception, & psychophysics": {
-    "id": "https://openalex.org/S4210230012",
-    "display_name": "Attention Perception & Psychophysics"
-  },
-  "australian & new zealand journal of psychiatry": {
-    "id": "https://openalex.org/S179943861",
-    "display_name": "Australian & New Zealand Journal of Psychiatry"
-  },
-  "bmc geriatrics": {
-    "id": "https://openalex.org/S14643628",
-    "display_name": "BMC Geriatrics"
-  },
-  "bmc health services research": {
-    "id": "https://openalex.org/S12898181",
-    "display_name": "BMC Health Services Research"
-  },
-  "basic and applied social psychology": {
-    "id": "https://openalex.org/S207100277",
-    "display_name": "Basic and Applied Social Psychology"
-  },
-  "behavior analysis in practice": {
-    "id": "https://openalex.org/S2764616832",
-    "display_name": "Behavior Analysis in Practice"
-  },
-  "behavior analysis: research and practice": {
-    "id": "https://openalex.org/S4210228049",
-    "display_name": "Behavior Analysis Research and Practice"
-  },
-  "behavior research methods": {
-    "id": "https://openalex.org/S137478622",
-    "display_name": "Behavior Research Methods"
-  },
-  "behavior therapy": {
-    "id": "https://openalex.org/S56240272",
-    "display_name": "Behavior Therapy"
-  },
-  "behavior and social issues": {
-    "id": "https://openalex.org/S2764486203",
-    "display_name": "Behavior and Social Issues"
-  },
-  "behavioral development bulletin": {
-    "id": null
-  },
-  "behavioral ecology and sociobiology": {
-    "id": "https://openalex.org/S136529485",
-    "display_name": "Behavioral Ecology and Sociobiology"
-  },
-  "behavioral interventions": {
-    "id": "https://openalex.org/S203327754",
-    "display_name": "Behavioral Interventions"
-  },
-  "behavioral neuroscience": {
-    "id": "https://openalex.org/S25269534",
-    "display_name": "Behavioral Neuroscience"
-  },
-  "behavioral and brain sciences": {
-    "id": "https://openalex.org/S59628311",
-    "display_name": "Behavioral and Brain Sciences"
-  },
-  "behaviour change": {
-    "id": "https://openalex.org/S72584517",
-    "display_name": "Behaviour Change"
-  },
-  "behaviour research and therapy": {
-    "id": "https://openalex.org/S186589312",
-    "display_name": "Behaviour Research and Therapy"
-  },
-  "behavioural processes": {
-    "id": "https://openalex.org/S128158437",
-    "display_name": "Behavioural Processes"
-  },
-  "bilingualism: language and cognition": {
-    "id": "https://openalex.org/S24095051",
-    "display_name": "Bilingualism Language and Cognition"
-  },
-  "biological psychiatry": {
-    "id": "https://openalex.org/S205482884",
-    "display_name": "Biological Psychiatry"
-  },
-  "biological psychology": {
-    "id": "https://openalex.org/S3694117",
-    "display_name": "Biological Psychology"
-  },
-  "biological and pharmaceutical bulletin": {
-    "id": "https://openalex.org/S165235614",
-    "display_name": "Biological and Pharmaceutical Bulletin"
-  },
-  "biomedicines": {
-    "id": "https://openalex.org/S2737005842",
-    "display_name": "Biomedicines"
-  },
-  "brain injury": {
-    "id": "https://openalex.org/S166957603",
-    "display_name": "Brain Injury"
-  },
-  "brain research": {
-    "id": "https://openalex.org/S96638545",
-    "display_name": "Brain Research"
-  },
-  "brain stimulation": {
-    "id": "https://openalex.org/S177350161",
-    "display_name": "Brain stimulation"
-  },
   "british educational research journal": {
     "id": "https://openalex.org/S60281869",
     "display_name": "British Educational Research Journal"
@@ -2510,14 +2364,6 @@
     "id": "https://openalex.org/S147547362",
     "display_name": "Socio-Economic Review"
   },
-  "archives of suicide research": {
-    "id": "https://openalex.org/S109655379",
-    "display_name": "Archives of Suicide Research"
-  },
-  "brain and language": {
-    "id": "https://openalex.org/S61781353",
-    "display_name": "Brain and Language"
-  },
   "cognitive therapy and research": {
     "id": "https://openalex.org/S47649111",
     "display_name": "Cognitive Therapy and Research"
@@ -2684,10 +2530,6 @@
   "the review of economics and statistics": {
     "id": "https://openalex.org/S180061323",
     "display_name": "The Review of Economics and Statistics"
-  },
-  "bmj": {
-    "id": "https://openalex.org/S4393911389",
-    "display_name": "BMJ"
   },
   "human communication research": {
     "id": "https://openalex.org/S195553305",
@@ -2925,19 +2767,6 @@
     "id": "https://openalex.org/S3774022",
     "display_name": "The Journal of Pediatrics"
   },
-  "assessment": {
-    "id": null
-  },
-  "behavioural brain research": {
-    "id": "https://openalex.org/S81474683",
-    "display_name": "Behavioural Brain Research"
-  },
-  "brain": {
-    "id": null
-  },
-  "brain sciences": {
-    "id": null
-  },
   "canadian journal of education / revue canadienne de l\u00e9ducation": {
     "id": null
   },
@@ -3163,13 +2992,6 @@
     "id": "https://openalex.org/S83692137",
     "display_name": "Pediatric Exercise Science"
   },
-  "applied psychology": {
-    "id": null
-  },
-  "brain imaging and behavior": {
-    "id": "https://openalex.org/S51590970",
-    "display_name": "Brain Imaging and Behavior"
-  },
   "british food journal": {
     "id": "https://openalex.org/S99313352",
     "display_name": "British Food Journal"
@@ -3270,10 +3092,6 @@
     "id": "https://openalex.org/S3005729997",
     "display_name": "medRxiv"
   },
-  "body image": {
-    "id": "https://openalex.org/S177391433",
-    "display_name": "Body Image"
-  },
   "emerging adulthood": {
     "id": "https://openalex.org/S2764542025",
     "display_name": "Emerging Adulthood"
@@ -3284,18 +3102,6 @@
   },
   "linguistic variation: models and methods": {
     "id": null
-  },
-  "applied psychology: health and well-being": {
-    "id": "https://openalex.org/S168123707",
-    "display_name": "Applied Psychology Health and Well-Being"
-  },
-  "archives of pediatrics & adolescent medicine": {
-    "id": "https://openalex.org/S4210192535",
-    "display_name": "Archives of Pediatrics and Adolescent Medicine"
-  },
-  "bioelectromagnetics": {
-    "id": "https://openalex.org/S78518477",
-    "display_name": "Bioelectromagnetics"
   },
   "cancer epidemiology, biomarkers & prevention": {
     "id": "https://openalex.org/S8391440",
@@ -3562,6 +3368,250 @@
   "applied economics letters": {
     "id": "https://openalex.org/S96544531",
     "display_name": "Applied Economics Letters",
+    "checked": "2026-11-13"
+  },
+  "applied linguistics": {
+    "id": "https://openalex.org/S183798913",
+    "display_name": "Applied Linguistics",
+    "checked": "2026-11-13"
+  },
+  "applied neuropsychology": {
+    "id": "https://openalex.org/S4210172113",
+    "display_name": "Applied Neuropsychology",
+    "checked": "2026-11-13"
+  },
+  "applied neuropsychology: adult": {
+    "id": "https://openalex.org/S4210220878",
+    "display_name": "Applied Neuropsychology Adult",
+    "checked": "2026-11-13"
+  },
+  "applied psycholinguistics": {
+    "id": "https://openalex.org/S38427009",
+    "display_name": "Applied Psycholinguistics",
+    "checked": "2026-11-13"
+  },
+  "applied psychology": {
+    "id": null,
+    "checked": "2026-11-13"
+  },
+  "applied psychology: health and well-being": {
+    "id": "https://openalex.org/S168123707",
+    "display_name": "Applied Psychology Health and Well-Being",
+    "checked": "2026-11-13"
+  },
+  "archives of general psychiatry": {
+    "id": "https://openalex.org/S126359496",
+    "display_name": "Archives of General Psychiatry",
+    "checked": "2026-11-13"
+  },
+  "archives of pediatrics & adolescent medicine": {
+    "id": "https://openalex.org/S4210192535",
+    "display_name": "Archives of Pediatrics and Adolescent Medicine",
+    "checked": "2026-11-13"
+  },
+  "archives of sexual behavior": {
+    "id": "https://openalex.org/S28964699",
+    "display_name": "Archives of Sexual Behavior",
+    "checked": "2026-11-13"
+  },
+  "archives of suicide research": {
+    "id": "https://openalex.org/S109655379",
+    "display_name": "Archives of Suicide Research",
+    "checked": "2026-11-13"
+  },
+  "arguing about science": {
+    "id": null,
+    "checked": "2026-11-13"
+  },
+  "art therapy": {
+    "id": "https://openalex.org/S4210187226",
+    "display_name": "Art Therapy",
+    "checked": "2026-11-13"
+  },
+  "arthritis & rheumatism": {
+    "id": "https://openalex.org/S132787887",
+    "display_name": "Arthritis & Rheumatism",
+    "checked": "2026-11-13"
+  },
+  "arthritis & rheumatology": {
+    "id": "https://openalex.org/S4210186158",
+    "display_name": "Arthritis & Rheumatology",
+    "checked": "2026-11-13"
+  },
+  "arthritis research & therapy": {
+    "id": "https://openalex.org/S149170128",
+    "display_name": "Arthritis Research & Therapy",
+    "checked": "2026-11-13"
+  },
+  "assessment": {
+    "id": null,
+    "checked": "2026-11-13"
+  },
+  "attention, perception, & psychophysics": {
+    "id": "https://openalex.org/S4210230012",
+    "display_name": "Attention Perception & Psychophysics",
+    "checked": "2026-11-13"
+  },
+  "australian & new zealand journal of psychiatry": {
+    "id": "https://openalex.org/S179943861",
+    "display_name": "Australian & New Zealand Journal of Psychiatry",
+    "checked": "2026-11-13"
+  },
+  "bmc geriatrics": {
+    "id": "https://openalex.org/S14643628",
+    "display_name": "BMC Geriatrics",
+    "checked": "2026-11-13"
+  },
+  "bmc health services research": {
+    "id": "https://openalex.org/S12898181",
+    "display_name": "BMC Health Services Research",
+    "checked": "2026-11-13"
+  },
+  "bmj": {
+    "id": "https://openalex.org/S4393911389",
+    "display_name": "BMJ",
+    "checked": "2026-11-13"
+  },
+  "basic and applied social psychology": {
+    "id": "https://openalex.org/S207100277",
+    "display_name": "Basic and Applied Social Psychology",
+    "checked": "2026-11-13"
+  },
+  "behavior analysis in practice": {
+    "id": "https://openalex.org/S2764616832",
+    "display_name": "Behavior Analysis in Practice",
+    "checked": "2026-11-13"
+  },
+  "behavior analysis: research and practice": {
+    "id": "https://openalex.org/S4210228049",
+    "display_name": "Behavior Analysis Research and Practice",
+    "checked": "2026-11-13"
+  },
+  "behavior research methods": {
+    "id": "https://openalex.org/S137478622",
+    "display_name": "Behavior Research Methods",
+    "checked": "2026-11-13"
+  },
+  "behavior therapy": {
+    "id": "https://openalex.org/S56240272",
+    "display_name": "Behavior Therapy",
+    "checked": "2026-11-13"
+  },
+  "behavior and social issues": {
+    "id": "https://openalex.org/S2764486203",
+    "display_name": "Behavior and Social Issues",
+    "checked": "2026-11-13"
+  },
+  "behavioral development bulletin": {
+    "id": null,
+    "checked": "2026-11-13"
+  },
+  "behavioral ecology and sociobiology": {
+    "id": "https://openalex.org/S136529485",
+    "display_name": "Behavioral Ecology and Sociobiology",
+    "checked": "2026-11-13"
+  },
+  "behavioral interventions": {
+    "id": "https://openalex.org/S203327754",
+    "display_name": "Behavioral Interventions",
+    "checked": "2026-11-13"
+  },
+  "behavioral neuroscience": {
+    "id": "https://openalex.org/S25269534",
+    "display_name": "Behavioral Neuroscience",
+    "checked": "2026-11-13"
+  },
+  "behavioral and brain sciences": {
+    "id": "https://openalex.org/S59628311",
+    "display_name": "Behavioral and Brain Sciences",
+    "checked": "2026-11-13"
+  },
+  "behaviour change": {
+    "id": "https://openalex.org/S72584517",
+    "display_name": "Behaviour Change",
+    "checked": "2026-11-13"
+  },
+  "behaviour research and therapy": {
+    "id": "https://openalex.org/S186589312",
+    "display_name": "Behaviour Research and Therapy",
+    "checked": "2026-11-13"
+  },
+  "behavioural brain research": {
+    "id": "https://openalex.org/S81474683",
+    "display_name": "Behavioural Brain Research",
+    "checked": "2026-11-13"
+  },
+  "behavioural processes": {
+    "id": "https://openalex.org/S128158437",
+    "display_name": "Behavioural Processes",
+    "checked": "2026-11-13"
+  },
+  "bilingualism: language and cognition": {
+    "id": "https://openalex.org/S24095051",
+    "display_name": "Bilingualism Language and Cognition",
+    "checked": "2026-11-13"
+  },
+  "bioelectromagnetics": {
+    "id": "https://openalex.org/S78518477",
+    "display_name": "Bioelectromagnetics",
+    "checked": "2026-11-13"
+  },
+  "biological psychiatry": {
+    "id": "https://openalex.org/S205482884",
+    "display_name": "Biological Psychiatry",
+    "checked": "2026-11-13"
+  },
+  "biological psychology": {
+    "id": "https://openalex.org/S3694117",
+    "display_name": "Biological Psychology",
+    "checked": "2026-11-13"
+  },
+  "biological and pharmaceutical bulletin": {
+    "id": "https://openalex.org/S165235614",
+    "display_name": "Biological and Pharmaceutical Bulletin",
+    "checked": "2026-11-13"
+  },
+  "biomedicines": {
+    "id": "https://openalex.org/S2737005842",
+    "display_name": "Biomedicines",
+    "checked": "2026-11-13"
+  },
+  "body image": {
+    "id": "https://openalex.org/S177391433",
+    "display_name": "Body Image",
+    "checked": "2026-11-13"
+  },
+  "brain": {
+    "id": null,
+    "checked": "2026-11-13"
+  },
+  "brain imaging and behavior": {
+    "id": "https://openalex.org/S51590970",
+    "display_name": "Brain Imaging and Behavior",
+    "checked": "2026-11-13"
+  },
+  "brain injury": {
+    "id": "https://openalex.org/S166957603",
+    "display_name": "Brain Injury",
+    "checked": "2026-11-13"
+  },
+  "brain research": {
+    "id": "https://openalex.org/S96638545",
+    "display_name": "Brain Research",
+    "checked": "2026-11-13"
+  },
+  "brain sciences": {
+    "id": null,
+    "checked": "2026-11-13"
+  },
+  "brain stimulation": {
+    "id": "https://openalex.org/S177350161",
+    "display_name": "Brain stimulation",
+    "checked": "2026-11-13"
+  },
+  "brain and language": {
+    "id": "https://openalex.org/S61781353",
+    "display_name": "Brain and Language",
     "checked": "2026-11-13"
   }
 }

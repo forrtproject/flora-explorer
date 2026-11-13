@@ -168,8 +168,7 @@ if (length(gam_curve) == 0) gam_curve <- numeric(0)
 if (length(jitter)    == 0) jitter    <- numeric(0)
 
 result <- list(overview  = overview,
-               set_aside = c(set_aside, list(min_window_works = omc_meta$min_window_works,
-                                             window_years     = omc_meta$window_years)),
+               set_aside = c(set_aside, list(min_works = omc_meta$min_works)),
                curve     = curve_info,
                stats     = stats_out,
                histogram = hist_data,

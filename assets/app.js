@@ -1466,17 +1466,16 @@ function renderMcCharts() {
     const jitter2 = window._mcJitter;
     const curveX = gc.map(p => Math.log1p(p.omc));
     // The window ends with the curve; pairs beyond it stay in the model and the data table.
+    const minOmc = Math.min(...gc.map(p => p.omc), ...jitter2.map(p => p.omc));
     const maxOmc = curve ? curve.end_omc : Math.max(...gc.map(p => p.omc), ...jitter2.map(p => p.omc));
-    const omcTicks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].filter(v => v <= maxOmc);
+    const omcTicks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].filter(v => v >= minOmc && v <= maxOmc);
     const gamTraces = [
         { x: curveX, y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
-        { x: curveX, y: gc.map(p => p.p_hi), type: 'scatter', mode: 'lines',
-          fill: 'tonexty', fillcolor: t.band,
-          line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_hi' },
-        { x: curveX, y: gc.map(p => p.p), customdata: gc.map(p => p.omc), type: 'scatter', mode: 'lines',
-          line: { color: t.primary, width: 2.5 }, name: 'Smooth fit',
-          hovertemplate: 'OMC = %{customdata:.2f}<br>P(success) = %{y:.1%}<extra>Smooth fit</extra>' },
+        { x: curveX, y: gc.map(p => p.p_hi), customdata: gc.map(p => [p.omc, p.p_lo, p.p_hi]),
+          type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: t.band,
+          line: { width: 0 }, name: '95% confidence interval',
+          hovertemplate: 'OMC = %{customdata[0]:.2f}<br>95% CI: %{customdata[1]:.1%} to %{customdata[2]:.1%}<extra></extra>' },
         { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), customdata: jitter2.map(p => p.omc), type: 'scatter', mode: 'markers',
           marker: { color: t.point, size: 5, line: { width: 0 } },
           name: 'Reference pairs', text: jitter2.map(p => p.lbl),
@@ -1485,7 +1484,7 @@ function renderMcCharts() {
     const gamLayout = {
         height: 640,
         margin: { t: 10, r: 10, b: 50, l: 60 },
-        xaxis: { title: 'OpenAlex Mean Citedness (OMC, log scale)', range: [-0.05, Math.log1p(maxOmc) + 0.05],
+        xaxis: { title: 'OpenAlex Mean Citedness (OMC, log scale)', range: [Math.log1p(minOmc) - 0.05, Math.log1p(maxOmc) + 0.05],
                  tickvals: omcTicks.map(Math.log1p), ticktext: omcTicks.map(String),
                  gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         yaxis: { title: 'P(success | successful or failed)', range: [-0.08, 1.08],
@@ -1539,7 +1538,7 @@ function mcSetAsideNote(d) {
     if (!n) return;
     const pairs = k => `${k.toLocaleString('en-GB')} reference ${k === 1 ? 'pair' : 'pairs'}`;
     const parts = [];
-    if (s.too_few_papers) parts.push(`${pairs(s.too_few_papers)} from journals that published fewer than ${s.min_window_works} papers in ${s.window_years.join('–')}, mostly journals that have ceased or been renamed`);
+    if (s.too_few_papers) parts.push(`${pairs(s.too_few_papers)} from journals with fewer than ${s.min_works} papers in total`);
     if (s.placeholder_record) parts.push(`${pairs(s.placeholder_record)} from journals whose OpenAlex record counts a journal-level placeholder as a heavily cited paper`);
     const why = [s.too_few_papers && 'an average over so few papers', s.placeholder_record && 'one inflated by a placeholder'].filter(Boolean).join(', or ');
     el.textContent = `OMC is treated as missing for ${parts.join(', and ')}: ${why} is not a reliable measure.`;

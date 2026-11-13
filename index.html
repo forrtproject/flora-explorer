@@ -1132,10 +1132,12 @@
                                     a statistical analysis of whether</span> the
                                 <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal<span
                                     data-kind-text=" is associated with replication success||"> is associated with
-                                    replication success</span>. OMC is a proxy for the Journal Impact Factor.
-                                Mean Citedness is a journal-level measure from OpenAlex: the mean citations to its works
-                                published in the previous two years. It is retrieved at enrichment time, not matched to
-                                the original publication year, and is not the original article’s citation count. The
+                                    replication success</span>.
+                                Mean Citedness is a journal-level measure from OpenAlex: the journal's total citations
+                                divided by its total papers, across all years. Unlike the two-year Journal Impact
+                                Factor, it reflects a journal's long-run citation level, and it favours journals whose
+                                papers have had longer to collect citations. It is retrieved at enrichment time, not
+                                matched to the original publication year, and is not the original article’s citation count. The
                                 update stamp identifies the analysis snapshot. Any fitted model describes an
                                 association.
                             </p>
@@ -1175,12 +1177,12 @@
                                         <div id="mc-gam-chart"></div>
                                     </div>
                                     <p class="mc-model-note" style="margin-top:0.6rem;">The data underlying the graph
-                                        include all records from the FLORA database with complete information for the
-                                        publication years 2024 and 2025, particularly regarding the impact factors of
-                                        the journals in which the studies were published, and clearly successful or
+                                        include all records from the FLORA database with complete information, particularly
+                                        a lifetime Mean Citedness for the journal in which the original study was
+                                        published, and a clearly successful or
                                         unsuccessful replication outcome (i.e., replications with mixed outcomes were
-                                        excluded). The line represents the estimated probability of success, while
-                                        the red shaded bands indicate the corresponding 95% confidence intervals.</p>
+                                        excluded). The shaded band shows the 95% confidence interval for the
+                                        estimated probability of success.</p>
                                 </div>
                                 <div id="mc-error" class="note" style="display:none;">
                                     Failed to load analysis data.

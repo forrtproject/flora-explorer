@@ -1,12 +1,12 @@
 """
-Enrich the FLoRA dataset with the OpenAlex "Mean Citedness" (OMC) of each
-original study's journal.
+Enrich the FLoRA dataset with the lifetime OpenAlex Mean Citedness (OMC) of each
+original study's journal: its total citations divided by its total papers, all years.
 
 Produces data/flora_with_omc.csv with the columns of flora.csv plus:
   - openalex_venue_id   (string, may be empty if no match)
   - openalex_venue_name (string)
-  - impact_factor       (float, the "summary_stats.2yr_mean_citedness"; blank when set aside)
-  - omc_window_works    (papers the journal published in the two years before this run)
+  - impact_factor       (float, lifetime cited_by_count / works_count; blank when set aside)
+  - omc_works           (papers the journal has published in all years)
   - omc_status          (ok / no_match / no_omc / too_few_papers / placeholder_record)
 
 The OMC value is what feeds the Mean Citedness analysis rendered by R.
@@ -42,6 +42,9 @@ OUT_CSV = DATA_DIR / "flora_with_omc.csv"
 CACHE_FILE = CACHE_DIR / "openalex_venues.json"
 
 EMAIL = os.environ.get("MY_EMAIL", "").strip() or "noreply@example.org"
+# Without a key OpenAlex allows a small daily credit budget per IP (a search costs 10 credits).
+API_KEY = os.environ.get("OPENALEX_API_KEY", "").strip()
+AUTH = {"api_key": API_KEY} if API_KEY else {}
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": f"FLoRA-Explorer/1.0 (mailto:{EMAIL})"})
 
@@ -50,8 +53,8 @@ OPENALEX_WORKS = "https://api.openalex.org/works"
 BASE_DELAY = 0.12  # OpenAlex allows ~10 req/s with mailto
 ID_BATCH = 50
 
-# A mean over fewer papers is unreliable; in practice these are ceased or renamed journals.
-MIN_WINDOW_WORKS = 20
+# A mean over fewer papers is unreliable.
+MIN_WORKS = 20
 # Journal-level DOIs indexed as "paratext" works collect citations meant for the whole journal.
 PLACEHOLDER_MIN_CITATIONS = 100
 PLACEHOLDER_MAX_SHARE = 0.10
@@ -60,6 +63,9 @@ JUMP_FACTOR = 2.0
 # sooner, since OpenAlex keeps adding journals. Entries without a check date count as expired.
 MATCH_MAX_AGE_DAYS = 90
 MISS_MAX_AGE_DAYS = 30
+# OpenAlex's free daily budget covers about 100 searches, so expired matches are re-checked
+# oldest first, a few per run; journals not yet in the cache are always looked up.
+MAX_RECHECKS_PER_RUN = 50
 JUMP_MIN_CHANGE = 1.0
 
 # Per-run time budget (mirrors refresh_data.py's should_stop pattern) so a slow
@@ -165,7 +171,7 @@ def retry_after_seconds(resp, default: float, max_wait: float = 120.0) -> float:
 
 
 def lookup_venue(name: str, cache: dict) -> dict | None:
-    """Resolve a journal name to an OpenAlex Source with summary_stats."""
+    """Resolve a journal name to an OpenAlex Source."""
     key = normalize_name(name)
     if not key:
         return None
@@ -178,6 +184,7 @@ def lookup_venue(name: str, cache: dict) -> dict | None:
         "per-page": "1",
         "filter": "type:journal|conference|repository|ebook platform",
         "mailto": EMAIL,
+        **AUTH,
     }
 
     r = None
@@ -234,7 +241,7 @@ def openalex_get(url: str, params: dict) -> dict:
     """GET with the lookup retry policy; raises after three transient failures."""
     for attempt in range(1, 4):
         try:
-            r = SESSION.get(url, params={**params, "mailto": EMAIL}, timeout=60)
+            r = SESSION.get(url, params={**params, "mailto": EMAIL, **AUTH}, timeout=60)
         except requests.exceptions.RequestException:
             if attempt == 3:
                 raise
@@ -255,37 +262,30 @@ def short_id(openalex_id: str) -> str:
     return openalex_id.rsplit("/", 1)[-1]
 
 
-def window_years(now: datetime | None = None) -> tuple[int, int]:
-    year = (now or datetime.now(timezone.utc)).year
-    return year - 2, year - 1
-
-
-def fetch_source_stats(ids: list[str], years: tuple[int, int]) -> dict:
-    """Current OMC and papers-in-window for each source, fetched fresh by ID every run."""
+def fetch_source_stats(ids: list[str]) -> dict:
+    """Lifetime citations and papers for each source, fetched fresh by ID every run."""
     stats = {}
     for i in range(0, len(ids), ID_BATCH):
         batch = ids[i:i + ID_BATCH]
         data = openalex_get(OPENALEX_SOURCES, {
             "filter": "ids.openalex:" + "|".join(short_id(s) for s in batch),
-            "per-page": str(ID_BATCH), "select": "id,summary_stats,counts_by_year"})
+            "per-page": str(ID_BATCH), "select": "id,works_count,cited_by_count"})
         for src in data.get("results", []):
-            by_year = {c.get("year"): c.get("works_count", 0) for c in src.get("counts_by_year") or []}
-            omc = (src.get("summary_stats") or {}).get("2yr_mean_citedness")
-            stats[src["id"]] = {"impact_factor": float(omc) if omc is not None else None,
-                                "window_works": sum(by_year.get(y, 0) for y in years)}
+            works, cites = src.get("works_count") or 0, src.get("cited_by_count") or 0
+            stats[src["id"]] = {"impact_factor": cites / works if works else None,
+                                "works": works, "cited_by_count": cites}
     return stats
 
 
-def fetch_placeholders(ids: list[str], years: tuple[int, int]) -> dict:
-    """Heavily cited paratext records per source, over the window plus the current year."""
+def fetch_placeholders(ids: list[str]) -> dict:
+    """Heavily cited paratext records per source, from any year."""
     found: dict[str, list[dict]] = {}
     for i in range(0, len(ids), ID_BATCH):
         batch = ids[i:i + ID_BATCH]
         data = openalex_get(OPENALEX_WORKS, {
             "filter": ",".join([
                 "primary_location.source.id:" + "|".join(short_id(s) for s in batch),
-                f"publication_year:{years[0]}-{years[1] + 1}", "type:paratext",
-                f"cited_by_count:>{PLACEHOLDER_MIN_CITATIONS - 1}"]),
+                "type:paratext", f"cited_by_count:>{PLACEHOLDER_MIN_CITATIONS - 1}"]),
             "per-page": "200", "select": "id,doi,cited_by_count,primary_location"})
         for work in data.get("results", []):
             source = ((work.get("primary_location") or {}).get("source") or {}).get("id")
@@ -296,11 +296,11 @@ def fetch_placeholders(ids: list[str], years: tuple[int, int]) -> dict:
 
 
 def placeholder_share(stats: dict, placeholders: list | None) -> float:
-    """Largest placeholder's share of the journal's estimated window citations (OMC x papers)."""
+    """Largest placeholder's share of all the journal's citations."""
     if not placeholders:
         return 0.0
     top = max(w.get("cited_by_count") or 0 for w in placeholders)
-    total = (stats.get("impact_factor") or 0) * stats.get("window_works", 0)
+    total = stats.get("cited_by_count") or 0
     return 1.0 if total <= 0 else top / total
 
 
@@ -309,9 +309,18 @@ def omc_status(stats: dict | None, placeholders: list | None) -> str:
         return "no_omc"
     if placeholder_share(stats, placeholders) >= PLACEHOLDER_MAX_SHARE:
         return "placeholder_record"
-    if stats["window_works"] < MIN_WINDOW_WORKS:
+    if stats["works"] < MIN_WORKS:
         return "too_few_papers"
     return "ok"
+
+
+def lookups_due(journals: list[str], cache: dict, now: datetime | None = None) -> list[str]:
+    """Uncached journals, then the oldest expired matches up to MAX_RECHECKS_PER_RUN."""
+    new = [j for j in journals if normalize_name(j) not in cache]
+    expired = [j for j in journals if normalize_name(j) in cache
+               and not cache_entry_fresh(normalize_name(j), cache[normalize_name(j)], now)]
+    expired.sort(key=lambda j: cache[normalize_name(j)].get("checked") or "")
+    return new + expired[:MAX_RECHECKS_PER_RUN]
 
 
 def omc_jumps(previous: dict, current: dict) -> list[tuple[str, float, float]]:
@@ -420,7 +429,7 @@ def compute_reproduction_impact_stats(rows: list[dict]) -> None:
             "overview": overview,
             "set_aside": {"too_few_papers": aside.count("too_few_papers"),
                           "placeholder_record": aside.count("placeholder_record"),
-                          "min_window_works": MIN_WINDOW_WORKS, "window_years": list(window_years())},
+                          "min_works": MIN_WORKS},
             "histogram": histogram,
             "stats": {"edf": None, "chi_sq": None, "p_val": None, "r2": None, "n_model": 0},
             "gam_curve": [],
@@ -450,7 +459,7 @@ def main():
         base_columns = list(reader.fieldnames or [])
     base_columns += [c for c in REPLICATION_COLUMNS if c not in base_columns and rows and c in rows[0]]
 
-    extra_cols = ["openalex_venue_id", "openalex_venue_name", "impact_factor", "omc_window_works", "omc_status"]
+    extra_cols = ["openalex_venue_id", "openalex_venue_name", "impact_factor", "omc_works", "omc_status"]
     out_columns = list(base_columns) + [c for c in extra_cols if c not in base_columns]
 
     unique_journals = sorted({(r.get("journal_o") or "").strip() for r in rows if (r.get("journal_o") or "").strip()})
@@ -460,12 +469,11 @@ def main():
     new_lookups = 0
     transient_errors = 0
     partial = False
-    for i, j in enumerate(unique_journals, 1):
+    due = lookups_due(unique_journals, cache)
+    for i, j in enumerate(due, 1):
         key = normalize_name(j)
-        if cache_entry_fresh(key, cache.get(key)):
-            continue
         if should_stop():
-            print(f"⏰ Time budget reached at {i}/{len(unique_journals)}; "
+            print(f"⏰ Time budget reached at {i}/{len(due)}; "
                   f"retaining the previous complete enrichment.")
             partial = True
             break
@@ -480,7 +488,7 @@ def main():
         new_lookups += 1
         if new_lookups % 50 == 0:
             save_cache(cache)
-            print(f"  resolved {new_lookups} new journals ({i}/{len(unique_journals)})")
+            print(f"  resolved {new_lookups} new or expired journals ({i}/{len(due)})")
 
     save_cache(cache)
     print(f"✔ {new_lookups} new or expired venues looked up; cache size now {len(cache)}")
@@ -497,10 +505,9 @@ def main():
 
     entries = {j: cache.get(normalize_name(j)) for j in unique_journals}
     source_ids = sorted({e["id"] for e in entries.values() if e and e.get("id")})
-    years = window_years()
     try:
-        stats = fetch_source_stats(source_ids, years)
-        placeholders = fetch_placeholders(source_ids, years)
+        stats = fetch_source_stats(source_ids)
+        placeholders = fetch_placeholders(source_ids)
     except (requests.exceptions.RequestException, ValueError) as e:
         sys.exit(f"✗ OpenAlex source refresh failed ({e}); previous enrichment outputs retained")
     # A few IDs can vanish when OpenAlex merges sources; losing most of them means an outage.
@@ -513,7 +520,7 @@ def main():
             top = max(placeholders[s], key=lambda w: w["cited_by_count"] or 0)
             action = "OMC set aside" if status[s] == "placeholder_record" else "OMC kept"
             warn(f"{action} for {s}: placeholder record {top['doi'] or top['id']} has "
-                 f"{top['cited_by_count']} citations, {placeholder_share(stats[s], placeholders[s]):.0%} of the estimate")
+                 f"{top['cited_by_count']} citations, {placeholder_share(stats[s], placeholders[s]):.0%} of the journal's total")
     for s, old, new in omc_jumps(previous_omc(OUT_CSV),
                                  {s: stats[s]["impact_factor"] for s in source_ids if status[s] == "ok"}):
         warn(f"OMC for {s} moved from {old:.2f} to {new:.2f} since the previous snapshot; check it")
@@ -526,14 +533,14 @@ def main():
         row["openalex_venue_id"] = source
         row["openalex_venue_name"] = (entry or {}).get("display_name") or ""
         row["omc_status"] = status.get(source, "no_match")
-        row["omc_window_works"] = stats[source]["window_works"] if source in stats else ""
+        row["omc_works"] = stats[source]["works"] if source in stats else ""
         if_val = stats[source]["impact_factor"] if row["omc_status"] == "ok" else None
         row["impact_factor"] = "" if if_val is None else f"{if_val:.4f}"
         if if_val is not None:
             enriched += 1
     set_aside = {k: sum(r["omc_status"] == k for r in rows) for k in ("too_few_papers", "placeholder_record")}
     print(f"  OMC set aside: {set_aside['too_few_papers']} rows from journals with fewer than "
-          f"{MIN_WINDOW_WORKS} papers in {years[0]}-{years[1]}, "
+          f"{MIN_WORKS} papers in total, "
           f"{set_aside['placeholder_record']} rows from journals with a placeholder record")
 
     with OUT_CSV.open("w", encoding="utf-8", newline="") as f:
@@ -545,12 +552,12 @@ def main():
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "n_rows": len(rows),
         "n_with_omc": enriched,
-        "window_years": list(years),
-        "min_window_works": MIN_WINDOW_WORKS,
+        "measure": "lifetime cited_by_count / works_count",
+        "min_works": MIN_WORKS,
         "placeholder_min_citations": PLACEHOLDER_MIN_CITATIONS,
         "placeholder_max_share": PLACEHOLDER_MAX_SHARE,
         "n_set_aside": set_aside,
-        "source": "OpenAlex Sources API (summary_stats.2yr_mean_citedness)",
+        "source": "OpenAlex Sources API (cited_by_count / works_count)",
     }
     (DATA_DIR / "flora_with_omc_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print(f"✔ Wrote {OUT_CSV.relative_to(ROOT)} ({enriched}/{len(rows)} rows have OMC)")

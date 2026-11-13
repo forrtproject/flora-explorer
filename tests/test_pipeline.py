@@ -217,19 +217,24 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
                 self.assertEqual(omc.load_cache(),{'missing':{'id':None}})
 
     def test_omc_set_aside_rules(self):
-        ok={'impact_factor':3.0,'window_works':200}
+        ok={'impact_factor':30.0,'works':200,'cited_by_count':6000}
         self.assertEqual(omc.omc_status(ok,None),'ok')
         self.assertEqual(omc.omc_status(None,None),'no_omc')
-        self.assertEqual(omc.omc_status({'impact_factor':None,'window_works':200},None),'no_omc')
-        self.assertEqual(omc.omc_status({'impact_factor':1567.0,'window_works':1},None),'too_few_papers')
-        self.assertEqual(omc.omc_status({'impact_factor':0.0,'window_works':0},None),'too_few_papers')
-        # The 1575 case: one placeholder carries every citation in the window.
-        self.assertEqual(omc.omc_status({'impact_factor':1567.0,'window_works':1},[{'cited_by_count':1567}]),'placeholder_record')
-        self.assertEqual(omc.omc_status(ok,[{'cited_by_count':150}]),'placeholder_record')
-        self.assertEqual(omc.omc_status({'impact_factor':1.88,'window_works':7109},[{'cited_by_count':717}]),'ok')
+        self.assertEqual(omc.omc_status({'impact_factor':None,'works':0,'cited_by_count':0},None),'no_omc')
+        self.assertEqual(omc.omc_status({'impact_factor':6.0,'works':11,'cited_by_count':66},None),'too_few_papers')
+        self.assertEqual(omc.omc_status(ok,[{'cited_by_count':1200}]),'placeholder_record')
+        self.assertEqual(omc.omc_status(ok,[{'cited_by_count':300}]),'ok')
 
-    def test_window_years_precede_the_run_year(self):
-        self.assertEqual(omc.window_years(omc.datetime(2027,1,3,tzinfo=omc.timezone.utc)),(2025,2026))
+    def test_expired_matches_are_rechecked_oldest_first_within_the_cap(self):
+        now=omc.datetime(2026,11,13,tzinfo=omc.timezone.utc)
+        cache={f'journal {i}':{'id':f'S{i}','display_name':f'Journal {i}','checked':f'2025-01-{i % 28 + 1:02d}'} for i in range(80)}
+        cache['fresh']={'id':'S999','display_name':'Fresh','checked':'2026-11-01'}
+        due=omc.lookups_due(['Brand New']+[f'Journal {i}' for i in range(80)]+['Fresh'],cache,now)
+        self.assertEqual(due[0],'Brand New')
+        self.assertEqual(len(due),1+omc.MAX_RECHECKS_PER_RUN)
+        self.assertNotIn('Fresh',due)
+        checked=[cache[omc.normalize_name(j)]['checked'] for j in due[1:]]
+        self.assertEqual(checked,sorted(checked))
 
     def test_omc_jumps_flag_large_relative_changes_only(self):
         jumps=omc.omc_jumps({'a':2.0,'b':2.0,'c':0.2,'d':0.0,'e':5.0},{'a':4.1,'b':3.0,'c':0.5,'d':3.0,'f':9.0})
@@ -260,7 +265,7 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
             with patch.object(omc,'IN_CSV',source), patch.object(omc,'OUT_CSV',folder/'out.csv'), \
                  patch.object(omc,'DATA_DIR',folder), patch.object(omc,'ROOT',folder), patch.object(omc,'load_cache',return_value=dict(stale)), \
                  patch.object(omc,'save_cache') as save, patch.object(omc,'lookup_venue',return_value=None), \
-                 patch.object(omc,'fetch_source_stats',return_value={'S1':{'impact_factor':3.0,'window_works':50}}), \
+                 patch.object(omc,'fetch_source_stats',return_value={'S1':{'impact_factor':3.0,'works':50,'cited_by_count':150}}), \
                  patch.object(omc,'fetch_placeholders',return_value={}), \
                  patch.object(omc,'compute_reproduction_impact_stats'):
                 omc.main()
@@ -359,13 +364,14 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         for r in rows:
             if r['impact_factor']:
                 self.assertEqual(r['omc_status'],'ok')
-                self.assertGreaterEqual(int(r['omc_window_works']),meta['min_window_works'])
+                self.assertGreaterEqual(int(r['omc_works']),meta['min_works'])
         for key in ['too_few_papers','placeholder_record']:
             self.assertEqual(result['set_aside'][key],sum(r['omc_status']==key for r in rows
                              if 'replication' in r['type'].lower() and 'reproduc' not in r['type'].lower()))
         curve=result['curve']
         self.assertLessEqual(max(p['omc'] for p in result['gam_curve']),curve['end_omc']+0.01)
-        beyond=[p for p in result['jitter'] if p['omc']>curve['end_omc']]
+        # end_omc is rounded to 2 decimals and points to 3, so pairs at the cut can differ by rounding.
+        beyond=[p for p in result['jitter'] if p['omc']>curve['end_omc']+0.01]
         self.assertEqual(len(beyond),curve['n_beyond'])
         reproductions=json.loads((ROOT/'data/impact_factor_reproductions.json').read_text())
         repro=[c.reproduction_dimensions(r) for r in eligible if 'reproduc' in r['type'].lower()]
