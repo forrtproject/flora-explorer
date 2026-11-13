@@ -159,7 +159,7 @@ test('shared citation outcome filters restore before asynchronous loading finish
   const p=await page('?tab=citations&ci-outcome=failed');
   await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length>0);
   const expected=Math.max(...JSON.parse(fs.readFileSync('data/aggregate.json')).failed.descriptive.n_units).toLocaleString('en-GB');
-  assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} originals`));
+  assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} of `));
   assert.equal(await p.locator('#outcome-chips [data-value="failed"]').getAttribute('aria-pressed'),'true');
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -940,7 +940,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     assert.match(await row.locator('td').nth(4).locator('span[title]').getAttribute('title'),/1,234 of 5,678/);
     assert.equal(await row.locator('.rep-count').textContent(),'1,234');
     assert.match(await row.locator('.rep-bar-wrap').getAttribute('title'),/1,234 Successful/);
-    assert.match(await p.locator('#plot-cit-sample').textContent(),/^Sample size: 1,234 originals /);
+    assert.match(await p.locator('#plot-cit-sample').textContent(),/^Sample size: 1,234 of [\d,]+ originals /);
     const meta=JSON.parse(fs.readFileSync('data/meta.json'));
     assert.equal(await p.locator('#kpis .kpi-value').first().textContent(),meta.n_originals.toLocaleString('en-GB'));
     const breakdown=JSON.parse(fs.readFileSync('data/cocit_breakdown.json'));
@@ -1481,7 +1481,7 @@ test('analysis charts show N of M with exclusions and distinct report counts bes
   assert.match(await p.locator('#trend-journal-n').textContent(),/outside the top 15 journals/);
   await p.click('#mc-tab');await p.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
   const ov=model.overview;
-  assert.match(await p.locator('#mc-eligible').textContent(),new RegExp(`^${n(ov.n_total)} of ${n(ov.n_input)} replication reference pairs have an OMC; ${n(ov.n_excluded)} reference pairs excluded`));
+  assert.match(await p.locator('#mc-eligible').textContent(),new RegExp(`^Included in the plot: ${n(ov.n_total)} of ${n(ov.n_input)} replication reference pairs; excluded: ${n(ov.n_excluded)} without an OMC`));
   const stats=(await p.locator('#mc-gam-stats').textContent()).replace(/\s+/g,' ');
   assert.ok(stats.includes(`N = ${n(model.stats.n_model)} of ${n(ov.n_total)} reference pairs with OMC`));
   assert.ok(stats.includes(`mixed ${n(ov.n_mixed)}`));
@@ -1494,5 +1494,20 @@ test('analysis charts show N of M with exclusions and distinct report counts bes
   assert.ok(await p.locator('#rr-snapshot-note').isHidden());
   await p.evaluate(()=>{window._pubData.replication.overview.n_total+=37;renderPubTypeSnapshotNote();});
   assert.match(await p.locator('#rr-snapshot-note').textContent(),/refreshed from different FLoRA snapshots/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('every chart states N of M in its chart data',async()=>{
+  const p=await page('?tab=overview');
+  const nOfM=/Included in the plot: [\d,]+ of [\d,]+ [a-z ]+; (excluded( from this selection)?: .+|none excluded)\./;
+  const seen=new Set();
+  for(const tab of [null,'browse-tab','trends-tab','citation-tab','mc-tab','overlap-tab','pub-tab']){
+    if(tab){await p.click('#'+tab);await p.waitForTimeout(2000);}
+    for(const [id,summary] of await p.evaluate(()=>[...document.querySelectorAll('.chart-data')].map(d=>[d.id,d.querySelector('.chart-summary').textContent])))
+      if(!seen.has(id)){seen.add(id);assert.match(summary,nOfM,id);}
+  }
+  for(const id of ['overview-outcome-chart-data','browse-outcome-chart-data','trend-journal-data','plot-cit-data','plot-cocit-data','mc-dist-chart-data','mc-gam-chart-data','ao-chart-data','pub-chart-data','rr-chart-data','ls-chart-data']) assert.ok(seen.has(id),id);
+  for(const id of ['ao-chart-n','pub-chart-n','rr-chart-n','ls-chart-n']) assert.match(await p.locator('#'+id).textContent(),nOfM,id);
+  // Browse charts count only their own study type, as on Overview.
+  assert.match(await p.locator('#browse-computational-chart-data .chart-summary').textContent(),/Included in the plot: 222 of 226 reference pairs; excluded from this selection: 4 reference pairs\./);
   assert.deepEqual(p.errors,[]);await p.close();
 });

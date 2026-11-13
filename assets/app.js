@@ -353,6 +353,26 @@ function distinctReportCounts(rows) {
 }
 const nPairs = n => `${n.toLocaleString('en-GB')} reference ${n === 1 ? 'pair' : 'pairs'}`;
 
+const kindNoun = kind => (kind === 'replication' ? 'replication' : 'reproduction') + ' reference pairs';
+function kindPairCount(kind) {
+    return fullRowData.filter(r => classifyKind(r) === (kind === 'replication' ? 'replication' : 'reproduction')).length;
+}
+// Pairs of the selected type that are neither plotted nor covered by a stated reason.
+function unexplainedReason(kind) {
+    return kind === 'replication' ? 'not in this analysis snapshot' : 'without a verdict on this dimension';
+}
+// reasons: [[count, 'without …'], …]. M never drops below N plus the stated exclusions.
+function coverageText(n, m, reasons = [], noun = 'reference pairs', kind = null) {
+    const fmt = v => v.toLocaleString('en-GB');
+    const listed = reasons.filter(([k]) => k > 0);
+    const stated = listed.reduce((sum, [k]) => sum + k, 0);
+    const total = Math.max(m || 0, n + stated);
+    if (kind && total - n - stated > 0) listed.push([total - n - stated, unexplainedReason(kind)]);
+    return `Included in the plot: ${fmt(n)} of ${fmt(total)} ${noun}; ` +
+        (listed.length ? `excluded: ${listed.map(([k, why]) => `${fmt(k)} ${why}`).join(', ')}.` : 'none excluded.');
+}
+function setCoverage(chartId, text) { setCaption(chartId + '-n', text); return text; }
+
 function updateOverviewStats(data) {
     const groups = {
         total: data,
@@ -1484,13 +1504,9 @@ function renderMcCharts() {
         ${statCards}
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_journals.toLocaleString()}</span><span class="mc-stat-label">Journals matched</span></div>
         <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines.toLocaleString('en-GB')}</span><span class="mc-stat-label">Disciplines</span></div>`;
-    if (eligibleEl && ov.n_input !== undefined) {
-        const scope = mcKind === 'replication' ? 'replication reference pairs'
-            : `reproduction reference pairs with a ${mcKind === 'reproduction-numerical' ? 'computational' : 'robustness'} verdict`;
-        eligibleEl.textContent = `${ov.n_total.toLocaleString('en-GB')} of ${ov.n_input.toLocaleString('en-GB')} ${scope} have an OMC; ` +
-            `${nPairs(ov.n_excluded)} excluded (no original journal recorded, journal not found in OpenAlex, or OMC set aside).`;
-        eligibleEl.style.display = '';
-    }
+    const noOmc = 'without an OMC (no original journal recorded, journal not found in OpenAlex, or OMC set aside)';
+    const distCoverage = coverageText(ov.n_total, kindPairCount(mcKind), [[ov.n_excluded || 0, noOmc]], kindNoun(mcKind), mcKind);
+    if (eligibleEl) { eligibleEl.textContent = distCoverage; eligibleEl.style.display = ''; }
 
     // ── Distribution chart (Plotly stacked bar) ───────────────────────────
     const bins  = d.histogram || [];
@@ -1508,7 +1524,7 @@ function renderMcCharts() {
         font: { family: t.fontFamily, size: 12, color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
         height: 320,
-    }, { displayModeBar: false, responsive: true });
+    }, { displayModeBar: false, responsive: true }, { coverage: distCoverage });
 
     const st = d.stats || {};
     const curve = d.curve && d.curve.end_omc !== undefined ? d.curve : null;
@@ -1581,6 +1597,10 @@ function renderMcCharts() {
     // The data table lists model quantities, not plotting internals: one row per curve point
     // with its interval, then the displayed sample's raw values (not the jittered positions).
     const points = Array.isArray(d.jitter) ? d.jitter : [];
+    const notModelled = buckets.filter(b => !['successful', 'failed'].includes(b.key))
+        .map(b => [ov[b.overviewKey] || 0, b.label.toLowerCase()]);
+    const modelCoverage = coverageText(st.n_model, kindPairCount('replication'),
+        [[ov.n_excluded || 0, noOmc], ...notModelled], 'replication reference pairs', 'replication');
     const modelTable = {
         headers: ['Row type', 'OMC', 'Estimated P(success)', '95% CI lower', '95% CI upper', 'Observed outcome (1 = successful, 0 = failed)', 'Original (DOI or title)', 'Report (DOI, URL or title)'],
         rows: [
@@ -1589,7 +1609,7 @@ function renderMcCharts() {
         ],
         summary: `Fitted curve: logistic smooth of log(OMC + 1) with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs${curve ? ` and shown up to OMC ${curve.end_omc}` : ''}. Model statistics at full precision: edf = ${st.edf}, χ² = ${st.chi_sq}, p = ${st.p_val}, McFadden R² = ${st.r2}. Displayed pairs: ${points.length.toLocaleString()} of these pairs (a random sample${curve && curve.n_beyond ? `, plus all ${curve.n_beyond.toLocaleString('en-GB')} beyond the curve` : ''}), with their raw OMC, outcome and identifiers; the chart jitters their positions for legibility.`,
     };
-    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true }, { table: modelTable });
+    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true }, { table: modelTable, coverage: modelCoverage });
     const pNote = (st.p_val !== null && st.p_val !== undefined)
         ? (st.p_val < 0.001 ? 'p < .001' : 'p = ' + st.p_val.toFixed(3))
         : '';
@@ -1744,7 +1764,8 @@ function renderOverlapCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('ao-chart', coverageText(ov.n_total || 0, kindPairCount(aoKind), [[ov.n_unknown || 0, 'with authorship overlap unknown']], kindNoun(aoKind), aoKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     chartCard.style.display = '';
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
@@ -1873,7 +1894,8 @@ function renderRRCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('rr-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('rr-chart', coverageText(ov.n_total || 0, kindPairCount(pubTypeKind), [[ov.n_unknown || 0, 'without a report DOI or title to check']], kindNoun(pubTypeKind), pubTypeKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     chartCard.style.display = '';
 
     // ── Included-reports table: one row per report, with its pairs' outcomes ──────
@@ -2015,7 +2037,8 @@ function renderPubStatusCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('pub-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('pub-chart', coverageText(ov.n_total || 0, kindPairCount(pubTypeKind), [], kindNoun(pubTypeKind), pubTypeKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     chartCard.style.display = '';
 
     // ── All-studies table ─────────────────────────────────────────────────────
@@ -2160,7 +2183,8 @@ function renderLargeScaleCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ls-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('ls-chart', coverageText(ov.n_total || 0, kindPairCount(pubTypeKind), [], kindNoun(pubTypeKind), pubTypeKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     if (chartCard) chartCard.style.display = '';
 
     // ── Large-scale projects table ───────────────────────────────────────────────

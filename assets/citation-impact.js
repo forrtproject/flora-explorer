@@ -233,12 +233,14 @@
 
     function renderAggregate() {
         const data = CI.agg[CI.outcome]; if (!data) return;
-        renderSampleSize('plot-cit-sample', data.descriptive, null, 'with 5 years of citation data before and after the first replication');
-        renderSampleSize('plot-cocit-sample', data.descriptive_cocit || data.descriptive, COCIT_EVENT_WINDOW, 'with 5 years of citation data after the first replication');
+        const citCoverage = renderSampleSize('plot-cit-sample', data.descriptive, null, 'with 5 years of citation data before and after the first replication',
+            'whose first replication is too recent, or too soon after the original, for 5 years either side');
+        const cocitCoverage = renderSampleSize('plot-cocit-sample', data.descriptive_cocit || data.descriptive, COCIT_EVENT_WINDOW, 'with 5 years of citation data after the first replication',
+            'whose first replication is too recent for 5 years after it');
         renderCocitDenominator();
         renderCitFootnote(data.descriptive);
-        drawAggregatePlot('plot-cit', data, 'mean_citations', 'Mean citations per year', CI.outcome);
-        drawAggregatePlot('plot-cocit', { ...data, descriptive: data.descriptive_cocit || data.descriptive }, 'mean_cocitations', 'Mean co-citations per year', CI.outcome, COCIT_EVENT_WINDOW);
+        drawAggregatePlot('plot-cit', data, 'mean_citations', 'Mean citations per year', CI.outcome, null, citCoverage);
+        drawAggregatePlot('plot-cocit', { ...data, descriptive: data.descriptive_cocit || data.descriptive }, 'mean_cocitations', 'Mean co-citations per year', CI.outcome, COCIT_EVENT_WINDOW, cocitCoverage);
     }
 
 
@@ -264,11 +266,18 @@
         el.innerHTML = n ? `Mean citations estimated for <strong><i>N</i> = ${FloraCharts.number(n)}</strong> originals (first replication ${group}; each observed over t = ${FloraCharts.number(lo)} to +${FloraCharts.number(hi)} years).` : '';
     }
 
-    function renderSampleSize(id, desc, eventWindow, criterion) {
-        const el = document.getElementById(id); if (!el) return;
+    // Originals whose first replication falls in the selected outcome group.
+    function outcomeGroupOriginals() {
+        return (CI.index || []).filter(s => CI.outcome === 'all' ? s.first_replication_outcome : s.first_replication_outcome === CI.outcome).length;
+    }
+
+    function renderSampleSize(id, desc, eventWindow, criterion, excludedWhy) {
+        const el = document.getElementById(id);
         const shown = desc && desc.event_time && eventWindow ? sliceDescriptive(desc, eventWindow) : desc;
         const n = Math.max(0, ...((shown && shown.n_units) || []));
-        el.textContent = n ? `Sample size: ${FloraCharts.number(n)} originals ${criterion}` : '';
+        const m = Math.max(n, outcomeGroupOriginals());
+        if (el) el.textContent = n ? `Sample size: ${FloraCharts.number(n)} of ${FloraCharts.number(m)} originals ${criterion}` : '';
+        return coverageText(n, m, [[m - n, excludedWhy]], 'originals');
     }
 
     function sliceDescriptive(desc, [lo, hi]) {
@@ -280,8 +289,8 @@
         return out;
     }
 
-    function drawAggregatePlot(divId, data, descField, ylabel, outcome, eventWindow) {
-        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, ylabel, outcome, eventWindow)); return; }
+    function drawAggregatePlot(divId, data, descField, ylabel, outcome, eventWindow, coverage) {
+        if (typeof Plotly === 'undefined') { chartLibUnavailable(divId, 'Plotly', () => drawAggregatePlot(divId, data, descField, ylabel, outcome, eventWindow, coverage)); return; }
         const rawDesc = data.descriptive || {};
         const desc = eventWindow && rawDesc.event_time ? sliceDescriptive(rawDesc, eventWindow) : rawDesc;
         const color = OUTCOME_COLORS[outcome] || OUTCOME_COLORS.all;
@@ -309,7 +318,7 @@
             font: { family: t.fontFamily, size: 12, color: t.font },
             legend: { orientation: 'h', y: -0.22, font: { color: t.font } }
         };
-        FloraCharts.plot(divId, traces, layout, { displayModeBar: false, responsive: true });
+        FloraCharts.plot(divId, traces, layout, { displayModeBar: false, responsive: true }, { coverage });
     }
 
     function renderOutcomeBar(outcomeMix, nReplications) {
@@ -623,7 +632,9 @@
             legend: { orientation: 'h', y: -0.18, font: { color: t.font } },
             font: { family: t.fontFamily, size: 12, color: t.font }
         };
-        FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true });
+        const plotted = traces.reduce((n, trace) => n + trace.y.reduce((a, v) => a + (Number(v) || 0), 0), 0);
+        const coverage = coverageText(plotted, s.n_citations || 0, [[(s.n_citations || 0) - plotted, 'without a recorded citing year']], 'citing works of this original');
+        FloraCharts.plot('study-plot', traces, layout, { displayModeBar: false, responsive: true }, { coverage });
     }
 
     function bindEvents() {
