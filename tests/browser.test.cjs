@@ -341,6 +341,25 @@ test('Overview charts state denominators; placeholders, labels and headings stay
   assert.deepEqual(await p.locator('#trends > h2, #trends .trend-desc h3').evaluateAll(hs=>hs.map(h=>h.tagName)),['H2','H3','H3','H3','H3','H3']);
   assert.deepEqual(p.errors,[]);await p.close();
 });
+test('Trends "All" stacks every chart by study type and counts each pair once',async()=>{
+  const p=await page('?tab=trends&trends-kind=all',1280);await p.waitForFunction(()=>Chart.getChart('trend-field'));
+  assert.ok(await p.locator('#trends-all-note').isVisible());
+  assert.ok(await p.locator('#trends-charts').isVisible());
+  assert.match(await p.locator('#trend-filter-count').textContent(),/^All studies: \d{1,3}(,\d{3})* reference pairs$/);
+  for(const id of ['trend-orig-year','trend-rep-year','trend-journal','trend-rep-journal','trend-field']){
+    const labels=await p.evaluate(id=>Chart.getChart(id).data.datasets.map(d=>d.label),id);
+    assert.deepEqual(labels,['Replication','Reproduction','Study type not recorded'],id);
+  }
+  const plotted=await p.evaluate(()=>Chart.getChart('trend-field').data.datasets.reduce((n,d)=>n+d.data.reduce((a,b)=>a+b,0),0));
+  assert.equal(plotted,await p.evaluate(()=>fullRowData.length));
+  assert.match(await p.locator('#trend-field-n').textContent(),/none excluded/);
+  assert.deepEqual(await p.locator('#trends .trend-desc h3').allInnerTexts(),['Reference pairs by original study year','Reference pairs by replication or reproduction report year','Reference pairs by original journal','Reference pairs by recorded replication or reproduction venue','Reference pairs by field']);
+  assert.doesNotMatch(await p.locator('#trends-charts .trend-desc').allInnerTexts().then(t=>t.join(' ')),/outcome/i);
+  await p.click('#trends .trend-filter-btn[data-kind="replication"]');
+  assert.ok(await p.locator('#trends-all-note').isHidden());
+  assert.match(await p.locator('#trends .trend-desc h3').first().innerText(),/^Outcomes by/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
 test('Trends follow the selected study type, keep calendar spacing and reflow after narrowing',async()=>{
   const p=await page('?tab=trends',1440);await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
   const labels=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.labels);

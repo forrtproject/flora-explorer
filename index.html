@@ -719,10 +719,9 @@
                         <span class="trend-filter-count" id="trend-filter-count" role="status"></span>
                     </div>
 
-                    <div id="trends-placeholder" class="coming-soon-placeholder" style="display:none;">
-                        All mixes replication and reproduction reference pairs, which use different outcome categories,
-                        so no outcome charts are shown. Choose a study type to see year, journal and field breakdowns.
-                    </div>
+                    <p id="trends-all-note" class="study-type-note" hidden>Replications and reproductions record outcomes in
+                        different categories, so with All selected each bar is split by study type instead of by
+                        outcome. Choose a single study type to see outcome breakdowns.</p>
 
                     <div id="trends-charts">
                         <div class="card">
@@ -730,10 +729,10 @@
                                 <div class="trend-block">
                                     <div class="trend-desc">
                                         <div class="trend-title">
-                                            <h3>Outcomes by original study year</h3>
+                                            <h3><span data-kind-text="Outcomes|Outcomes|Outcomes|Reference pairs">Outcomes</span> by original study year</h3>
                                         </div>
                                         <p
-                                            data-kind-text="How have findings from different eras fared when researchers tried to replicate them? Each bar groups replication reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by recorded replication outcome.|How have findings from different eras fared when researchers tried to reproduce them by re-analysing the original data? Each bar groups numerical-reproduction reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by computational verdict.|How have findings from different eras held up under alternative analysis choices? Each bar groups robustness-reproduction reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by robustness verdict.">
+                                            data-kind-text="How have findings from different eras fared when researchers tried to replicate them? Each bar groups replication reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by recorded replication outcome.|How have findings from different eras fared when researchers tried to reproduce them by re-analysing the original data? Each bar groups numerical-reproduction reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by computational verdict.|How have findings from different eras held up under alternative analysis choices? Each bar groups robustness-reproduction reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by robustness verdict.|How has research from different eras been checked? Each bar groups all reference pairs by the year the &lt;strong&gt;original&lt;/strong&gt; study was published, split by whether the attempt was a replication or a reproduction.">
                                             How have findings from different eras fared when researchers tried to
                                             replicate them? Each bar groups replication reference pairs by the year the
                                             <strong>original</strong> study was published, split by recorded replication
@@ -753,14 +752,14 @@
                                 <div class="trend-block">
                                     <div class="trend-desc">
                                         <div class="trend-title">
-                                            <h3>Outcomes by <span
-                                                    data-kind-text="replication|reproduction|reproduction">replication</span>
+                                            <h3><span data-kind-text="Outcomes|Outcomes|Outcomes|Reference pairs">Outcomes</span> by <span
+                                                    data-kind-text="replication|reproduction|reproduction|replication or reproduction">replication</span>
                                                 report year</h3>
                                         </div>
                                         <p>Grouped by the year of the <strong><span
-                                                    data-kind-text="replication|reproduction|reproduction">replication</span></strong>
+                                                    data-kind-text="replication|reproduction|reproduction|replication or reproduction">replication</span></strong>
                                             report itself, this view shows the growth of FLoRA's coverage and how
-                                            outcome profiles have shifted over time.</p>
+                                            <span data-kind-text="outcome profiles have|outcome profiles have|outcome profiles have|the mix of study types has">outcome profiles have</span> shifted over time.</p>
                                         <p>The rightmost years may reflect ongoing data entry rather than a genuine
                                             decline in activity.</p>
                                         <p class="trend-note" id="trend-rep-year-n"></p>
@@ -775,14 +774,14 @@
                                 <div class="trend-block">
                                     <div class="trend-desc">
                                         <div class="trend-title">
-                                            <h3>Outcomes by original journal</h3>
+                                            <h3><span data-kind-text="Outcomes|Outcomes|Outcomes|Reference pairs">Outcomes</span> by original journal</h3>
                                         </div>
                                         <p>The journals whose articles have most frequently been the target of <span
-                                                data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span>
-                                            attempts. For each journal, the bar shows the outcome breakdown of those
-                                            attempts.</p>
+                                                data-kind-text="replication|numerical reproduction|robustness reproduction|replication or reproduction">replication</span>
+                                            attempts. <span data-kind-text="For each journal, the bar shows the outcome breakdown of those attempts.|For each journal, the bar shows the outcome breakdown of those attempts.|For each journal, the bar shows the outcome breakdown of those attempts.|For each journal, the bar shows how many of those attempts were replications and how many were reproductions.">For each journal, the bar shows the outcome breakdown of those
+                                            attempts.</span></p>
                                         <p><span
-                                                data-kind-text="Frequency shows where replication effort has gone, not how replicable a journal's research is.|Frequency shows where reproduction effort has gone, not how reproducible a journal's research is.|Frequency shows where reproduction effort has gone, not how robust a journal's research is.">Frequency
+                                                data-kind-text="Frequency shows where replication effort has gone, not how replicable a journal's research is.|Frequency shows where reproduction effort has gone, not how reproducible a journal's research is.|Frequency shows where reproduction effort has gone, not how robust a journal's research is.|Frequency shows where replication and reproduction effort has gone, not how replicable or reproducible a journal's research is.">Frequency
                                                 shows where replication effort has gone, not how replicable a journal's
                                                 research is.</span></p>
                                         <p class="trend-note" id="trend-journal-n"></p>
@@ -807,20 +806,20 @@
                                 <div class="trend-block">
                                     <div class="trend-desc">
                                         <div class="trend-title">
-                                            <h3>Outcomes by recorded <span
-                                                    data-kind-text="replication|reproduction|reproduction">replication</span>
+                                            <h3><span data-kind-text="Outcomes|Outcomes|Outcomes|Reference pairs">Outcomes</span> by recorded <span
+                                                    data-kind-text="replication|reproduction|reproduction|replication or reproduction">replication</span>
                                                 venue</h3>
                                         </div>
                                         <p>Each bar groups reference pairs by the venue recorded for the <span
-                                                data-kind-text="replication|reproduction|reproduction">replication</span>
+                                                data-kind-text="replication|reproduction|reproduction|replication or reproduction">replication</span>
                                             report, which can be a journal or a repository such as OSF, split by
-                                            recorded outcome.</p>
+                                            <span data-kind-text="recorded outcome|recorded outcome|recorded outcome|study type">recorded outcome</span>.</p>
                                         <p>Counts reflect FLoRA’s coverage, and one report may contribute several pairs,
                                             so bars do not rank how actively venues publish <span
-                                                data-kind-text="replication|reproduction|reproduction">replication</span>
+                                                data-kind-text="replication|reproduction|reproduction|replication or reproduction">replication</span>
                                             research.</p>
                                         <p class="trend-note">Annotation of <span
-                                                data-kind-text="replication|reproduction|reproduction">replication</span>-journal
+                                                data-kind-text="replication|reproduction|reproduction|replication or reproduction">replication</span>-journal
                                             data is a work in progress; some journals may be missing or
                                             under-represented at the moment.</p>
                                         <p class="trend-note" id="trend-rep-journal-n"></p>
@@ -846,11 +845,11 @@
                                 <div class="trend-block">
                                     <div class="trend-desc">
                                         <div class="trend-title">
-                                            <h3>Outcomes by field</h3>
+                                            <h3><span data-kind-text="Outcomes|Outcomes|Outcomes|Reference pairs">Outcomes</span> by field</h3>
                                         </div>
                                         <p>A bird's-eye view grouping reference pairs by research discipline. Each bar
-                                            shows the outcome breakdown of <span
-                                                data-kind-text="replication|numerical reproduction|robustness reproduction">replication</span>
+                                            shows the <span data-kind-text="outcome breakdown|outcome breakdown|outcome breakdown|study-type breakdown">outcome breakdown</span> of <span
+                                                data-kind-text="replication|numerical reproduction|robustness reproduction|replication and reproduction">replication</span>
                                             attempts targeting work originally published in journals from that field.
                                         </p>
                                         <p>Disciplines are inferred from the original study's journal name using a
