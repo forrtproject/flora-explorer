@@ -59,6 +59,7 @@ jobs:
         # fast so nothing misleading gets committed.
         env:
           MY_EMAIL: ${{ secrets.MY_EMAIL }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
         run: python scripts/compute_omc.py
 
       - name: Set up R

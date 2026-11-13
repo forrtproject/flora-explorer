@@ -1387,6 +1387,7 @@ function renderMcCharts() {
     const gamCard = document.getElementById('mc-gam-card');
     if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
         const n = d && d.overview ? d.overview.n_total : 0;
+        mcSetAsideNote(null);
         if (insufficientEl) {
             insufficientEl.textContent = `Not enough ${studyTypeLabel(mcKind)} with a Mean Citedness match yet (n=${n}; need at least ${ANALYSIS_MIN_N}).`;
             insufficientEl.style.display = '';
@@ -1397,6 +1398,7 @@ function renderMcCharts() {
         return;
     }
     if (insufficientEl) insufficientEl.style.display = 'none';
+    mcSetAsideNote(d);
     if (overviewEl) overviewEl.style.display = '';
     if (distCard) distCard.style.display = '';
     // Reproductions have no fitted model: show one descriptive note instead of an empty card.
@@ -1439,6 +1441,7 @@ function renderMcCharts() {
     }, { displayModeBar: false, responsive: true });
 
     const st = d.stats || {};
+    const curve = d.curve && d.curve.end_omc !== undefined ? d.curve : null;
     const gc = Array.isArray(d.gam_curve) ? d.gam_curve : [];
 
     // ── GAM chart (Plotly) ────────────────────────────────────────────────
@@ -1452,32 +1455,42 @@ function renderMcCharts() {
     gamDiv.textContent = '';
     // Jitter is computed once per data load and cached so scatter points stay
     // put across re-renders (theme toggles, etc.) instead of jumping.
+    // Plotted on log(OMC + 1), the model's scale; a true log axis cannot show OMC = 0.
     if (!window._mcJitter) {
         window._mcJitter = (Array.isArray(d.jitter) ? d.jitter : []).map(pt => ({
-            x: pt.omc + (Math.random() - 0.5) * 0.15,
+            x: Math.abs(Math.log1p(pt.omc) + (Math.random() - 0.5) * 0.04),
+            omc: pt.omc,
             y: pt.outcome + (Math.random() - 0.5) * 0.06,
             lbl: pt.outcome === 1 ? 'Successful' : 'Failed',
         }));
     }
     const jitter2 = window._mcJitter;
+    const curveX = gc.map(p => Math.log1p(p.omc));
+    // The window ends with the curve; pairs beyond it stay in the model and the data table.
+    const minOmc = Math.min(...gc.map(p => p.omc), ...jitter2.map(p => p.omc));
+    const maxOmc = curve ? curve.end_omc : Math.max(...gc.map(p => p.omc), ...jitter2.map(p => p.omc));
+    const omcTicks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].filter(v => v >= minOmc && v <= maxOmc);
+    const xRange = [Math.log1p(minOmc) - 0.05, Math.log1p(maxOmc) + 0.05];
+    // Pairs past the window are left out of the plot; the chart data still lists them.
+    const shownPairs = jitter2.filter(p => p.x <= xRange[1]);
     const gamTraces = [
-        { x: gc.map(p => p.omc), y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
+        { x: curveX, y: gc.map(p => p.p_lo), type: 'scatter', mode: 'lines',
           line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_lo' },
-        { x: gc.map(p => p.omc), y: gc.map(p => p.p_hi), type: 'scatter', mode: 'lines',
-          fill: 'tonexty', fillcolor: t.band,
-          line: { width: 0 }, showlegend: false, hoverinfo: 'skip', name: '_hi' },
-        { x: gc.map(p => p.omc), y: gc.map(p => p.p), type: 'scatter', mode: 'lines',
-          line: { color: t.primary, width: 2.5 }, name: 'Smooth fit',
-          hovertemplate: 'OMC = %{x:.2f}<br>P(success) = %{y:.1%}<extra>Smooth fit</extra>' },
-        { x: jitter2.map(p => p.x), y: jitter2.map(p => p.y), type: 'scatter', mode: 'markers',
+        { x: curveX, y: gc.map(p => p.p_hi), customdata: gc.map(p => [p.omc, p.p_lo, p.p_hi]),
+          type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: t.band,
+          line: { width: 0 }, name: '95% confidence interval',
+          hovertemplate: 'OMC = %{customdata[0]:.2f}<br>95% CI: %{customdata[1]:.1%} to %{customdata[2]:.1%}<extra></extra>' },
+        { x: shownPairs.map(p => p.x), y: shownPairs.map(p => p.y), customdata: shownPairs.map(p => p.omc), type: 'scatter', mode: 'markers',
           marker: { color: t.point, size: 5, line: { width: 0 } },
-          name: 'Reference pairs', text: jitter2.map(p => p.lbl),
-          hovertemplate: 'OMC = %{x:.2f}<br>%{text}<extra></extra>' },
+          name: 'Reference pairs', text: shownPairs.map(p => p.lbl),
+          hovertemplate: 'OMC = %{customdata:.2f}<br>%{text}<extra></extra>' },
     ];
     const gamLayout = {
         height: 640,
         margin: { t: 10, r: 10, b: 50, l: 60 },
-        xaxis: { title: 'OpenAlex Mean Citedness (OMC)', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
+        xaxis: { title: 'OpenAlex Mean Citedness (OMC, log scale)', range: xRange,
+                 tickvals: omcTicks.map(Math.log1p), ticktext: omcTicks.map(String),
+                 gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         yaxis: { title: 'P(success | successful or failed)', range: [-0.08, 1.08],
                  tickformat: '.0%', gridcolor: t.grid, color: t.font, tickfont: { color: t.font } },
         plot_bgcolor: t.plot, paper_bgcolor: t.paper,
@@ -1504,7 +1517,7 @@ function renderMcCharts() {
             ...gc.map(p => ['Fitted curve', p.omc, p.p, p.p_lo, p.p_hi, '']),
             ...points.map(p => ['Displayed pair', p.omc, '', '', '', p.outcome]),
         ],
-        summary: `Fitted curve: logistic smooth with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs. Displayed pairs: a random sample of ${points.length.toLocaleString()} of these pairs, with their raw OMC and outcome; the chart jitters their positions for legibility. The sample has no pair identifiers.`,
+        summary: `Fitted curve: logistic smooth of log(OMC + 1) with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs${curve ? ` and shown up to OMC ${curve.end_omc}` : ''}. Displayed pairs: ${points.length.toLocaleString()} of these pairs (a random sample${curve && curve.n_beyond ? `, plus all ${curve.n_beyond.toLocaleString('en-GB')} beyond the curve` : ''}), with their raw OMC and outcome; the chart jitters their positions for legibility. The sample has no pair identifiers.`,
     };
     FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true }, { table: modelTable });
     const pNote = (st.p_val !== null && st.p_val !== undefined)
@@ -1513,11 +1526,26 @@ function renderMcCharts() {
     const glossEdf = '<span class="gloss" tabindex="0">edf<span class="gloss-tip">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</span></span>';
     const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</span></span>';
     document.getElementById('mc-gam-stats').innerHTML =
-        'Logistic smooth: ' + glossEdf + ' = ' + st.edf +
+        'Logistic smooth of log(OMC + 1): ' + glossEdf + ' = ' + st.edf +
         ', χ² = ' + st.chi_sq +
         (pNote ? ', ' + pNote : '') +
         '; ' + glossR2 + ' = ' + st.r2 +
         '; N = ' + st.n_model.toLocaleString('en-GB') + ' (successful vs. failed)';
+}
+
+function mcSetAsideNote(d) {
+    const s = d && d.set_aside;
+    const el = document.getElementById('mc-set-aside');
+    if (!el) return;
+    const n = s ? (s.too_few_papers || 0) + (s.placeholder_record || 0) : 0;
+    el.style.display = n ? '' : 'none';
+    if (!n) return;
+    const pairs = k => `${k.toLocaleString('en-GB')} reference ${k === 1 ? 'pair' : 'pairs'}`;
+    const parts = [];
+    if (s.too_few_papers) parts.push(`${pairs(s.too_few_papers)} from journals with fewer than ${s.min_works} papers in total`);
+    if (s.placeholder_record) parts.push(`${pairs(s.placeholder_record)} from journals whose OpenAlex record counts a journal-level placeholder as a heavily cited paper`);
+    const why = [s.too_few_papers && 'an average over so few papers', s.placeholder_record && 'one inflated by a placeholder'].filter(Boolean).join(', or ');
+    el.textContent = `OMC is treated as missing for ${parts.join(', and ')}: ${why} is not a reliable measure.`;
 }
 
 async function loadMeanCitedness() {

@@ -114,8 +114,7 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         self.assertTrue(any(d[0]=='not_checked' for d in dims))
         with (ROOT/'data/flora_with_omc.csv').open(encoding='utf-8') as source:
             matched=[row for row in csv.DictReader(source) if 'replication' in row['type'].lower()
-                     and 'reproduc' not in row['type'].lower() and row['impact_factor']
-                     and float(row['impact_factor'])<35]
+                     and 'reproduc' not in row['type'].lower() and row['impact_factor']]
         matched_counts=Counter(c.replication_outcome(row) for row in matched)
         result=json.loads((ROOT/'data/impact_factor_data.json').read_text(encoding='utf-8'))
         self.assertEqual(result['overview']['n_total'],len(matched))
@@ -215,7 +214,73 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
             cache=Path(tmp)/'cache.json'
             cache.write_text(json.dumps({'brain':{'display_name':'Brain Research'},'missing':None}))
             with patch.object(omc,'CACHE_FILE',cache):
-                self.assertEqual(omc.load_cache(),{'missing':None})
+                self.assertEqual(omc.load_cache(),{'missing':{'id':None}})
+
+    def test_omc_set_aside_rules(self):
+        ok={'impact_factor':30.0,'works':200,'cited_by_count':6000}
+        self.assertEqual(omc.omc_status(ok,None),'ok')
+        self.assertEqual(omc.omc_status(None,None),'no_omc')
+        self.assertEqual(omc.omc_status({'impact_factor':None,'works':0,'cited_by_count':0},None),'no_omc')
+        self.assertEqual(omc.omc_status({'impact_factor':6.0,'works':11,'cited_by_count':66},None),'too_few_papers')
+        self.assertEqual(omc.omc_status(ok,[{'cited_by_count':1200}]),'placeholder_record')
+        self.assertEqual(omc.omc_status(ok,[{'cited_by_count':300}]),'ok')
+
+    def test_expired_matches_are_rechecked_oldest_first_within_the_cap(self):
+        now=omc.datetime(2026,11,13,tzinfo=omc.timezone.utc)
+        cache={f'journal {i}':{'id':f'S{i}','display_name':f'Journal {i}','checked':f'2025-01-{i % 28 + 1:02d}'} for i in range(80)}
+        cache['fresh']={'id':'S999','display_name':'Fresh','checked':'2026-11-01'}
+        due=omc.lookups_due(['Brand New']+[f'Journal {i}' for i in range(80)]+['Fresh'],cache,now)
+        self.assertEqual(due[0],'Brand New')
+        self.assertEqual(len(due),1+omc.MAX_RECHECKS_PER_RUN)
+        self.assertNotIn('Fresh',due)
+        checked=[cache[omc.normalize_name(j)]['checked'] for j in due[1:]]
+        self.assertEqual(checked,sorted(checked))
+
+    def test_placeholder_search_reads_every_page(self):
+        work=lambda n,src:{'id':f'W{n}','doi':None,'cited_by_count':150,'primary_location':{'source':{'id':src}}}
+        pages=[{'results':[work(1,'S1')],'meta':{'next_cursor':'abc'}},
+               {'results':[work(2,'S2')],'meta':{'next_cursor':'def'}},
+               {'results':[],'meta':{'next_cursor':None}}]
+        with patch.object(omc,'openalex_get',side_effect=pages) as get:
+            found=omc.fetch_placeholders(['S1','S2'])
+        self.assertEqual(sorted(found),['S1','S2'])
+        self.assertEqual([c.args[1]['cursor'] for c in get.call_args_list],['*','abc','def'])
+
+    def test_omc_jumps_flag_large_relative_changes_only(self):
+        jumps=omc.omc_jumps({'a':2.0,'b':2.0,'c':0.2,'d':0.0,'e':5.0},{'a':4.1,'b':3.0,'c':0.5,'d':3.0,'f':9.0})
+        self.assertEqual([j[0] for j in jumps],['a','d'])
+
+    def test_cache_keeps_only_the_journal_match(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache=Path(tmp)/'cache.json'
+            cache.write_text(json.dumps({'brain research':{'id':'S1','display_name':'Brain Research','impact_factor':9.0}}))
+            with patch.object(omc,'CACHE_FILE',cache):
+                self.assertEqual(omc.load_cache(),{'brain research':{'id':'S1','display_name':'Brain Research'}})
+
+    def test_cache_entries_expire_by_kind(self):
+        now=omc.datetime(2026,11,13,tzinfo=omc.timezone.utc)
+        match=lambda d:{'id':'S1','display_name':'Brain Research','checked':d}
+        self.assertTrue(omc.cache_entry_fresh('brain research',match('2026-09-01'),now))
+        self.assertFalse(omc.cache_entry_fresh('brain research',match('2026-08-01'),now))
+        self.assertTrue(omc.cache_entry_fresh('unknown',{'id':None,'checked':'2026-10-20'},now))
+        self.assertFalse(omc.cache_entry_fresh('unknown',{'id':None,'checked':'2026-10-01'},now))
+        self.assertFalse(omc.cache_entry_fresh('brain research',{'id':'S1','display_name':'Brain Research'},now))
+        self.assertFalse(omc.cache_entry_fresh('unknown',None,now))
+
+    def test_failed_refresh_keeps_the_expired_match(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)
+            source=folder/'flora.csv'; source.write_text('journal_o\nBrain Research\n')
+            stale={'brain research':{'id':'S1','display_name':'Brain Research','checked':'2020-01-01'}}
+            with patch.object(omc,'IN_CSV',source), patch.object(omc,'OUT_CSV',folder/'out.csv'), \
+                 patch.object(omc,'DATA_DIR',folder), patch.object(omc,'ROOT',folder), patch.object(omc,'load_cache',return_value=dict(stale)), \
+                 patch.object(omc,'save_cache') as save, patch.object(omc,'lookup_venue',return_value=None), \
+                 patch.object(omc,'fetch_source_stats',return_value={'S1':{'impact_factor':3.0,'works':50,'cited_by_count':150}}), \
+                 patch.object(omc,'fetch_placeholders',return_value={}), \
+                 patch.object(omc,'compute_reproduction_impact_stats'):
+                omc.main()
+            self.assertEqual(save.call_args[0][0],stale)
+            self.assertIn('S1,Brain Research,3.0000,50,ok',(folder/'out.csv').read_text())
 
     def test_enrichment_budget_preserves_outputs_and_saves_cache(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -301,10 +366,23 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
     def test_mean_citedness_counts_reconcile_with_enriched_csv(self):
         with (ROOT/'data/flora_with_omc.csv').open() as source:
             rows=list(csv.DictReader(source))
-        eligible=[r for r in rows if r.get('impact_factor') and float(r['impact_factor'])<35]
-        rep=[r for r in eligible if 'replication' in r['type'].lower() and 'reproduc' not in r['type'].lower()]
+        eligible=[r for r in rows if r.get('impact_factor')]
         result=json.loads((ROOT/'data/impact_factor_data.json').read_text())
+        rep=[r for r in eligible if 'replication' in r['type'].lower() and 'reproduc' not in r['type'].lower()]
         self.assertEqual(result['overview']['n_total'],len(rep))
+        meta=json.loads((ROOT/'data/flora_with_omc_meta.json').read_text())
+        for r in rows:
+            if r['impact_factor']:
+                self.assertEqual(r['omc_status'],'ok')
+                self.assertGreaterEqual(int(r['omc_works']),meta['min_works'])
+        for key in ['too_few_papers','placeholder_record']:
+            self.assertEqual(result['set_aside'][key],sum(r['omc_status']==key for r in rows
+                             if 'replication' in r['type'].lower() and 'reproduc' not in r['type'].lower()))
+        curve=result['curve']
+        self.assertLessEqual(max(p['omc'] for p in result['gam_curve']),curve['end_omc']+0.01)
+        # end_omc is rounded to 2 decimals and points to 3, so pairs at the cut can differ by rounding.
+        beyond=[p for p in result['jitter'] if p['omc']>curve['end_omc']+0.01]
+        self.assertEqual(len(beyond),curve['n_beyond'])
         reproductions=json.loads((ROOT/'data/impact_factor_reproductions.json').read_text())
         repro=[c.reproduction_dimensions(r) for r in eligible if 'reproduc' in r['type'].lower()]
         for index,kind,buckets in [(0,'reproduction-numerical',{'successful','issues','technical_failure'}),(1,'reproduction-robustness',{'robust','challenges'})]:

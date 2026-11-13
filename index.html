@@ -283,7 +283,8 @@
                                         study's data and methods. They are coded on two dimensions:</p>
                                     <ul>
                                         <li><strong>Computational reproducibility</strong>: were the original results
-                                            obtained? (Computationally reproducible, Computational issues, or Technical failure)</li>
+                                            obtained? (Computationally reproducible, Computational issues, or Technical
+                                            failure)</li>
                                         <li><strong>Robustness</strong>: do results hold under reasonable alternative
                                             specifications? (Robust or Robustness challenges)</li>
                                     </ul>
@@ -553,7 +554,8 @@
                             <button type="button" class="trend-filter-btn browse-kind-btn"
                                 data-kind="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
                             <button type="button" class="trend-filter-btn browse-kind-btn"
-                                data-kind="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
+                                data-kind="reproduction-robustness" aria-pressed="false">Robustness
+                                reproductions</button>
                             <span class="trend-filter-count" id="browse-kind-count"></span>
                         </div>
                         <p id="browse-chart-hint" class="study-type-note">Choose a study type to see its outcome
@@ -677,9 +679,11 @@
                                 <div id="browse-mobile-meta" class="browse-mobile-meta" role="status"></div>
                                 <div id="browse-mobile-list" class="browse-mobile-list"></div>
                                 <div class="browse-mobile-pager" id="browse-mobile-pager">
-                                    <button class="bm-page-btn" id="bm-prev" type="button" aria-label="Previous page">‹ Prev</button>
+                                    <button class="bm-page-btn" id="bm-prev" type="button" aria-label="Previous page">‹
+                                        Prev</button>
                                     <span class="bm-page-info" id="bm-page-info" aria-current="page"></span>
-                                    <button class="bm-page-btn" id="bm-next" type="button" aria-label="Next page">Next ›</button>
+                                    <button class="bm-page-btn" id="bm-next" type="button" aria-label="Next page">Next
+                                        ›</button>
                                 </div>
                             </div>
                         </div>
@@ -891,8 +895,10 @@
                             <span class="filter-label">Study type:</span>
                             <button class="chip active" data-value="replication"
                                 aria-pressed="true">Replications</button>
-                            <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
-                            <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
+                            <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
+                                reproductions</button>
+                            <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness
+                                reproductions</button>
                         </div>
                         <div class="study-type-note">Numerical and robustness reproductions show descriptive citation
                             counts. No reproduction event-study model is fitted.</div>
@@ -1125,11 +1131,13 @@
                                     data-kind-text="presents a statistical analysis of whether|describes, without a fitted model, how computational verdicts vary with|describes, without a fitted model, how robustness verdicts vary with">presents
                                     a statistical analysis of whether</span> the
                                 <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal<span
-                                    data-kind-text=" predicts replication success||"> predicts replication
-                                    success</span>. OMC is a proxy for the Journal Impact Factor.
-                                Mean Citedness is a journal-level measure from OpenAlex: the mean citations to its works
-                                published in the previous two years. It is retrieved at enrichment time, not matched to
-                                the original publication year, and is not the original article’s citation count. The
+                                    data-kind-text=" is associated with replication success||"> is associated with
+                                    replication success</span>.
+                                Mean Citedness is a journal-level measure from OpenAlex: the journal's total citations
+                                divided by its total papers, across all years. Unlike the two-year Journal Impact
+                                Factor, it reflects a journal's long-run citation level, and it favours journals whose
+                                papers have had longer to collect citations. It is retrieved at enrichment time, not
+                                matched to the original publication year, and is not the original article’s citation count. The
                                 update stamp identifies the analysis snapshot. Any fitted model describes an
                                 association.
                             </p>
@@ -1138,13 +1146,15 @@
                                 <span class="filter-label">Study type:</span>
                                 <button class="chip active" data-value="replication"
                                     aria-pressed="true">Replications</button>
-                                <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                                <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
+                                    reproductions</button>
                                 <button class="chip" data-value="reproduction-robustness"
                                     aria-pressed="false">Robustness reproductions</button>
                             </div>
                             <div class="study-type-note">Reproduction summaries include only pairs with a verdict on the
-                                selected dimension and an available OMC below 35. Unchecked and uncoded dimensions are
+                                selected dimension and an available OMC. Unchecked and uncoded dimensions are
                                 excluded; the two subsets can overlap.</div>
+                            <p id="mc-set-aside" class="study-type-note" style="display:none;"></p>
                             <div id="mc-placeholder" class="coming-soon-placeholder" style="display:none;">Not computed
                                 yet for this study type — coming soon.</div>
                             <div id="mc-content">
@@ -1166,9 +1176,13 @@
                                     <div class="mc-chart-wrap">
                                         <div id="mc-gam-chart"></div>
                                     </div>
-                                    <p class="mc-model-note" style="margin-top:0.6rem;">Conditional on unqualified
-                                        successful or failed outcomes; other outcomes are excluded. Association does not
-                                        establish causation.</p>
+                                    <p class="mc-model-note" style="margin-top:0.6rem;">The data underlying the graph
+                                        include all records from the FLORA database with complete information, particularly
+                                        a lifetime Mean Citedness for the journal in which the original study was
+                                        published, and a clearly successful or
+                                        unsuccessful replication outcome (i.e., replications with mixed outcomes were
+                                        excluded). The shaded band shows the 95% confidence interval for the
+                                        estimated probability of success.</p>
                                 </div>
                                 <div id="mc-error" class="note" style="display:none;">
                                     Failed to load analysis data.
@@ -1215,7 +1229,8 @@
                                 <span class="filter-label">Study type:</span>
                                 <button class="chip active" data-value="replication"
                                     aria-pressed="true">Replications</button>
-                                <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
+                                <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
+                                    reproductions</button>
                                 <button class="chip" data-value="reproduction-robustness"
                                     aria-pressed="false">Robustness reproductions</button>
                             </div>
@@ -1276,8 +1291,10 @@
                         aria-label="Publication Type study type (all three comparisons)">
                         <span class="filter-label">Study type:</span>
                         <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
-                        <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
-                        <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness reproductions</button>
+                        <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
+                            reproductions</button>
+                        <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness
+                            reproductions</button>
                     </div>
                     <div class="study-type-note">This filter applies to all three analyses below. It is computed for all
                         three study types; reproduction results may show a low-data message given how few reproductions
@@ -1289,7 +1306,14 @@
                         <h2 class="card-header">Recorded publication venue</h2>
                         <div class="card-body">
                             <p style="margin-bottom:0.75rem;">
-                                Venues are grouped mainly from the recorded venue name: repositories/preprints, conference outputs, and theses where recognisable. Where no venue name is recorded, the report’s DOI or URL is used instead: a pair whose identifier points to a repository (for example OSF, PsyArXiv or bioRxiv) is grouped as repository / preprint, and all other pairs without a venue name remain unknown. A name containing “proceedings” counts as a conference output only when it refers to a specific event (for example a numbered edition or a symposium); journals such as PNAS do not. All other names are labelled “other named
+                                Venues are grouped mainly from the recorded venue name: repositories/preprints,
+                                conference outputs, and theses where recognisable. Where no venue name is recorded, the
+                                report’s DOI or URL is used instead: a pair whose identifier points to a repository (for
+                                example OSF, PsyArXiv or bioRxiv) is grouped as repository / preprint, and all other
+                                pairs without a venue name remain unknown. A name containing “proceedings” counts as a
+                                conference output only when it refers to a specific event (for example a numbered
+                                edition or a symposium); journals such as PNAS do not. All other names are labelled
+                                “other named
                                 venue”; this does not verify a journal article or peer review. Chart percentages use all
                                 selected reference pairs within each venue group; summary-card percentages use all
                                 selected reference pairs.
