@@ -136,8 +136,9 @@ window.FloraCharts = (() => {
         const rows = labels.map((label,i) => [label,...datasets.map(d=>d.data[i] ?? 0)]);
         const total = datasets.reduce((n,d)=>n+d.data.reduce((sum,v)=>sum+(Number(v)||0),0),0);
         const isOutcome = /outcome|computational|robustness/.test(el.id);
-        const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : el.id.startsWith("browse-") ? getChartData().length : fullRowData.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
-        const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success, descriptive, uninformative, missing and unrecognised outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
+        const ofKind = rows => rows.filter(r => classifyKind(r) === (/computational|robustness/.test(el.id) ? "reproduction" : "replication")).length;
+        const eligible = el.id.startsWith("trend-") ? trendsFilteredData().length : ofKind(el.id.startsWith("browse-") ? getChartData() : fullRowData);
+        const sample = `Included in the plot: ${number(total)} of ${number(eligible)} reference ${eligible === 1 ? 'pair' : 'pairs'}; excluded from this selection: ${number(Math.max(0,eligible-total))} reference ${eligible-total === 1 ? 'pair' : 'pairs'}. ` + (isOutcome ? `${total ? '' : 'No matching assessed outcomes. '}${/computational|robustness/.test(el.id) ? 'Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.' : 'All replication outcomes are included; qualified success, descriptive, uninformative, missing and unrecognised outcomes are separate.'}` : 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.');
         table(el,rows,['Category',...datasets.map(d=>d.label)],sample);
         if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = !config.options.indexAxis || config.options.indexAxis !== 'y';
         if (config.options.plugins?.legend) {
@@ -151,6 +152,7 @@ window.FloraCharts = (() => {
     }
     // options.table = {headers, rows, summary} replaces the generic per-trace table, for
     // charts whose plotted traces (interval bands, jittered points) are not the data.
+    // options.coverage is the chart's "N of M; excluded" sentence, put before every summary.
     function plot(target, traces, layout = {}, config = {}, options = {}) {
         const el = typeof target === 'string' ? document.getElementById(target) : target;
         if (!el) return Promise.resolve();
@@ -178,7 +180,7 @@ window.FloraCharts = (() => {
         const counts = modes.get(id) === 'count';
         let summary = 'Values below include every plotted series; interval limits are shown where available.';
         if (comparisonIds.has(id)) {
-            originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config]);
+            originals.set(id, [traces,{...layout,xaxis:{...layout.xaxis},yaxis:{...layout.yaxis}},config,options]);
             const nGroups = traces[0]?.x?.length || 0;
             const totals = Array.from({length:nGroups}, (_,i)=>traces.reduce((sum,t)=>sum+(Number(t.y?.[i])||0),0));
             display = display.map(t=>({...t, x:t.x.map((v,i)=>plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '')+`<br>N=${number(totals[i])}`),
@@ -233,6 +235,7 @@ window.FloraCharts = (() => {
         config = {...config,scrollZoom:false,doubleClick:false};
         // Initial loading messages are not Plotly-owned nodes and otherwise survive react().
         if (!el.data) el.replaceChildren();
+        if (options.coverage) summary = options.coverage + ' ' + summary;
         const title = layout.title ? plain(layout.title.text || layout.title) : visibleTitle(el);
         el.setAttribute('role','img');el.setAttribute('aria-label',title+'. Values in the following data table.');
         if (comparisonIds.has(id)) {
@@ -246,7 +249,7 @@ window.FloraCharts = (() => {
             return Plotly.react(el, display, layout, config);
         }
         if (options.table) {
-            table(el, options.table.rows, options.table.headers, options.table.summary);
+            table(el, options.table.rows, options.table.headers, [options.coverage, options.table.summary].filter(Boolean).join(' '));
             return Plotly.react(el, display, layout, config);
         }
         const rows=[];

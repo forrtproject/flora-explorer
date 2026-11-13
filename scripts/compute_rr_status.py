@@ -164,6 +164,22 @@ def _clean(v):
     return None if pd.isna(v) else v
 
 
+def report_key(row) -> str:
+    """One repetition report: DOI, else URL, else title. Must match reportKey() in assets/app.js."""
+    doi = normalize_doi(row.get("doi_r"))
+    if doi:
+        return "doi:" + doi
+    url = row.get("url_r")
+    if isinstance(url, str) and url.strip():
+        return "url:" + url.strip().lower()
+    title = normalize_title(row.get("title_r"))
+    return "title:" + title if title else ""
+
+
+def n_distinct_reports(df: pd.DataFrame) -> int:
+    return len({k for k in df.apply(report_key, axis=1)} - {""}) if len(df) else 0
+
+
 
 # Rows without an actual verdict on a dimension ("not checked"/uncoded) are dropped from
 # that dimension entirely rather than kept as their own bucket - they say nothing about it.
@@ -207,6 +223,8 @@ def compute_rr_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) ->
             "n_rr": n_rr,
             "n_non_rr": n_non_rr,
             "n_unknown": n_unknown,
+            "n_rr_reports": n_distinct_reports(known[known["is_rr"] == True]),
+            "n_non_rr_reports": n_distinct_reports(known[known["is_rr"] == False]),
             "pct_rr": round(100 * n_rr / n_total, 1) if n_total else 0,
             "pct_non_rr": round(100 * n_non_rr / n_total, 1) if n_total else 0,
         },
@@ -272,7 +290,8 @@ def main(argv=()):
         # Reproduction totals depend on outcome bucketing, so only replication totals must match exactly.
         new_dois, new_titles = cached_matches(result)
         old_dois, old_titles = cached_matches(previous)
-        if (result['replication']['overview'] != previous['replication']['overview']
+        pair_counts = lambda r: {k: r['replication']['overview'][k] for k in ('n_total', 'n_rr', 'n_non_rr', 'n_unknown')}
+        if (pair_counts(result) != pair_counts(previous)
                 or not new_dois <= old_dois or not new_titles <= old_titles):
             raise ValueError('Cached matches changed RR coverage; retaining previous outputs')
     OUT_DATA.write_text(json.dumps(result), encoding="utf-8")

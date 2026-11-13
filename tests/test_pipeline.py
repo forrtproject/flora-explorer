@@ -140,6 +140,19 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         for result in snapshot.values():
             self.assertEqual(sum(sum(group.values()) for group in result['by_outcome'].values()),result['overview']['n_total'])
 
+    def test_rr_counts_distinct_reports_beside_pairs(self):
+        frame=pd.DataFrame([
+            {'doi_r':'https://doi.org/10.1/A','url_r':None,'title_r':'Many targets','bucket':'successful'},
+            {'doi_r':'10.1/a','url_r':None,'title_r':'Many targets','bucket':'failed'},
+            {'doi_r':None,'url_r':'https://osf.io/x','title_r':'Preprint','bucket':'failed'},
+            {'doi_r':None,'url_r':None,'title_r':'Préprint, no link','bucket':'mixed'},
+            {'doi_r':None,'url_r':None,'title_r':'Préprint no link','bucket':'mixed'},
+        ])
+        with patch.object(rr,'rr_dois',{'10.1/a'},create=True), patch.object(rr,'rr_titles',{'preprint','preprintnolink'},create=True):
+            ov=rr.compute_rr_result(frame,'bucket',c.REPLICATION_OUTCOMES)['overview']
+        self.assertEqual((ov['n_rr'],ov['n_rr_reports']),(5,3))
+        self.assertEqual(ov['n_non_rr_reports'],0)
+
     def test_venue_evidence_does_not_infer_peer_review(self):
         self.assertEqual(c.classify_venue(None),'unknown')
         self.assertEqual(c.classify_venue(float('nan')),'unknown')

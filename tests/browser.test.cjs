@@ -159,7 +159,8 @@ test('shared citation outcome filters restore before asynchronous loading finish
   const p=await page('?tab=citations&ci-outcome=failed');
   await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length>0);
   const expected=Math.max(...JSON.parse(fs.readFileSync('data/aggregate.json')).failed.descriptive.n_units).toLocaleString('en-GB');
-  assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} originals`));
+  const failedOriginals=JSON.parse(fs.readFileSync('data/originals_index.json')).filter(s=>s.first_replication_outcome==='failed').length.toLocaleString('en-GB');
+  assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} of ${failedOriginals} originals `));
   assert.equal(await p.locator('#outcome-chips [data-value="failed"]').getAttribute('aria-pressed'),'true');
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -940,7 +941,7 @@ test('citation counts use the same grouping under a non-English browser locale',
     assert.match(await row.locator('td').nth(4).locator('span[title]').getAttribute('title'),/1,234 of 5,678/);
     assert.equal(await row.locator('.rep-count').textContent(),'1,234');
     assert.match(await row.locator('.rep-bar-wrap').getAttribute('title'),/1,234 Successful/);
-    assert.match(await p.locator('#plot-cit-sample').textContent(),/^Sample size: 1,234 originals /);
+    assert.match(await p.locator('#plot-cit-sample').textContent(),/^Sample size: 1,234 of [\d,]+ originals /);
     const meta=JSON.parse(fs.readFileSync('data/meta.json'));
     assert.equal(await p.locator('#kpis .kpi-value').first().textContent(),meta.n_originals.toLocaleString('en-GB'));
     const breakdown=JSON.parse(fs.readFileSync('data/cocit_breakdown.json'));
@@ -1465,5 +1466,51 @@ test('citation charts drawn before the main CSV loads re-fit their axes once sho
   await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
   await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')._fullLayout.yaxis;const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
     return axis.range[1]>0.2&&axis.range[1]<0.5&&labels.some(v=>v>0&&v<1);},null,{timeout:5000});
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('analysis charts show N of M with exclusions and distinct report counts beside pair counts',async()=>{
+  const model=JSON.parse(fs.readFileSync('data/impact_factor_data.json'));
+  const rrData=JSON.parse(fs.readFileSync('data/rr_status_data.json')).replication;
+  const n=v=>v.toLocaleString('en-GB');
+  const p=await page('?tab=overview');
+  const distinct=await p.evaluate(()=>distinctReportCounts(fullRowData.filter(r=>classifyKind(r)==='replication')));
+  assert.ok(distinct.reports>0&&distinct.reports<Number((await p.locator('#ov-replications').textContent()).replace(/,/g,'')));
+  assert.match(await p.locator('#ov-replications-distinct').textContent(),new RegExp(`^${n(distinct.reports)} distinct repetition reports · ${n(distinct.originals)} distinct original DOIs`));
+  await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-journal'));
+  for(const id of ['trend-orig-year-n','trend-rep-year-n','trend-journal-n','trend-rep-journal-n','trend-field-n'])
+    assert.match(await p.locator('#'+id).textContent(),/^[\d,]+ of [\d,]+ reference pairs shown; (excluded: .+|none excluded)\.$/,id);
+  assert.match(await p.locator('#trend-journal-n').textContent(),/outside the top 15 journals/);
+  await p.click('#mc-tab');await p.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
+  const ov=model.overview;
+  assert.match(await p.locator('#mc-eligible').textContent(),new RegExp(`^Included in the plot: ${n(ov.n_total)} of ${n(ov.n_input)} replication reference pairs; excluded: ${n(ov.n_excluded)} without an OMC`));
+  const stats=(await p.locator('#mc-gam-stats').textContent()).replace(/\s+/g,' ');
+  assert.ok(stats.includes(`N = ${n(model.stats.n_model)} of ${n(ov.n_total)} reference pairs with OMC`));
+  assert.ok(stats.includes(`mixed ${n(ov.n_mixed)}`));
+  assert.ok(stats.includes(`χ² = ${Number(model.stats.chi_sq).toLocaleString('en-GB',{maximumSignificantDigits:2})}`));
+  assert.ok(!stats.includes(String(model.stats.chi_sq)),'full precision stays out of the visible note');
+  await p.click('#pub-tab');await p.waitForSelector('#rr-chart-data');
+  assert.match(await p.locator('#rr-overview').textContent(),new RegExp(`pairs from ${n(rrData.overview.n_rr_reports)} distinct reports`));
+  assert.equal(await p.locator('#rr-studies-table tbody tr').count(),rrData.overview.n_rr_reports);
+  assert.equal(await p.locator('#rr-studies-count').textContent(),`(${n(rrData.overview.n_rr)} reference pairs from ${n(rrData.overview.n_rr_reports)} reports)`);
+  assert.ok(await p.locator('#rr-snapshot-note').isHidden());
+  await p.evaluate(()=>{window._pubData.replication.overview.n_total+=37;renderPubTypeSnapshotNote();});
+  assert.match(await p.locator('#rr-snapshot-note').textContent(),/refreshed from different FLoRA snapshots/);
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+test('every chart states N of M in its chart data',async()=>{
+  const p=await page('?tab=overview');
+  const nOfM=/Included in the plot: [\d,]+ of [\d,]+ [a-z ]+; (excluded( from this selection)?: .+|none excluded)\./;
+  const seen=new Set();
+  for(const tab of [null,'browse-tab','trends-tab','citation-tab','mc-tab','overlap-tab','pub-tab']){
+    if(tab){await p.click('#'+tab);await p.waitForTimeout(2000);}
+    for(const [id,summary] of await p.evaluate(()=>[...document.querySelectorAll('.chart-data')].map(d=>[d.id,d.querySelector('.chart-summary').textContent])))
+      if(!seen.has(id)){seen.add(id);assert.match(summary,nOfM,id);}
+  }
+  for(const id of ['overview-outcome-chart-data','browse-outcome-chart-data','trend-journal-data','plot-cit-data','plot-cocit-data','mc-dist-chart-data','mc-gam-chart-data','ao-chart-data','pub-chart-data','rr-chart-data','ls-chart-data']) assert.ok(seen.has(id),id);
+  for(const id of ['ao-chart-n','pub-chart-n','rr-chart-n','ls-chart-n']) assert.match(await p.locator('#'+id).textContent(),nOfM,id);
+  // Browse charts count only their own study type, as on Overview.
+  const [plotted,reproductions]=await p.evaluate(()=>[computeKindChartData(getChartData(),'computational').total,getChartData().filter(r=>classifyKind(r)==='reproduction').length]);
+  assert.ok(plotted<reproductions&&reproductions<await p.evaluate(()=>getChartData().length));
+  assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
   assert.deepEqual(p.errors,[]);await p.close();
 });

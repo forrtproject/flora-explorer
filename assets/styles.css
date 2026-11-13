@@ -169,6 +169,8 @@ h1, .serif, .card-header, .stats-card .number,
 .stats-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px var(--color-shadow-hover); border-color: var(--color-primary-border); }
 .stats-card .number { font-size: 2.35rem; font-weight: 700; color: var(--color-primary); line-height: 1.1; }
 .stats-card .label { color: var(--color-muted-fg); font-size: 0.78rem; font-weight: 600; margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-body); }
+.stats-card .distinct { color: var(--color-muted-fg); font-size: 0.78rem; margin-top: 0.4rem; line-height: 1.35; }
+.mc-stat-sub { display: block; font-size: 0.75rem; color: var(--color-muted-fg); margin-top: 0.2rem; }
 
 /* Badges */
 .badge { font-weight: 500; padding: 0.4em 0.7em; border-radius: 4px; font-size: 0.78rem; letter-spacing: 0.02em; }
@@ -636,6 +638,7 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .table-scroll table {border-collapse:collapse;width:100%;font-size:.85rem;}
 .table-scroll th,.table-scroll td {padding:.45rem;text-align:left;border-bottom:1px solid var(--color-border);white-space:normal;}
 .table-scroll caption {caption-side:top;color:var(--color-text);}
+.table-scroll thead th {position:sticky;top:0;z-index:1;background:var(--color-surface-raised);box-shadow:inset 0 -1px 0 var(--color-border);}
 .chart-data .table-scroll th {text-transform:none;}
 .badge {white-space:normal;line-height:1.4;text-transform:none;}
 .badge-successful,.outcome-badge.successful {background:var(--color-badge-successful)!important;color:var(--color-badge-on-outcome)!important;}
