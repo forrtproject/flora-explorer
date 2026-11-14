@@ -40,24 +40,32 @@ const merge = (base, over) => {
     return out;
 };
 
+// Only the outer ends of a stack are rounded, so a stacked bar reads as one shape.
+function stackRadius(ctx) {
+    const {chart, datasetIndex, dataIndex} = ctx;
+    const filled = chart.data.datasets.map((d, i) => Number(d.data[dataIndex]) > 0 ? i : -1).filter(i => i >= 0);
+    const first = datasetIndex === filled[0], last = datasetIndex === filled[filled.length - 1];
+    if (chart.options.indexAxis === 'y') return {topLeft: first ? 5 : 0, bottomLeft: first ? 5 : 0, topRight: last ? 5 : 0, bottomRight: last ? 5 : 0};
+    return {topLeft: last ? 3 : 0, topRight: last ? 3 : 0, bottomLeft: 0, bottomRight: 0};
+}
+
 // The one look every Chart.js bar chart shares; a chart's own config only adds what differs.
 function barStyle(config) {
     const t = chartTheme();
     const horizontal = config.options?.indexAxis === 'y';
     const compact = window.matchMedia('(max-width: 767px)').matches;
-    const axis = {border: {display: false}, grid: {color: t.grid}, ticks: {color: t.tick, font: {size: 11}}};
+    const ticks = {color: t.tick, font: {size: 11}, padding: 8};
+    const category = {border: {display: false}, grid: {display: false}, ticks: {...ticks, maxRotation: 0, autoSkipPadding: 16}};
+    const value = {border: {display: false}, grid: {color: t.grid, drawTicks: false}, ticks: {...ticks, maxTicksLimit: 6}};
     return merge({
         responsive: true, maintainAspectRatio: false,
         // A hairline in the surface colour separates stacked segments without an outline.
-        datasets: {bar: {borderRadius: 3, borderWidth: 1, borderColor: t.paper, borderSkipped: false, maxBarThickness: 48}},
+        datasets: {bar: {borderRadius: stackRadius, borderSkipped: false, borderWidth: 1, borderColor: t.paper, maxBarThickness: horizontal ? 16 : 26, categoryPercentage: .86, barPercentage: .92}},
         plugins: {
-            legend: {display: true, position: 'bottom', labels: {color: t.font, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: compact ? 10 : 16, font: {size: compact ? 11 : 12}}},
+            legend: {display: true, position: 'top', align: 'start', labels: {color: t.tick, usePointStyle: true, pointStyle: 'circle', boxWidth: 7, boxHeight: 7, padding: compact ? 10 : 16, font: {size: compact ? 11 : 12}}},
             tooltip: {backgroundColor: '#2c2c2c', titleColor: '#fff', bodyColor: '#fff', padding: 10, cornerRadius: 8, boxPadding: 4, usePointStyle: true, titleFont: {weight: 600}},
         },
-        scales: {
-            x: {...axis, stacked: true, grid: {color: t.grid, display: horizontal}},
-            y: {...axis, stacked: true, grid: {color: t.grid, display: !horizontal}},
-        },
+        scales: {x: {...(horizontal ? value : category), stacked: true}, y: {...(horizontal ? category : value), stacked: true}},
     }, config.options);
 }
 
@@ -88,18 +96,30 @@ export function barSummary(total, eligible, scope) {
     return sample + 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.';
 }
 
-// The one look every Plotly chart shares: surface, type, quiet grid, rounded bars and a dark hover label.
+// The one look every Plotly chart shares: surface, type, a quiet value grid and a dark hover label.
 function plotStyle(layout = {}) {
     const t = chartTheme();
-    const axis = {gridcolor: t.grid, zerolinecolor: t.grid, linecolor: t.grid, color: t.font, tickfont: {color: t.tick, size: 11}};
+    const axis = {gridcolor: t.grid, zeroline: false, showline: false, ticks: '', color: t.tick, tickfont: {color: t.tick, size: 11}, title: {font: {color: t.tick, size: 12}}};
     const base = {
-        paper_bgcolor: t.paper, plot_bgcolor: t.plot, barcornerradius: 3, bargap: 0.28,
+        paper_bgcolor: t.paper, plot_bgcolor: t.plot, barcornerradius: 4, bargap: 0.35,
         font: {family: t.fontFamily, size: 12, color: t.font},
-        legend: {orientation: 'h', font: {color: t.font, size: 12}},
+        legend: {orientation: 'h', font: {color: t.tick, size: 12}, itemsizing: 'constant'},
         hoverlabel: {bgcolor: '#2c2c2c', bordercolor: '#2c2c2c', font: {family: t.fontFamily, size: 12, color: '#fff'}},
     };
-    for (const key of ['xaxis', 'yaxis', ...Object.keys(layout).filter(k => /^[xy]axis\d+$/.test(k))]) if (layout[key]) base[key] = axis;
+    for (const key of ['xaxis', 'yaxis', ...Object.keys(layout).filter(k => /^[xy]axis\d+$/.test(k))]) {
+        if (!layout[key]) continue;
+        const own = typeof layout[key].title === 'string' ? {...layout[key], title: {text: layout[key].title}} : layout[key];
+        base[key] = axis; layout = {...layout, [key]: own};
+    }
     return merge(base, layout);
+}
+
+// Dark text on light fills and white on dark ones, for labels drawn inside a bar.
+function labelColor(fill) {
+    const hex = /^#([0-9a-f]{6})$/i.exec(String(fill).trim());
+    if (!hex) return '#fff';
+    const [r, g, b] = [0, 2, 4].map(i => parseInt(hex[1].slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+    return .2126 * r + .7152 * g + .0722 * b > .32 ? '#1f1a1d' : '#fff';
 }
 
 const COMPARISON_SUMMARY = 'Denominator: all reference pairs in each group with the metadata required by this analysis. All recorded outcome categories and missing outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
@@ -111,7 +131,9 @@ export function preparePlot(id, spec, {comparison = false, counts = false, fallb
     const narrow = window.innerWidth < 600;
     let layout = plotStyle(spec.layout);
     let config = {displayModeBar: false, responsive: true, ...spec.config};
-    let display = traces.map(t => ({...t, showlegend: t.type === 'bar' && !(t.y || []).some(value => Number(value) > 0) ? false : t.showlegend}));
+    const paper = chartTheme().paper;
+    // A hairline in the surface colour separates bars and stacked segments.
+    let display = traces.map(t => ({...t, ...(t.type === 'bar' ? {marker: {line: {color: paper, width: 1}, ...t.marker}} : {}), showlegend: t.type === 'bar' && !(t.y || []).some(value => Number(value) > 0) ? false : t.showlegend}));
     layout = {...layout, autosize: true, legend: {...layout.legend, traceorder: 'normal'}};
     for (const key of Object.keys(layout).filter(k => /^[xy]axis\d*$/.test(k))) {
         const axis = layout[key], title = typeof axis.title === 'string' ? {text: axis.title} : axis.title;
@@ -126,8 +148,12 @@ export function preparePlot(id, spec, {comparison = false, counts = false, fallb
             x: t.x.map((v, i) => plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '') + `<br>N=${number(totals[i])}`),
             y: t.y.map((v, i) => counts ? v : totals[i] ? 100 * v / totals[i] : 0),
             customdata: t.y.map((v, i) => [v, totals[i], escape(percent(v, totals[i], 1))]),
+            // Shares large enough to hold a label are written on the segment itself.
+            text: t.y.map((v, i) => !counts && totals[i] && 100 * v / totals[i] >= 7 ? Math.round(100 * v / totals[i]) + '%' : ''),
+            textposition: 'inside', insidetextanchor: 'middle', textangle: 0, cliponaxis: false, textfont: {color: labelColor(t.marker?.color), size: 11},
             hovertemplate: counts ? '%{x}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>' : '%{x}<br>%{customdata[2]}% (%{customdata[0]:,.0f} pairs)<extra>%{fullData.name}</extra>'}));
         layout.barmode = counts ? 'group' : 'stack';
+        layout.bargap = counts ? 0.3 : nGroups <= 2 ? 0.62 : nGroups <= 3 ? 0.52 : 0.42;
         layout.xaxis = {...layout.xaxis, tickangle: 0};
         const maxCount = Math.max(0, ...traces.flatMap(t => t.y));
         layout.yaxis = {...layout.yaxis, title: {text: counts ? 'Reference pairs' : 'Within-group percentage', standoff: 12}, ...(counts ? countAxis(maxCount) : {tickformat: '.0f', dtick: undefined}), range: counts ? undefined : [0, 100]};

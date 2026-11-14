@@ -86,7 +86,9 @@ export function outcomeBarConfig(datasets, total, categoryLabel) {
         options: {
             indexAxis: 'y',
             plugins: {tooltip: {callbacks: {label: ctx => `${ctx.dataset.label}: ${ctx.parsed.x.toLocaleString()} (${percent(ctx.parsed.x, total, 1)}%)`}}},
-            scales: {x: {stacked: true, min: 0, max: Math.max(total, 1)}, y: {stacked: true, display: false}},
+            // A proportion bar: its caption states the counts, so it carries no axis.
+            scales: {x: {display: false, min: 0, max: Math.max(total, 1)}, y: {display: false}},
+            datasets: {bar: {maxBarThickness: 18}},
         },
     };
 }

@@ -129,7 +129,7 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .figure-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 .figure > .disclosure { margin-top: var(--space-3); }
 .chart-box { position: relative; width: 100%; height: 400px; }
-.chart-container-stack { height: 96px; }
+.chart-container-stack { height: 76px; }
 .plot { min-height: 380px; }
 .plot-message { display: grid; place-items: center; min-height: 160px; padding: var(--space-5); color: var(--color-text-secondary); text-align: center; }
 
@@ -236,8 +236,8 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .badge { display: inline-block; padding: .25em .7em; border-radius: var(--r); font-size: var(--fs-3); font-weight: 600; line-height: 1.35; letter-spacing: .01em; text-align: left; }
 .badge-successful, .outcome-badge.successful { background: var(--color-badge-successful); color: var(--color-badge-on-outcome); }
 .badge-failed, .outcome-badge.failed { background: var(--color-chart-failed); color: var(--color-badge-on-outcome); }
-.badge-mixed, .outcome-badge.mixed { background: #d49b1d; color: #201800; }
-.badge-qualified { background: #684491; color: #fff; }
+.badge-mixed, .outcome-badge.mixed { background: var(--color-chart-mixed); color: #201800; }
+.badge-qualified { background: #6a5196; color: #fff; }
 .badge-technical-failure { background: var(--color-chart-technical-failure); color: var(--color-badge-on-outcome); }
 .badge-other, .badge-unknown, .badge-inconclusive { background: #626875; color: #fff; }
 .badge-type, .bm-tag-type { display: inline-block; padding: .2em .65em; border: 1px solid var(--color-border); border-radius: var(--r-full); font-size: var(--fs-3); color: var(--color-text-secondary); }
@@ -519,7 +519,7 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
     .outcome-definitions:not([data-panel="robustness"]) [data-panel="robustness"], .outcome-definitions:not([data-panel="units"]) [data-panel="units"] { display: none; }
     /* The statistics line is desktop-only; the same numbers remain in "View chart data". */
     .chart-caption { display: none; }
-    .chart-container-stack { height: 150px; }
+    .chart-container-stack { height: 124px; }
     .hero-search { flex-wrap: wrap; padding: var(--space-2); }
     .hero-search > svg { display: none; }
     .hero-search input { flex-basis: 100%; padding-inline: .4rem; }

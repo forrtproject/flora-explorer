@@ -53,12 +53,13 @@ function trajectorySpec(desc, field, ylabel, outcome, coverage) {
     if (!desc?.event_time?.length) return {message: 'No data for this filter'};
     return {coverage, config: {displayModeBar: false, responsive: true},
         traces: [{
-            x: desc.event_time, y: desc[field], type: 'scatter', mode: 'lines+markers', line: {color, width: 2.5}, marker: {color, size: 7}, name: 'Mean (raw)', legendgroup: 'raw', showlegend: true,
+            x: desc.event_time, y: desc[field], type: 'scatter', mode: 'lines+markers', line: {color, width: 2.25}, marker: {color, size: 7, line: {color: t.paper, width: 1.5}}, fill: 'tozeroy', fillcolor: t.band, name: 'Mean (raw)', legendgroup: 'raw', showlegend: true,
             text: desc.event_time.map((x, i) => `Years from first replication: ${number(x)}<br>${ylabel}: ${number(desc[field][i], 2)}`), hovertemplate: '%{text}<extra></extra>',
         }],
         layout: {
             margin: {t: 30, r: 50, b: 50, l: 60},
-            xaxis: {title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font},
+            // Padded so the first and last points are not cut by the plot edge.
+            xaxis: {title: 'Years relative to first replication', showgrid: false, range: [Math.min(...desc.event_time) - .35, Math.max(...desc.event_time) + .35]},
             yaxis: {title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero'},
             shapes: [{type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: {color: t.primary, width: 1.5, dash: 'dash'}}],
             annotations: [{x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: {size: 11, color: t.primary}}],
