@@ -141,7 +141,7 @@ def fetch_rr_library() -> tuple[set[str], set[str]]:
 
 
 
-from classification import parse_reproduction_outcome
+from classification import load_outcome_columns, reproduction_dimensions, study_outcome_fields
 
 
 
@@ -162,6 +162,22 @@ def _classify(row) -> bool | None:
 def _clean(v):
     """Convert pandas NaN to None; JSON has no NaN literal that JS's JSON.parse accepts."""
     return None if pd.isna(v) else v
+
+
+def report_key(row) -> str:
+    """One repetition report: DOI, else URL, else title. Must match reportKey() in assets/app.js."""
+    doi = normalize_doi(row.get("doi_r"))
+    if doi:
+        return "doi:" + doi
+    url = row.get("url_r")
+    if isinstance(url, str) and url.strip():
+        return "url:" + url.strip().lower()
+    title = normalize_title(row.get("title_r"))
+    return "title:" + title if title else ""
+
+
+def n_distinct_reports(df: pd.DataFrame) -> int:
+    return len({k for k in df.apply(report_key, axis=1)} - {""}) if len(df) else 0
 
 
 
@@ -193,7 +209,7 @@ def compute_rr_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) ->
             "title_r": _clean(row.get("title_r")),
             "journal_r": _clean(row.get("journal_r")),
             "year_r": _clean(row.get("year_r")),
-            "outcome": _clean(row.get("outcome")),
+            **study_outcome_fields(row),
             "doi_r": _clean(row.get("doi_r")),
             "url_r": _clean(row.get("url_r")),
         }
@@ -207,6 +223,8 @@ def compute_rr_result(sub: pd.DataFrame, bucket_col: str, buckets: list[str]) ->
             "n_rr": n_rr,
             "n_non_rr": n_non_rr,
             "n_unknown": n_unknown,
+            "n_rr_reports": n_distinct_reports(known[known["is_rr"] == True]),
+            "n_non_rr_reports": n_distinct_reports(known[known["is_rr"] == False]),
             "pct_rr": round(100 * n_rr / n_total, 1) if n_total else 0,
             "pct_non_rr": round(100 * n_non_rr / n_total, 1) if n_total else 0,
         },
@@ -244,16 +262,17 @@ def main(argv=()):
     # ── Load & split by study type ─────────────────────────────────────────────────
     df = pd.read_csv(IN_CSV, low_memory=False, na_values=["", "NA"])
     # Preserve source outcome codes; pandas also applies NA conversion after converters.
-    df["outcome"] = pd.read_csv(IN_CSV, usecols=["outcome"], keep_default_na=False)["outcome"]
+    for column, values in load_outcome_columns(IN_CSV).items():
+        df[column] = values
     df["type_lc"] = df.get("type", pd.Series(dtype=str)).astype(str).str.lower()
-    df["outcome_lc"] = df.get("outcome", pd.Series(dtype=str)).astype(str).str.lower().str.strip()
+    df["outcome_lc"] = df["outcome_replication"].astype(str).str.lower().str.strip()
 
     is_reproduction = df["type_lc"].str.contains("reproduc", na=False)
     is_replication = df["type_lc"].str.contains("replication", na=False) & ~is_reproduction
     df.loc[is_replication, "outcome_lc"] = df.loc[is_replication, "outcome_lc"].map(classify_outcome)
 
     repro_df = df[is_reproduction].copy()
-    repro_dims = repro_df["outcome_lc"].apply(parse_reproduction_outcome)
+    repro_dims = repro_df.apply(reproduction_dimensions, axis=1)
     repro_df["computational_bucket"] = repro_dims.apply(lambda t: t[0] or "not_coded")
     repro_df["robustness_bucket"] = repro_dims.apply(lambda t: t[1] or "not_coded")
 
@@ -271,7 +290,8 @@ def main(argv=()):
         # Reproduction totals depend on outcome bucketing, so only replication totals must match exactly.
         new_dois, new_titles = cached_matches(result)
         old_dois, old_titles = cached_matches(previous)
-        if (result['replication']['overview'] != previous['replication']['overview']
+        pair_counts = lambda r: {k: r['replication']['overview'][k] for k in ('n_total', 'n_rr', 'n_non_rr', 'n_unknown')}
+        if (pair_counts(result) != pair_counts(previous)
                 or not new_dois <= old_dois or not new_titles <= old_titles):
             raise ValueError('Cached matches changed RR coverage; retaining previous outputs')
     OUT_DATA.write_text(json.dumps(result), encoding="utf-8")

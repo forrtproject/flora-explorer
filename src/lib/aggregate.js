@@ -1,5 +1,6 @@
-import {bucketKeyForRow, classifyKind, classifyOutcome, outcomeBuckets, parseReproductionOutcome} from './outcomes.js';
+import {bucketKeyForRow, classifyKind, outcomeBuckets, parseReproductionOutcome, replicationOutcome} from './outcomes.js';
 import {percent} from './format.js';
+import {nPairs} from './coverage.js';
 
 const KIND_FOR_DIMENSION = {replicability: 'replication', computational: 'reproduction-numerical', robustness: 'reproduction-robustness'};
 
@@ -10,7 +11,7 @@ export function dimensionChartData(data, dimension) {
     const buckets = outcomeBuckets(KIND_FOR_DIMENSION[dimension]);
     const counts = Object.fromEntries(buckets.map(b => [b.key, 0]));
     for (const row of eligible) {
-        const key = replication ? classifyOutcome(row.outcome) : parseReproductionOutcome(row.outcome)[dimension];
+        const key = replication ? replicationOutcome(row) : parseReproductionOutcome(row)[dimension];
         if (counts[key] !== undefined) counts[key]++;
     }
     return {
@@ -58,7 +59,7 @@ export const POOL_BEFORE = 1960;
 
 // Every calendar year between the first and last observation gets a slot, so gaps keep their scale.
 export function byYear(data, field, kind, poolBefore = null) {
-    const out = stackedCounts(data, row => { const y = yearOf(row[field]); return y ? String(y) : null; }, kind);
+    const out = stackedCounts(data, yearKey(field), kind);
     if (!out.length) return out;
     const buckets = outcomeBuckets(kind);
     const empty = key => ({key, counts: Object.fromEntries(buckets.map(b => [b.key, 0])), total: 0});
@@ -78,8 +79,30 @@ export function byYear(data, field, kind, poolBefore = null) {
     return filled;
 }
 
+export const journalKey = field => row => (row[field] || '').trim() || null;
+export const yearKey = field => row => { const y = yearOf(row[field]); return y ? String(y) : null; };
+
+// "N of M shown": the pairs a chart drops, with the reason for each.
+export function trendCoverage(data, keyFn, kind, missingWhat, top = null) {
+    const buckets = new Set(outcomeBuckets(kind).map(b => b.key));
+    let shown = 0, noKey = 0, noVerdict = 0, notTop = 0;
+    for (const row of data) {
+        const k = keyFn(row);
+        if (k === null || k === undefined || k === '') noKey++;
+        else if (!buckets.has(bucketKeyForRow(row, kind))) noVerdict++;
+        else if (top && !top.keys.has(k)) notTop++;
+        else shown++;
+    }
+    const excluded = [
+        noKey && `${nPairs(noKey)} without a recorded ${missingWhat}`,
+        noVerdict && `${nPairs(noVerdict)} without a verdict on this dimension`,
+        notTop && `${nPairs(notTop)} outside the top ${top.keys.size} ${top.noun}`,
+    ].filter(Boolean);
+    return `${shown.toLocaleString('en-GB')} of ${nPairs(data.length)} shown` + (excluded.length ? `; excluded: ${excluded.join(', ')}.` : '; none excluded.');
+}
+
 export function byJournal(data, field, topN, kind) {
-    return stackedCounts(data, row => (row[field] || '').trim() || null, kind).sort((a, b) => b.total - a.total).slice(0, topN);
+    return stackedCounts(data, journalKey(field), kind).sort((a, b) => b.total - a.total).slice(0, topN);
 }
 
 export function byField(data, kind, disciplineFor) {

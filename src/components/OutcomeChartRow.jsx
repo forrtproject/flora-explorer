@@ -11,7 +11,7 @@ const DIMENSIONS = {
     replicability: {title: 'Replication outcomes', slug: 'outcome', vocabulary: 'replication', category: 'Replications', info: 'Info about replicability'},
 };
 
-export function OutcomeChartRow({prefix, dimension, rows, eligible, scope, rowId, hidden}) {
+export function OutcomeChartRow({prefix, dimension, rows, scope, rowId, hidden}) {
     const d = DIMENSIONS[dimension];
     const {theme} = useEnv();
     const id = `${prefix}-${d.slug}-chart`;
@@ -19,7 +19,7 @@ export function OutcomeChartRow({prefix, dimension, rows, eligible, scope, rowId
     const data = useMemo(() => dimensionChartData(rows, dimension), [rows, dimension, theme]);
     const reproduction = dimension !== 'replicability';
     const {canvasProps, table} = useBarChart(id, title, () => outcomeBarConfig(data.datasets, data.total, d.category), [data],
-        {eligible: eligible ?? data.eligible, scope: reproduction ? 'reproduction' : 'replication'});
+        {eligible: data.eligible, scope: reproduction ? 'reproduction' : 'replication'});
     const entries = FloraVocabulary.entries(d.vocabulary);
     return (
         <div className="outcome-chart-row" id={rowId} style={hidden ? {display: 'none'} : undefined}>
@@ -33,7 +33,7 @@ export function OutcomeChartRow({prefix, dimension, rows, eligible, scope, rowId
                         ))}
                     </ul>
                     <p className="tip-subhead">No verdict</p>
-                    <p className="tip-note">{entries.filter(e => !e.assessed).map(e => e.label).join(' · ')}. See <em>Outcome definitions</em> for each.</p>
+                    <p className="tip-note">{entries.filter(e => !e.assessed).map(e => e.label).join(' · ')}. See the <em>Outcome key</em> on the Overview tab for each.</p>
                 </InfoTip>
                 <ChartCopy id={id} title={title} table={table} />
             </div>

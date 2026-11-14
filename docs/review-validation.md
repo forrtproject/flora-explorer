@@ -78,3 +78,7 @@ These changes alter analytical wording and labels, so they were reviewed separat
 - F10: the original-year chart pools the sparse years before 1960 (16 replication pairs across 1880–1959) into one column, set apart by a dashed line. From 1960, and on the report-year chart, every calendar year has a slot, so gaps keep their scale. Plotted totals still equal the pairs with a valid year.
 - F11: headings and prose in Trends, Mean Citedness, Authorship Overlap, Publication Type and Citation Impact follow the selected study type. Reproduction variants describe descriptive comparisons, pair-level units and RRDB matching without replication-specific reasoning; replication-report venues are described as recorded venues, which include repositories.
 - F15, F17: the duplicated About aim is merged, Browse and the Replication Atlas are described by purpose, and missing entries link directly to the submission form. About text no longer implies FLoRA estimates replication rates.
+
+## 12 November 2026: descriptive citation trajectories
+
+The Citation Impact tab no longer fits or shows the event-study model. This supersedes the coefficient-plot entries for findings 4 and 15 above: the tab now shows only raw mean trajectories over a balanced ±5-year window, each with its sample size, and its copy states that the before/after change is descriptive and not an effect of replication.

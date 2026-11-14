@@ -1,19 +1,31 @@
 {
-  "last_updated": "2026-11-09T04:12:14.708112+00:00",
-  "n_originals": 2188,
-  "n_replications": 2358,
+  "last_updated": "2026-11-13T12:58:11.991426+00:00",
+  "n_originals": 2346,
+  "n_originals_eligible": 2347,
+  "n_replications": 2535,
   "outcome_counts": {
-    "successful": 918,
-    "failed": 856,
-    "mixed": 584
+    "successful": 992,
+    "failed": 941,
+    "mixed": 602
   },
   "pub_status_counts": {
-    "individual": 1908,
-    "large_project": 450
+    "individual": 2083,
+    "large_project": 452
   },
   "partial_run": true,
-  "fetch_errors": 0,
+  "excluded_originals": [
+    {
+      "doi": "10.1080/10705519909540118",
+      "reason": "own_fetch_failed",
+      "title": "Cutoff criteria for fit indexes in covariance structure analysis: Conventional criteria versus new alternatives",
+      "author": "Hu, L.; Bentler, P. M.",
+      "year": 1999
+    }
+  ],
+  "n_pairs_excluded": 1,
+  "rep_fetch_failed_attempts": 0,
+  "n_fetch_error_dois": 0,
   "fetch_error_dois": [],
   "originals_errored": 0,
-  "originals_skipped": 3
+  "originals_skipped": 1
 }

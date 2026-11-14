@@ -87,13 +87,14 @@ export function axisColors() {
 // One horizontal stacked bar: the share of each outcome within a dimension.
 export function outcomeBarConfig(datasets, total, categoryLabel) {
     const ac = axisColors();
+    const compact = window.matchMedia('(max-width: 767px)').matches;
     return {
         type: 'bar',
         data: {labels: [categoryLabel], datasets},
         options: {
             responsive: true, maintainAspectRatio: false, indexAxis: 'y',
             plugins: {
-                legend: {position: 'bottom', labels: {color: ac.legend, boxWidth: 14, padding: 14, font: {size: 12}}},
+                legend: {position: 'bottom', labels: {color: ac.legend, boxWidth: compact ? 10 : 14, padding: compact ? 8 : 14, font: {size: compact ? 11 : 12}}},
                 tooltip: {callbacks: {label: ctx => `${ctx.dataset.label}: ${ctx.parsed.x.toLocaleString()} (${percent(ctx.parsed.x, total, 1)}%)`}},
             },
             scales: {

@@ -55,7 +55,7 @@ export function barTable(config) {
 }
 export function barSummary(total, eligible, scope) {
     const excluded = Math.max(0, eligible - total);
-    const sample = `Included in the plot: ${number(total)}; excluded from this selection: ${number(excluded)} reference ${eligible - total === 1 ? 'pair' : 'pairs'}. `;
+    const sample = `Included in the plot: ${number(total)} of ${number(eligible)} reference ${eligible === 1 ? 'pair' : 'pairs'}; excluded from this selection: ${number(excluded)} reference ${eligible - total === 1 ? 'pair' : 'pairs'}. `;
     if (scope === 'reproduction') return sample + `${total ? '' : 'No matching assessed outcomes. '}Unchecked or uncoded values for this dimension are excluded; the two reproduction subsets overlap.`;
     if (scope === 'replication') return sample + `${total ? '' : 'No matching assessed outcomes. '}All replication outcomes are included; qualified success, descriptive, uninformative, missing and unrecognised outcomes are separate.`;
     return sample + 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.';
@@ -129,20 +129,21 @@ export function preparePlot(id, spec, {comparison = false, counts = false, fallb
     for (const key of Object.keys(layout)) if (/^[xy]axis\d*$/.test(key)) layout[key] = {...layout[key], fixedrange: true};
     config = {...config, scrollZoom: false, doubleClick: false};
 
-    if (!table && spec.table) table = spec.table;
+    if (table && spec.coverage) table = {...table, summary: spec.coverage + ' ' + table.summary};
+    if (!table && spec.table) table = {...spec.table, summary: [spec.coverage, spec.table.summary].filter(Boolean).join(' ')};
     if (!table) {
         const rows = [];
-        const coefficient = id.endsWith('-model'), timeline = id === 'study-plot', trajectory = id === 'plot-cit' || id === 'plot-cocit';
+        const timeline = id === 'study-plot', trajectory = id === 'plot-cit' || id === 'plot-cocit';
         const hasIntervals = display.some(trace => trace.error_x || trace.error_y);
         display.forEach(t => (t.x || []).forEach((x, i) => {
             const flipped = t.orientation === 'h';
             const value = flipped ? x : t.y?.[i], err = flipped ? t.error_x : t.error_y;
-            const unit = coefficient ? 'Coefficient: log(1 + count)' : timeline ? 'Citing works' : trajectory ? t.yaxis === 'y2' ? 'Distinct originals' : id === 'plot-cit' ? 'Mean citations per original per year' : 'Mean co-citations per original per year' : 'Reference pairs';
+            const unit = timeline ? 'Citing works' : trajectory ? id === 'plot-cit' ? 'Mean citations per original per year' : 'Mean co-citations per original per year' : 'Reference pairs';
             const row = [t.name || 'Series', flipped ? t.y?.[i] : x, value, unit];
             if (hasIntervals) row.push(err ? value - (err.arrayminus?.[i] ?? err.array?.[i] ?? 0) : '', err ? value + (err.array?.[i] ?? 0) : '');
             rows.push(row);
         }));
-        table = {headers: ['Series', 'X / category', 'Value', 'Unit', ...(hasIntervals ? ['95% CI lower', '95% CI upper'] : [])], rows, summary: GENERIC_SUMMARY};
+        table = {headers: ['Series', 'X / category', 'Value', 'Unit', ...(hasIntervals ? ['95% CI lower', '95% CI upper'] : [])], rows, summary: [spec.coverage, GENERIC_SUMMARY].filter(Boolean).join(' ')};
     }
     return {display, layout, config, table};
 }

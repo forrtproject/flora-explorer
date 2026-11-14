@@ -3,7 +3,8 @@ import {URLS, WEBSITE_CITATION} from '../lib/config.js';
 import {loadDatasetCitation} from '../lib/cff.js';
 import {parseFaqMarkdown, renderFaqAnswer, renderInlineMd} from '../lib/faq.js';
 import {shortAuthors, truncate} from '../lib/format.js';
-import {classifyKind, classifyOutcome, reportKindLabel} from '../lib/outcomes.js';
+import {classifyKind, replicationOutcome, reportKindLabel, sourceOutcome} from '../lib/outcomes.js';
+import {distinctReportCounts, nPairs} from '../lib/coverage.js';
 import {useData} from '../state/data.jsx';
 import {useView} from '../state/view.jsx';
 import {CiteBlock, CopyButton, DataStamp, ExternalLink, Icon, OutcomeBadge, OutcomeDefinitions, Pane, WebsiteCitation} from '../components/common.jsx';
@@ -58,7 +59,7 @@ const TOOLS = [
 ];
 
 function pickExamples(rows) {
-    const pool = rows.filter(r => (r.title_o || r.author_o) && r.outcome);
+    const pool = rows.filter(r => (r.title_o || r.author_o) && sourceOutcome(r));
     // Fisher–Yates: unbiased, unlike sorting with a random comparator.
     for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -83,7 +84,7 @@ function RandomExamples({rows}) {
             <div className="card-body" id="random-examples">
                 {!examples.length && <p className="muted">No examples available.</p>}
                 {examples.map((r, i) => (
-                    <div className={`example-card outcome-${classifyOutcome(r.outcome)}`} key={i}>
+                    <div className={`example-card outcome-${replicationOutcome(r)}`} key={i}>
                         <ExampleLine label="Original report" title={r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`} meta={[shortAuthors(r.author_o), r.year_o].filter(Boolean).join(' · ')} doi={r.doi_o} />
                         {(r.title_r || r.author_r || r.doi_r || r.url_r) && <ExampleLine label={`${reportKindLabel(r)} report`} title={r.title_r || `${shortAuthors(r.author_r)} (${r.year_r || 'n.d.'})`} meta={[shortAuthors(r.author_r), r.year_r].filter(Boolean).join(' · ')} doi={r.doi_r} url={r.url_r} />}
                         <div className="ex-outcome"><OutcomeBadge row={r} />{r.type && <span className="badge badge-type">{r.type}</span>}</div>
@@ -152,7 +153,7 @@ function About() {
                 <h3>What is a reproduction?</h3>
                 <p>Reproductions verify whether reported results can be obtained from the original study's data and methods. They are coded on two dimensions:</p>
                 <ul>
-                    <li><strong>Computational reproducibility</strong>: were the original results obtained? (Reproduced, Computational issues, or Technical failure)</li>
+                    <li><strong>Computational reproducibility</strong>: were the original results obtained? (Computationally reproducible, Computational issues, or Technical failure)</li>
                     <li><strong>Robustness</strong>: do results hold under reasonable alternative specifications? (Robust or Robustness challenges)</li>
                 </ul>
                 <p>The two dimensions are assessed independently, and not every reproduction is assessed on both. Each chart counts reference pairs with a verdict on that dimension. ‘Not checked’ and uncoded values are excluded. A pair can appear in both charts.</p>
@@ -176,11 +177,21 @@ function About() {
 export default function Overview({citation}) {
     const {rows} = useData();
     const {switchTab, linkFor} = useView();
-    const counts = useMemo(() => ({
-        total: rows.length,
-        replications: rows.filter(r => classifyKind(r) === 'replication').length,
-        reproductions: rows.filter(r => classifyKind(r) === 'reproduction').length,
-    }), [rows]);
+    const groups = useMemo(() => Object.fromEntries(Object.entries({
+        total: rows,
+        replications: rows.filter(r => classifyKind(r) === 'replication'),
+        reproductions: rows.filter(r => classifyKind(r) === 'reproduction'),
+    }).map(([key, list]) => {
+        const c = distinctReportCounts(list);
+        return [key, {n: list.length, distinct: `${c.reports.toLocaleString('en-GB')} distinct repetition reports · ${c.originals.toLocaleString('en-GB')} distinct original DOIs${c.noOriginalDoi ? `; ${nPairs(c.noOriginalDoi)} without an original DOI` : ''}`}];
+    })), [rows]);
+    const figure = (key, label, feature) => (
+        <div className={'stats-card' + (feature ? ' stats-card--feature' : '')}>
+            <div className="number" id={`ov-${key}`}>{groups[key].n.toLocaleString()}</div>
+            <div className="label">{label}</div>
+            <div className="distinct" id={`ov-${key}-distinct`}>{groups[key].distinct}</div>
+        </div>
+    );
     const toBrowse = e => {
         // Modified and non-primary clicks keep normal link behaviour.
         if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -197,9 +208,9 @@ export default function Overview({citation}) {
                     <HeroSearch />
                 </div>
                 <div className="hero-figures">
-                    <div className="stats-card stats-card--feature"><div className="number" id="ov-total">{counts.total.toLocaleString()}</div><div className="label">Reference pairs</div></div>
-                    <div className="stats-card"><div className="number" id="ov-replications">{counts.replications.toLocaleString()}</div><div className="label">Replication reference pairs</div></div>
-                    <div className="stats-card"><div className="number" id="ov-reproductions">{counts.reproductions.toLocaleString()}</div><div className="label">Reproduction reference pairs</div></div>
+                    {figure('total', 'Reference pairs', true)}
+                    {figure('replications', 'Replication reference pairs')}
+                    {figure('reproductions', 'Reproduction reference pairs')}
                 </div>
             </section>
             <div className="pane-meta">

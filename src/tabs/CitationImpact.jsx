@@ -1,6 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {URLS} from '../lib/config.js';
 import {citationAuthors, countAxis, number, percent} from '../lib/format.js';
+import {coverageText} from '../lib/coverage.js';
 import {outcomeBuckets} from '../lib/outcomes.js';
 import {matchesTokens, normalizeDoi, normalizedQuery, searchAuthorNames, searchTokens} from '../lib/search.js';
 import {chartTheme, token} from '../lib/theme.js';
@@ -9,7 +10,7 @@ import {useData} from '../state/data.jsx';
 import {PaneContext, useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot} from '../components/charts.jsx';
-import {Chips, CiteBlock, DataStamp, ExternalLink, Gloss, OutcomeDefinitions, Pane, Placeholder, byKind, kindLabel, stampInfo} from '../components/common.jsx';
+import {Chips, CiteBlock, DataStamp, ExcludedRows, ExternalLink, Gloss, Pane, Placeholder, byKind, kindLabel, excludedOriginalLabel, exclusionReason, stampInfo} from '../components/common.jsx';
 
 const PER_PAGE = 20;
 const EMPTY = [];
@@ -20,7 +21,7 @@ const venueText = venue => venue && venue !== 'nan' ? ' · ' + venue : '';
 
 async function fetchJson(url, optional) {
     try {
-        const res = await fetch(url);
+        const res = await fetch(url, {cache: 'no-cache'});
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return await res.json();
     } catch (e) { if (optional) return null; throw e; }
@@ -39,77 +40,76 @@ function useCitationData(enabled) {
     return state;
 }
 
-function trajectorySpec(data, field, ylabel, outcome) {
-    const t = chartTheme(), desc = data.descriptive || {}, color = outcomeColor(outcome);
-    if (!desc.event_time?.length) return {message: 'No data for this filter'};
-    const traces = [{
-        x: desc.event_time, y: desc[field], type: 'scatter', mode: 'lines+markers', line: {color, width: 2.5}, marker: {color, size: 7}, name: 'Mean (raw)',
-        text: desc.event_time.map((x, i) => `Years from first replication: ${number(x)}<br>${ylabel}: ${number(desc[field][i], 2)}`), hovertemplate: '%{text}<extra></extra>',
-    }];
-    if (desc.n_units?.length) traces.push({
-        x: desc.event_time, y: desc.n_units, type: 'scatter', mode: 'lines', line: {color: t.rule, width: 1, dash: 'dot'}, name: 'Distinct originals', yaxis: 'y2',
-        text: desc.event_time.map((x, i) => `Years from first replication: ${number(x)}<br>Distinct originals: ${number(desc.n_units[i])}`), hovertemplate: '%{text}<extra></extra>',
-    });
-    return {traces, config: {displayModeBar: false, responsive: true}, layout: {
-        margin: {t: 30, r: 50, b: 50, l: 60},
-        xaxis: {title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font},
-        yaxis: {title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero'},
-        yaxis2: {title: 'Distinct originals', ...countAxis(Math.max(0, ...(desc.n_units || []))), overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero', tickfont: {color: t.muted, size: 10}, titlefont: {color: t.muted, size: 10}},
-        shapes: [{type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: {color: t.primary, width: 1.5, dash: 'dash'}}],
-        annotations: [{x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: {size: 11, color: t.primary}}],
-        plot_bgcolor: t.plot, paper_bgcolor: t.paper, font: {family: t.fontFamily, size: 12, color: t.font}, legend: {orientation: 'h', y: -0.22, font: {color: t.font}},
-    }};
+const COCIT_WINDOW = [0, 5];
+
+function sliceDescriptive(desc, [lo, hi]) {
+    const keep = desc.event_time.map((x, i) => x >= lo && x <= hi ? i : -1).filter(i => i >= 0);
+    return Object.fromEntries(Object.entries(desc).map(([k, v]) => [k, Array.isArray(v) && v.length === desc.event_time.length ? keep.map(i => v[i]) : v]));
 }
 
-function coefficientSpec(model = {}) {
-    const t = chartTheme();
-    const valid = (model.event_time || []).map((x, i) => ({x, y: model.estimate?.[i], lo: model.ci_low?.[i], hi: model.ci_high?.[i]}))
-        .filter(p => [p.y, p.lo, p.hi].every(v => typeof v === 'number' && Number.isFinite(v)));
-    if (!valid.length) return {message: 'No fitted model for this selection.'};
-    return {
-        traces: [{name: 'OLS coefficient (95% CI)', x: valid.map(p => p.x), y: valid.map(p => p.y), type: 'scatter', mode: 'markers', marker: {color: t.font},
-            text: valid.map(p => `Years from first replication: ${number(p.x)}<br>Coefficient: ${number(p.y, 3)}<br>95% CI: ${number(p.lo, 3)} to ${number(p.hi, 3)}`), hovertemplate: '%{text}<extra></extra>',
-            error_y: {type: 'data', symmetric: false, array: valid.map(p => p.hi - p.y), arrayminus: valid.map(p => p.y - p.lo)}}],
-        layout: {title: {text: 'Adjusted association: log(1 + count)', font: {size: 14}}, height: 340,
-            xaxis: {title: 'Years from first replication', automargin: true, color: t.font},
-            yaxis: {title: 'Coefficient (reference: year −1)', zeroline: true, zerolinecolor: t.font, automargin: true, color: t.font},
-            margin: {t: 45, r: 20, b: 60, l: 65}, plot_bgcolor: t.plot, paper_bgcolor: t.paper, font: {color: t.font}},
-        config: {responsive: true, displayModeBar: false},
-    };
+function trajectorySpec(desc, field, ylabel, outcome, coverage) {
+    const t = chartTheme(), color = outcomeColor(outcome);
+    if (!desc?.event_time?.length) return {message: 'No data for this filter'};
+    return {coverage, config: {displayModeBar: false, responsive: true},
+        traces: [{
+            x: desc.event_time, y: desc[field], type: 'scatter', mode: 'lines+markers', line: {color, width: 2.5}, marker: {color, size: 7}, name: 'Mean (raw)', legendgroup: 'raw', showlegend: true,
+            text: desc.event_time.map((x, i) => `Years from first replication: ${number(x)}<br>${ylabel}: ${number(desc[field][i], 2)}`), hovertemplate: '%{text}<extra></extra>',
+        }],
+        layout: {
+            margin: {t: 30, r: 50, b: 50, l: 60},
+            xaxis: {title: 'Years relative to first replication', zeroline: false, gridcolor: t.grid, color: t.font},
+            yaxis: {title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero'},
+            shapes: [{type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: {color: t.primary, width: 1.5, dash: 'dash'}}],
+            annotations: [{x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: {size: 11, color: t.primary}}],
+            plot_bgcolor: t.plot, paper_bgcolor: t.paper, font: {family: t.fontFamily, size: 12, color: t.font}, legend: {orientation: 'h', y: -0.22, font: {color: t.font}},
+        }};
 }
 
-function AggregatePlots({agg, outcome}) {
+// "N of M originals" for one panel, and the same coverage as a sentence for its chart data.
+function sampleSize(desc, group, criterion, excludedWhy) {
+    const n = Math.max(0, ...(desc?.n_units || []));
+    const m = Math.max(n, group.length);
+    // The pipeline drops these before any window check.
+    const badYears = group.filter(s => !s.year || !s.first_replication_year || s.first_replication_year < s.year).length;
+    return {n, note: n ? `Sample size: ${number(n)} of ${number(m)} originals ${criterion}` : '',
+        coverage: coverageText(n, m, [[badYears, 'with a missing original or replication year, or a replication dated before its original'], [m - n - badYears, excludedWhy]], 'originals')};
+}
+
+function AggregatePlots({data, outcome}) {
     const {theme} = useEnv();
-    const data = agg[outcome];
-    const specs = useMemo(() => data ? {
-        cit: trajectorySpec(data, 'mean_citations', 'Mean citations per year', outcome), citModel: coefficientSpec(data.citations_model),
-        cocit: trajectorySpec(data, 'mean_cocitations', 'Mean co-citations per year', outcome), cocitModel: coefficientSpec(data.cocitations_model),
-    } : null, [data, outcome, theme]);
-    if (!specs) return null;
-    const model = data.citations_model || {}, units = data.descriptive?.n_units || [];
-    const interval = model.att_ci || [];
+    const agg = data.agg[outcome];
+    const built = useMemo(() => {
+        if (!agg) return null;
+        // Originals whose first replication falls in the selected outcome group.
+        const group = data.index.filter(s => outcome === 'all' ? s.first_replication_outcome : s.first_replication_outcome === outcome);
+        const citDesc = agg.descriptive, rawCocit = agg.descriptive_cocit || agg.descriptive;
+        const cocitDesc = rawCocit?.event_time ? sliceDescriptive(rawCocit, COCIT_WINDOW) : rawCocit;
+        const cit = sampleSize(citDesc, group, 'with 5 years of citation data before and after the first replication', 'whose first replication is too recent, or too soon after the original, for 5 years either side');
+        const cocit = sampleSize(cocitDesc, group, 'with 5 years of citation data after the first replication', 'whose first replication is too recent for 5 years after it');
+        return {cit, cocit,
+            citSpec: trajectorySpec(citDesc, 'mean_citations', 'Mean citations per year', outcome, cit.coverage),
+            cocitSpec: trajectorySpec(cocitDesc, 'mean_cocitations', 'Mean co-citations per year', outcome, cocit.coverage),
+            span: [Math.min(...(citDesc?.event_time || [0])), Math.max(...(citDesc?.event_time || [0]))]};
+    }, [agg, outcome, data.index, theme]);
+    if (!built) return null;
+    const label = outcome === 'all' ? '' : FloraVocabulary.label(outcome).toLowerCase();
+    const tableN = outcome === 'all' ? data.index.filter(s => s.n_citations_post_first_rep > 0).length : data.breakdown?.outcome?.[outcome]?.n_originals;
+    const group = outcome === 'all' ? 'replication' : `${label} replication`;
     return (
-        <>
-            <div className="att-callout" id="att-callout">
-                {model.att != null && Number.isFinite(model.att)
-                    ? <><strong>Adjusted post-replication association:</strong> {number(model.att, 3)} log(1 + citations) units{interval.length === 2 && interval.every(Number.isFinite) ? ` (95% CI ${number(interval[0], 3)} to ${number(interval[1], 3)})` : ''}, based on {number(model.n_units)} originals. This is not a percentage change in raw citations or evidence that replication caused the change.</>
-                    : units.length
-                        ? <><strong>Descriptive trajectory shown.</strong> <span className="muted">{number(Math.max(...units))} originals contribute at peak. Each line shows the average citation count by years relative to the first replication.</span></>
-                        : <><strong>Insufficient data</strong> for the selected outcome group.</>}
+        <div className="plot-grid">
+            <div className="plot-card">
+                <h3>Citations to the original</h3>
+                <p id="plot-cit-sample" className="muted plot-sample">{built.cit.note}</p>
+                <Plot id="plot-cit" className="plot" title="Raw trajectory: Citations to the original" spec={built.citSpec} />
+                <p id="plot-cit-footnote" className="plot-footnote">{built.cit.n > 0 && <>Mean citations estimated for <strong><i>N</i> = {number(built.cit.n)}</strong> originals (first replication {outcome === 'all' ? 'successful, failed or mixed' : label}; each observed over t = {number(built.span[0])} to +{number(built.span[1])} years).</>}</p>
             </div>
-            <div className="plot-grid">
-                <div className="plot-card">
-                    <h3>Citations to the original</h3>
-                    <Plot id="plot-cit" className="plot" title="Raw trajectory: Citations to the original" spec={specs.cit} />
-                    <Plot id="plot-cit-model" className="coefficient-plot" title="Adjusted association: Citations to the original" spec={specs.citModel} />
-                </div>
-                <div className="plot-card">
-                    <h3>Co-citations (original and replication)</h3>
-                    <Plot id="plot-cocit" className="plot" title="Raw trajectory: Co-citations (original and replication)" spec={specs.cocit} />
-                    <Plot id="plot-cocit-model" className="coefficient-plot" title="Adjusted association: Co-citations (original and replication)" spec={specs.cocitModel} />
-                </div>
+            <div className="plot-card">
+                <h3>Co-citations (original and replication)</h3>
+                <p id="plot-cocit-sample" className="muted plot-sample">{built.cocit.note}</p>
+                <Plot id="plot-cocit" className="plot" title="Raw trajectory: Co-citations (original and replication)" spec={built.cocitSpec} />
+                <p id="plot-cocit-denominator" className="plot-footnote">{tableN != null && <>The co-citation rate table below covers <strong><i>N</i> = {number(tableN)}</strong> originals (≥ 1 {group}; ≥ 1 citation since the first {group}), a wider set than the plotted panel above.</>}</p>
             </div>
-        </>
+        </div>
     );
 }
 
@@ -147,7 +147,13 @@ function CocitCell({s}) {
     return <span title={title}>{number(s.n_cocitations)}<span className="cocit-pct"> ({denom > 0 ? `${percent(s.cocit_prop, 1, 1)}% of ${number(denom)}` : '—'})</span></span>;
 }
 
-function OriginalsTable({index, onOpen, status}) {
+// The single outcome shared by all of an original's replications, or 'multiple'.
+const outcomeGroup = s => {
+    const outcomes = Object.keys(s.outcome_mix || {}).filter(k => s.outcome_mix[k]);
+    return outcomes.length === 1 ? outcomes[0] : outcomes.length ? 'multiple' : null;
+};
+
+function OriginalsTable({index, excluded, onOpen, status}) {
     const {view, setView} = useView();
     const [input, setInput] = useState(view.ciQ);
     const [sort, setSort] = useState({col: 'n_citations', dir: 'desc'});
@@ -161,10 +167,16 @@ function OriginalsTable({index, onOpen, status}) {
 
     const matches = useMemo(() => {
         const tokens = searchTokens(query);
-        const out = index.filter(s => matchesTokens(s.searchText, tokens) && (!filter || s.outcome_mix?.[filter]));
+        const out = index.filter(s => matchesTokens(s.searchText, tokens) && (!filter || outcomeGroup(s) === filter));
         const value = s => s[sort.col] != null ? s[sort.col] : -Infinity;
         return out.sort((a, b) => sort.dir === 'asc' ? value(a) - value(b) : value(b) - value(a));
     }, [index, query, filter, sort]);
+    // A search with no results may name an original that this snapshot left out.
+    const leftOut = useMemo(() => query.trim() && !matches.length ? excluded.filter(e => matchesTokens(e.searchText, searchTokens(query))) : [], [excluded, query, matches.length]);
+    const emptyMessage = !query.trim() ? 'No originals match the current outcome selection.'
+        : !leftOut.length ? `No originals match “${query.trim()}” with the current outcome selection.`
+        : leftOut.length === 1 ? `${excludedOriginalLabel(leftOut[0])} is in FLoRA but not in this citation snapshot: ${exclusionReason(leftOut[0].reason)}. It is left out, not counted as zero, and will be retried next refresh.`
+        : `${leftOut.length} originals matching “${query.trim()}” are in FLoRA but not in this citation snapshot. They are left out, not counted as zero, and will be retried next refresh.`;
     const pages = Math.max(1, Math.ceil(matches.length / PER_PAGE));
     const current = page > pages ? 1 : page;
     const slice = matches.slice((current - 1) * PER_PAGE, current * PER_PAGE);
@@ -188,15 +200,17 @@ function OriginalsTable({index, onOpen, status}) {
             <label htmlFor="search-input" className="search-label">Search originals</label>
             <div className="search-row">
                 <input id="search-input" ref={inputRef} type="search" placeholder="Title, author, year, journal, DOI or DOI URL" value={input} onChange={e => search(e.target.value)} />
-                <select id="filter-outcome" aria-label="Filter originals by any recorded replication outcome" value={filter} onChange={e => { setPage(1); setView({filterOutcome: e.target.value}); }}>
+                <select id="filter-outcome" aria-label="Filter originals by the outcomes of all their replications" value={filter} onChange={e => { setPage(1); setView({filterOutcome: e.target.value}); }}>
                     <option value="">All outcomes</option>
-                    <option value="failed">Has failed replication</option>
-                    <option value="successful">Has successful replication</option>
-                    <option value="mixed">Has mixed replication</option>
+                    <option value="successful">Only successful replications</option>
+                    <option value="failed">Only failed replications</option>
+                    <option value="mixed">Only mixed replications</option>
+                    <option value="multiple">Multiple replication outcomes</option>
                 </select>
             </div>
             <div id="ci-search-empty" className="browse-empty" role="status" hidden={matches.length > 0 || status !== 'ready'}>
-                <p id="ci-search-empty-message">{query.trim() ? `No originals match “${query.trim()}” with the current outcome selection.` : 'No originals match the current outcome selection.'}</p>
+                <p id="ci-search-empty-message">{emptyMessage}</p>
+                <ul id="ci-search-excluded" className="excluded-list" hidden={!leftOut.length}><ExcludedRows list={leftOut.slice(0, 5)} /></ul>
                 <button type="button" id="ci-clear-search" className="browse-download" hidden={!query.trim()} onClick={() => { clearTimeout(debounce.current); setInput(''); setPage(1); setView({ciQ: ''}); inputRef.current.focus(); }}>Clear search</button>
             </div>
             <div className="table-wrap" tabIndex={0} role="region" aria-label="Originals with citation data">
@@ -275,7 +289,9 @@ function timelineSpec(s, meta, width) {
     });
     if (years.includes(partialYear)) annotations.push({name: 'partial-year', x: partialYear, xref: 'x', yref: 'paper', y: 1.14, xanchor: 'right', text: `${partialYear}: partial year`, showarrow: false, font: {size: 11, color: t.muted}});
     const maxYearly = Math.max(0, ...years.map((_, i) => traces.reduce((n, trace) => n + trace.y[i], 0)));
-    return {traces, config: {displayModeBar: false, responsive: true}, layout: {
+    const plotted = traces.reduce((n, trace) => n + trace.y.reduce((a, v) => a + (Number(v) || 0), 0), 0);
+    const coverage = coverageText(plotted, s.n_citations || 0, [[(s.n_citations || 0) - plotted, 'without a recorded citing year']], 'citing works of this original');
+    return {traces, coverage, config: {displayModeBar: false, responsive: true}, layout: {
         barmode: 'stack', margin: {t: 50, r: 10, b: 40, l: 50},
         xaxis: {title: 'Year', gridcolor: t.grid, color: t.font}, yaxis: {title: 'Citing works', ...countAxis(maxYearly), gridcolor: t.grid, color: t.font},
         shapes, annotations, hoverlabel: {namelength: -1}, plot_bgcolor: t.plot, paper_bgcolor: t.paper,
@@ -415,12 +431,14 @@ export function useCitations() {
             if (!authors.has(doi)) authors.set(doi, new Set());
             authors.get(doi).add(names);
         }
-        return data.index.map(s => ({...s,
+        const searchText = s => normalizedQuery([s.title, searchAuthorNames(s.author), ...(authors.get(normalizeDoi(s.doi)) || []), s.year, s.venue, s.doi].filter(Boolean).join(' | '));
+        return {
             // Share of citations since the first replication: earlier citing works could never have co-cited one.
-            cocit_prop: s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0,
-            searchText: normalizedQuery([s.title, searchAuthorNames(s.author), ...(authors.get(normalizeDoi(s.doi)) || []), s.year, s.venue, s.doi].filter(Boolean).join(' | '))}));
-    }, [data.index, rows]);
-    return useMemo(() => ({...data, index}), [data, index]);
+            index: data.index.map(s => ({...s, cocit_prop: s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0, searchText: searchText(s)})),
+            excluded: (Array.isArray(data.meta?.excluded_originals) ? data.meta.excluded_originals : []).map(e => ({...e, searchText: searchText(e)})),
+        };
+    }, [data.index, data.meta, rows]);
+    return useMemo(() => ({...data, index: index?.index ?? null, excluded: index?.excluded ?? []}), [data, index]);
 }
 
 export default function CitationImpact({data}) {
@@ -440,7 +458,6 @@ export default function CitationImpact({data}) {
             title={{heading: 'Citation Impact', lede: 'What happens to citations of an original study once a replication of it is published.'}}>
             <div className="pane-meta">
                 <DataStamp source="citations" />
-                <OutcomeDefinitions />
                 <CiteBlock>
                     <p className="reuse-text">This is a simplified preview of the methods pre-registered for our ongoing confirmatory study:</p>
                     <div className="cite-ref">Weinerova, J., Wallrich, L., Röseler, L., Feuerriegel, S., &amp; Azevedo, F. (2026, April 30). (When) Do Replications Influence the Impact of Original Claims? A Bibliometric Investigation. <ExternalLink href="https://doi.org/10.17605/OSF.IO/WJGM3">https://doi.org/10.17605/OSF.IO/WJGM3</ExternalLink></div>
@@ -460,11 +477,11 @@ export default function CitationImpact({data}) {
                     <DataStamp source="reproduction_citations" />
                     <h2 className="card-header">Reproduction citation counts</h2>
                     <div className="card-body">
-                        <p className="muted">Counts are grouped by the assessed dimension. A report can contribute to several outcome groups, so group totals are not additive.</p>
+                        <p className="muted">Per-original summaries by assessed dimension, so groups of different sizes can be compared. Citations are all-time counts; medians limit the pull of a few highly cited originals. The co-citation rate is each original's share of citations that also cite its reproduction, counted from the year of its first reproduction and averaged across originals. A report can appear in several outcome groups.</p>
                         <div className="table-wrap">
                             <table className="data-table" id="ci-repro-table">
-                                <thead><tr><th scope="col"><span className="visually-hidden">Outcome</span></th><th>Originals</th><th>Citations to original</th><th>Citations to reproduction</th><th>Co-citations</th></tr></thead>
-                                <tbody>{buckets.map(b => { const r = repro[b.key] || {}; return <tr key={b.key}><td>{b.label}</td><td>{number(r.n_originals || 0)}</td><td>{number(r.n_citations_to_original || 0)}</td><td>{number(r.n_citations_to_reproduction || 0)}</td><td>{number(r.n_cocitations || 0)}</td></tr>; })}</tbody>
+                                <thead><tr><th scope="col"><span className="visually-hidden">Outcome</span></th><th><i>N</i> originals</th><th>Median citations per original</th><th>Mean citations per reproduction</th><th>Mean co-citation rate</th></tr></thead>
+                                <tbody>{buckets.map(b => { const r = repro[b.key] || {}; return <tr key={b.key}><td>{b.label}</td><td>{number(r.n_originals || 0)}</td><td>{r.median_citations_per_original == null ? '—' : number(r.median_citations_per_original, 1)}</td><td>{r.mean_citations_per_reproduction == null ? '—' : number(r.mean_citations_per_reproduction, 2)}</td><td>{r.mean_cocitation_rate == null ? '—' : percent(r.mean_cocitation_rate, 1, 1) + '%'}</td></tr>; })}</tbody>
                             </table>
                         </div>
                     </div>
@@ -484,14 +501,14 @@ export default function CitationImpact({data}) {
                 </div>
 
                 <section className="card ci-card">
-                    <h2 className="card-header">Aggregate impact of replications</h2>
+                    <h2 className="card-header">Citation Counts after Replications are published</h2>
                     <div className="card-body">
-                        <p className="muted">Event-study estimates: each original is aligned at <em>t = 0</em>, the year of its first published replication. Raw trajectories show average counts. The separate coefficient plots show OLS estimates and 95% confidence intervals on the log(1 + count) scale, relative to year −1, adjusting for original and calendar-year fixed effects. These associations do not establish a causal effect.</p>
+                        <p className="muted">There is no apparent association between a replication’s outcome and how often the original study is cited afterwards: original studies keep gaining citations after both failed and successful replications. However, citation counts increase in time and replication targets are usually not selected at random. Therefore, the before and after change visualised here is only descriptive, and cannot by itself be interpreted as an effect of replication.</p>
                         <div className="filters">
                             <span className="filter-label">Replication outcome</span>
                             <Chips id="outcome-chips" className="" heading="" label="Replication outcome" value={outcome} options={OUTCOME_OPTIONS} onChange={o => setView({ciOutcome: o})} />
                         </div>
-                        {ready && kind === 'replication' && <AggregatePlots agg={data.agg} outcome={outcome} />}
+                        {ready && kind === 'replication' && <AggregatePlots data={data} outcome={outcome} />}
                     </div>
                 </section>
 
@@ -512,7 +529,7 @@ export default function CitationImpact({data}) {
                     <h2 className="card-header">Browse all originals</h2>
                     <div className="card-body">
                         <p className="muted">Choose Timeline to see a report’s citation timeline with replication events marked.</p>
-                        <OriginalsTable index={data.index || EMPTY} onOpen={open} status={data.status} />
+                        <OriginalsTable index={data.index || EMPTY} excluded={data.excluded || EMPTY} onOpen={open} status={data.status} />
                     </div>
                 </section>
 
@@ -520,7 +537,7 @@ export default function CitationImpact({data}) {
                     <h2 className="card-header">About this analysis</h2>
                     <div className="card-body">
                         <p>Data are refreshed weekly. The pipeline filters FLoRA to <strong>conceptual and direct replications</strong> with outcomes labelled <em>successful</em>, <em>failed</em>, or <em>mixed</em> (reproductions are excluded). For each included original and replication, we retrieve all citing works from OpenCitations COCI. A "co-citation" is any work that cites both the original and at least one of its replications.</p>
-                        <p>The outcome filters group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead matches any replication of an original. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation model.</p>
+                        <p>The outcome filters group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead groups originals by the outcomes of all their replications. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation model.</p>
                         <p>Each timeline bar counts distinct citing works. Works that cite replications with more than one outcome appear once in the “multiple outcome categories” segment. The outcome-specific co-citation rate tables are overlapping summaries and should not be added.</p>
                         <p>The aggregate plots show event-study estimates from an OLS two-way fixed-effects model, a transparent analogue of the <Gloss term="FECT">Fixed Effects Counterfactual estimator: the causal-inference method specified in our preregistered protocol. This chart approximates it with a simpler OLS two-way fixed-effects model.</Gloss> specification used in the preregistered analysis. See the <ExternalLink href="https://github.com/forrtproject/FReD-data" className="">FReD-data repository</ExternalLink> for the underlying FLoRA dataset.</p>
                     </div>

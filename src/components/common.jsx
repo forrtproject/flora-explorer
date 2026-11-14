@@ -1,7 +1,7 @@
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
 import {STAMPS, KINDS} from '../lib/config.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
-import {classifyKind, classifyOutcome, parseReproductionOutcome} from '../lib/outcomes.js';
+import {classifyKind, parseReproductionOutcome, replicationOutcome} from '../lib/outcomes.js';
 import {useData} from '../state/data.jsx';
 import {PaneContext} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
@@ -20,6 +20,9 @@ export const Icon = {
     sun: () => <svg {...svg} className="icon-sun"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>,
 };
 
+const hasCoverage = meta => Array.isArray(meta?.excluded_originals) && meta.n_originals_eligible;
+const coverageSentence = meta => hasCoverage(meta) ? `${meta.n_originals.toLocaleString('en-GB')} of ${meta.n_originals_eligible.toLocaleString('en-GB')} eligible originals included` : '';
+
 export function stampInfo(source, meta) {
     const {label, staleDays} = STAMPS[source];
     if (!meta?.last_updated) return {text: `${label}: no snapshot yet`, missing: true, label};
@@ -30,11 +33,70 @@ export function stampInfo(source, meta) {
     const extras = [
         snapshotLabel && `input snapshot: ${snapshotLabel}`,
         meta.recalculated_at && `recalculated: ${new Date(meta.recalculated_at).toLocaleDateString()}`,
-        meta.partial_run && 'Partial refresh: some records are unavailable',
+        coverageSentence(meta) || (meta.partial_run && 'Partial refresh: some records are unavailable'),
         meta.source_url && `${label} source`,
     ].filter(Boolean);
     return {text: [`${label} last updated: ${when}`, ...extras].join(' · '), label, when, snapshotLabel, meta,
         stale: (Date.now() - date.getTime()) / 864e5 > staleDays};
+}
+
+const EXCLUSIONS = {
+    own_fetch_failed: ['Citation fetch failed', 'error', 'its citation fetch failed'],
+    replication_fetch_failed: ['Replication fetch failed', 'warning', 'a replication’s citation fetch failed'],
+    time_budget: ['Refresh time limit', 'muted', 'the refresh ran out of time before reaching it'],
+    not_processed: ['Not processed', 'muted', 'it was not processed in this refresh'],
+};
+export const exclusionReason = code => (EXCLUSIONS[code] || EXCLUSIONS.not_processed)[2];
+export function excludedOriginalLabel(e) {
+    const authors = String(e.author || '').split(';').map(a => a.trim()).filter(Boolean);
+    const who = authors.length ? authors[0] + (authors.length > 1 ? ' et al.' : '') : '';
+    return [who, e.year ? `(${e.year})` : ''].filter(Boolean).join(' ') || e.doi;
+}
+export function ExcludedRows({list}) {
+    return list.map(e => {
+        const [chip, tone] = EXCLUSIONS[e.reason] || EXCLUSIONS.not_processed;
+        return (
+            <li className="excluded-row" key={e.doi}>
+                <div className="excluded-row-main">
+                    <span className="excluded-row-who">{excludedOriginalLabel(e)}</span>
+                    {e.title && <span className="excluded-row-title">{e.title}</span>}
+                </div>
+                <div className="excluded-row-meta">
+                    <span className={`excluded-chip excluded-chip-${tone}`} title={`Left out because ${exclusionReason(e.reason)}`}>{chip}</span>
+                    <a className="doi-link excluded-row-doi" href={`https://doi.org/${encodeURI(e.doi)}`} target="_blank" rel="noopener noreferrer">{e.doi}</a>
+                </div>
+            </li>
+        );
+    });
+}
+// Originals a partial citation snapshot left out: omitted from every figure, never counted as zero.
+function ExcludedOriginals({meta}) {
+    const fmt = v => v.toLocaleString('en-GB');
+    const n = meta.excluded_originals.length;
+    // A handful of exclusions out of thousands would otherwise be an invisible sliver.
+    const pct = Math.min(meta.n_originals / meta.n_originals_eligible * 100, 98);
+    return (
+        <details className="excluded-originals">
+            <summary>
+                <svg className="excluded-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" /><path d="M10 5.5v5.5M10 13.8v.2" /></svg>
+                <span className="excluded-summary-text">
+                    <span className="excluded-headline">{fmt(n)} original{n === 1 ? '' : 's'} left out of this snapshot</span>
+                    <span className="excluded-sub">{meta.n_pairs_excluded ? `${fmt(meta.n_pairs_excluded)} reference ${meta.n_pairs_excluded === 1 ? 'pair' : 'pairs'} · ` : ''}omitted from the figures below, not counted as zero · retried next refresh</span>
+                </span>
+                <span className="excluded-toggle" aria-hidden="true" />
+            </summary>
+            <div className="excluded-coverage">
+                <div className="excluded-bar" role="img" aria-label={`${fmt(meta.n_originals)} included, ${fmt(n)} left out, of ${fmt(meta.n_originals_eligible)} eligible originals`}><span style={{width: pct + '%'}} /></div>
+                <div className="excluded-legend">
+                    <span><i className="dot-included" />{fmt(meta.n_originals)} included</span>
+                    <span><i className="dot-excluded" />{fmt(n)} left out</span>
+                    <span>{fmt(meta.n_originals_eligible)} eligible</span>
+                </div>
+            </div>
+            <p className="excluded-note">These originals are in FLoRA, but their citation data could not be completed in this refresh. They are <strong>left out</strong> of every figure on this tab rather than counted as having no citations.</p>
+            <ul className="excluded-list"><ExcludedRows list={meta.excluded_originals} /></ul>
+        </details>
+    );
 }
 
 export function DataStamp({source}) {
@@ -43,15 +105,17 @@ export function DataStamp({source}) {
     const info = stampInfo(source, stamps[source]);
     if (info.missing) return <div className="data-stamp missing" data-stamp-source={source}>{info.label}: <em>no snapshot yet</em></div>;
     const {meta} = info;
-    return (
-        <div className={'data-stamp' + (info.stale ? ' stale' : '')} data-stamp-source={source}>
+    const excluded = hasCoverage(meta) ? meta.excluded_originals : [];
+    return (<>
+        <div className={'data-stamp' + (info.stale ? ' stale' : '') + (excluded.length ? ' partial' : '')} data-stamp-source={source}>
             {info.label} last updated: <strong>{info.when}</strong>
             {info.snapshotLabel && <> · <span title={String(meta.input_snapshot)}>input snapshot: {info.snapshotLabel}</span></>}
             {meta.recalculated_at && <> · recalculated: {new Date(meta.recalculated_at).toLocaleDateString()}</>}
-            {meta.partial_run && ' · Partial refresh: some records are unavailable'}
+            {hasCoverage(meta) ? ' · ' + coverageSentence(meta) : meta.partial_run && ' · Partial refresh: some records are unavailable'}
             {meta.source_url && <> · <a className="doi-link" href={meta.source_url} target="_blank" rel="noopener noreferrer">{info.label} source</a></>}
         </div>
-    );
+        {excluded.length > 0 && <ExcludedOriginals meta={meta} />}
+    </>);
 }
 
 // Every tab stays mounted so its charts and scroll survive a switch; inactive panes are hidden.
@@ -85,21 +149,45 @@ export function CiteBlock({label = 'How to cite', children}) {
 }
 export const WebsiteCitation = () => <>Wallrich, L., &amp; Röseler, L. (2026). <em>FLoRA Explorer</em> [Website]. <a href="https://forrt.org/flora-explorer/" target="_blank" rel="noopener noreferrer" className="doi-link">https://forrt.org/flora-explorer/</a></>;
 
-const DIMENSION_TITLES = {replication: 'Replication outcomes', computational: 'Computational reproducibility', robustness: 'Robustness'};
-export function OutcomeDefinitions() {
+const KEY_PANELS = {replication: 'Replication', computational: 'Computational', robustness: 'Robustness', units: 'Units'};
+const Swatch = ({color}) => <span className="key-swatch" style={{'--swatch': `var(--color-chart-${color})`}} />;
+function KeyColumn({dimension, title}) {
+    const entries = FloraVocabulary.entries(dimension);
+    const term = entry => <li key={entry.key} className={entry.assessed ? 'verdict' : 'no-verdict'}><Swatch color={entry.color} /><span className="key-text"><strong>{entry.label}</strong><span>{entry.definition}</span></span></li>;
     return (
-        <details className="outcome-definitions" data-outcome-definitions>
-            <summary>Outcome definitions</summary>
-            {Object.entries(DIMENSION_TITLES).map(([dimension, title]) => (
-                <section key={dimension}>
-                    <h3>{title}</h3>
-                    <dl>{FloraVocabulary.entries(dimension).map(entry => <div key={entry.key}><dt>{entry.label}</dt><dd>{entry.definition}</dd></div>)}</dl>
-                </section>
-            ))}
-            <section>
-                <h3>Units</h3>
-                <dl>{Object.entries(FloraVocabulary.units()).map(([unit, definition]) => <div key={unit}><dt>{unit}</dt><dd>{definition}</dd></div>)}</dl>
-            </section>
+        <section className="key-column" data-panel={dimension}>
+            <h3>{title}</h3>
+            <ul>{entries.filter(e => e.assessed).map(term)}</ul>
+            <p className="key-subhead">No verdict</p>
+            <ul>{entries.filter(e => !e.assessed).map(term)}</ul>
+        </section>
+    );
+}
+// Every outcome code and counting unit, with its colour. On phones one panel shows at a time.
+export function OutcomeDefinitions() {
+    const [panel, setPanel] = useState('replication');
+    return (
+        <details className="outcome-definitions" data-outcome-definitions data-panel={panel}>
+            <summary>
+                <span className="key-title">Outcome key</span>
+                <span className="key-preview" aria-hidden="true">{FloraVocabulary.entries('replication').filter(e => e.assessed).map(e => <span key={e.key}><Swatch color={e.color} />{e.label}</span>)}</span>
+            </summary>
+            <div className="key-tabs" role="group" aria-label="Outcome key section">
+                {Object.entries(KEY_PANELS).map(([key, name]) => <button type="button" key={key} data-panel-tab={key} aria-pressed={key === panel} onClick={() => setPanel(key)}>{name}</button>)}
+            </div>
+            <div className="key-grid">
+                <div className="key-stack">
+                    <KeyColumn dimension="replication" title="Replication" />
+                    <section className="key-column key-units" data-panel="units">
+                        <h3>Counting units</h3>
+                        <dl>{Object.entries(FloraVocabulary.units()).map(([unit, definition]) => <div key={unit}><dt>{unit}</dt><dd>{definition}</dd></div>)}</dl>
+                    </section>
+                </div>
+                <div className="key-stack">
+                    <KeyColumn dimension="computational" title="Reproduction · computational" />
+                    <KeyColumn dimension="robustness" title="Reproduction · robustness" />
+                </div>
+            </div>
         </details>
     );
 }
@@ -150,23 +238,25 @@ export function Gloss({term, children}) {
     return <span className={'gloss' + (tip.dismissed ? ' tip-dismissed' : '')} {...tip.trigger}>{term}<span className="gloss-tip" id={tip.id} role="tooltip">{children}</span></span>;
 }
 
-function Badge({dimension, outcomeKey, prefix}) {
+function Badge({dimension, outcomeKey, prefix, raw}) {
     const entry = FloraVocabulary.item(dimension, outcomeKey);
-    // "Robustness challenges" under a "Robustness" heading reads as "Challenges".
-    const value = prefix && entry.label.toLowerCase().startsWith(prefix.toLowerCase() + ' ')
-        ? entry.label.slice(prefix.length + 1).replace(/^./, c => c.toUpperCase()) : entry.label;
+    const title = outcomeKey === 'unrecognised' ? `${entry.definition} Recorded as: ${String(raw ?? '').trim()}` : entry.definition;
     return (
-        <span className={`badge outcome-tag badge-${entry.key === 'technical_failure' ? 'failed' : entry.color}`} title={entry.definition}>
+        <span className={`badge outcome-tag badge-${entry.key === 'technical_failure' ? 'failed' : entry.color}`} title={title}>
+            {/* The hidden colon keeps copied and spoken text readable as "Computational: Computationally reproducible". */}
             {prefix && <><span className="badge-dim">{prefix}<span className="visually-hidden">:</span></span>{' '}</>}
-            <span className="badge-value">{value}</span>
+            <span className="badge-value">{entry.label}</span>
         </span>
     );
 }
 export function OutcomeBadge({row}) {
-    if (classifyKind(row) !== 'reproduction') return <Badge dimension="replication" outcomeKey={classifyOutcome(row.outcome)} />;
-    const d = parseReproductionOutcome(row.outcome);
-    return <span className="outcome-tags"><Badge dimension="computational" outcomeKey={d.computational} prefix="Computational" /> <Badge dimension="robustness" outcomeKey={d.robustness} prefix="Robustness" /></span>;
+    if (classifyKind(row) !== 'reproduction') return <Badge dimension="replication" outcomeKey={replicationOutcome(row)} raw={row.outcome_replication} />;
+    const d = parseReproductionOutcome(row);
+    return <span className="outcome-tags"><Badge dimension="computational" outcomeKey={d.computational} prefix="Computational" raw={row.outcome_computation} /> <Badge dimension="robustness" outcomeKey={d.robustness} prefix="Robustness" raw={row.outcome_robustness} /></span>;
 }
+
+// Copy variant for the selected study type: [replication, numerical, robustness, all].
+export const byKind4 = (kind, variants) => kind === 'all' ? variants[3] : byKind(kind, variants);
 
 const KIND_OPTIONS = [['all', 'All'], ['replication', 'Replications'], ['reproduction-numerical', 'Numerical reproductions'], ['reproduction-robustness', 'Robustness reproductions']];
 export const kindLabel = kind => KIND_OPTIONS.find(o => o[0] === kind)?.[1] || kind;
@@ -208,6 +298,7 @@ export function StatTiles({id, tiles, box}) {
                 <div className={box ? 'mc-stat-box' : 'mc-stat'} key={t.label}>
                     <div className="mc-stat-value">{t.value.toLocaleString('en-GB')}</div>
                     <div className="mc-stat-label">{t.label}</div>
+                    {t.sub && <span className="mc-stat-sub">{t.sub}</span>}
                 </div>
             ))}
         </div>

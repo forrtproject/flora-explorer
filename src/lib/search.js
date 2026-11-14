@@ -31,7 +31,7 @@ function pairSearchText(row) {
         const urlDoi = /^https?:\/\/(?:dx\.)?doi\.org\//i.test(row.url_r || '') ? row.url_r : '';
         pairText.set(row, normalizedQuery([row.title_o, searchAuthorNames(row.author_o), row.journal_o, row.year_o, row.doi_o,
             row.title_r, searchAuthorNames(row.author_r), row.journal_r, row.year_r, row.doi_r, urlDoi,
-            row.outcome_quote, row.type].filter(Boolean).join(' | ')));
+            row.outcome_replication_quote, row.outcome_computational_quote, row.outcome_robustness_quote, row.type].filter(Boolean).join(' | ')));
     }
     return pairText.get(row);
 }

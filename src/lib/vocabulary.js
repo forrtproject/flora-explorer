@@ -19,11 +19,6 @@ function classify(raw, dimension = 'replication') {
 }
 const item = (dimension, key) => entries(dimension).find(entry => entry.key === key);
 const label = (key, dimension = 'replication') => item(dimension, key)?.label || item(dimension, 'unrecognised').label;
-function reproduction(raw) {
-    // Positional: part 0 is only ever the computational verdict, part 1 the robustness verdict.
-    const parts = String(raw ?? '').split(',');
-    return {computational: classify(parts[0], 'computational'), robustness: classify(parts[1], 'robustness')};
-}
 const studyType = kind => vocabulary.study_types[kind] || kind;
 const units = () => vocabulary?.units || {};
 // A ?doi= deep link can draw charts before the vocabulary has loaded.
@@ -31,4 +26,4 @@ const unitDefinition = name => vocabulary?.units[name] || '';
 const isMissing = raw => Boolean(vocabulary?.missing_markers.includes(normalise(raw)));
 const loaded = () => Boolean(vocabulary);
 
-export const FloraVocabulary = {ready, loaded, entries, classify, item, label, reproduction, studyType, units, unitDefinition, isMissing};
+export const FloraVocabulary = {ready, loaded, entries, classify, item, label, studyType, units, unitDefinition, isMissing};

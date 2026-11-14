@@ -40,7 +40,7 @@ function parse(url) {
         repJournalTopN: oneOf(get('rep-journal-top-n'), ['10', '15', '25', '50'], '15'),
         ciKind: oneOf(get('ci-kind'), KINDS, 'replication'),
         ciOutcome: oneOf(get('ci-outcome'), ['all', 'failed', 'successful', 'mixed'], 'all'),
-        filterOutcome: oneOf(get('filter-outcome'), ['', 'failed', 'successful', 'mixed'], ''),
+        filterOutcome: oneOf(get('filter-outcome'), ['', 'failed', 'successful', 'mixed', 'multiple'], ''),
         ciQ: get('ci-q') ?? get('search-input') ?? '',
         mcKind: oneOf(get('mc-kind'), KINDS, 'replication'),
         aoKind: oneOf(get('ao-kind'), KINDS, 'replication'),

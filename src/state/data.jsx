@@ -6,6 +6,9 @@ import {FloraVocabulary} from '../lib/vocabulary.js';
 const DataContext = createContext(null);
 export const useData = () => useContext(DataContext);
 
+const OUTCOME_CODE_COLUMNS = new Set(['outcome', 'outcome_replication', 'outcome_computation', 'outcome_robustness']);
+const REPLICATION_FALLBACK = {outcome_replication: 'outcome', outcome_replication_quote: 'outcome_quote', out_quote_replication_source: 'outcome_quote_source'};
+
 const parseCsv = url => new Promise((resolve, reject) => {
     Papa.parse(url, {download: true, header: true, skipEmptyLines: true, complete: resolve, error: reject});
 });
@@ -21,8 +24,13 @@ async function loadRows() {
     }
     if (results.errors?.length) console.warn('CSV parsing warnings:', results.errors);
     return results.data.map(row => {
-        // "NA" is a real outcome code only in the outcome column.
-        for (const key of Object.keys(row)) if (key !== 'outcome' && row[key] === 'NA') row[key] = '';
+        // Verdict columns keep "NA" as recorded, so downloads show the coder's value.
+        for (const key of Object.keys(row)) if (!OUTCOME_CODE_COLUMNS.has(key) && row[key] === 'NA') row[key] = '';
+        // Until a FLoRA release ships the replication columns they are copied from the combined
+        // fields, which hold identical values for replications.
+        for (const [column, combined] of Object.entries(REPLICATION_FALLBACK)) {
+            if (!(column in row) && combined in row) row[column] = (row.type || '').toLowerCase().includes('reproduc') ? '' : row[combined];
+        }
         return row;
     });
 }

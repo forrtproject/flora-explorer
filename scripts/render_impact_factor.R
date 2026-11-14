@@ -65,8 +65,15 @@ raw$type_lc     <- tolower(raw$type)
 is_reproduction <- grepl("reproduc", raw$type_lc)
 is_replication  <- grepl("replication", raw$type_lc) & !is_reproduction
 
-df_all  <- raw[!is.na(raw$impact_factor) & raw$impact_factor < 35 & is_replication, ]
-df_all$outcome_class <- classify_outcome(df_all$outcome)
+# compute_omc.py blanks OMC values it sets aside, so every remaining value is used.
+df_all  <- raw[!is.na(raw$impact_factor) & is_replication, ]
+omc_status <- if ("omc_status" %in% names(raw)) raw$omc_status[is_replication] else character(0)
+set_aside <- list(too_few_papers     = sum(omc_status == "too_few_papers", na.rm = TRUE),
+                  placeholder_record = sum(omc_status == "placeholder_record", na.rm = TRUE))
+omc_meta <- fromJSON(file.path(root, "data", "flora_with_omc_meta.json"))
+# Replications are classified from their own column; compute_omc.py fills it from the
+# combined `outcome` until FLoRA ships it.
+df_all$outcome_class <- classify_outcome(df_all$outcome_replication)
 oc_all <- df_all$outcome_class
 
 # ── Overview stats ───────────────────────────────────────────────────────────
@@ -88,8 +95,9 @@ overview <- list(
   n_disciplines = length(unique(df_all$discipline[df_all$discipline != "Uncategorized"]))
 )
 
-# ── Histogram data (bin width 0.5, 0–35) ─────────────────────────────────────
-breaks    <- seq(0, 35, by = 0.5)
+# ── Histogram data (bin width 0.5, 0 to just past the largest OMC) ───────────
+# A snapshot with no OMC values yields no bins rather than seq() failing on max() = -Inf.
+breaks    <- if (nrow(df_all) > 0) seq(0, floor(max(df_all$impact_factor) / 0.5) * 0.5 + 0.5, by = 0.5) else 0
 hist_data <- lapply(seq_len(length(breaks) - 1), function(i) {
   lo <- breaks[i]; hi <- breaks[i + 1]
   sub <- df_all[df_all$impact_factor >= lo & df_all$impact_factor < hi, ]
@@ -112,6 +120,7 @@ df$omc_log        <- log(df$impact_factor + 1)
 stats_out <- list(edf = NA, chi_sq = NA, p_val = NA, r2 = NA, n_model = nrow(df))
 gam_curve <- list()
 jitter    <- list()
+curve_info <- NULL
 
 set.seed(20260913)
 if (nrow(df) >= 30) {
@@ -131,9 +140,11 @@ if (nrow(df) >= 30) {
       n_model = nrow(df)
     )
 
-    omc_seq <- seq(min(df$impact_factor, na.rm = TRUE),
-                   min(max(df$impact_factor, na.rm = TRUE), 20),
-                   length.out = 150)
+    # Beyond the 99th percentile the interval rests on a handful of pairs, so the curve stops.
+    curve_end <- unname(quantile(df$impact_factor, 0.99))
+    beyond    <- df$impact_factor > curve_end
+    curve_info <- list(quantile = 0.99, end_omc = round(curve_end, 2), n_beyond = sum(beyond))
+    omc_seq <- expm1(seq(log1p(min(df$impact_factor)), log1p(curve_end), length.out = 150))
     pred_df <- data.frame(omc_log = log(omc_seq + 1))
     gp      <- predict(gam_fit, newdata = pred_df, type = "link", se.fit = TRUE)
     gam_curve <- lapply(seq_along(omc_seq), function(i) list(
@@ -143,10 +154,22 @@ if (nrow(df) >= 30) {
       p_hi = round(plogis(gp$fit[i] + 1.96 * gp$se.fit[i]), 4)
     ))
 
-    jdf <- df[, c("impact_factor", "outcome_binary")]
+    first_present <- function(...) {
+      out <- rep(NA_character_, nrow(df))
+      for (v in list(...)) out <- ifelse(is.na(out) & !is.na(v) & nzchar(trimws(v)), trimws(v), out)
+      out
+    }
+    df$original_id <- first_present(df$doi_o, df$title_o)
+    df$report_id   <- first_present(df$doi_r, df$url_r, df$title_r)
+    cols <- c("impact_factor", "outcome_binary", "original_id", "report_id")
+
+    # A random sample within the curve's range, plus every pair beyond it.
+    jdf <- df[!beyond, cols]
     if (nrow(jdf) > 800) jdf <- jdf[sample(nrow(jdf), 800), ]
+    jdf <- rbind(jdf, df[beyond, cols])
     jitter <- lapply(seq_len(nrow(jdf)), function(i)
-      list(omc = round(jdf$impact_factor[i], 3), outcome = jdf$outcome_binary[i]))
+      list(omc = round(jdf$impact_factor[i], 3), outcome = jdf$outcome_binary[i],
+           original = jdf$original_id[i], report = jdf$report_id[i]))
   }
 }
 
@@ -156,6 +179,8 @@ if (length(gam_curve) == 0) gam_curve <- numeric(0)
 if (length(jitter)    == 0) jitter    <- numeric(0)
 
 result <- list(overview  = overview,
+               set_aside = c(set_aside, list(min_works = omc_meta$min_works)),
+               curve     = curve_info,
                stats     = stats_out,
                histogram = hist_data,
                gam_curve = gam_curve,
@@ -166,7 +191,7 @@ writeLines(toJSON(result, auto_unbox = TRUE, pretty = FALSE), out_data)
 meta <- list(
   last_updated    = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
   n_rows_with_omc = overview$n_total,
-  input_snapshot = fromJSON(file.path(root, "data", "flora_with_omc_meta.json"))$last_updated,
+  input_snapshot = omc_meta$last_updated,
   source          = "scripts/render_impact_factor.R"
 )
 writeLines(toJSON(meta, auto_unbox = TRUE, pretty = TRUE), out_meta)

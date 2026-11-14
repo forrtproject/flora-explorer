@@ -1,6 +1,14 @@
 {
-  "last_updated": "2026-11-09T11:09:12.194046+00:00",
-  "n_rows": 2847,
-  "n_with_omc": 2677,
-  "source": "OpenAlex Sources API (summary_stats.2yr_mean_citedness)"
+  "last_updated": "2026-11-13T09:34:30.938382+00:00",
+  "n_rows": 2881,
+  "n_with_omc": 2709,
+  "measure": "lifetime cited_by_count / works_count",
+  "min_works": 20,
+  "placeholder_min_citations": 100,
+  "placeholder_max_share": 0.1,
+  "n_set_aside": {
+    "too_few_papers": 0,
+    "placeholder_record": 4
+  },
+  "source": "OpenAlex Sources API (cited_by_count / works_count)"
 }

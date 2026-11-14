@@ -2,13 +2,14 @@ import {Fragment, useEffect, useMemo, useRef, useState} from 'react';
 import {BROWSE_KIND_LABELS, BROWSE_KIND_NOUNS, URLS} from '../lib/config.js';
 import {download} from '../lib/charts.js';
 import {cleanDoi, doiHref, fullAuthors, authorYear, pairHref, pairs, reportLinkText, safeHref, shortAuthors, truncate} from '../lib/format.js';
-import {filterByKind, outcomeLabel, reportKindLabel} from '../lib/outcomes.js';
+import {filterByKind, outcomeLabel, reportKindLabel, sourceOutcome} from '../lib/outcomes.js';
+import {codingNoteBasis, isCodingNote, outcomeEvidenceParts, sourcePieces} from '../lib/evidence.js';
 import {matchesBrowseQuery} from '../lib/search.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
-import {setHook} from '../lib/hooks.js';
+import {setHook, setMarkupHooks} from '../lib/hooks.js';
 import {useData} from '../state/data.jsx';
 import {useView} from '../state/view.jsx';
-import {CiteBlock, DataStamp, ExternalLink, Icon, KindFilter, OutcomeBadge, OutcomeDefinitions, Pane, WebsiteCitation, kindLabel, stampInfo} from '../components/common.jsx';
+import {CiteBlock, DataStamp, ExternalLink, Icon, KindFilter, OutcomeBadge, Pane, WebsiteCitation, kindLabel, stampInfo} from '../components/common.jsx';
 import {OutcomeChartRow} from '../components/OutcomeChartRow.jsx';
 import {DatasetCitation, REUSE_TEXT} from './Overview.jsx';
 
@@ -16,7 +17,7 @@ const MOBILE_PAGE_SIZE = 20;
 const PAGE_SIZES = [10, 25, 50, 100, -1];
 const collator = new Intl.Collator(undefined, {numeric: true});
 const SORT_FIELDS = {1: 'title_o', 2: 'year_o', 3: 'title_r', 4: 'year_r', 5: 'outcome', 6: 'type', 7: 'doi_o'};
-const sortKey = column => column === 8 ? r => reportLinkText(r.url_r, r.doi_r) : r => String(r[SORT_FIELDS[column] || 'year_r'] || '');
+const sortKey = column => column === 8 ? r => reportLinkText(r.url_r, r.doi_r) : column === 5 ? sourceOutcome : r => String(r[SORT_FIELDS[column] || 'year_r'] || '');
 const MOBILE_SORTS = [['4:desc', 'Newest repetition first'], ['4:asc', 'Oldest repetition first'], ['2:desc', 'Newest original first'], ['2:asc', 'Oldest original first'], ['1:asc', 'Original title, A–Z']];
 const DIMENSION_FOR_KIND = {replication: 'replicability', 'reproduction-numerical': 'computational', 'reproduction-robustness': 'robustness'};
 
@@ -31,6 +32,40 @@ function ReportLink({url, doi, max}) {
     return <a href={href} target="_blank" rel="noopener noreferrer" className="doi-link" title={url}>{max ? truncate(url, max) : reportLinkText(url)}</a>;
 }
 export {ReportLink};
+
+const LinkedSource = ({text}) => sourcePieces(text).map((piece, i) => i % 2 ? <a key={i} href={piece} target="_blank" rel="noopener noreferrer">{piece}</a> : piece);
+// "coding note: <basis>" keeps its basis; a bare "coding note" records none.
+function SourceNote({source}) {
+    if (!isCodingNote(source)) return <>source: <LinkedSource text={source} /></>;
+    const basis = codingNoteBasis(source);
+    return basis ? <>coding note: <LinkedSource text={basis} /></> : 'coding note';
+}
+export function OutcomeEvidence({row}) {
+    const {parts, unpaired} = outcomeEvidenceParts(row);
+    if (!parts.length) return <p className="small">No outcome evidence is recorded for this pair.</p>;
+    const sources = [...parts.map(p => p.source).filter(Boolean), ...unpaired];
+    const allQuotes = parts.every(p => p.source) || (unpaired.length > 0 && !parts.some(p => p.source));
+    return (
+        <>
+            <div className="detail-label">{allQuotes && !sources.some(isCodingNote) ? 'Outcome quote' : 'Outcome evidence'}:</div>
+            <ul className="outcome-evidence">
+                {parts.map((p, i) => <li key={i}>{p.label && <><span className="evidence-part-label">{p.label}:</span>{' '}</>}{p.text}{p.source && <> <span className="small">(<SourceNote source={p.source} />)</span></>}</li>)}
+            </ul>
+            {unpaired.length > 0 && <p className="small">Source: {unpaired.map((s, i) => <Fragment key={i}>{i > 0 && '; '}{isCodingNote(s) ? <SourceNote source={s} /> : <LinkedSource text={s} />}</Fragment>)}</p>}
+        </>
+    );
+}
+export function TitleCell({title, author, year}) {
+    const text = title || shortAuthors(author) || '-', byline = authorYear(author, year);
+    return <><span className="title-clamp" title={text}>{text}</span>{byline && <span className="title-byline">{byline}</span>}</>;
+}
+
+// Static markup of the evidence pieces, for the console and the acceptance tests.
+setMarkupHooks({
+    formatOutcomeEvidence: row => <OutcomeEvidence row={row} />,
+    getOutcomeBadge: row => <OutcomeBadge row={row} />,
+    tableTitleCell: (title, author, year) => <TitleCell title={title} author={author} year={year} />,
+});
 
 const Field = ({label, children}) => <div><span className="detail-label">{label}:</span> <span className="detail-value">{children}</span></div>;
 
@@ -63,11 +98,7 @@ export function Evidence({row}) {
                 <h6>Recorded evidence</h6>
                 <div className="detail-section">
                     <Field label="Outcome"><OutcomeBadge row={row} /></Field>
-                    <Field label="Source outcome">{row.outcome}</Field>
-                    {row.outcome_quote
-                        ? <><blockquote className="evidence-quote"><span className="detail-label">Outcome quotation:</span> <span className="detail-value">"{row.outcome_quote}"</span></blockquote>
-                            <p className="small">{row.outcome_quote_source ? `Source: ${row.outcome_quote_source}. ` : ''}This excerpt may cover only part of the findings and may not fully explain the recorded outcome.</p></>
-                        : <p className="small">No supporting quotation is recorded for this pair.</p>}
+                    <OutcomeEvidence row={row} />
                     <Field label="Type">{row.type || '-'}</Field>
                 </div>
             </div>
@@ -91,7 +122,7 @@ function MobileCard({row}) {
                 <div className="bm-row-meta">{[authorYear(row.author_r, row.year_r), row.journal_r].filter(Boolean).join(' · ')}</div>
             </div>
             <div className="bm-tags"><OutcomeBadge row={row} />{row.type && <span className="bm-tag-type">{row.type}</span>}</div>
-            <details className="bm-evidence"><summary>Study evidence and outcome quotation</summary><Evidence row={row} /></details>
+            <details className="bm-evidence"><summary>Study and outcome evidence</summary><Evidence row={row} /></details>
         </div>
     );
 }
@@ -212,7 +243,6 @@ export default function Browse({citation}) {
             </div>
             <div className="pane-meta">
                 <DataStamp source="flora" />
-                <OutcomeDefinitions />
                 <CiteBlock label="How to cite &amp; re-use guidelines">
                     <p className="reuse-text">{REUSE_TEXT}</p>
                     <div className="cite-ref" id="citation-text-browse"><DatasetCitation state={citation} /></div>
@@ -223,9 +253,9 @@ export default function Browse({citation}) {
             <section className="card" id="browse-outcome-card" style={dimension && total ? undefined : {display: 'none'}}>
                 <h2 className="card-header">Outcome Breakdown</h2>
                 <div className="card-body">
-                    <OutcomeChartRow prefix="browse" dimension="computational" rowId="browse-computational-row" hidden={dimension !== 'computational'} rows={filtered} eligible={total} scope="Reflects the reproductions in the table below: were the original results obtained?" />
-                    <OutcomeChartRow prefix="browse" dimension="robustness" rowId="browse-robustness-row" hidden={dimension !== 'robustness'} rows={filtered} eligible={total} scope="Reflects the reproductions in the table below: do results hold under alternative analysis choices?" />
-                    <OutcomeChartRow prefix="browse" dimension="replicability" rowId="browse-replicability-row" hidden={dimension !== 'replicability'} rows={filtered} eligible={total} scope={<>Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are shown separately when their filter is selected.</>} />
+                    <OutcomeChartRow prefix="browse" dimension="computational" rowId="browse-computational-row" hidden={dimension !== 'computational'} rows={filtered} scope="Reflects the reproductions in the table below: were the original results obtained?" />
+                    <OutcomeChartRow prefix="browse" dimension="robustness" rowId="browse-robustness-row" hidden={dimension !== 'robustness'} rows={filtered} scope="Reflects the reproductions in the table below: do results hold under alternative analysis choices?" />
+                    <OutcomeChartRow prefix="browse" dimension="replicability" rowId="browse-replicability-row" hidden={dimension !== 'replicability'} rows={filtered} scope={<>Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are shown separately when their filter is selected.</>} />
                 </div>
             </section>
 
@@ -258,9 +288,9 @@ export default function Browse({citation}) {
                                             <Fragment key={index}>
                                                 <tr data-index={index} className={open ? 'shown' : undefined}>
                                                     <td className="details-control"><button type="button" className="study-details" aria-label={'Show evidence for ' + (row.title_o || 'original report')} aria-expanded={open} onClick={() => toggle(index)} /></td>
-                                                    <td>{truncate(row.title_o || shortAuthors(row.author_o), 50)}</td>
+                                                    <td><TitleCell title={row.title_o} author={row.author_o} year={row.year_o} /></td>
                                                     <td>{row.year_o || '-'}</td>
-                                                    <td>{truncate(row.title_r || shortAuthors(row.author_r), 50)}</td>
+                                                    <td><TitleCell title={row.title_r} author={row.author_r} year={row.year_r} /></td>
                                                     <td>{row.year_r || '-'}</td>
                                                     <td><OutcomeBadge row={row} /></td>
                                                     <td className="type-cell">{row.type ? truncate(row.type, 15) : '-'}</td>

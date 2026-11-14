@@ -1,25 +1,28 @@
 import {useMemo} from 'react';
 import {ANALYSIS_MIN_N, URLS} from '../lib/config.js';
 import {percent} from '../lib/format.js';
-import {outcomeBuckets, studyTypeLabel} from '../lib/outcomes.js';
+import {kindNoun, kindPairCount, outcomeBuckets, studyTypeLabel} from '../lib/outcomes.js';
+import {coverageText} from '../lib/coverage.js';
 import {setHook} from '../lib/hooks.js';
-import {useJson} from '../state/data.jsx';
+import {useData, useJson} from '../state/data.jsx';
 import {useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot, comparisonSpec} from '../components/charts.jsx';
-import {Caveat, Chips, CiteBlock, DataStamp, OutcomeDefinitions, Pane, Placeholder, StatTiles, WebsiteCitation, byKind, kindLabel, repWord} from '../components/common.jsx';
+import {Caveat, Chips, CiteBlock, DataStamp, Pane, Placeholder, StatTiles, WebsiteCitation, byKind, kindLabel, repWord} from '../components/common.jsx';
 
 const GROUPS = {overlap: 'Author overlap', no_overlap: 'No author overlap'};
 
 export default function AuthorshipOverlap() {
     const {view, setView} = useView();
     const {theme, rev} = useEnv();
+    const {rows} = useData();
     const kind = view.aoKind;
     const {data, error} = useJson(URLS.overlap, view.tab === 'overlap-tab');
     setHook('_aoData', () => data);
     const d = data?.[kind], ov = d?.overview;
     const enough = ov && ov.n_total >= ANALYSIS_MIN_N;
-    const spec = useMemo(() => enough ? comparisonSpec(outcomeBuckets(kind), Object.keys(GROUPS), GROUPS, d.by_outcome) : null, [enough, d, kind, theme, rev]);
+    const coverage = enough ? coverageText(ov.n_total || 0, kindPairCount(rows, kind), [[ov.n_unknown || 0, 'with authorship overlap unknown']], kindNoun(kind), kind) : '';
+    const spec = useMemo(() => enough ? {...comparisonSpec(outcomeBuckets(kind), Object.keys(GROUPS), GROUPS, d.by_outcome), coverage} : null, [enough, d, kind, theme, rev, coverage]);
     const word = repWord(kind);
     const chartTitle = `${byKind(kind, ['Replication outcomes', 'Computational reproducibility', 'Robustness'])} by authorship overlap`;
     return (
@@ -27,7 +30,6 @@ export default function AuthorshipOverlap() {
             title={{heading: 'Authorship Overlap', lede: 'Whether outcomes differ when a repetition shares a family name with the authors of the original study.'}}>
             <div className="pane-meta">
                 <DataStamp source="author_overlap" />
-                <OutcomeDefinitions />
                 <CiteBlock><div className="cite-ref"><WebsiteCitation /></div></CiteBlock>
             </div>
             <section className="card">
@@ -52,6 +54,7 @@ export default function AuthorshipOverlap() {
                             ]} />
                             <div id="ao-chart-card" className="mc-chart-card">
                                 <h3 className="mc-chart-title">{chartTitle}</h3>
+                                <p className="mc-model-note" id="ao-chart-n">{coverage}</p>
                                 <div className="mc-chart-wrap"><Plot id="ao-chart" title={chartTitle} spec={spec} /></div>
                             </div>
                             <Caveat id="ao-caveat">{kind === 'replication'

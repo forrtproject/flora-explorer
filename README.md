@@ -5,7 +5,7 @@ A static React dashboard for the [FORRT Library of Reproduction and Replication 
 | View | Purpose | Data refresh |
 |---|---|---|
 | Overview | Reference-pair counts and separate replication, computational and robustness outcomes | Daily |
-| Browse reference pairs | Shared desktop/mobile search, full evidence, outcome quotations, links and filtered CSV export | Daily |
+| Browse reference pairs | Shared desktop/mobile search, full evidence, outcome quotes with their source, links and filtered CSV export | Daily |
 | Years & Disciplines | Outcome counts by year, venue and discipline | Daily |
 | Citation Impact | Citation trajectories, adjusted associations, co-citation rates and individual timelines | Weekly |
 | Mean Citedness | Journal-level citation metric distributions and a conditional replication-success model | Weekly |
@@ -35,8 +35,8 @@ Open the address Vite prints (by default <http://localhost:5173/>). The dev serv
 - **Registered Reports:** matching uses the [RRDB CSV](https://github.com/LukasRoeseler/RRDB/blob/main/zotero_registered_reports.csv). A non-match is not evidence that a report was not registered.
 - **Report size:** more than three distinct original targets defines a multiple-target report. This does not establish the number of laboratories or membership of a coordinated project. Charts count pairs; evidence lists count reports. Different snapshots/cohorts can have different coverage.
 - **Citation timelines:** stacked categories are mutually exclusive. A work citing replications from multiple outcome categories appears once in a separate segment. Outcome-specific rate tables overlap and must not be summed.
-- **Citation models:** coefficient plots show OLS estimates and 95% intervals on the `log(1 + count)` scale, relative to year −1, separately from raw trajectories. The model adjusts for original and calendar-year effects. These are adjusted associations, not established causal effects or percentage changes in raw counts. Outcome groups use the earliest recorded replication year; same-year ties follow stored record order.
-- **Mean Citedness:** OpenAlex's two-year journal-level metric is retrieved at enrichment time, not matched to the original publication year. The logistic smooth conditions on unqualified successful/failed outcomes with matched OMC below 35. The histogram retains other outcomes. The 50% line is a reference, not a chance baseline.
+- **Citation trajectories:** descriptive only; no regression model is fitted. Each original is aligned at its first recorded replication (t = 0). Citation means use a balanced panel of originals observed from t = −5 to +5; co-citation means use originals observed from t = 0 to +5, since co-citation is impossible before a replication exists. Counts stop at the last complete calendar year. Outcome groups use the earliest recorded replication year; same-year ties follow stored record order.
+- **Mean Citedness:** a journal's lifetime OpenAlex citations divided by its papers, retrieved at enrichment time, not matched to the original publication year. Journals with fewer than 20 papers, or where a single journal-level placeholder record accounts for at least 10% of all their citations, are set aside. The logistic smooth conditions on unqualified successful/failed outcomes, on log(OMC + 1). The histogram retains other outcomes. The 50% line is a reference, not a chance baseline.
 
 The data are not representative of all research. Shared reports, repeated targets, journals and projects create dependence. Read the coverage and matching caveats alongside each view.
 
