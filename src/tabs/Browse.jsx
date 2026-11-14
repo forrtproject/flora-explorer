@@ -333,9 +333,9 @@ export default function Browse({citation}) {
                             {mobileShown.map(row => <MobileCard row={row} key={indexOf.get(row)} />)}
                         </div>
                         <div className="browse-mobile-pager" id="browse-mobile-pager" style={mobilePages > 1 ? undefined : {display: 'none'}}>
-                            <button className="bm-page-btn" id="bm-prev" type="button" aria-label="Previous page" disabled={mobilePage === 1} onClick={() => showMobilePage(-1)}>‹ Prev</button>
+                            <button className="bm-page-btn" id="bm-prev" type="button" aria-label="Previous page" disabled={mobilePage === 1} onClick={() => showMobilePage(-1)}><Icon.prev /> Prev</button>
                             <span className="bm-page-info" id="bm-page-info" aria-current="page">Page {mobilePage} of {mobilePages}</span>
-                            <button className="bm-page-btn" id="bm-next" type="button" aria-label="Next page" disabled={mobilePage >= mobilePages} onClick={() => showMobilePage(1)}>Next ›</button>
+                            <button className="bm-page-btn" id="bm-next" type="button" aria-label="Next page" disabled={mobilePage >= mobilePages} onClick={() => showMobilePage(1)}>Next <Icon.next /></button>
                         </div>
                     </div>
                 </div>

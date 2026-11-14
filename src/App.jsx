@@ -91,7 +91,10 @@ export default function App() {
             <main className="app-main" id="main-content" tabIndex={-1} ref={main}>
                 <span id="analysis-feedback" className="visually-hidden" role="status">{announcement}</span>
                 <div className="container">
-                    {status === 'loading' && <div id="global-loading" className="loading-spinner"><div className="spinner" role="status" /><span>Loading FLoRA data…</span></div>}
+                    {status === 'loading' && <div id="global-loading" className="loading-spinner" role="status" aria-label="Loading FLoRA data…">
+                        <div className="skeleton" style={{height: '3rem', width: '55%'}} /><div className="skeleton" style={{height: '1.2rem', width: '70%'}} />
+                        <div className="skeleton" style={{height: '9rem'}} /><div className="skeleton" style={{height: '16rem'}} />
+                    </div>}
                     {status === 'error' && <div id="global-error" className="alert" role="alert">{error} <button type="button" className="browse-download" onClick={() => location.reload()}>Reload</button></div>}
                     <div className="tab-content" id="floraTabsContent" style={{display: ready ? 'block' : 'none'}}>
                         {ready && <>

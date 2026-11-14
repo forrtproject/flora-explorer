@@ -201,7 +201,6 @@ export default function Overview({citation}) {
         <Pane id="overview" tabId="overview-tab" sources={['flora']}>
             <section className="explorer-intro hero">
                 <div className="hero-inner">
-                    <p className="eyebrow">FORRT Library of Reproduction and Replication Attempts</p>
                     <h1>Explore replication and reproduction evidence</h1>
                     <p className="hero-lede">The <strong>FORRT Library of Reproduction and Replication Attempts (FLoRA)</strong> is a project of the Framework for Open and Reproducible Research Training (FORRT).</p>
                     <p className="hero-lede">Find original reports, attempts to repeat them, and the evidence behind each recorded outcome. Each row is a <strong>reference pair</strong>: one original report and one repetition report. A report can occur in several pairs. Use <a href={linkFor({tab: 'browse-tab'})} data-tab-link="browse-tab" onClick={toBrowse}>Browse reference pairs</a> to search and filter reference pairs here, or the <ExternalLink href={URLS.atlas} className="">Replication Atlas</ExternalLink> to see the replication history of one original study.</p>

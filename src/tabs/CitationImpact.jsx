@@ -10,7 +10,7 @@ import {useData} from '../state/data.jsx';
 import {PaneContext, useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot} from '../components/charts.jsx';
-import {Chips, CiteBlock, DataStamp, ExcludedRows, ExternalLink, Gloss, Pane, Placeholder, byKind, kindLabel, excludedOriginalLabel, exclusionReason, stampInfo} from '../components/common.jsx';
+import {Chips, CiteBlock, Icon, DataStamp, ExcludedRows, ExternalLink, Gloss, Pane, Placeholder, byKind, kindLabel, excludedOriginalLabel, exclusionReason, stampInfo} from '../components/common.jsx';
 
 const PER_PAGE = 20;
 const EMPTY = [];
@@ -245,11 +245,11 @@ function OriginalsTable({index, excluded, onOpen, status}) {
             </div>
             <nav className="pagination" id="pagination" aria-label="Pagination" ref={pagination}>
                 {matches.length > 0 && <>
-                    {current > 1 && <button type="button" key="previous" data-action="previous" data-p={current - 1} aria-label="Previous page" onClick={() => goTo(current - 1)}>‹</button>}
+                    {current > 1 && <button type="button" key="previous" data-action="previous" data-p={current - 1} aria-label="Previous page" onClick={() => goTo(current - 1)}><Icon.prev /></button>}
                     {Array.from({length: lastPage - first + 1}, (_, i) => first + i).map(p => (
                         <button type="button" key={p} data-p={p} aria-current={p === current ? 'page' : undefined} className={p === current ? 'active' : undefined} aria-label={`Page ${p}`} onClick={() => goTo(p)}>{p}</button>
                     ))}
-                    {current < pages && <button type="button" key="next" data-action="next" data-p={current + 1} aria-label="Next page" onClick={() => goTo(current + 1)}>›</button>}
+                    {current < pages && <button type="button" key="next" data-action="next" data-p={current + 1} aria-label="Next page" onClick={() => goTo(current + 1)}><Icon.next /></button>}
                 </>}
             </nav>
         </>
@@ -392,7 +392,7 @@ function TimelineDialog({entry, meta, onClose}) {
     return (
         <div className="modal-backdrop" id="ci-modal" ref={modal} role="dialog" aria-modal="true" aria-label="Citation timeline and replication evidence" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
             <div className="modal-card">
-                <div className="modal-toolbar"><span>Citation timeline</span><button className="modal-close" id="ci-modal-close" ref={closeButton} type="button" aria-label="Close citation timeline" onClick={onClose}>×</button></div>
+                <div className="modal-toolbar"><span>Citation timeline</span><button className="modal-close" id="ci-modal-close" ref={closeButton} type="button" aria-label="Close citation timeline" onClick={onClose}><Icon.close /></button></div>
                 <div id="ci-modal-body">
                     <PaneContext.Provider value={context}>
                         {state.study ? <Timeline study={state.study} meta={meta} />
