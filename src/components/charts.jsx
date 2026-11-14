@@ -1,10 +1,10 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {barChart, barSummary, barTable, cellText, csvText, loadPlotly, plain, plotlyNow, preparePlot} from '../lib/charts.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
-import {chartTheme} from '../lib/theme.js';
 import {percent} from '../lib/format.js';
 import {useEnv, usePane} from '../state/env.jsx';
 import {Icon} from './common.jsx';
+import {Button, Figure, IconButton} from './ui.jsx';
 
 function useChartContext() {
     const pane = usePane();
@@ -20,7 +20,7 @@ export function ChartData({id, title, table}) {
     const context = useChartContext();
     if (!table) return null;
     return (
-        <details id={id + '-data'} className="chart-data">
+        <details id={id + '-data'} className="disclosure chart-data">
             <summary aria-label={'View chart data for ' + title}>View chart data</summary>
             <p className="chart-summary">{table.summary}</p>
             <p className="chart-context">{context}</p>
@@ -54,8 +54,7 @@ export function ChartCopy({id, title, table}) {
     const label = state === 'copied' ? 'Chart CSV copied' : state === 'failed' ? 'Could not copy chart CSV' : 'Copy chart CSV';
     return (
         <>
-            <button type="button" id={id + '-data-copy'} className="chart-copy icon-action" title={label}
-                aria-label={(state === 'copied' ? 'Chart CSV copied for ' : 'Copy chart CSV for ') + title} onClick={copy}><Icon.copy /></button>
+            <IconButton id={id + '-data-copy'} className="chart-copy" label={(state === 'copied' ? 'Chart CSV copied for ' : 'Copy chart CSV for ') + title} title={label} onClick={copy}><Icon.copy /></IconButton>
             <span id={id + '-data-copy-status'} className="visually-hidden" role="status">{state === 'idle' ? '' : label}</span>
         </>
     );
@@ -79,36 +78,34 @@ export function useBarChart(id, title, build, deps, {enabled = true, eligible = 
     return {canvasProps, table};
 }
 
-export function axisColors() {
-    const t = chartTheme();
-    return {grid: t.grid, tick: t.tick, legend: t.font};
-}
-
 // One horizontal stacked bar: the share of each outcome within a dimension.
 export function outcomeBarConfig(datasets, total, categoryLabel) {
-    const ac = axisColors();
-    const compact = window.matchMedia('(max-width: 767px)').matches;
     return {
         type: 'bar',
         data: {labels: [categoryLabel], datasets},
         options: {
-            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-            plugins: {
-                legend: {position: 'bottom', labels: {color: ac.legend, boxWidth: compact ? 10 : 14, padding: compact ? 8 : 14, font: {size: compact ? 11 : 12}}},
-                tooltip: {callbacks: {label: ctx => `${ctx.dataset.label}: ${ctx.parsed.x.toLocaleString()} (${percent(ctx.parsed.x, total, 1)}%)`}},
-            },
-            scales: {
-                x: {stacked: true, min: 0, max: Math.max(total, 1), grid: {color: ac.grid}, ticks: {color: ac.tick}},
-                y: {stacked: true, display: false},
-            },
+            indexAxis: 'y',
+            plugins: {tooltip: {callbacks: {label: ctx => `${ctx.dataset.label}: ${ctx.parsed.x.toLocaleString()} (${percent(ctx.parsed.x, total, 1)}%)`}}},
+            scales: {x: {stacked: true, min: 0, max: Math.max(total, 1)}, y: {stacked: true, display: false}},
         },
     };
+}
+
+// A Chart.js figure: canvas, copy action and data table under one frame.
+export function BarFigure({id, title, canvasProps, table, note, heading, height, containerId, className}) {
+    return (
+        <Figure className={className} title={heading} note={note} actions={<ChartCopy id={id} title={title} table={table} />}>
+            <div className="chart-box" id={containerId} style={height ? {height} : undefined}><canvas {...canvasProps} /></div>
+            <ChartData id={id} title={title} table={table} />
+        </Figure>
+    );
 }
 
 const COMPARISON_IDS = new Set(['ao-chart', 'rr-chart', 'pub-chart', 'ls-chart']);
 
 // spec: {traces, layout, config, table?} draws a Plotly chart; {message} shows text instead.
-export function Plot({id, title, spec, className = '', height, redrawOnResize = true}) {
+// heading and note fill the figure's head; frameId names the figure for callers that show or hide it.
+export function Plot({id, title, spec, className = '', height, redrawOnResize = true, heading, note, frameId}) {
     const ref = useRef(null);
     const pane = usePane();
     const {tick} = useEnv();
@@ -133,31 +130,25 @@ export function Plot({id, title, spec, className = '', height, redrawOnResize = 
         return () => { const Plotly = plotlyNow(); if (Plotly && el) Plotly.purge(el); };
     }, [drawable]);
 
-    if (!drawable) return <div id={id} className={className + ' plot-message'}>{spec?.message}</div>;
     const modeLabel = counts ? 'Show percentages' : 'Show counts';
     return (
-        <>
-            {comparison && <button type="button" id={id + '-mode'} className="chart-mode" aria-label={`${modeLabel} for ${title}`} onClick={() => setCounts(c => !c)}>{modeLabel}</button>}
-            <div id={id} key="plot" ref={ref} className={className} style={height ? {height} : undefined} role="img"
-                aria-label={plain(spec.layout?.title?.text || title) + '. Values in the following data table.'} aria-describedby={id + '-data'} />
-            <div className="chart-actions"><ChartCopy id={id} title={title} table={prepared.table} /></div>
-            <ChartData id={id} title={title} table={prepared.table} />
-        </>
+        <Figure id={frameId} title={heading} note={note} actions={drawable && <>
+            {comparison && <Button id={id + '-mode'} className="chart-mode" aria-label={`${modeLabel} for ${title}`} onClick={() => setCounts(c => !c)}>{modeLabel}</Button>}
+            <ChartCopy id={id} title={title} table={prepared.table} />
+        </>}>
+            {drawable
+                ? <div id={id} key="plot" ref={ref} className={className} style={height ? {height} : undefined} role="img"
+                    aria-label={plain(spec.layout?.title?.text || title) + '. Values in the following data table.'} aria-describedby={id + '-data'} />
+                : <div id={id} key="message" className={className + ' plot-message'}>{spec?.message}</div>}
+            {drawable && <ChartData id={id} title={title} table={prepared.table} />}
+        </Figure>
     );
 }
 
 // Shared layout for the grouped outcome comparisons (authorship, Registered Reports, venue, report size).
 export function comparisonSpec(buckets, groups, labels, by) {
-    const t = chartTheme();
     return {
         traces: buckets.map(b => ({name: b.label, type: 'bar', x: groups.map(g => labels[g]), y: groups.map(g => by?.[g]?.[b.key] || 0), marker: {color: b.color}})),
-        layout: {
-            barmode: 'group', height: 420, paper_bgcolor: t.paper, plot_bgcolor: t.plot,
-            font: {color: t.font, size: 13}, legend: {orientation: 'h', y: -0.18, font: {color: t.font}},
-            margin: {l: 50, r: 20, t: 20, b: 80},
-            yaxis: {title: 'Reference pairs', gridcolor: t.grid, zerolinecolor: t.grid, tickfont: {color: t.font}, titlefont: {color: t.font}},
-            xaxis: {tickfont: {color: t.font}},
-        },
-        config: {responsive: true, displayModeBar: false},
+        layout: {barmode: 'group', height: 420, margin: {l: 50, r: 20, t: 20, b: 80}, yaxis: {title: 'Reference pairs'}, xaxis: {}},
     };
 }

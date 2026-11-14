@@ -37,8 +37,8 @@ export function OutcomeChartRow({prefix, dimension, rows, scope, rowId, hidden})
                 </InfoTip>
                 <ChartCopy id={id} title={title} table={table} />
             </div>
-            <p className="chart-caption" id={`${prefix}-${d.slug}-caption`}>{dimensionCaption(rows, dimension)}</p>
-            <div className="chart-container-stack"><canvas {...canvasProps} /></div>
+            <p className="note chart-caption" id={`${prefix}-${d.slug}-caption`}>{dimensionCaption(rows, dimension)}</p>
+            <div className="chart-box chart-container-stack"><canvas {...canvasProps} /></div>
             <ChartData id={id} title={title} table={table} />
         </div>
     );

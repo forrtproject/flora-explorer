@@ -10,6 +10,7 @@ import {useData} from '../state/data.jsx';
 import {PaneContext, useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot} from '../components/charts.jsx';
+import {Button, Callout, Figure, Note, Section, TableScroll} from '../components/ui.jsx';
 import {Chips, CiteBlock, Icon, DataStamp, ExcludedRows, ExternalLink, Gloss, Pane, Placeholder, byKind, kindLabel, excludedOriginalLabel, exclusionReason, stampInfo} from '../components/common.jsx';
 
 const PER_PAGE = 20;
@@ -96,19 +97,11 @@ function AggregatePlots({data, outcome}) {
     const tableN = outcome === 'all' ? data.index.filter(s => s.n_citations_post_first_rep > 0).length : data.breakdown?.outcome?.[outcome]?.n_originals;
     const group = outcome === 'all' ? 'replication' : `${label} replication`;
     return (
-        <div className="plot-grid">
-            <div className="plot-card">
-                <h3>Citations to the original</h3>
-                <p id="plot-cit-sample" className="muted plot-sample">{built.cit.note}</p>
-                <Plot id="plot-cit" className="plot" title="Raw trajectory: Citations to the original" spec={built.citSpec} />
-                <p id="plot-cit-footnote" className="plot-footnote">{built.cit.n > 0 && <>Mean citations estimated for <strong><i>N</i> = {number(built.cit.n)}</strong> originals (first replication {outcome === 'all' ? 'successful, failed or mixed' : label}; each observed over t = {number(built.span[0])} to +{number(built.span[1])} years).</>}</p>
-            </div>
-            <div className="plot-card">
-                <h3>Co-citations (original and replication)</h3>
-                <p id="plot-cocit-sample" className="muted plot-sample">{built.cocit.note}</p>
-                <Plot id="plot-cocit" className="plot" title="Raw trajectory: Co-citations (original and replication)" spec={built.cocitSpec} />
-                <p id="plot-cocit-denominator" className="plot-footnote">{tableN != null && <>The co-citation rate table below covers <strong><i>N</i> = {number(tableN)}</strong> originals (≥ 1 {group}; ≥ 1 citation since the first {group}), a wider set than the plotted panel above.</>}</p>
-            </div>
+        <div className="stack">
+            <Plot id="plot-cit" className="plot" heading="Citations to the original" title="Raw trajectory: Citations to the original" spec={built.citSpec} note={<Note id="plot-cit-sample">{built.cit.note}</Note>} />
+            <Note id="plot-cit-footnote">{built.cit.n > 0 && <>Mean citations estimated for <strong><i>N</i> = {number(built.cit.n)}</strong> originals (first replication {outcome === 'all' ? 'successful, failed or mixed' : label}; each observed over t = {number(built.span[0])} to +{number(built.span[1])} years).</>}</Note>
+            <Plot id="plot-cocit" className="plot" heading="Co-citations (original and replication)" title="Raw trajectory: Co-citations (original and replication)" spec={built.cocitSpec} note={<Note id="plot-cocit-sample">{built.cocit.note}</Note>} />
+            <Note id="plot-cocit-denominator">{tableN != null && <>The co-citation rate table below covers <strong><i>N</i> = {number(tableN)}</strong> originals (≥ 1 {group}; ≥ 1 citation since the first {group}), a wider set than the plotted panel above.</>}</Note>
         </div>
     );
 }
@@ -208,13 +201,13 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                     <option value="multiple">Multiple replication outcomes</option>
                 </select>
             </div>
-            <div id="ci-search-empty" className="browse-empty" role="status" hidden={matches.length > 0 || status !== 'ready'}>
+            <Callout tone="empty" id="ci-search-empty" role="status" hidden={matches.length > 0 || status !== 'ready'}>
                 <p id="ci-search-empty-message">{emptyMessage}</p>
                 <ul id="ci-search-excluded" className="excluded-list" hidden={!leftOut.length}><ExcludedRows list={leftOut.slice(0, 5)} /></ul>
-                <button type="button" id="ci-clear-search" className="browse-download" hidden={!query.trim()} onClick={() => { clearTimeout(debounce.current); setInput(''); setPage(1); setView({ciQ: ''}); inputRef.current.focus(); }}>Clear search</button>
-            </div>
-            <div className="table-wrap" tabIndex={0} role="region" aria-label="Originals with citation data">
-                <table id="originals-table" tabIndex={-1} className="data-table" data-query={status === 'ready' ? query : undefined}>
+                <Button id="ci-clear-search" hidden={!query.trim()} onClick={() => { clearTimeout(debounce.current); setInput(''); setPage(1); setView({ciQ: ''}); inputRef.current.focus(); }}>Clear search</Button>
+            </Callout>
+            <TableScroll label="Originals with citation data">
+                <table id="originals-table" tabIndex={-1} className="table" data-query={status === 'ready' ? query : undefined}>
                     <thead>
                         <tr>
                             <th scope="col">Original</th>
@@ -237,12 +230,12 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                                 <td><OutcomeMixBar mix={s.outcome_mix} total={s.n_replications} /></td>
                                 <td>{number(s.n_citations || 0)}</td>
                                 <td><CocitCell s={s} /></td>
-                                <td><button type="button" className="timeline-open" aria-label={`Open citation timeline for ${s.title || s.doi}`}>Timeline</button></td>
+                                <td><button type="button" className="btn timeline-open" aria-label={`Open citation timeline for ${s.title || s.doi}`}>Timeline</button></td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-            </div>
+            </TableScroll>
             <nav className="pagination" id="pagination" aria-label="Pagination" ref={pagination}>
                 {matches.length > 0 && <>
                     {current > 1 && <button type="button" key="previous" data-action="previous" data-p={current - 1} aria-label="Previous page" onClick={() => goTo(current - 1)}><Icon.prev /></button>}
@@ -302,7 +295,7 @@ function timelineSpec(s, meta, width) {
 function StudyHeader({entry}) {
     return <>
         <h2>{entry.title || '(untitled)'}</h2>
-        <p className="muted">{citationAuthors(entry.author)} · {entry.year || '?'}{venueText(entry.venue)}<br /><a href={`https://doi.org/${entry.doi}`} target="_blank" rel="noreferrer">{entry.doi}</a></p>
+        <p className="note">{citationAuthors(entry.author)} · {entry.year || '?'}{venueText(entry.venue)}<br /><a href={`https://doi.org/${entry.doi}`} target="_blank" rel="noreferrer">{entry.doi}</a></p>
     </>;
 }
 
@@ -320,9 +313,9 @@ function Timeline({study, meta}) {
     return (
         <div className="modal-body">
             <StudyHeader entry={study} />
-            <button type="button" className="ci-share-btn" data-doi={study.doi} onClick={share}>{copied ? 'Link copied' : 'Copy link to this chart'}</button>
+            <button type="button" className="btn ci-share-btn" data-doi={study.doi} onClick={share}>{copied ? 'Link copied' : 'Copy link to this chart'}</button>
             <h3>Citation timeline</h3>
-            {study.cocit_conflated ? <p className="cocit-warning">Co-citation can't be measured for {many ? 'some replications of ' : ''}this study: OpenCitations groups the original and {many ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</p> : null}
+            {study.cocit_conflated ? <Callout tone="caution">Co-citation can't be measured for {many ? 'some replications of ' : ''}this study: OpenCitations groups the original and {many ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</Callout> : null}
             <div ref={wrap} className="study-plot-wrap">{spec && <Plot id="study-plot" title="Citation timeline" spec={spec} height={380} />}</div>
             <h3>Replications ({number(study.n_replications)})</h3>
             <ul className="rep-list">
@@ -396,7 +389,7 @@ function TimelineDialog({entry, meta, onClose}) {
                 <div id="ci-modal-body">
                     <PaneContext.Provider value={context}>
                         {state.study ? <Timeline study={state.study} meta={meta} />
-                            : <div className="modal-body"><StudyHeader entry={entry} /><p className="muted modal-wait">{state.failed ? 'Could not load the citation timeline for this study.' : 'Loading citation timeline…'}</p></div>}
+                            : <div className="modal-body"><StudyHeader entry={entry} /><p className="note modal-wait">{state.failed ? 'Could not load the citation timeline for this study.' : 'Loading citation timeline…'}</p></div>}
                     </PaneContext.Provider>
                 </div>
             </div>
@@ -466,82 +459,65 @@ export default function CitationImpact({data}) {
             <div className="ci-intro">
                 <h2 className="ci-h2">{byKind(kind, ['Citation patterns around the first replication', 'Citation counts for numerical reproductions', 'Citation counts for robustness reproductions'])}</h2>
                 <Chips id="ci-study-type" label="Citation Impact study type" value={kind} onChange={k => setView({ciKind: k})} />
-                <div className="study-type-note">Numerical and robustness reproductions show descriptive citation counts. No reproduction event-study model is fitted.</div>
+                <Note>Numerical and robustness reproductions show descriptive citation counts. No reproduction event-study model is fitted.</Note>
                 <p className="ci-lede">This tab combines the FLoRA dataset with citation data from <ExternalLink href="https://opencitations.net" className="">OpenCitations</ExternalLink> to {byKind(kind, ['describe citations to the original around the first recorded replication', 'count citations to originals and their numerical reproductions', 'count citations to originals and their robustness reproductions'])}, and how often the two are "co-cited" (cited together by the same later work).</p>
             </div>
 
 
             {ready && kind !== 'replication' && (reproTotal < REPRO_MIN_N
                 ? <Placeholder id="ci-placeholder">Not enough reproductions with citation data yet (n={reproTotal}; need at least {REPRO_MIN_N}).</Placeholder>
-                : <section id="ci-repro-content" className="card ci-card">
-                    <DataStamp source="reproduction_citations" />
-                    <h2 className="card-header">Reproduction citation counts</h2>
-                    <div className="card-body">
-                        <p className="muted">Per-original summaries by assessed dimension, so groups of different sizes can be compared. Citations are all-time counts; medians limit the pull of a few highly cited originals. The co-citation rate is each original's share of citations that also cite its reproduction, counted from the year of its first reproduction and averaged across originals. A report can appear in several outcome groups.</p>
-                        <div className="table-wrap">
-                            <table className="data-table" id="ci-repro-table">
+                : <Section id="ci-repro-content" title="Reproduction citation counts" notes={<><DataStamp source="reproduction_citations" /><p>Per-original summaries by assessed dimension, so groups of different sizes can be compared. Citations are all-time counts; medians limit the pull of a few highly cited originals. The co-citation rate is each original's share of citations that also cite its reproduction, counted from the year of its first reproduction and averaged across originals. A report can appear in several outcome groups.</p></>}>
+                    <Figure><TableScroll label="Reproduction citation counts"><table className="table" id="ci-repro-table">
                                 <thead><tr><th scope="col"><span className="visually-hidden">Outcome</span></th><th><i>N</i> originals</th><th>Median citations per original</th><th>Mean citations per reproduction</th><th>Mean co-citation rate</th></tr></thead>
                                 <tbody>{buckets.map(b => { const r = repro[b.key] || {}; return <tr key={b.key}><td>{b.label}</td><td>{number(r.n_originals || 0)}</td><td>{r.median_citations_per_original == null ? '—' : number(r.median_citations_per_original, 1)}</td><td>{r.mean_citations_per_reproduction == null ? '—' : number(r.mean_citations_per_reproduction, 2)}</td><td>{r.mean_cocitation_rate == null ? '—' : percent(r.mean_cocitation_rate, 1, 1) + '%'}</td></tr>; })}</tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>)}
+                            </table></TableScroll></Figure>
+                </Section>)}
 
             <div id="ci-content" style={kind === 'replication' ? undefined : {display: 'none'}}>
-                <div className="kpi-row" id="kpis">
-                    {data.status === 'error' && <div className="note-panel kpi-note"><strong>Citation data not yet available.</strong><br />Citation data could not be loaded. Please try again later.</div>}
-                    {!ready && data.status !== 'error' && <div className="note-panel kpi-note">Loading citation data…</div>}
+                <div className="stat-band kpi-row" id="kpis">
+                    {data.status === 'error' && <Callout tone="caution" className="kpi-note"><strong>Citation data not yet available.</strong><br />Citation data could not be loaded. Please try again later.</Callout>}
+                    {!ready && data.status !== 'error' && <Callout tone="empty" className="kpi-note">Loading citation data…</Callout>}
                     {ready && <>
-                    <div className="kpi"><div className="kpi-value">{kpi(data.meta?.n_originals)}</div><div className="kpi-label">Distinct originals with complete citation data</div></div>
-                    <div className="kpi"><div className="kpi-value">{kpi(data.meta?.n_replications)}</div><div className="kpi-label">Eligible replication reference pairs</div></div>
-                    <div className="kpi"><div className="kpi-value">{kpi(counts.failed)}</div><div className="kpi-label">Eligible reference pairs: Failed</div></div>
-                    <div className="kpi"><div className="kpi-value">{kpi(counts.successful)}</div><div className="kpi-label">Eligible reference pairs: Successful</div></div>
-                    <p className="muted kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</p>
+                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(data.meta?.n_originals)}</div><div className="stat-label kpi-label">Distinct originals with complete citation data</div></div>
+                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(data.meta?.n_replications)}</div><div className="stat-label kpi-label">Eligible replication reference pairs</div></div>
+                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(counts.failed)}</div><div className="stat-label kpi-label">Eligible reference pairs: Failed</div></div>
+                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(counts.successful)}</div><div className="stat-label kpi-label">Eligible reference pairs: Successful</div></div>
+                    <Note className="kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</Note>
                     </>}
                 </div>
 
-                <section className="card ci-card">
-                    <h2 className="card-header">Citation Counts after Replications are published</h2>
-                    <div className="card-body">
-                        <p className="muted">There is no apparent association between a replication’s outcome and how often the original study is cited afterwards: original studies keep gaining citations after both failed and successful replications. However, citation counts increase in time and replication targets are usually not selected at random. Therefore, the before and after change visualised here is only descriptive, and cannot by itself be interpreted as an effect of replication.</p>
-                        <div className="filters">
+                <Section title="Citation counts after replications are published" notes={<><p>There is no apparent association between a replication’s outcome and how often the original study is cited afterwards: original studies keep gaining citations after both failed and successful replications. However, citation counts increase in time and replication targets are usually not selected at random. Therefore, the before and after change visualised here is only descriptive, and cannot by itself be interpreted as an effect of replication.</p><div className="filters">
                             <span className="filter-label">Replication outcome</span>
                             <Chips id="outcome-chips" className="" heading="" label="Replication outcome" value={outcome} options={OUTCOME_OPTIONS} onChange={o => setView({ciOutcome: o})} />
-                        </div>
+                        </div></>}>
                         {ready && kind === 'replication' && <AggregatePlots data={data} outcome={outcome} />}
-                    </div>
-                </section>
+                </Section>
 
-                <section className="card ci-card">
-                    <h2 className="card-header">Co-citation rate by replication report size &amp; outcome</h2>
-                    <div className="card-body">
-                        <p className="muted">The co-citation rate is the share of an original's citations that also cite one of its replications, counted from the year of its first replication. Originals with multiple replications appear in every row that applies. Rates vary widely across originals, so three summaries are shown: <strong>per-paper mean</strong> (each original weighted equally), <strong>median</strong> (robust to outliers), and <strong>weighted mean</strong> (pooled co-citations ÷ pooled citations, effectively weighted by citation volume).</p>
+                <Section title="Co-citation rate by replication report size &amp; outcome" notes={<p>The co-citation rate is the share of an original's citations that also cite one of its replications, counted from the year of its first replication. Originals with multiple replications appear in every row that applies. Rates vary widely across originals, so three summaries are shown: <strong>per-paper mean</strong> (each original weighted equally), <strong>median</strong> (robust to outliers), and <strong>weighted mean</strong> (pooled co-citations ÷ pooled citations, effectively weighted by citation volume).</p>}>
+                    <Figure>
                         <div className="cocit-breakdown-grid" id="cocit-breakdown">
                             {!ready ? null : data.breakdown ? <>
                                 <BreakdownTable title="By replication report size" dim={data.breakdown.pub_status} labels={{individual: 'Up to 3 targets', large_project: 'Multiple-target report (>3 targets)'}} />
                                 <BreakdownTable title="By outcome of the replication" dim={data.breakdown.outcome} labels={outcomeLabels} />
-                            </> : <p className="muted">Not available yet — this analysis is included from the next scheduled data refresh.</p>}
+                            </> : <Note>Not available yet — this analysis is included from the next scheduled data refresh.</Note>}
                         </div>
-                    </div>
-                </section>
+                    </Figure>
+                </Section>
 
-                <section className="card ci-card">
-                    <h2 className="card-header">Browse all originals</h2>
-                    <div className="card-body">
-                        <p className="muted">Choose Timeline to see a report’s citation timeline with replication events marked.</p>
+                <Section wide title="Browse all originals" notes={<p>Choose Timeline to see a report’s citation timeline with replication events marked.</p>}>
+                    <Figure>
                         <OriginalsTable index={data.index || EMPTY} excluded={data.excluded || EMPTY} onOpen={open} status={data.status} />
-                    </div>
-                </section>
+                    </Figure>
+                </Section>
 
-                <section className="card ci-card">
-                    <h2 className="card-header">About this analysis</h2>
-                    <div className="card-body">
+                <Section title="About this analysis">
+                    <div className="prose">
                         <p>Data are refreshed weekly. The pipeline filters FLoRA to <strong>conceptual and direct replications</strong> with outcomes labelled <em>successful</em>, <em>failed</em>, or <em>mixed</em> (reproductions are excluded). For each included original and replication, we retrieve all citing works from OpenCitations COCI. A "co-citation" is any work that cites both the original and at least one of its replications.</p>
                         <p>The outcome filters group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead groups originals by the outcomes of all their replications. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation model.</p>
                         <p>Each timeline bar counts distinct citing works. Works that cite replications with more than one outcome appear once in the “multiple outcome categories” segment. The outcome-specific co-citation rate tables are overlapping summaries and should not be added.</p>
                         <p>The aggregate plots show event-study estimates from an OLS two-way fixed-effects model, a transparent analogue of the <Gloss term="FECT">Fixed Effects Counterfactual estimator: the causal-inference method specified in our preregistered protocol. This chart approximates it with a simpler OLS two-way fixed-effects model.</Gloss> specification used in the preregistered analysis. See the <ExternalLink href="https://github.com/forrtproject/FReD-data" className="">FReD-data repository</ExternalLink> for the underlying FLoRA dataset.</p>
                     </div>
-                </section>
+                </Section>
             </div>
         </Pane>
     );

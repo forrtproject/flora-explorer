@@ -9,6 +9,7 @@ import {useData, useJson} from '../state/data.jsx';
 import {useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot} from '../components/charts.jsx';
+import {Callout, Note, Section} from '../components/ui.jsx';
 import {Chips, CiteBlock, DataStamp, Gloss, Pane, Placeholder, StatTiles, byKind, kindLabel} from '../components/common.jsx';
 
 function distributionSpec(d, buckets, coverage) {
@@ -122,50 +123,42 @@ export default function MeanCitedness() {
                 <DataStamp source="impact_factor" />
                 <CiteBlock><div className="cite-ref">Röseler, J., &amp; Röseler, L. (in preparation). <em>Guess the replication: How Journal Prestige affects Predicted and Actual Replication Success.</em></div></CiteBlock>
             </div>
-            <section className="card">
-                <h2 className="card-header">Journal Mean Citedness and Recorded Outcomes</h2>
-                <div className="card-body">
-                    <p className="muted">
-                        This tab {byKind(kind, ['presents a statistical analysis of whether', 'describes, without a fitted model, how computational verdicts vary with', 'describes, without a fitted model, how robustness verdicts vary with'])} the <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal{kind === 'replication' && ' is associated with replication success'}.
-                        Mean Citedness is a journal-level measure from OpenAlex: the journal's total citations divided by its total papers, across all years. Unlike the two-year Journal Impact Factor, it reflects a journal's long-run citation level, and it favours journals whose papers have had longer to collect citations. It is retrieved at enrichment time, not matched to the original publication year, and is not the original article’s citation count. The update stamp identifies the analysis snapshot. Any fitted model describes an association.
-                    </p>
-                    <Chips id="mc-study-type" label="Mean Citedness study type" value={kind} onChange={k => setView({mcKind: k})} />
-                    <div className="study-type-note">Reproduction summaries include only pairs with a verdict on the selected dimension and an available OMC. Unchecked and uncoded dimensions are excluded; the two subsets can overlap.</div>
-                    {aside && <p id="mc-set-aside" className="study-type-note">{aside}</p>}
-                    <div id="mc-content">
-                        {!all && !replication.error && <div id="mc-loading" className="note note-loading">Loading analysis…</div>}
-                        {replication.error && <div id="mc-error" className="note">Failed to load analysis data. <code id="mc-error-detail" className="note-detail">{replication.error}</code></div>}
-                        {all && !enough && <Placeholder id="mc-placeholder">Not enough {studyTypeLabel(kind)} with a Mean Citedness match yet (n={ov?.n_total || 0}; need at least {ANALYSIS_MIN_N}).</Placeholder>}
-                        {enough && <>
-                            <StatTiles id="mc-overview" tiles={[
-                                {value: ov.n_total, label: 'Reference pairs with OMC', always: true},
-                                ...buckets.map(b => ({value: ov[overviewKey(b)] || 0, label: `${b.label} (${percent(ov[overviewKey(b)] || 0, ov.n_total)}%)`})),
-                                {value: ov.n_journals, label: 'Journals matched', always: true},
-                                {value: ov.n_disciplines, label: 'Disciplines', always: true},
-                            ]} />
-                            <div id="mc-dist-card" className="mc-chart-card">
-                                <h3 className="mc-chart-title">Distribution of reference pairs by journal Mean Citedness</h3>
-                                <p id="mc-eligible" className="mc-model-note">{distCoverage}</p>
-                                <div className="mc-chart-wrap"><Plot id="mc-dist-chart" title="Distribution of reference pairs by journal Mean Citedness" spec={distribution} /></div>
-                            </div>
-                            {kind !== 'replication' && <p id="mc-repro-note" className="mc-model-note">Reproduction summaries are descriptive. No reproduction model has been fitted.</p>}
-                        </>}
-                        <div id="mc-gam-card" className="mc-chart-card" style={model ? undefined : {display: 'none'}}>
-                            <h3 className="mc-chart-title">Success probability among successful / failed replications</h3>
-                            <p id="mc-gam-stats" className="mc-model-note">
-                                {model && !model.message && <>
+            <Section title="Journal Mean Citedness and recorded outcomes" notes={<>
+                <p>
+                    This tab {byKind(kind, ['presents a statistical analysis of whether', 'describes, without a fitted model, how computational verdicts vary with', 'describes, without a fitted model, how robustness verdicts vary with'])} the <strong>OpenAlex Mean Citedness</strong> (OMC) of an original study's journal{kind === 'replication' && ' is associated with replication success'}.
+                    Mean Citedness is a journal-level measure from OpenAlex: the journal's total citations divided by its total papers, across all years. Unlike the two-year Journal Impact Factor, it reflects a journal's long-run citation level, and it favours journals whose papers have had longer to collect citations. It is retrieved at enrichment time, not matched to the original publication year, and is not the original article’s citation count. The update stamp identifies the analysis snapshot. Any fitted model describes an association.
+                </p>
+                <Note>Reproduction summaries include only pairs with a verdict on the selected dimension and an available OMC. Unchecked and uncoded dimensions are excluded; the two subsets can overlap.</Note>
+                {aside && <Note id="mc-set-aside">{aside}</Note>}
+            </>}>
+                <Chips id="mc-study-type" label="Mean Citedness study type" value={kind} onChange={k => setView({mcKind: k})} />
+                <div id="mc-content" className="stack">
+                    {!all && !replication.error && <Callout tone="empty" id="mc-loading">Loading analysis…</Callout>}
+                    {replication.error && <Callout tone="caution" id="mc-error">Failed to load analysis data. <code id="mc-error-detail">{replication.error}</code></Callout>}
+                    {all && !enough && <Placeholder id="mc-placeholder">Not enough {studyTypeLabel(kind)} with a Mean Citedness match yet (n={ov?.n_total || 0}; need at least {ANALYSIS_MIN_N}).</Placeholder>}
+                    {enough && <>
+                        <StatTiles id="mc-overview" tiles={[
+                            {value: ov.n_total, label: 'Reference pairs with OMC', always: true},
+                            ...buckets.map(b => ({value: ov[overviewKey(b)] || 0, label: `${b.label} (${percent(ov[overviewKey(b)] || 0, ov.n_total)}%)`})),
+                            {value: ov.n_journals, label: 'Journals matched', always: true},
+                            {value: ov.n_disciplines, label: 'Disciplines', always: true},
+                        ]} />
+                        <Plot id="mc-dist-chart" frameId="mc-dist-card" heading="Distribution of reference pairs by journal Mean Citedness" title="Distribution of reference pairs by journal Mean Citedness"
+                            spec={distribution} note={<Note id="mc-eligible">{distCoverage}</Note>} />
+                        {kind !== 'replication' && <Note id="mc-repro-note">Reproduction summaries are descriptive. No reproduction model has been fitted.</Note>}
+                    </>}
+                    <div id="mc-gam-card" style={model ? undefined : {display: 'none'}}>
+                        {model
+                            ? <Plot id="mc-gam-chart" heading="Success probability among successful / failed replications" title="Success probability among successful / failed replications" spec={model} note={
+                                <Note id="mc-gam-stats">{!model.message && <>
                                     Logistic smooth of log(OMC + 1): <Gloss term="edf">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</Gloss> = {sig2(stats.edf)}, χ² = {sig2(stats.chi_sq)}
                                     {stats.p_val != null && (stats.p_val < 0.001 ? ', p < .001' : ', p = ' + stats.p_val.toFixed(3))}; <Gloss term="McFadden R²">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</Gloss> = {sig2(stats.r2)}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed){modelExcluded.length > 0 && '; excluded: ' + modelExcluded.join(', ')}.
-                                </>}
-                            </p>
-                            <div className="mc-chart-wrap">
-                                {model ? <Plot id="mc-gam-chart" title="Success probability among successful / failed replications" spec={model} className="mc-gam-chart" /> : <div id="mc-gam-chart" />}
-                            </div>
-                            <p className="mc-model-note">The data underlying the graph include all records from the FLORA database with complete information, particularly a lifetime Mean Citedness for the journal in which the original study was published, and a clearly successful or unsuccessful replication outcome (i.e., replications with mixed outcomes were excluded). The shaded band shows the 95% confidence interval for the estimated probability of success.</p>
-                        </div>
+                                </>}</Note>} />
+                            : <><Note id="mc-gam-stats" /><div id="mc-gam-chart" /></>}
+                        <Note>The data underlying the graph include all records from the FLORA database with complete information, particularly a lifetime Mean Citedness for the journal in which the original study was published, and a clearly successful or unsuccessful replication outcome (i.e., replications with mixed outcomes were excluded). The shaded band shows the 95% confidence interval for the estimated probability of success.</Note>
                     </div>
                 </div>
-            </section>
+            </Section>
         </Pane>
     );
 }

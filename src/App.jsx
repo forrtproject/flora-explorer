@@ -95,7 +95,7 @@ export default function App() {
                         <div className="skeleton" style={{height: '3rem', width: '55%'}} /><div className="skeleton" style={{height: '1.2rem', width: '70%'}} />
                         <div className="skeleton" style={{height: '9rem'}} /><div className="skeleton" style={{height: '16rem'}} />
                     </div>}
-                    {status === 'error' && <div id="global-error" className="alert" role="alert">{error} <button type="button" className="browse-download" onClick={() => location.reload()}>Reload</button></div>}
+                    {status === 'error' && <div id="global-error" className="alert" role="alert">{error} <button type="button" className="btn" onClick={() => location.reload()}>Reload</button></div>}
                     <div className="tab-content" id="floraTabsContent" style={{display: ready ? 'block' : 'none'}}>
                         {ready && <>
                             <Overview citation={citation} />

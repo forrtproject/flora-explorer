@@ -11,6 +11,7 @@ import {useData} from '../state/data.jsx';
 import {useView} from '../state/view.jsx';
 import {CiteBlock, DataStamp, ExternalLink, Icon, KindFilter, OutcomeBadge, Pane, WebsiteCitation, kindLabel, stampInfo} from '../components/common.jsx';
 import {OutcomeChartRow} from '../components/OutcomeChartRow.jsx';
+import {Button, Callout, Figure, IconButton, Note, Section} from '../components/ui.jsx';
 import {DatasetCitation, REUSE_TEXT} from './Overview.jsx';
 
 const MOBILE_PAGE_SIZE = 20;
@@ -94,7 +95,7 @@ export function Evidence({row}) {
                     </div>
                 </div>
             </div>
-            <div className="detail-card detail-card--evidence">
+            <div className="detail-card">
                 <h6>Recorded evidence</h6>
                 <div className="detail-section">
                     <Field label="Outcome"><OutcomeBadge row={row} /></Field>
@@ -144,7 +145,6 @@ export default function Browse({citation}) {
     const [feedback, setFeedback] = useState('');
     const debounce = useRef();
     const inputRef = useRef(null);
-    const headingRef = useRef(null);
     useEffect(() => { setInput(q); }, [q]);
 
     const [column, direction] = useMemo(() => { const [c, d] = view.sort.split(':'); return [Number(c), d]; }, [view.sort]);
@@ -203,8 +203,9 @@ export default function Browse({citation}) {
     useEffect(() => {
         if (!paged.current) return;
         paged.current = false;
-        headingRef.current.focus({preventScroll: true});
-        headingRef.current.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+        const heading = document.getElementById('browse-results-heading');
+        heading.focus({preventScroll: true});
+        heading.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     }, [mobilePage]);
     const first = total ? (page - 1) * size + 1 : 0, last = Math.min(total, page * size);
     const info = `Showing ${total ? `${first.toLocaleString('en-GB')} to ${last.toLocaleString('en-GB')} of ` : ''}${total.toLocaleString('en-GB')} ${pairs(total)}${total !== rows.length ? ` (filtered from ${rows.length.toLocaleString('en-GB')} ${pairs(rows.length)})` : ''}`;
@@ -215,32 +216,32 @@ export default function Browse({citation}) {
     return (
         <Pane id="browse" tabId="browse-tab" sources={['flora']} selection={[kindLabel(kind)]} kind={kind}
             title={{heading: 'Browse reference pairs', lede: 'Search every recorded pair of an original report and its replication or reproduction, then open the evidence behind each outcome.'}}>
-            <div className="browse-filter-panel">
+            <Figure className="filter-bar">
                 <div className="browse-search">
                     <label htmlFor="browse-mobile-input">Find a reference pair</label>
                     <div className="browse-search-row">
                         <div className="search-field"><Icon.search />
                             <input type="search" id="browse-mobile-input" ref={inputRef} className="form-control" placeholder="Title, author, year, DOI or DOI URL" autoComplete="off" value={input} onChange={e => search(e.target.value)} />
                         </div>
-                        <button type="button" id="share-view" className="icon-action" aria-label="Copy current view link" title="Copy current view link" onClick={share}><Icon.link /></button>
-                        <button type="button" id="export-browse" className="browse-download" onClick={exportCsv}><Icon.download /><span>{filteredView ? 'Download filtered CSV' : 'Download full CSV'}</span></button>
+                        <IconButton id="share-view" label="Copy current view link" onClick={share}><Icon.link /></IconButton>
+                        <Button id="export-browse" onClick={exportCsv}><Icon.download /><span>{filteredView ? 'Download filtered CSV' : 'Download full CSV'}</span></Button>
                     </div>
                     <span id="view-feedback" role="status">{feedback}</span>
                 </div>
                 <KindFilter className="browse-kind-filter" buttonClass="browse-kind-btn" value={kind} onChange={k => refilter({kind: k})} count={countText} countId="browse-kind-count" />
-                {!dimension && <p id="browse-chart-hint" className="study-type-note">Choose a study type to see its outcome breakdown.</p>}
-            </div>
-            <div id="browse-empty" className="browse-empty" role="status" hidden={total > 0}>
+                {!dimension && <Note id="browse-chart-hint">Choose a study type to see its outcome breakdown.</Note>}
+            </Figure>
+            <Callout tone="empty" id="browse-empty" role="status" hidden={total > 0}>
                 {total === 0 && <>
                     <p><strong>{emptyHeadline}.</strong> FLoRA is not comprehensive, so this does not show that a study has never been replicated or reproduced.</p>
-                    <div className="browse-empty-actions">
-                        {q.trim() && <button type="button" className="browse-download" data-browse-action="clear-search" onClick={() => { searchNow(''); inputRef.current.focus(); }}>Clear search</button>}
-                        {kind !== 'all' && <button type="button" className="browse-download" data-browse-action="all-kinds" onClick={() => refilter({kind: 'all'})}>Show all study types</button>}
+                    <div className="callout-actions">
+                        {q.trim() && <Button data-browse-action="clear-search" onClick={() => { searchNow(''); inputRef.current.focus(); }}>Clear search</Button>}
+                        {kind !== 'all' && <Button data-browse-action="all-kinds" onClick={() => refilter({kind: 'all'})}>Show all study types</Button>}
                         <ExternalLink href={URLS.atlas} className="">Look up an original in the Replication Atlas</ExternalLink>
                         <ExternalLink href={URLS.submit} className="">Submit a missing study</ExternalLink>
                     </div>
                 </>}
-            </div>
+            </Callout>
             <div className="pane-meta">
                 <DataStamp source="flora" />
                 <CiteBlock label="How to cite &amp; re-use guidelines">
@@ -250,18 +251,16 @@ export default function Browse({citation}) {
                 </CiteBlock>
             </div>
 
-            <section className="card" id="browse-outcome-card" style={dimension && total ? undefined : {display: 'none'}}>
-                <h2 className="card-header">Outcome Breakdown</h2>
-                <div className="card-body">
+            <Section title="Outcome breakdown" id="browse-outcome-card" style={dimension && total ? undefined : {display: 'none'}}>
+                <Figure>
                     <OutcomeChartRow prefix="browse" dimension="computational" rowId="browse-computational-row" hidden={dimension !== 'computational'} rows={filtered} scope="Reflects the reproductions in the table below: were the original results obtained?" />
                     <OutcomeChartRow prefix="browse" dimension="robustness" rowId="browse-robustness-row" hidden={dimension !== 'robustness'} rows={filtered} scope="Reflects the reproductions in the table below: do results hold under alternative analysis choices?" />
                     <OutcomeChartRow prefix="browse" dimension="replicability" rowId="browse-replicability-row" hidden={dimension !== 'replicability'} rows={filtered} scope={<>Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are shown separately when their filter is selected.</>} />
-                </div>
-            </section>
+                </Figure>
+            </Section>
 
-            <section className="card">
-                <h2 className="card-header" id="browse-results-heading" tabIndex={-1} ref={headingRef}>Reference pairs</h2>
-                <div className="card-body">
+            <Section wide title="Reference pairs" titleId="browse-results-heading">
+                <Figure>
                     <div className="browse-desktop">
                         <div className="table-controls" id="flora-table_length">
                             <label>Show <select value={view.pageSize} onChange={e => refilter({pageSize: Number(e.target.value)})}>
@@ -269,7 +268,7 @@ export default function Browse({citation}) {
                             </select> reference pairs</label>
                         </div>
                         <div className="table-wrap">
-                            <table id="flora-table" className="data-table">
+                            <table id="flora-table" className="table">
                                 <thead>
                                     <tr>
                                         <th scope="col"><span className="visually-hidden">Study evidence</span></th>
@@ -333,13 +332,13 @@ export default function Browse({citation}) {
                             {mobileShown.map(row => <MobileCard row={row} key={indexOf.get(row)} />)}
                         </div>
                         <div className="browse-mobile-pager" id="browse-mobile-pager" style={mobilePages > 1 ? undefined : {display: 'none'}}>
-                            <button className="bm-page-btn" id="bm-prev" type="button" aria-label="Previous page" disabled={mobilePage === 1} onClick={() => showMobilePage(-1)}><Icon.prev /> Prev</button>
+                            <button className="btn bm-page-btn" id="bm-prev" type="button" aria-label="Previous page" disabled={mobilePage === 1} onClick={() => showMobilePage(-1)}><Icon.prev /> Prev</button>
                             <span className="bm-page-info" id="bm-page-info" aria-current="page">Page {mobilePage} of {mobilePages}</span>
-                            <button className="bm-page-btn" id="bm-next" type="button" aria-label="Next page" disabled={mobilePage >= mobilePages} onClick={() => showMobilePage(1)}>Next <Icon.next /></button>
+                            <button className="btn bm-page-btn" id="bm-next" type="button" aria-label="Next page" disabled={mobilePage >= mobilePages} onClick={() => showMobilePage(1)}>Next <Icon.next /></button>
                         </div>
                     </div>
-                </div>
-            </section>
+                </Figure>
+            </Section>
         </Pane>
     );
 }

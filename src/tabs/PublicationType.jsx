@@ -8,6 +8,7 @@ import {useData, useJson} from '../state/data.jsx';
 import {useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot, comparisonSpec} from '../components/charts.jsx';
+import {Callout, Disclosure, Note, Section, TableScroll} from '../components/ui.jsx';
 import {Caveat, Chips, CiteBlock, DataStamp, ExternalLink, OutcomeBadge, Pane, Placeholder, StatTiles, WebsiteCitation, byKind, kindLabel, repWord} from '../components/common.jsx';
 import {ReportLink} from './Browse.jsx';
 
@@ -16,24 +17,20 @@ const RR_GROUPS = {rr: 'Registered Report', non_rr: 'Not found in RR database'};
 const SIZE_GROUPS = {individual: 'Up to 3 targets / unknown', large_scale: 'Multiple-target report (>3 targets)'};
 
 // One comparison: summary tiles, grouped outcome chart, caveat and the evidence list behind it.
-function Comparison({prefix, state, d, kind, shortage, tiles, groups, chartTitle, caveat, studies, loadingHidden, excluded = []}) {
+function Comparison({prefix, state, d, kind, shortage, tiles, groups, chartTitle, caveat, studies, excluded = []}) {
     const {theme} = useEnv();
     const {rows} = useData();
     const enough = d?.overview && d.overview.n_total >= ANALYSIS_MIN_N;
     const coverage = enough ? coverageText(d.overview.n_total || 0, kindPairCount(rows, kind), excluded.map(([key, why]) => [d.overview[key] || 0, why]), kindNoun(kind), kind) : '';
     const spec = useMemo(() => enough ? {...comparisonSpec(outcomeBuckets(kind), Object.keys(groups), groups, d.by_outcome), coverage} : null, [enough, d, kind, groups, theme, coverage]);
     return (
-        <div id={`${prefix}-content`}>
-            {!state.data && !state.error && !loadingHidden && <div id={`${prefix}-loading`} className="note note-loading">Loading analysis…</div>}
-            {state.error && <div id={`${prefix}-error`} className="note">{state.errorLabel} <code id={`${prefix}-error-detail`} className="note-detail">{state.error}</code></div>}
+        <div id={`${prefix}-content`} className="stack">
+            {!state.data && !state.error && <Callout tone="empty" id={`${prefix}-loading`}>Loading analysis…</Callout>}
+            {state.error && <Callout tone="caution" id={`${prefix}-error`}>{state.errorLabel} <code id={`${prefix}-error-detail`}>{state.error}</code></Callout>}
             {state.data && !enough && <Placeholder id={`${prefix}-placeholder`}>Not enough {studyTypeLabel(kind)} {shortage} yet (n={d?.overview?.n_total || 0}; need at least {ANALYSIS_MIN_N}).</Placeholder>}
             {enough && <>
                 <StatTiles id={`${prefix}-overview`} tiles={tiles(d.overview)} />
-                <div id={`${prefix}-chart-card`} className="mc-chart-card">
-                    <h3 className="mc-chart-title">{chartTitle}</h3>
-                    <p className="mc-model-note" id={`${prefix}-chart-n`}>{coverage}</p>
-                    <div className="mc-chart-wrap"><Plot id={`${prefix}-chart`} title={chartTitle} spec={spec} /></div>
-                </div>
+                <Plot id={`${prefix}-chart`} frameId={`${prefix}-chart-card`} heading={chartTitle} title={chartTitle} spec={spec} note={<Note id={`${prefix}-chart-n`}>{coverage}</Note>} />
                 <Caveat id={`${prefix}-caveat`}>{caveat}</Caveat>
                 {studies}
             </>}
@@ -44,15 +41,14 @@ function Comparison({prefix, state, d, kind, shortage, tiles, groups, chartTitle
 function StudyList({prefix, summary, count, countText, head, children}) {
     if (!count) return null;
     return (
-        <details id={`${prefix}-studies-card`} className="mc-chart-card rr-studies-details">
-            <summary className="mc-chart-title">{summary} <span id={`${prefix}-studies-count`} className="rr-studies-count">{countText || `(${count.toLocaleString()})`}</span></summary>
-            <div className="table-wrap" tabIndex={0} role="region" aria-label={typeof summary === 'string' ? summary : 'Evidence list'}>
-                <table className="data-table" id={`${prefix}-studies-table`}>
+        <Disclosure id={`${prefix}-studies-card`} className="disclosure--panel" summary={<>{summary} <span id={`${prefix}-studies-count`} className="note">{countText || `(${count.toLocaleString()})`}</span></>}>
+            <TableScroll label={typeof summary === 'string' ? summary : 'Evidence list'}>
+                <table className="table" id={`${prefix}-studies-table`}>
                     <thead><tr>{head.map((h, i) => <th key={i} scope="col">{h}</th>)}</tr></thead>
                     <tbody>{children}</tbody>
                 </table>
-            </div>
-        </details>
+            </TableScroll>
+        </Disclosure>
     );
 }
 const typed = (study, kind) => ({...study, type: kind === 'replication' ? 'replication' : 'reproduction'});
@@ -103,16 +99,15 @@ export default function PublicationType() {
             <div className="pane-meta">
                 <CiteBlock><div className="cite-ref"><WebsiteCitation /></div></CiteBlock>
             </div>
-            <div className="sticky-filter">
+            <div className="filter-bar">
                 <Chips id="pubtype-study-type" label="Publication Type study type (all three comparisons)" value={kind} onChange={k => setView({pubKind: k})} />
-                <div className="study-type-note">This filter applies to all three analyses below. It is computed for all three study types; reproduction results may show a low-data message given how few reproductions exist so far.</div>
+                <Note>This filter applies to all three analyses below. It is computed for all three study types; reproduction results may show a low-data message given how few reproductions exist so far.</Note>
             </div>
 
-            <DataStamp source="pub_status" />
-            <section className="card">
-                <h2 className="card-header">Recorded publication venue</h2>
-                <div className="card-body">
+            <Section title="Recorded publication venue" notes={<>
+                <DataStamp source="pub_status" />
                     <p>Venues are grouped mainly from the recorded venue name: repositories/preprints, conference outputs, and theses where recognisable. Where no venue name is recorded, the report’s DOI or URL is used instead: a pair whose identifier points to a repository (for example OSF, PsyArXiv or bioRxiv) is grouped as repository / preprint, and all other pairs without a venue name remain unknown. A name containing “proceedings” counts as a conference output only when it refers to a specific event (for example a numbered edition or a symposium); journals such as PNAS do not. All other names are labelled “other named venue”; this does not verify a journal article or peer review. Chart percentages use all selected reference pairs within each venue group; summary-card percentages use all selected reference pairs.</p>
+            </>}>
                     <Comparison prefix="pub" state={{...pub, errorLabel: 'Failed to load Publication Status data.'}} d={pubD} kind={kind} shortage="with publication-status data" groups={VENUES} chartTitle="Outcomes by publication venue"
                         tiles={ov => [{value: ov.n_total, label: 'Reference pairs', always: true}, ...Object.entries(VENUES).map(([key, label]) => ({value: ov['n_' + key] || 0, label: `${label} (${percent(ov['n_' + key] || 0, ov.n_total)}%)`}))]}
                         caveat="Publication-venue status is derived from the report venue recorded in FLoRA, classified as above. Some studies currently classified as preprints may since have been formally published in a different venue without FLoRA yet reflecting that update. Any outcome differences between these groups should also not be read as caused by publication venue alone: constructive peer review, a tendency for more selective journals to accept more polished work, and publication-pressure effects — for example a bias toward reporting positive or successful results in order to get published, or conversely extra editorial scrutiny catching more issues before publication — could all plausibly produce real differences independent of, or entangled with, venue itself."
@@ -121,17 +116,15 @@ export default function PublicationType() {
                                 <tr key={i}><td>{s.title_r}</td><td>{s.journal_r}</td><td><span className="badge badge-unknown">{VENUES[s.pub_status] || 'Unknown venue'}</span></td><td>{s.year_r}</td><OutcomeCell study={s} kind={kind} /><td><ReportLink url={s.url_r} doi={s.doi_r} max={40} /></td></tr>
                             ))}
                         </StudyList>} />
-                </div>
-            </section>
+            </Section>
 
-            <DataStamp source="rr_status" />
-            <section className="card">
-                <h2 className="card-header">Publication Format: Registered Reports vs. Other {kind === 'replication' ? 'Replications' : 'Reproductions'}</h2>
-                <div className="card-body">
+            <Section title={<>Publication Format: Registered Reports vs. Other {kind === 'replication' ? 'Replications' : 'Reproductions'}</>} notes={<>
+                <DataStamp source="rr_status" />
                     <p>This analysis checks whether each {word} in FLoRA was itself published as a <strong>Registered Report</strong> (RR): a format in which the study design and analysis plan are peer-reviewed and provisionally accepted <em>before</em> results are known. Matching is done by DOI/title against the <ExternalLink href="https://github.com/LukasRoeseler/RRDB">Registered Reports database</ExternalLink>, a regularly updated export of the FORRT Zotero "Registered Reports" group library. Pairs whose {word} report matches the Registered Reports database form the <strong>Registered Report</strong> group; identifiable non-matches form the <strong>Not found in RR database</strong> group. Pairs without a report DOI or title remain unknown and are excluded from the comparison.</p>
                     <p>Because the Registered Reports database is itself a work in progress, “Not found in RR database” means <em>not (yet) found</em> in the database, rather than confirmed non-RR.</p>
                     <CiteBlock label="Registered Reports data source"><div className="cite-ref">Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., Morillo, D., … Armstrong, C. (2026, May 14). <em>Database of Published Registered Reports</em>. <ExternalLink href="https://doi.org/10.17605/OSF.IO/VUR72">https://doi.org/10.17605/OSF.IO/VUR72</ExternalLink></div></CiteBlock>
-                    {snapshotsDiffer && <p id="rr-snapshot-note" className="study-type-note">This section uses {nPairs(rrTotal)}, while the venue section above uses {nPairs(pubD.overview.n_total)}. The two sections were refreshed from different FLoRA snapshots; see each section’s update stamp.</p>}
+                    {snapshotsDiffer && <Note id="rr-snapshot-note">This section uses {nPairs(rrTotal)}, while the venue section above uses {nPairs(pubD.overview.n_total)}. The two sections were refreshed from different FLoRA snapshots; see each section’s update stamp.</Note>}
+            </>}>
                     <Comparison prefix="rr" excluded={[['n_unknown', 'without a report DOI or title to check']]} state={{...rr, errorLabel: 'Failed to load Registered Reports data.'}} d={rrD} kind={kind} shortage="checked against the Registered Reports database" groups={RR_GROUPS} chartTitle={rrTitle}
                         tiles={ov => [
                             {value: ov.n_total || 0, label: `${Word} reference pairs checked`},
@@ -150,14 +143,12 @@ export default function PublicationType() {
                                     <td><ReportLink url={s.url_r} doi={s.doi_r} max={40} /></td></tr>
                             ))}
                         </StudyList>} />
-                </div>
-            </section>
+            </Section>
 
-            <section className="card">
-                <h2 className="card-header">Reports by number of original targets</h2>
-                <div className="card-body">
+            <Section title="Reports by number of original targets" notes={<>
                     <p>This analysis groups replication and reproduction reports by their number of recorded original targets. <strong>Multiple-target reports</strong> contain more than three distinct original targets in the recorded data. The remaining group contains reports with up to three targets and records with missing report identifiers. Target count does not establish the number of laboratories or membership of a coordinated project. Chart percentages count reference pairs; the evidence list counts reports.</p>
-                    <Comparison prefix="ls" loadingHidden={Boolean(rr.data || rr.error)} state={{...pub, errorLabel: 'Failed to load project-scale data.'}} d={sizeD} kind={kind} shortage="with report-size data" groups={SIZE_GROUPS} chartTitle="Outcomes by report size"
+            </>}>
+                    <Comparison prefix="ls" state={{...pub, errorLabel: 'Failed to load project-scale data.'}} d={sizeD} kind={kind} shortage="with report-size data" groups={SIZE_GROUPS} chartTitle="Outcomes by report size"
                         tiles={ov => [
                             {value: ov.n_total || 0, label: `${Word} reference pairs checked`},
                             {value: ov.n_individual || 0, label: `Up to 3 targets / unknown (${percent(ov.n_individual, ov.n_total)}%)`},
@@ -171,8 +162,7 @@ export default function PublicationType() {
                                     <td><ReportLink url={s.url_r} doi={s.doi_r} max={40} /></td></tr>
                             ))}
                         </StudyList>} />
-                </div>
-            </section>
+            </Section>
         </Pane>
     );
 }

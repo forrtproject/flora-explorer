@@ -9,6 +9,7 @@ import {useData} from '../state/data.jsx';
 import {useView} from '../state/view.jsx';
 import {CiteBlock, CopyButton, DataStamp, ExternalLink, Icon, OutcomeBadge, OutcomeDefinitions, Pane, WebsiteCitation} from '../components/common.jsx';
 import {OutcomeChartRow} from '../components/OutcomeChartRow.jsx';
+import {Button, Callout, Figure, Note, Section} from '../components/ui.jsx';
 
 let citationPromise;
 export function useDatasetCitation() {
@@ -21,7 +22,7 @@ export function useDatasetCitation() {
 }
 export function DatasetCitation({state}) {
     if (state.status === 'loading') return 'Loading citation…';
-    if (state.status === 'error') return <span className="muted">Could not load live citation. Please see the <ExternalLink href={URLS.cff}>CITATION.cff file</ExternalLink>.</span>;
+    if (state.status === 'error') return <span className="note">Could not load live citation. Please see the <ExternalLink href={URLS.cff}>CITATION.cff file</ExternalLink>.</span>;
     const c = state.citation;
     return <>{c.names} ({c.year}). <em>{c.title}</em>{c.version} [Dataset].{c.doi && <> <ExternalLink href={`https://doi.org/${c.doi}`}>https://doi.org/{c.doi}</ExternalLink></>}</>;
 }
@@ -76,13 +77,9 @@ function RandomExamples({rows}) {
     const [seed, setSeed] = useState(0);
     const examples = useMemo(() => pickExamples(rows), [rows, seed]);
     return (
-        <section className="card">
-            <div className="card-header card-header-split">
-                <h2>Random examples</h2>
-                <button id="reshuffle-btn" type="button" className="refresh-btn" title="Shuffle examples" onClick={() => setSeed(n => n + 1)}><Icon.shuffle /> Shuffle</button>
-            </div>
-            <div className="card-body" id="random-examples">
-                {!examples.length && <p className="muted">No examples available.</p>}
+        <Section title="Random examples" action={<Button id="reshuffle-btn" title="Shuffle examples" onClick={() => setSeed(n => n + 1)}><Icon.shuffle /> Shuffle</Button>}>
+            <Figure id="random-examples" className="example-list">
+                {!examples.length && <Note>No examples available.</Note>}
                 {examples.map((r, i) => (
                     <div className={`example-card outcome-${replicationOutcome(r)}`} key={i}>
                         <ExampleLine label="Original report" title={r.title_o || `${shortAuthors(r.author_o)} (${r.year_o || 'n.d.'})`} meta={[shortAuthors(r.author_o), r.year_o].filter(Boolean).join(' · ')} doi={r.doi_o} />
@@ -90,8 +87,8 @@ function RandomExamples({rows}) {
                         <div className="ex-outcome"><OutcomeBadge row={r} />{r.type && <span className="badge badge-type">{r.type}</span>}</div>
                     </div>
                 ))}
-            </div>
-        </section>
+            </Figure>
+        </Section>
     );
 }
 
@@ -105,12 +102,9 @@ function Faq() {
     }, []);
     const toggle = i => setOpen(prev => { const next = new Set(prev); next.has(i) ? next.delete(i) : next.add(i); return next; });
     return (
-        <section className="card">
-            <h2 className="card-header">FAQs</h2>
-            <div className="card-body">
-                <p className="muted">If anything is unclear, here is where we collect frequently asked questions. The list is loaded live from the <ExternalLink href={URLS.faqPage}>FLoRA FAQ document</ExternalLink> and grows as new questions come in.</p>
-                {state.status === 'loading' && <div id="faq-loading" className="note">Loading FAQs…</div>}
-                {state.status === 'error' && <div id="faq-error" className="note">Could not load FAQs at the moment. You can read them directly on <ExternalLink href={URLS.faqPage}>GitHub</ExternalLink>.</div>}
+        <Section title="FAQs" notes={<p>If anything is unclear, here is where we collect frequently asked questions. The list is loaded live from the <ExternalLink href={URLS.faqPage}>FLoRA FAQ document</ExternalLink> and grows as new questions come in.</p>}>
+                {state.status === 'loading' && <Callout tone="empty" id="faq-loading">Loading FAQs…</Callout>}
+                {state.status === 'error' && <Callout tone="caution" id="faq-error">Could not load FAQs at the moment. You can read them directly on <ExternalLink href={URLS.faqPage}>GitHub</ExternalLink>.</Callout>}
                 {state.status === 'ready' && (
                     <div id="faq-content">
                         {state.items.map((it, i) => it.type === 'section' ? (
@@ -129,16 +123,14 @@ function Faq() {
                         ))}
                     </div>
                 )}
-            </div>
-        </section>
+        </Section>
     );
 }
 
 function About() {
     return (
-        <section className="card">
-            <h2 className="card-header">About FLoRA</h2>
-            <div className="card-body intro-text">
+        <Section title="About FLoRA">
+            <div className="prose">
                 <h3>What is the aim of this project?</h3>
                 <p>FLoRA tracks <strong>numerical reproductions</strong>, <strong>robustness reproductions</strong>, and <strong>replications</strong>, linking each one to the original publication it tests. The goal is to increase the findability of repetition attempts and to enable meta-research on the repeatability of scientific findings, across disciplines, journals, and time.</p>
                 <p>Unlike the <ExternalLink href="https://forrt.org/FReD/">FORRT Replication Database (FReD)</ExternalLink>, FLoRA does not include statistical data. This lets it cover every field of research across the sciences and humanities and allows much faster expansion.</p>
@@ -157,7 +149,7 @@ function About() {
                     <li><strong>Robustness</strong>: do results hold under reasonable alternative specifications? (Robust or Robustness challenges)</li>
                 </ul>
                 <p>The two dimensions are assessed independently, and not every reproduction is assessed on both. Each chart counts reference pairs with a verdict on that dimension. ‘Not checked’ and uncoded values are excluded. A pair can appear in both charts.</p>
-                <div className="key-distinction"><strong>Key distinction:</strong> If new data are collected (e.g. an additional decade of observations), it's a <em>replication</em>. If the same data are re-analysed to verify the original results, it's a <em>reproduction</em>.</div>
+                <Callout label="Key distinction:">If new data are collected (e.g. an additional decade of observations), it's a <em>replication</em>. If the same data are re-analysed to verify the original results, it's a <em>reproduction</em>.</Callout>
                 <h3>Structure of FLoRA</h3>
                 <p>FLoRA links each repetition reference to its original, and assigns a standardised outcome based on the repetition report. This simple structure lets us describe recorded replication and reproduction outcomes across time, disciplines and venues, and powers tools like the FLoRA Zotero Plugin, which lists replication and reproduction attempts for any reference you provide.</p>
                 <h3 id="flora-coverage">Is FLoRA representative and comprehensive?</h3>
@@ -170,7 +162,7 @@ function About() {
                 <p>Treat aggregate statistics as exploratory rather than definitive, and please <ExternalLink href={URLS.submit}>submit missing entries</ExternalLink> when you spot them.</p>
                 <p>FLoRA is the product of years of work by a large community of volunteers. If you'd like to contribute or use the data for your own research, <ExternalLink href="https://forrt.org/replication-hub/">please reach out</ExternalLink>.</p>
             </div>
-        </section>
+        </Section>
     );
 }
 
@@ -221,51 +213,42 @@ export default function Overview({citation}) {
                 </CiteBlock>
             </div>
 
-            <section className="card">
-                <h2 className="card-header">Outcome Breakdown</h2>
-                <div className="card-body">
-                    <p className="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage">Coverage limits</a></p>
-                    <OutcomeDefinitions />
+            <Section title="Outcome breakdown" notes={<Callout tone="caution" className="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage">Coverage limits</a></Callout>}>
+                <OutcomeDefinitions />
+                <Figure>
                     <OutcomeChartRow prefix="overview" dimension="computational" rows={rows} scope={<>Covers <strong>reproductions only</strong>: were the original results obtained? Reproduction coverage is still small, so this chart will fill in as more are added.</>} />
                     <OutcomeChartRow prefix="overview" dimension="robustness" rows={rows} scope={<>Covers <strong>reproductions only</strong>: do results hold under alternative analysis choices? Not every reproduction has a robustness check yet.</>} />
                     <OutcomeChartRow prefix="overview" dimension="replicability" rows={rows} scope={<>Currently, this distribution covers <strong>replications only</strong>. Reproductions are shown separately above, since they're coded along different dimensions.</>} />
-                </div>
-            </section>
-
-            <div className="split">
-                <div className="split-main"><About /><Faq /></div>
-                <aside className="split-side">
-                    <section className="card">
-                        <h2 className="card-header">More Replication Tools</h2>
-                        <div className="card-body tool-list">
-                            {TOOLS.map(tool => (
-                                <a className="tool-tile" href={tool.href} target="_blank" rel="noopener noreferrer" key={tool.title}>
-                                    <div className="tool-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{tool.icon}</svg></div>
-                                    <div className="tool-body"><div className="tool-title">{tool.title}</div><div className="tool-desc">{tool.desc}</div></div>
-                                    <span className="tool-go"><Icon.arrow /></span>
-                                </a>
-                            ))}
-                        </div>
-                    </section>
-                    <RandomExamples rows={rows} />
-                </aside>
-            </div>
-
-            <section className="card">
-                <h2 className="card-header">Recommended Citation</h2>
-                <div className="card-body">
-                    <p className="note">If you use the underlying dataset, please cite it as:</p>
+                </Figure>
+            </Section>
+            <About />
+            <Faq />
+            <Section title="More replication tools">
+                <Figure className="tool-list">
+                    {TOOLS.map(tool => (
+                        <a className="tool-tile" href={tool.href} target="_blank" rel="noopener noreferrer" key={tool.title}>
+                            <div className="tool-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{tool.icon}</svg></div>
+                            <div className="tool-body"><div className="tool-title">{tool.title}</div><div className="tool-desc">{tool.desc}</div></div>
+                            <span className="tool-go"><Icon.arrow /></span>
+                        </a>
+                    ))}
+                </Figure>
+            </Section>
+            <RandomExamples rows={rows} />
+            <Section title="Recommended citation">
+                <Figure className="stack">
+                    <Note>If you use the underlying dataset, please cite it as:</Note>
                     <div className="citation-box" id="citation-box">
                         <CopyButton id="citation-copy-btn" label="Copy dataset citation" getText={() => citation.citation?.plain || document.getElementById('citation-text').textContent} />
                         <div id="citation-text"><DatasetCitation state={citation} /></div>
                     </div>
-                    <p className="note">If you report results based on this website, please cite it as:</p>
+                    <Note>If you report results based on this website, please cite it as:</Note>
                     <div className="citation-box" id="website-citation-box">
                         <CopyButton id="website-citation-copy-btn" label="Copy website citation" getText={() => WEBSITE_CITATION} />
                         <div id="website-citation-text"><WebsiteCitation /></div>
                     </div>
-                </div>
-            </section>
+                </Figure>
+            </Section>
         </Pane>
     );
 }

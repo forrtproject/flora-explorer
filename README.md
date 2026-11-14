@@ -44,10 +44,10 @@ The data are not representative of all research. Shared reports, repeated target
 
 - `index.html`, `src/main.jsx`, `src/App.jsx`: page shell, top bar and the seven tab panes.
 - `src/tabs/`: one component per view; `CitationImpact.jsx` also holds the timeline dialog.
-- `src/components/`: shared pieces — charts with their data tables and CSV copy, outcome badges, filters, definitions and update stamps.
+- `src/components/`: shared pieces. `ui.jsx` holds the building blocks every tab is assembled from (`Section`, `Figure`, `Callout`, `Note`, `Button`, `Disclosure`); `charts.jsx` wraps both chart libraries in that one figure frame with a data table and CSV copy; `common.jsx` has badges, filters, the outcome key and update stamps.
 - `src/state/`: data loading, URL-backed view state (shareable links, back/forward) and theme.
 - `src/lib/`: framework-free logic — outcome vocabulary and classification, search, aggregation, chart preparation, FAQ and citation parsing. `hooks.js` exposes read-only state on `window` for the console and the browser tests.
-- `src/styles/`: `tokens.css` (FORRT design tokens, light and dark) and `app.css` (components in the Replication Atlas visual language); fonts are self-hosted under `src/assets/fonts/`.
+- `src/styles/`: `tokens.css` (FORRT design tokens, light and dark) and `app.css` (the same building blocks by name, then feature-specific rules, in the Replication Atlas visual language); fonts are self-hosted under `src/assets/fonts/`.
 - `vite.config.js`: build settings; serves `data/` in development and copies it into `dist/`.
 - `data/`: committed snapshots, chart summaries and a curated journal-to-discipline map.
 - `data/originals_index.json`: compact citation table index; full records are fetched from `data/originals/` only when opened. `originals.json` remains available for bulk download and reproducible recalculation.

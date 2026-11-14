@@ -143,7 +143,7 @@ export function Pane({id, tabId, title, sources = [], selection = [], kind = '',
 
 export function CiteBlock({label = 'How to cite', children}) {
     return (
-        <details className="tab-cite-block">
+        <details className="disclosure tab-cite-block">
             <summary>Citation and reuse guidance</summary>
             <div className="tab-cite-block-label">{label}</div>
             {children}
@@ -170,7 +170,7 @@ function KeyColumn({dimension, title}) {
 export function OutcomeDefinitions() {
     const [panel, setPanel] = useState('replication');
     return (
-        <details className="outcome-definitions" data-outcome-definitions data-panel={panel}>
+        <details className="disclosure outcome-definitions" data-outcome-definitions data-panel={panel}>
             <summary>
                 <span className="key-title">Outcome key</span>
                 <span className="key-preview" aria-hidden="true">{FloraVocabulary.entries('replication').filter(e => e.assessed).map(e => <span key={e.key}><Swatch color={e.color} />{e.label}</span>)}</span>
@@ -267,7 +267,7 @@ export const kindLabel = kind => KIND_OPTIONS.find(o => o[0] === kind)?.[1] || k
 // Study-type filter with an "All" option (Browse, Years & Disciplines).
 export function KindFilter({value, onChange, buttonClass = '', count, countId, className = '', live}) {
     return (
-        <div className={'trend-filter ' + className} role="group" aria-label="Study type">
+        <div className={'filter-row trend-filter ' + className} role="group" aria-label="Study type">
             <span className="trend-filter-label">Study type:</span>
             {KIND_OPTIONS.map(([kind, label]) => (
                 <button key={kind} type="button" className={`trend-filter-btn ${buttonClass}${value === kind ? ' active' : ''}`} data-kind={kind}
@@ -282,7 +282,7 @@ export function KindFilter({value, onChange, buttonClass = '', count, countId, c
 export function Chips({id, label, value, onChange, options = KIND_OPTIONS.filter(o => KINDS.includes(o[0])), heading = 'Study type:', className = 'study-type-select'}) {
     const {announce} = useView();
     return (
-        <div className={'chip-group ' + className} id={id} role="group" aria-label={label}>
+        <div className={'filter-row chip-group ' + className} id={id} role="group" aria-label={label}>
             {heading && <span className="filter-label">{heading}</span>}
             {options.map(([key, text]) => (
                 <button key={key} type="button" className={'chip' + (value === key ? ' active' : '')} data-value={key} aria-pressed={value === key}
@@ -296,20 +296,20 @@ export function Chips({id, label, value, onChange, options = KIND_OPTIONS.filter
 export function StatTiles({id, tiles, box}) {
     const shown = tiles.filter(t => t && (t.always || t.value > 0));
     return (
-        <div id={id} className="mc-overview-grid" data-count={shown.length}>
+        <div id={id} className="stat-band" data-count={shown.length}>
             {shown.map(t => (
-                <div className={box ? 'mc-stat-box' : 'mc-stat'} key={t.label}>
-                    <div className="mc-stat-value">{t.value.toLocaleString('en-GB')}</div>
-                    <div className="mc-stat-label">{t.label}</div>
-                    {t.sub && <span className="mc-stat-sub">{t.sub}</span>}
+                <div className={'stat ' + (box ? 'mc-stat-box' : 'mc-stat')} key={t.label}>
+                    <div className="stat-value mc-stat-value">{t.value.toLocaleString('en-GB')}</div>
+                    <div className="stat-label mc-stat-label">{t.label}</div>
+                    {t.sub && <span className="stat-sub">{t.sub}</span>}
                 </div>
             ))}
         </div>
     );
 }
 
-export const Placeholder = ({id, children}) => <div id={id} className="coming-soon-placeholder">{children}</div>;
-export const Caveat = ({id, children}) => <div id={id} className="key-distinction"><strong>Interpretation caveat:</strong> {children}</div>;
+export const Placeholder = ({id, children}) => <div id={id} className="callout callout--empty">{children}</div>;
+export const Caveat = ({id, children}) => <div id={id} className="callout callout--note"><strong>Interpretation caveat:</strong> {children}</div>;
 
 // Picks the copy variant for the selected study type: [replication, numerical, robustness].
 export const byKind = (kind, variants) => variants[Math.max(0, KINDS.indexOf(kind))] ?? variants[0];
@@ -319,7 +319,7 @@ export function ExternalLink({href, children, className = 'doi-link', ...rest}) 
     return <a href={href} target="_blank" rel="noopener noreferrer" className={className} {...rest}>{children}</a>;
 }
 
-export function CopyButton({getText, className = 'copy-btn', label, children = 'Copy', id}) {
+export function CopyButton({getText, className = 'btn copy-btn', label, children = 'Copy', id}) {
     const [copied, setCopied] = useState(false);
     return (
         <button type="button" id={id} className={className} aria-label={label}

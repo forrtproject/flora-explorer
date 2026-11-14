@@ -32,15 +32,42 @@ export function download(name, headers, rows, notes = '') {
     link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Applies the shared legend, font and motion rules, then returns the plotted values as a table.
-export function barChart(canvas, config) {
-    const datasets = config.data.datasets || [], labels = config.data.labels || [];
-    if (config.options.scales) for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = config.options.indexAxis !== 'y';
-    if (config.options.plugins?.legend) {
-        config.options.plugins.legend.reverse = false;
-        config.options.plugins.legend.labels ||= {};
-        config.options.plugins.legend.labels.filter = item => datasets[item.datasetIndex].data.some(value => Number(value) > 0);
+const merge = (base, over) => {
+    const out = {...base};
+    for (const [key, value] of Object.entries(over || {})) {
+        out[key] = value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object' ? merge(base[key], value) : value;
     }
+    return out;
+};
+
+// The one look every Chart.js bar chart shares; a chart's own config only adds what differs.
+function barStyle(config) {
+    const t = chartTheme();
+    const horizontal = config.options?.indexAxis === 'y';
+    const compact = window.matchMedia('(max-width: 767px)').matches;
+    const axis = {border: {display: false}, grid: {color: t.grid}, ticks: {color: t.tick, font: {size: 11}}};
+    return merge({
+        responsive: true, maintainAspectRatio: false,
+        // A hairline in the surface colour separates stacked segments without an outline.
+        datasets: {bar: {borderRadius: 3, borderWidth: 1, borderColor: t.paper, borderSkipped: false, maxBarThickness: 48}},
+        plugins: {
+            legend: {display: true, position: 'bottom', labels: {color: t.font, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: compact ? 10 : 16, font: {size: compact ? 11 : 12}}},
+            tooltip: {backgroundColor: '#2c2c2c', titleColor: '#fff', bodyColor: '#fff', padding: 10, cornerRadius: 8, boxPadding: 4, usePointStyle: true, titleFont: {weight: 600}},
+        },
+        scales: {
+            x: {...axis, stacked: true, grid: {color: t.grid, display: horizontal}},
+            y: {...axis, stacked: true, grid: {color: t.grid, display: !horizontal}},
+        },
+    }, config.options);
+}
+
+// Applies the shared style, legend and motion rules, then draws.
+export function barChart(canvas, config) {
+    const datasets = config.data.datasets || [];
+    config.options = barStyle(config);
+    for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = config.options.indexAxis !== 'y';
+    config.options.plugins.legend.reverse = false;
+    config.options.plugins.legend.labels.filter = item => datasets[item.datasetIndex].data.some(value => Number(value) > 0);
     Chart.defaults.font.family = chartTheme().fontFamily;
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) config.options.animation = false;
     return new Chart(canvas.getContext('2d'), config);
@@ -61,6 +88,20 @@ export function barSummary(total, eligible, scope) {
     return sample + 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.';
 }
 
+// The one look every Plotly chart shares: surface, type, quiet grid, rounded bars and a dark hover label.
+function plotStyle(layout = {}) {
+    const t = chartTheme();
+    const axis = {gridcolor: t.grid, zerolinecolor: t.grid, linecolor: t.grid, color: t.font, tickfont: {color: t.tick, size: 11}};
+    const base = {
+        paper_bgcolor: t.paper, plot_bgcolor: t.plot, barcornerradius: 3, bargap: 0.28,
+        font: {family: t.fontFamily, size: 12, color: t.font},
+        legend: {orientation: 'h', font: {color: t.font, size: 12}},
+        hoverlabel: {bgcolor: '#2c2c2c', bordercolor: '#2c2c2c', font: {family: t.fontFamily, size: 12, color: '#fff'}},
+    };
+    for (const key of ['xaxis', 'yaxis', ...Object.keys(layout).filter(k => /^[xy]axis\d+$/.test(k))]) if (layout[key]) base[key] = axis;
+    return merge(base, layout);
+}
+
 const COMPARISON_SUMMARY = 'Denominator: all reference pairs in each group with the metadata required by this analysis. All recorded outcome categories and missing outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
 const GENERIC_SUMMARY = 'Values below include every plotted series; interval limits are shown where available.';
 
@@ -68,8 +109,8 @@ const GENERIC_SUMMARY = 'Values below include every plotted series; interval lim
 export function preparePlot(id, spec, {comparison = false, counts = false, fallbackHeight = 380} = {}) {
     const traces = spec.traces;
     const narrow = window.innerWidth < 600;
-    let layout = {...spec.layout, font: {family: chartTheme().fontFamily, ...spec.layout?.font}};
-    let config = {...spec.config};
+    let layout = plotStyle(spec.layout);
+    let config = {displayModeBar: false, responsive: true, ...spec.config};
     let display = traces.map(t => ({...t, showlegend: t.type === 'bar' && !(t.y || []).some(value => Number(value) > 0) ? false : t.showlegend}));
     layout = {...layout, autosize: true, legend: {...layout.legend, traceorder: 'normal'}};
     for (const key of Object.keys(layout).filter(k => /^[xy]axis\d*$/.test(k))) {
