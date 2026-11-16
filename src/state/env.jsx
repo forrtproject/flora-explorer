@@ -1,6 +1,5 @@
 import {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import {flushSync} from 'react-dom';
-import {Chart} from '../lib/charts.js';
 import {initialTheme} from '../lib/theme.js';
 
 const EnvContext = createContext({theme: 'light', tick: 0});
@@ -34,8 +33,6 @@ export function EnvProvider({children}) {
         const onResize = () => {
             clearTimeout(timer);
             timer = setTimeout(() => {
-                // Chart.js can miss a container resize after a tab switch followed by narrowing.
-                Object.values(Chart.instances).forEach(chart => { if (chart.canvas?.getClientRects().length) chart.resize(); });
                 setTick(n => n + 1);
             }, 120);
         };

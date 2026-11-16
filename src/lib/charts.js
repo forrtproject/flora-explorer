@@ -1,20 +1,14 @@
-import {Chart} from 'chart.js/auto';
-import {chartTheme} from './theme.js';
-import {number, percent, countAxis} from './format.js';
+import * as echarts from 'echarts/core';
+import {BarChart, CustomChart, LineChart, ScatterChart} from 'echarts/charts';
+import {GraphicComponent, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent} from 'echarts/components';
+import {SVGRenderer} from 'echarts/renderers';
+import {chartTheme, textScale} from './theme.js';
+import {number, percent} from './format.js';
 
-export {Chart};
-
-let plotly;
-let plotlyPromise;
-export function loadPlotly() {
-    plotlyPromise ||= import('plotly.js-basic-dist-min').then(module => {
-        plotly = module.default || module;
-        window.Plotly = plotly;
-        return plotly;
-    });
-    return plotlyPromise;
-}
-export const plotlyNow = () => plotly;
+// Only what the explorer draws is registered, so the bundle carries no unused chart types.
+// SVG keeps text crisp at any zoom and leaves labels in the DOM for the acceptance tests.
+echarts.use([BarChart, CustomChart, LineChart, ScatterChart, GraphicComponent, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, SVGRenderer]);
+export {echarts};
 
 export const plain = s => (Array.isArray(s) ? s.join(' ') : String(s ?? '')).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 export const cellText = (v, header = '') => typeof v === 'number'
@@ -32,61 +26,127 @@ export function download(name, headers, rows, notes = '') {
     link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const merge = (base, over) => {
+const escapeHtml = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// A tooltip row: the series swatch, then text. Values are escaped because tooltips render as HTML.
+export const tipRow = (color, text) => `<span class="chart-tip-swatch" style="background:${escapeHtml(color)}"></span>${escapeHtml(text)}`;
+export const tipLines = lines => lines.filter(Boolean).join('<br>');
+export {escapeHtml};
+
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+// Styled axes. Labels and titles sit in the secondary text colour; only value axes draw a grid.
+export function valueAxis(extra = {}) {
+    const t = chartTheme();
+    return merge({type: 'value', splitNumber: 4, axisLine: {show: false}, axisTick: {show: false}, splitLine: {lineStyle: {color: t.grid}},
+        axisLabel: {color: t.tick, fontSize: 11}, nameLocation: 'middle', nameGap: 14, nameTextStyle: {color: t.tick, fontSize: 12}}, extra);
+}
+export function categoryAxis(extra = {}) {
+    const t = chartTheme();
+    return merge({type: 'category', axisLine: {show: false}, axisTick: {show: false}, splitLine: {show: false},
+        axisLabel: {color: t.tick, fontSize: 11}, nameLocation: 'middle', nameGap: 14, nameTextStyle: {color: t.tick, fontSize: 12}}, extra);
+}
+// Counts are whole numbers, so their axis never shows fractional ticks.
+export const countAxis = () => ({minInterval: 1, axisLabel: {formatter: v => number(v)}});
+
+function merge(base, over) {
     const out = {...base};
     for (const [key, value] of Object.entries(over || {})) {
-        out[key] = value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object' ? merge(base[key], value) : value;
+        out[key] = value && typeof value === 'object' && !Array.isArray(value) && typeof value !== 'function' && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key]) ? merge(base[key], value) : value;
     }
     return out;
-};
+}
+
+const valueOf = v => Number(v && typeof v === 'object' && !Array.isArray(v) ? v.value : v) || 0;
+// Bar series that plot nothing stay in the data table and export but leave the legend.
+const hasData = s => s.type !== 'bar' || (s.data || []).some(v => valueOf(v) > 0);
+
+// Rows of legend items at this width, so the plot starts below them instead of under them.
+function legendRows(names, width, scale = 1) {
+    if (!names.length) return 0;
+    let rows = 1, used = 0;
+    for (const item of names) {
+        const w = ((typeof item === 'string' ? item : item.name).length * 6.4 + 30) * scale;
+        if (used && used + w > width) { rows += 1; used = 0; }
+        used += w;
+    }
+    return rows;
+}
+
+// The look every chart shares, the legend above the plot and the space it needs.
+// A chart's own option only adds what differs; `top` is extra room it needs above the plot.
+export function finishOption(option, {width = 600, top = 0} = {}) {
+    const t = chartTheme(), scale = textScale();
+    const series = option.series || [];
+    const names = option.legend?.data || series.filter(s => s.name && !s.name.startsWith('_') && hasData(s)).map(s => s.name);
+    const showLegend = option.legend?.show !== false && names.length > 0;
+    const legendHeight = showLegend ? legendRows(names, width, scale) * 20 * scale + 6 : 0;
+    top *= scale;
+    // Bar charts hover the whole category (every segment of a year, journal or venue at once) under a
+    // faint plum shadow; lines, points and histogram bins hover the item under the pointer.
+    const bars = series.length > 0 && series.every(s => s.type === 'bar');
+    const base = {
+        animation: !reducedMotion(), animationDuration: 500,
+        backgroundColor: t.paper, aria: {enabled: false},
+        textStyle: {fontFamily: t.fontFamily, fontSize: 12, color: t.font},
+        tooltip: {trigger: bars ? 'axis' : 'item', ...(bars ? {axisPointer: {type: 'shadow', shadowStyle: {color: 'rgba(133,57,83,.07)'}}} : {}),
+            confine: true, className: 'chart-tooltip', backgroundColor: '#2c2c2c', borderWidth: 0, textStyle: {color: '#fff', fontFamily: t.fontFamily, fontSize: 12}},
+        // Clicking a legend entry hides or shows that series.
+        legend: {show: showLegend, data: names, top: 0, left: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, itemGap: 16,
+            textStyle: {color: t.tick, fontSize: 12, fontFamily: t.fontFamily}},
+        grid: {left: 4, right: 12, bottom: 4, top: legendHeight + top + 8, outerBoundsMode: 'same', outerBoundsContain: 'all'},
+    };
+    const own = {...option, legend: {...option.legend, data: names, show: showLegend}};
+    if (option.grid) own.grid = {...option.grid, top: (option.grid.top ?? 8) + legendHeight + top};
+    return scaleText(merge(base, own), scale);
+}
+
+// Every font size in an option, multiplied by the page's text scale so chart text grows with the page's.
+function scaleText(node, scale) {
+    if (scale === 1 || !node || typeof node !== 'object') return node;
+    if (Array.isArray(node)) return node.map(n => scaleText(n, scale));
+    const out = {};
+    for (const [key, value] of Object.entries(node)) out[key] = key === 'fontSize' && typeof value === 'number' ? Math.round(value * scale) : typeof value === 'function' ? value : scaleText(value, scale);
+    return out;
+}
 
 // Only the outer ends of a stack are rounded, so a stacked bar reads as one shape.
-function stackRadius(ctx) {
-    const {chart, datasetIndex, dataIndex} = ctx;
-    const filled = chart.data.datasets.map((d, i) => Number(d.data[dataIndex]) > 0 ? i : -1).filter(i => i >= 0);
-    const first = datasetIndex === filled[0], last = datasetIndex === filled[filled.length - 1];
-    if (chart.options.indexAxis === 'y') return {topLeft: first ? 5 : 0, bottomLeft: first ? 5 : 0, topRight: last ? 5 : 0, bottomRight: last ? 5 : 0};
-    return {topLeft: last ? 3 : 0, topRight: last ? 3 : 0, bottomLeft: 0, bottomRight: 0};
-}
-
-// The one look every Chart.js bar chart shares; a chart's own config only adds what differs.
-function barStyle(config) {
-    const t = chartTheme();
-    const horizontal = config.options?.indexAxis === 'y';
-    const compact = window.matchMedia('(max-width: 767px)').matches;
-    const ticks = {color: t.tick, font: {size: 11}, padding: 8};
-    const category = {border: {display: false}, grid: {display: false}, ticks: {...ticks, maxRotation: 0, autoSkipPadding: 16}};
-    const value = {border: {display: false}, grid: {color: t.grid, drawTicks: false}, ticks: {...ticks, maxTicksLimit: 6}};
-    return merge({
-        responsive: true, maintainAspectRatio: false,
-        // A hairline in the surface colour separates stacked segments without an outline.
-        datasets: {bar: {borderRadius: stackRadius, borderSkipped: false, borderWidth: 1, borderColor: t.paper, maxBarThickness: horizontal ? 16 : 26, categoryPercentage: .86, barPercentage: .92}},
-        plugins: {
-            legend: {display: true, position: 'top', align: 'start', labels: {color: t.tick, usePointStyle: true, pointStyle: 'circle', boxWidth: 7, boxHeight: 7, padding: compact ? 10 : 16, font: {size: compact ? 11 : 12}}},
-            tooltip: {backgroundColor: '#2c2c2c', titleColor: '#fff', bodyColor: '#fff', padding: 10, cornerRadius: 8, boxPadding: 4, usePointStyle: true, titleFont: {weight: 600}},
-        },
-        scales: {x: {...(horizontal ? value : category), stacked: true}, y: {...(horizontal ? category : value), stacked: true}},
-    }, config.options);
-}
-
-// Applies the shared style, legend and motion rules, then draws.
-export function barChart(canvas, config) {
-    const datasets = config.data.datasets || [];
-    config.options = barStyle(config);
-    for (const axis of Object.values(config.options.scales)) if (axis.ticks) axis.ticks.autoSkip = config.options.indexAxis !== 'y';
-    config.options.plugins.legend.reverse = false;
-    config.options.plugins.legend.labels.filter = item => datasets[item.datasetIndex].data.some(value => Number(value) > 0);
-    Chart.defaults.font.family = chartTheme().fontFamily;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) config.options.animation = false;
-    return new Chart(canvas.getContext('2d'), config);
-}
-export function barTable(config) {
-    const datasets = config.data.datasets || [];
-    return {
-        headers: ['Category', ...datasets.map(d => d.label)],
-        rows: (config.data.labels || []).map((label, i) => [label, ...datasets.map(d => d.data[i] ?? 0)]),
-        total: datasets.reduce((n, d) => n + d.data.reduce((sum, v) => sum + (Number(v) || 0), 0), 0),
+export function stackCorners(values, horizontal, radius) {
+    const filled = i => values.map((col, s) => Number(col[i]) > 0 ? s : -1).filter(s => s >= 0);
+    return (s, i) => {
+        const on = filled(i), first = s === on[0], last = s === on[on.length - 1];
+        if (horizontal) return [first ? radius : 0, last ? radius : 0, last ? radius : 0, first ? radius : 0];
+        return [last ? radius : 0, last ? radius : 0, 0, 0];
     };
+}
+
+// A stacked bar chart of counts per category. `series` is [{name, color, values}].
+// horizontal: categories run down the side; pooledFirst: a dashed rule sets a pooled first column apart.
+export function stackedBarOption({categories, series, horizontal = false, pooledFirst = false, proportion = false, total = 0, width}) {
+    const t = chartTheme();
+    const corners = stackCorners(series.map(s => s.values), horizontal, horizontal ? 5 : 3);
+    const bars = series.map((s, si) => ({
+        name: s.name, type: 'bar', stack: 'total', ...(horizontal || proportion ? {barWidth: proportion ? 18 : 14} : {barMaxWidth: 26}),
+        itemStyle: {color: s.color, borderColor: t.paper, borderWidth: 1},
+        emphasis: {focus: 'series'},
+        data: s.values.map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i)}})),
+    }));
+    if (proportion) {
+        // A proportion bar: its caption states the counts, so it carries no axis; hovers add each share.
+        return finishOption({series: bars, tooltip: {valueFormatter: v => `${number(v)} (${percent(v, total, 1)}%)`},
+            xAxis: {type: 'value', show: false, min: 0, max: Math.max(total, 1)}, yAxis: {type: 'category', show: false, data: categories},
+            grid: {left: 0, right: 0, top: 4, height: 24}}, {width});
+    }
+    // Long field and journal names break onto further lines within 150px.
+    const cats = categoryAxis({data: categories, inverse: horizontal,
+        axisLabel: horizontal ? {interval: 0, width: 150 * textScale(), overflow: 'break'} : {hideOverlap: true},
+        // Category split line i falls at the start of column i; only the one after the pooled column is drawn.
+        splitLine: pooledFirst && categories.length > 1 ? {show: true, showMinLine: false, showMaxLine: false, interval: i => i === 1, lineStyle: {color: t.tick, type: [4, 3], width: 1}} : {show: false}});
+    const values = valueAxis(countAxis());
+    return finishOption({series: bars, tooltip: {valueFormatter: v => number(v)}, xAxis: horizontal ? values : cats, yAxis: horizontal ? cats : values}, {width});
+}
+export function barTable(categories, series, eligible, scope) {
+    const total = series.reduce((n, s) => n + s.values.reduce((sum, v) => sum + (Number(v) || 0), 0), 0);
+    return {headers: ['Category', ...series.map(s => s.name)], rows: categories.map((label, i) => [plain(label), ...series.map(s => s.values[i] ?? 0)]), summary: barSummary(total, eligible, scope)};
 }
 export function barSummary(total, eligible, scope) {
     const excluded = Math.max(0, eligible - total);
@@ -96,26 +156,8 @@ export function barSummary(total, eligible, scope) {
     return sample + 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.';
 }
 
-// The one look every Plotly chart shares: surface, type, a quiet value grid and a dark hover label.
-function plotStyle(layout = {}) {
-    const t = chartTheme();
-    const axis = {gridcolor: t.grid, zeroline: false, showline: false, ticks: '', color: t.tick, tickfont: {color: t.tick, size: 11}, title: {font: {color: t.tick, size: 12}}};
-    const base = {
-        paper_bgcolor: t.paper, plot_bgcolor: t.plot, barcornerradius: 4, bargap: 0.35,
-        font: {family: t.fontFamily, size: 12, color: t.font},
-        legend: {orientation: 'h', font: {color: t.tick, size: 12}, itemsizing: 'constant'},
-        hoverlabel: {bgcolor: '#2c2c2c', bordercolor: '#2c2c2c', font: {family: t.fontFamily, size: 12, color: '#fff'}},
-    };
-    for (const key of ['xaxis', 'yaxis', ...Object.keys(layout).filter(k => /^[xy]axis\d+$/.test(k))]) {
-        if (!layout[key]) continue;
-        const own = typeof layout[key].title === 'string' ? {...layout[key], title: {text: layout[key].title}} : layout[key];
-        base[key] = axis; layout = {...layout, [key]: own};
-    }
-    return merge(base, layout);
-}
-
 // Dark text on light fills and white on dark ones, for labels drawn inside a bar.
-function labelColor(fill) {
+export function labelColor(fill) {
     const hex = /^#([0-9a-f]{6})$/i.exec(String(fill).trim());
     if (!hex) return '#fff';
     const [r, g, b] = [0, 2, 4].map(i => parseInt(hex[1].slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
@@ -123,94 +165,42 @@ function labelColor(fill) {
 }
 
 const COMPARISON_SUMMARY = 'Denominator: all reference pairs in each group with the metadata required by this analysis. All recorded outcome categories and missing outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
-const GENERIC_SUMMARY = 'Values below include every plotted series; interval limits are shown where available.';
 
-// Turns a chart spec into what Plotly draws and the table that describes it, for the current width.
-export function preparePlot(id, spec, {comparison = false, counts = false, fallbackHeight = 380} = {}) {
-    const traces = spec.traces;
-    const narrow = window.innerWidth < 600;
-    let layout = plotStyle(spec.layout);
-    let config = {displayModeBar: false, responsive: true, ...spec.config};
-    const paper = chartTheme().paper;
-    // A hairline in the surface colour separates bars and stacked segments.
-    let display = traces.map(t => ({...t, ...(t.type === 'bar' ? {marker: {line: {color: paper, width: 1}, ...t.marker}} : {}), showlegend: t.type === 'bar' && !(t.y || []).some(value => Number(value) > 0) ? false : t.showlegend}));
-    layout = {...layout, autosize: true, legend: {...layout.legend, traceorder: 'normal'}};
-    for (const key of Object.keys(layout).filter(k => /^[xy]axis\d*$/.test(k))) {
-        const axis = layout[key], title = typeof axis.title === 'string' ? {text: axis.title} : axis.title;
-        layout[key] = {...axis, automargin: true, title: {...title, standoff: 12}};
-    }
-    let table;
-    if (comparison) {
-        const nGroups = traces[0]?.x?.length || 0;
-        const totals = Array.from({length: nGroups}, (_, i) => traces.reduce((sum, t) => sum + (Number(t.y?.[i]) || 0), 0));
-        const escape = s => String(s).replace(/</g, '&lt;');
-        display = display.map(t => ({...t,
-            x: t.x.map((v, i) => plain(v).replace(/(.{1,18})(?:\s|$)/g, '$1<br>').replace(/<br>$/, '') + `<br>N=${number(totals[i])}`),
-            y: t.y.map((v, i) => counts ? v : totals[i] ? 100 * v / totals[i] : 0),
-            customdata: t.y.map((v, i) => [v, totals[i], escape(percent(v, totals[i], 1))]),
-            // Shares large enough to hold a label are written on the segment itself.
-            text: t.y.map((v, i) => !counts && totals[i] && 100 * v / totals[i] >= 7 ? Math.round(100 * v / totals[i]) + '%' : ''),
-            textposition: 'inside', insidetextanchor: 'middle', textangle: 0, cliponaxis: false, textfont: {color: labelColor(t.marker?.color), size: 11},
-            hovertemplate: counts ? '%{x}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>' : '%{x}<br>%{customdata[2]}% (%{customdata[0]:,.0f} pairs)<extra>%{fullData.name}</extra>'}));
-        layout.barmode = counts ? 'group' : 'stack';
-        layout.bargap = counts ? 0.3 : nGroups <= 2 ? 0.62 : nGroups <= 3 ? 0.52 : 0.42;
-        layout.xaxis = {...layout.xaxis, tickangle: 0};
-        const maxCount = Math.max(0, ...traces.flatMap(t => t.y));
-        layout.yaxis = {...layout.yaxis, title: {text: counts ? 'Reference pairs' : 'Within-group percentage', standoff: 12}, ...(counts ? countAxis(maxCount) : {tickformat: '.0f', dtick: undefined}), range: counts ? undefined : [0, 100]};
-        const rows = [];
-        traces.forEach(t => (t.x || []).forEach((group, i) => {
-            const count = Number(t.y?.[i]) || 0;
-            rows.push([plain(group), plain(t.name), count, totals[i], totals[i] ? count > 0 && 100 * count / totals[i] < 1 ? '<1' : Number((100 * count / totals[i]).toFixed(1)) : 'Not available']);
-        }));
-        table = {headers: ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], rows, summary: COMPARISON_SUMMARY};
-    }
-    if (narrow) {
-        layout.margin = {...layout.margin, l: 60, r: layout.yaxis2 ? 65 : 20, b: 100};
-        layout.legend = {...layout.legend, orientation: 'h', y: -0.32, font: {...layout.legend?.font, size: 10}};
-        layout.height = Math.max(layout.height || 380, 420);
-        layout.font = {...layout.font, size: 11};
-        if (comparison) {
-            // Horizontal bars leave room for venue and report-category labels.
-            display = display.map(t => ({...t, orientation: 'h', x: t.y, y: t.x,
-                hovertemplate: t.hovertemplate.replace(/%\{x\}/g, '%{category}').replace(/%\{y/g, '%{x').replace(/%\{category\}/g, '%{y}')}));
-            layout.xaxis = {...layout.yaxis, automargin: true};
-            layout.yaxis = {title: '', automargin: true, autorange: 'reversed', type: 'category', tickangle: 0};
-            layout.xaxis.title = {...layout.xaxis.title, text: counts ? 'Reference pairs' : 'Within-group<br>percentage'};
-            layout.margin = {...layout.margin, l: 110, b: 140};
-            layout.legend = {...layout.legend, y: -0.25};
-            layout.height = Math.max(440, (display[0]?.y.length || 0) * 65 + 200);
-        }
-    }
-    // Reserve separate space for category labels, axis titles and the legend;
-    // paper-relative legend positions otherwise sit on wrapped labels.
-    const horizontal = display[0]?.orientation === 'h';
-    const labelLines = comparison && !horizontal && display[0] ? Math.max(1, ...display[0].x.map(v => v.split('<br>').length)) : 1;
-    const axisSpace = labelLines * 17 + (layout.xaxis?.title?.text ? 45 : 15);
-    const legendItems = display.filter(t => t.showlegend !== false).length;
-    const legendSpace = legendItems > 1 ? Math.ceil(legendItems / (narrow ? 1 : 4)) * 20 + 15 : 0;
-    layout.margin = {...layout.margin, b: Math.max(layout.margin?.b || 0, axisSpace + legendSpace)};
-    const plotHeight = (layout.height || fallbackHeight) - (layout.margin.t || 0) - layout.margin.b;
-    layout.legend = {...layout.legend, yanchor: 'top', y: -axisSpace / Math.max(100, plotHeight)};
-    // Charts keep hover details, while page swipes and drags never zoom or pan.
-    layout.dragmode = false;
-    for (const key of Object.keys(layout)) if (/^[xy]axis\d*$/.test(key)) layout[key] = {...layout[key], fixedrange: true};
-    config = {...config, scrollZoom: false, doubleClick: false};
+// Grouped outcome comparisons (authorship, Registered Reports, venue, report size): each group's
+// outcomes as within-group percentages (stacked) or as counts (grouped). Narrow screens lay the
+// groups down the side so long venue and category names stay readable.
+export function comparisonOption({groups, series}, {counts = false, width = 600} = {}) {
+    const t = chartTheme(), narrow = width < 600;
+    const totals = groups.map((_, i) => series.reduce((sum, s) => sum + (Number(s.values[i]) || 0), 0));
+    const share = (v, i) => totals[i] ? 100 * v / totals[i] : 0;
+    // Group names break onto further lines within 80px; the group's N sits on its own last line.
+    const labels = groups.map((g, i) => `${plain(g)}\nN=${number(totals[i])}`);
+    const shares = series.map(s => s.values.map((v, i) => counts ? v : share(v, i)));
+    const corners = stackCorners(shares, narrow, 4);
+    const bars = series.map((s, si) => ({
+        name: s.name, type: 'bar', stack: counts ? undefined : 'share', ...(counts ? {barMaxWidth: 28} : {barWidth: '52%'}),
+        itemStyle: {color: s.color, borderColor: t.paper, borderWidth: 1}, emphasis: {focus: 'series'},
+        // Shares large enough to hold a label are written on the segment itself, in a colour that reads on its fill.
+        label: {show: !counts, position: 'inside', color: labelColor(s.color), fontSize: 11, fontFamily: t.fontFamily, formatter: p => p.value >= 7 ? Math.round(p.value) + '%' : ''},
+        data: shares[si].map((v, i) => ({value: v, itemStyle: {borderRadius: counts ? (narrow ? [0, 3, 3, 0] : [3, 3, 0, 0]) : corners(si, i)}})),
+    }));
+    const tooltip = {valueFormatter: counts ? v => `${number(v)} reference pairs` : v => v.toFixed(1) + '%'};
+    const values = valueAxis(counts ? {...countAxis(), name: 'Reference pairs'}
+        : {name: narrow ? 'Within-group\npercentage' : 'Within-group percentage', min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}});
+    const cats = categoryAxis({data: labels, inverse: narrow, axisLabel: {interval: 0, width: 80 * textScale(), overflow: 'break'}});
+    return finishOption({series: bars, tooltip, xAxis: narrow ? values : cats, yAxis: narrow ? cats : values}, {width});
+}
+export function comparisonTable({groups, series}) {
+    const totals = groups.map((_, i) => series.reduce((sum, s) => sum + (Number(s.values[i]) || 0), 0));
+    const rows = [];
+    series.forEach(s => groups.forEach((group, i) => {
+        const count = Number(s.values[i]) || 0;
+        rows.push([plain(group), plain(s.name), count, totals[i], totals[i] ? count > 0 && 100 * count / totals[i] < 1 ? '<1' : Number((100 * count / totals[i]).toFixed(1)) : 'Not available']);
+    }));
+    return {headers: ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], rows, summary: COMPARISON_SUMMARY};
+}
 
-    if (table && spec.coverage) table = {...table, summary: spec.coverage + ' ' + table.summary};
-    if (!table && spec.table) table = {...spec.table, summary: [spec.coverage, spec.table.summary].filter(Boolean).join(' ')};
-    if (!table) {
-        const rows = [];
-        const timeline = id === 'study-plot', trajectory = id === 'plot-cit' || id === 'plot-cocit';
-        const hasIntervals = display.some(trace => trace.error_x || trace.error_y);
-        display.forEach(t => (t.x || []).forEach((x, i) => {
-            const flipped = t.orientation === 'h';
-            const value = flipped ? x : t.y?.[i], err = flipped ? t.error_x : t.error_y;
-            const unit = timeline ? 'Citing works' : trajectory ? id === 'plot-cit' ? 'Mean citations per original per year' : 'Mean co-citations per original per year' : 'Reference pairs';
-            const row = [t.name || 'Series', flipped ? t.y?.[i] : x, value, unit];
-            if (hasIntervals) row.push(err ? value - (err.arrayminus?.[i] ?? err.array?.[i] ?? 0) : '', err ? value + (err.array?.[i] ?? 0) : '');
-            rows.push(row);
-        }));
-        table = {headers: ['Series', 'X / category', 'Value', 'Unit', ...(hasIntervals ? ['95% CI lower', '95% CI upper'] : [])], rows, summary: [spec.coverage, GENERIC_SUMMARY].filter(Boolean).join(' ')};
-    }
-    return {display, layout, config, table};
+// Rows for a chart whose table is simply each plotted point: series, x, value and unit.
+export function pointTable(series, unit, summary = 'Values below include every plotted series.') {
+    return {headers: ['Series', 'X / category', 'Value', 'Unit'], rows: series.flatMap(s => s.x.map((x, i) => [s.name, x, s.y[i], unit])), summary};
 }

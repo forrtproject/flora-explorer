@@ -1,7 +1,6 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {barChart, barSummary, barTable, cellText, csvText, loadPlotly, plain, plotlyNow, preparePlot} from '../lib/charts.js';
+import {cellText, comparisonOption, comparisonTable, csvText, echarts, plain} from '../lib/charts.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
-import {percent} from '../lib/format.js';
 import {useEnv, usePane} from '../state/env.jsx';
 import {Icon} from './common.jsx';
 import {Button, Figure, IconButton} from './ui.jsx';
@@ -60,97 +59,81 @@ export function ChartCopy({id, title, table}) {
     );
 }
 
-// Draws a Chart.js bar chart from build() and returns its ref plus the table describing it.
-export function useBarChart(id, title, build, deps, {enabled = true, eligible = 0, scope = 'counts'} = {}) {
+// Draws an ECharts option into a div. `option` is an option object, or a function of
+// {width} for charts whose layout depends on the space they have. A hidden pane gives the
+// div no width, so drawing waits until it is shown; resizes redraw at the new width.
+// aspect (height ÷ width) lets a chart grow taller as it gets wider, from `height` up to 70% of the
+// window, so wide screens get well-proportioned charts instead of long flat strips.
+export function EChart({id, title, option, height: minHeight, aspect, className = '', describedBy}) {
     const ref = useRef(null);
     const chart = useRef(null);
-    const {theme} = useEnv();
-    const [table, setTable] = useState(null);
+    const [width, setWidth] = useState(0);
     useLayoutEffect(() => {
-        if (!enabled || !ref.current) return;
-        const config = build();
-        const {headers, rows, total} = barTable(config);
-        setTable({headers, rows, summary: barSummary(total, eligible, scope)});
-        chart.current = barChart(ref.current, config);
-        return () => { chart.current?.destroy(); chart.current = null; };
-    }, [enabled, theme, eligible, scope, ...deps]);
-    const canvasProps = {id, ref, role: 'img', 'aria-label': title + '. Values in the following data table.', 'aria-describedby': table ? id + '-data' : undefined};
-    return {canvasProps, table};
-}
-
-// One horizontal stacked bar: the share of each outcome within a dimension.
-export function outcomeBarConfig(datasets, total, categoryLabel) {
-    return {
-        type: 'bar',
-        data: {labels: [categoryLabel], datasets},
-        options: {
-            indexAxis: 'y',
-            plugins: {tooltip: {callbacks: {label: ctx => `${ctx.dataset.label}: ${ctx.parsed.x.toLocaleString()} (${percent(ctx.parsed.x, total, 1)}%)`}}},
-            // A proportion bar: its caption states the counts, so it carries no axis.
-            scales: {x: {display: false, min: 0, max: Math.max(total, 1)}, y: {display: false}},
-            datasets: {bar: {maxBarThickness: 18}},
-        },
-    };
-}
-
-// A Chart.js figure: canvas, copy action and data table under one frame.
-export function BarFigure({id, title, canvasProps, table, note, heading, height, containerId, className}) {
-    return (
-        <Figure className={className} title={heading} note={note} actions={<ChartCopy id={id} title={title} table={table} />}>
-            <div className="chart-box" id={containerId} style={height ? {height} : undefined}><canvas {...canvasProps} /></div>
-            <ChartData id={id} title={title} table={table} />
-        </Figure>
-    );
-}
-
-const COMPARISON_IDS = new Set(['ao-chart', 'rr-chart', 'pub-chart', 'ls-chart']);
-
-// spec: {traces, layout, config, table?} draws a Plotly chart; {message} shows text instead.
-// heading and note fill the figure's head; frameId names the figure for callers that show or hide it.
-export function Plot({id, title, spec, className = '', height, redrawOnResize = true, heading, note, frameId}) {
-    const ref = useRef(null);
-    const pane = usePane();
-    const {tick} = useEnv();
-    const [counts, setCounts] = useState(false);
-    const [loaded, setLoaded] = useState(Boolean(plotlyNow()));
-    const comparison = COMPARISON_IDS.has(id);
-    const drawable = spec && !spec.message;
-    const widthKey = redrawOnResize ? tick : 0;
-    const prepared = useMemo(() => drawable ? preparePlot(id, spec, {comparison, counts, fallbackHeight: height || 380}) : null,
-        [id, spec, comparison, counts, height, widthKey, drawable]);
-
-    useEffect(() => { if (drawable && !plotlyNow()) loadPlotly().then(() => setLoaded(true)); }, [drawable]);
-    useEffect(() => {
-        const el = ref.current, Plotly = plotlyNow();
-        // A hidden pane gives Plotly a zero-width container, so drawing waits until the pane is shown.
-        if (!prepared || !el || !Plotly || !pane.active) return;
-        el.style.height = prepared.layout.height ? prepared.layout.height + 'px' : height ? height + 'px' : '';
-        Plotly.react(el, prepared.display, prepared.layout, prepared.config);
-    }, [prepared, pane.active, loaded, height]);
+        const el = ref.current;
+        let frame;
+        const observer = new ResizeObserver(() => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => { setWidth(Math.round(el.clientWidth)); chart.current?.resize(); });
+        });
+        observer.observe(el);
+        setWidth(Math.round(el.clientWidth));
+        return () => { cancelAnimationFrame(frame); observer.disconnect(); chart.current?.dispose(); chart.current = null; };
+    }, []);
+    const resolved = useMemo(() => width ? (typeof option === 'function' ? option({width}) : option) : null, [option, width]);
+    const height = aspect && width && typeof minHeight === 'number'
+        ? Math.round(Math.max(minHeight, Math.min(width * aspect, window.innerHeight * 0.7))) : minHeight;
     useEffect(() => {
         const el = ref.current;
-        return () => { const Plotly = plotlyNow(); if (Plotly && el) Plotly.purge(el); };
-    }, [drawable]);
+        if (!resolved) return;
+        // Only creating a chart needs a visible box; a chart hidden later still takes new data.
+        if (!chart.current) {
+            if (!el.clientWidth) return;
+            chart.current = echarts.init(el, null, {renderer: 'svg'});
+        }
+        if (el.clientWidth) chart.current.resize();
+        chart.current.setOption(resolved, {notMerge: true});
+    }, [resolved, height]);
+    return <div id={id} ref={ref} className={'echart ' + className} style={height ? {height} : undefined} role="img"
+        aria-label={plain(title) + '. Values in the following data table.'} aria-describedby={describedBy || id + '-data'} />;
+}
 
+// spec: {option, table, coverage} draws a chart; {comparison: {groups, series}, coverage} draws a
+// grouped outcome comparison with a percentages/counts switch; {message} shows text instead.
+// heading and note fill the figure's head; frameId names the figure for callers that show or hide it.
+// actions adds chart-specific controls before the shared ones (counts switch, CSV copy).
+export function Plot({id, title, spec, className = '', height, heading, note, frameId, actions}) {
+    const {theme} = useEnv();
+    const [counts, setCounts] = useState(false);
+    const drawable = spec && !spec.message;
+    const comparison = drawable && spec.comparison;
+    const option = useMemo(() => !drawable ? null : comparison ? ({width}) => comparisonOption(comparison, {counts, width}) : spec.option,
+        [drawable, comparison, spec, counts, theme]);
+    const table = useMemo(() => {
+        if (!drawable) return null;
+        const own = comparison ? comparisonTable(comparison) : spec.table;
+        return own && {...own, summary: [spec.coverage, own.summary].filter(Boolean).join(' ')};
+    }, [drawable, comparison, spec]);
+
+    // Comparisons lay their groups down the side on narrow screens, one band per group.
+    const comparisonHeight = comparison && (window.innerWidth < 600 ? Math.max(440, comparison.groups.length * 65 + 200) : 420);
     const modeLabel = counts ? 'Show percentages' : 'Show counts';
+    // Chart-specific actions (such as sharing) stay available when the chart shows a message instead.
     return (
-        <Figure id={frameId} title={heading} note={note} actions={drawable && <>
-            {comparison && <Button id={id + '-mode'} className="chart-mode" aria-label={`${modeLabel} for ${title}`} onClick={() => setCounts(c => !c)}>{modeLabel}</Button>}
-            <ChartCopy id={id} title={title} table={prepared.table} />
+        <Figure id={frameId} title={heading} note={note} actions={(actions || drawable) && <>
+            {actions}
+            {drawable && comparison && <Button id={id + '-mode'} className="chart-mode" aria-label={`${modeLabel} for ${title}`} onClick={() => setCounts(c => !c)}>{modeLabel}</Button>}
+            {drawable && <ChartCopy id={id} title={title} table={table} />}
         </>}>
             {drawable
-                ? <div id={id} key="plot" ref={ref} className={className} style={height ? {height} : undefined} role="img"
-                    aria-label={plain(spec.layout?.title?.text || title) + '. Values in the following data table.'} aria-describedby={id + '-data'} />
+                ? <EChart key="plot" id={id} title={title} option={option} height={height || comparisonHeight || spec.height || 380} className={className}
+                    aspect={comparison && window.innerWidth < 600 ? undefined : spec.aspect ?? 0.42} />
                 : <div id={id} key="message" className={className + ' plot-message'}>{spec?.message}</div>}
-            {drawable && <ChartData id={id} title={title} table={prepared.table} />}
+            {drawable && <ChartData id={id} title={title} table={table} />}
         </Figure>
     );
 }
 
-// Shared layout for the grouped outcome comparisons (authorship, Registered Reports, venue, report size).
+// Shared data for the grouped outcome comparisons (authorship, Registered Reports, venue, report size).
 export function comparisonSpec(buckets, groups, labels, by) {
-    return {
-        traces: buckets.map(b => ({name: b.label, type: 'bar', x: groups.map(g => labels[g]), y: groups.map(g => by?.[g]?.[b.key] || 0), marker: {color: b.color}})),
-        layout: {barmode: 'group', height: 420, margin: {l: 50, r: 20, t: 20, b: 80}, yaxis: {title: 'Reference pairs'}, xaxis: {}},
-    };
+    return {comparison: {groups: groups.map(g => labels[g]), series: buckets.map(b => ({name: b.label, color: b.color, values: groups.map(g => by?.[g]?.[b.key] || 0)}))}};
 }

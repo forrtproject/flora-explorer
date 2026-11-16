@@ -1,6 +1,9 @@
 // Chart colours resolve from CSS tokens at render time, so every chart follows the theme.
 export const token = (name, fallback = '') => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
+// The page's text scale for this screen size (the --text-scale CSS token), for text drawn by charts.
+export const textScale = () => parseFloat(token('--text-scale', '1')) || 1;
+
 export function chartTheme() {
     return {
         paper: token('--color-surface-raised', '#fff'), plot: token('--color-surface-raised', '#fff'),

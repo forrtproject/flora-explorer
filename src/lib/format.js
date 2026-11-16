@@ -4,7 +4,6 @@ export const percent = (n, total, digits = 0) => {
     return share > 0 && share < 1 ? '<1' : number(share, digits);
 };
 // Integer formatting alone rounds fractional auto-ticks into repeated labels.
-export const countAxis = max => ({tickformat: ',d', dtick: max <= 10 ? 1 : undefined});
 export const pairs = n => `reference ${n === 1 ? 'pair' : 'pairs'}`;
 
 export const truncate = (text, max = 60) => !text ? '-' : text.length > max ? text.substring(0, max) + '…' : text;

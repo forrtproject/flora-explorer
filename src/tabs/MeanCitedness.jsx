@@ -1,6 +1,7 @@
 import {useMemo, useRef} from 'react';
 import {ANALYSIS_MIN_N, URLS} from '../lib/config.js';
-import {percent} from '../lib/format.js';
+import {countAxis, finishOption, tipLines, tipRow, valueAxis} from '../lib/charts.js';
+import {number, percent} from '../lib/format.js';
 import {coverageText, nPairs} from '../lib/coverage.js';
 import {kindNoun, kindPairCount, outcomeBuckets, studyTypeLabel} from '../lib/outcomes.js';
 import {chartTheme} from '../lib/theme.js';
@@ -12,21 +13,44 @@ import {Plot} from '../components/charts.jsx';
 import {Callout, Note, Section} from '../components/ui.jsx';
 import {Chips, CiteBlock, DataStamp, Gloss, Pane, Placeholder, StatTiles, byKind, kindLabel} from '../components/common.jsx';
 
+// OMC tick labels for an axis drawn on log(OMC + 1), the model's scale; a true log axis cannot show OMC = 0.
+function omcAxis(name, min, max) {
+    const ticks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].map(Math.log1p).filter(v => v >= min && v <= max);
+    return valueAxis({name, min, max, axisLabel: {customValues: ticks, formatter: v => String(Math.round(Math.expm1(v)))}, axisTick: {customValues: ticks}, splitLine: {show: false}});
+}
+
 function distributionSpec(d, buckets, coverage) {
     const t = chartTheme();
     const bins = d.histogram || [];
-    const axis = {gridcolor: t.grid, color: t.font, tickfont: {color: t.font}};
+    // Bins are equal-width on log(OMC + 1), so each bar spans its bin's log range and none is sub-pixel.
+    // Each bucket's segment is a rectangle from the buckets stacked below it to its own count on top.
+    const below = bins.map(() => 0);
+    const series = buckets.map(b => {
+        const data = bins.map((bin, i) => {
+            const n = bin[b.key] || 0, base = below[i];
+            below[i] += n;
+            return [Math.log1p(bin.bin_lo), Math.log1p(bin.bin_hi), base, base + n, n, bin.bin_lo, bin.bin_hi];
+        }).filter(row => row[4] > 0);
+        return {name: b.label, type: 'custom', itemStyle: {color: b.color}, data, encode: {x: [0, 1], y: [2, 3]},
+            renderItem: (params, api) => {
+                const [x0, y1] = api.coord([api.value(0), api.value(3)]), [x1, y0] = api.coord([api.value(1), api.value(2)]);
+                return {type: 'rect', shape: {x: x0, y: y1, width: x1 - x0, height: y0 - y1}, style: {fill: b.color, stroke: t.paper, lineWidth: 0.5}};
+            }};
+    });
+    const max = bins.length ? Math.log1p(bins[bins.length - 1].bin_hi) : 1;
     return {
-        coverage,
-        traces: buckets.map(b => ({x: bins.map(bin => +((bin.bin_lo + bin.bin_hi) / 2).toFixed(2)), y: bins.map(bin => bin[b.key] || 0), name: b.label, type: 'bar',
-            marker: {color: b.color}, hovertemplate: 'OMC %{x:.2f}<br>%{y:,.0f} reference pairs<extra>%{fullData.name}</extra>'})),
-        layout: {
-            barmode: 'stack', bargap: 0.05, margin: {t: 10, r: 10, b: 50, l: 55}, height: 320,
-            xaxis: {title: 'OpenAlex Mean Citedness (OMC)', ...axis}, yaxis: {title: 'Reference pairs', tickformat: ',d', ...axis},
-            plot_bgcolor: t.plot, paper_bgcolor: t.paper, font: {family: t.fontFamily, size: 12, color: t.font},
-            legend: {orientation: 'h', y: -0.2, font: {color: t.font}},
+        coverage, height: 320,
+        option: ({width}) => finishOption({series, legend: {data: series.filter(s => s.data.length).map(s => s.name)},
+            tooltip: {formatter: p => tipLines([`OMC ${number(p.value[5], 2)} to ${number(p.value[6], 2)}`, tipRow(p.color, `${p.seriesName}: ${number(p.value[4])} reference pairs`)])},
+            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', 0, max),
+            yAxis: valueAxis({name: 'Reference pairs', ...countAxis()}),
+        }, {width}),
+        // The bars sit at log positions, so the table states each bin's OMC range instead.
+        table: {
+            headers: ['OMC from', 'OMC to (exclusive)', ...buckets.map(b => b.label)],
+            rows: bins.map(bin => [bin.bin_lo, bin.bin_hi, ...buckets.map(b => bin[b.key] || 0)]),
+            summary: 'Bins are equal-width on log(OMC + 1).',
         },
-        config: {displayModeBar: false, responsive: true},
     };
 }
 
@@ -40,29 +64,29 @@ function modelSpec(d, jitter, coverage) {
     // The window ends with the curve; pairs beyond it stay in the model and the data table.
     const minOmc = Math.min(...curve.map(p => p.omc), ...jitter.map(p => p.omc));
     const maxOmc = window ? window.end_omc : Math.max(...curve.map(p => p.omc), ...jitter.map(p => p.omc));
-    const ticks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].filter(v => v >= minOmc && v <= maxOmc);
     const range = [Math.log1p(minOmc) - 0.05, Math.log1p(maxOmc) + 0.05];
     const shown = jitter.filter(p => p.x <= range[1]);
-    const axis = {gridcolor: t.grid, color: t.font, tickfont: {color: t.font}};
+    const pct = v => number(100 * v, 1) + '%';
     return {
-        coverage,
-        traces: [
-            {x, y: curve.map(p => p.p_lo), type: 'scatter', mode: 'lines', line: {width: 0}, showlegend: false, hoverinfo: 'skip', name: '_lo'},
-            {x, y: curve.map(p => p.p_hi), customdata: curve.map(p => [p.omc, p.p_lo, p.p_hi]), type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: t.band, line: {width: 0},
-                name: '95% confidence interval', hovertemplate: 'OMC = %{customdata[0]:.2f}<br>95% CI: %{customdata[1]:.1%} to %{customdata[2]:.1%}<extra></extra>'},
-            {x: shown.map(p => p.x), y: shown.map(p => p.y), customdata: shown.map(p => p.omc), type: 'scatter', mode: 'markers', marker: {color: t.point, size: 5, line: {width: 0}},
-                name: 'Reference pairs', text: shown.map(p => p.label), hovertemplate: 'OMC = %{customdata:.2f}<br>%{text}<extra></extra>'},
-        ],
-        layout: {
-            height: 640, margin: {t: 10, r: 10, b: 50, l: 60},
-            xaxis: {title: 'OpenAlex Mean Citedness (OMC, log scale)', range, tickvals: ticks.map(Math.log1p), ticktext: ticks.map(String), ...axis},
-            yaxis: {title: 'P(success | successful or failed)', range: [-0.08, 1.08], tickformat: '.0%', ...axis},
-            plot_bgcolor: t.plot, paper_bgcolor: t.paper, font: {family: t.fontFamily, size: 12, color: t.font},
-            legend: {orientation: 'h', y: -0.2, font: {color: t.font}},
-            shapes: [{type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: 0.5, y1: 0.5, line: {color: t.rule, width: 1.5, dash: 'dash'}}],
-            annotations: [{xref: 'paper', x: 1, xanchor: 'right', yref: 'y', y: 0.5, yanchor: 'bottom', text: '50% reference', showarrow: false, font: {size: 11, color: t.ruleLabel}}],
-        },
-        config: {displayModeBar: false, responsive: true},
+        coverage, height: 640,
+        option: ({width}) => finishOption({
+            series: [
+                // The band is the lower bound plus a stacked (upper - lower) area on top of it.
+                {name: '_lo', type: 'line', stack: 'ci', data: x.map((v, i) => [v, curve[i].p_lo]), symbol: 'none', lineStyle: {opacity: 0}, silent: true, tooltip: {show: false}},
+                {name: '95% confidence interval', type: 'line', stack: 'ci', data: x.map((v, i) => [v, curve[i].p_hi - curve[i].p_lo]), lineStyle: {opacity: 0},
+                    areaStyle: {color: t.band, opacity: 1}, symbol: 'circle', symbolSize: 8, itemStyle: {color: t.band, opacity: 0}, emphasis: {disabled: true},
+                    tooltip: {formatter: p => tipLines([`OMC = ${number(curve[p.dataIndex].omc, 2)}`, `95% CI: ${pct(curve[p.dataIndex].p_lo)} to ${pct(curve[p.dataIndex].p_hi)}`])}},
+                {name: 'Reference pairs', type: 'scatter', data: shown.map(p => [p.x, p.y]), symbolSize: 5, itemStyle: {color: t.point}, emphasis: {scale: 1.6},
+                    tooltip: {formatter: p => tipLines([`OMC = ${number(shown[p.dataIndex].omc, 2)}`, shown[p.dataIndex].label])},
+                    markLine: {silent: true, symbol: 'none', data: [{yAxis: 0.5}], lineStyle: {color: t.rule, width: 1.5, type: 'dashed'},
+                        label: {position: 'insideEndTop', formatter: '50% reference', color: t.ruleLabel, fontSize: 11}}},
+            ],
+            // The band's own symbols are invisible hover targets, so its legend swatch names its fill.
+            legend: {data: [{name: '95% confidence interval', itemStyle: {color: t.band, opacity: 1}}, 'Reference pairs']},
+            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', range[0], range[1]),
+            yAxis: valueAxis({name: 'P(success | successful or failed)', min: -0.08, max: 1.08,
+                axisLabel: {customValues: [0, .25, .5, .75, 1], formatter: v => Math.round(v * 100) + '%'}, axisTick: {customValues: [0, .25, .5, .75, 1]}}),
+        }, {width}),
         // The table lists model quantities and raw sample values, not interval-band traces or jittered positions.
         table: {
             headers: ['Row type', 'OMC', 'Estimated P(success)', '95% CI lower', '95% CI upper', 'Observed outcome (1 = successful, 0 = failed)', 'Original (DOI or title)', 'Report (DOI, URL or title)'],

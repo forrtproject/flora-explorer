@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {dimensionChartData} from './aggregate.js';
-import {Chart, download, loadPlotly} from './charts.js';
+import {download, echarts} from './charts.js';
 import {renderInlineMd, parseFaqMarkdown} from './faq.js';
 import {number, percent, reportLinkText} from './format.js';
 import {classifyKind, classifyOutcome, filterByKind, isComputationalAssessed, isRobustnessAssessed, outcomeLabel, parseReproductionOutcome, replicationOutcome, reportKindLabel, sourceOutcome} from './outcomes.js';
@@ -27,7 +27,7 @@ export function installHooks() {
     Object.assign(window, {
         currentTheme: () => document.documentElement.getAttribute('data-theme') || 'light',
         distinctReportCounts, outcomeEvidenceParts, stripClaimIds, computeKindChartData: dimensionChartData,
-        Chart, Papa, loadPlotly, renderInlineMd, parseFaqMarkdown, matchesBrowseQuery,
+        echarts, Papa, renderInlineMd, parseFaqMarkdown, matchesBrowseQuery,
         classifyKind, classifyOutcome, filterByKind, isComputationalAssessed, isRobustnessAssessed, parseReproductionOutcome, reportKindLabel,
         FloraCharts: {number, percent, token, download, reportLinkText},
         FloraVocabulary: {...FloraVocabulary, outcomeLabel, sourceOutcome, replication: replicationOutcome, reproduction: parseReproductionOutcome},

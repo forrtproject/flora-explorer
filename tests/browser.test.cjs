@@ -26,12 +26,27 @@ before(async()=>{
   browser=await chromium.launch({channel:process.env.BROWSER_CHANNEL || 'chrome',headless:true});
 });
 after(async()=>{await browser?.close();server?.closeAllConnections();server?.close();});
+// Page-side readers for ECharts charts, by element id. Installed before every navigation so reloads keep them.
+// chartSeries gives each series' plotted values; chartAxis gives an axis' tick values and rendered labels.
+function chartHelpers(){
+  const instance=id=>{const el=typeof id==='string'?document.getElementById(id):id;return el&&window.echarts?window.echarts.getInstanceByDom(el):null;};
+  const value=v=>v&&typeof v==='object'&&!Array.isArray(v)?v.value:v;
+  window.chartOption=id=>instance(id)?.getOption()||null;
+  window.chartSeries=id=>(chartOption(id)?.series||[]).map(s=>({name:s.name,type:s.type,stack:s.stack,values:(s.data||[]).map(value)}));
+  window.chartLegend=id=>(chartOption(id)?.legend?.[0]?.data||[]).map(d=>typeof d==='string'?d:d.name);
+  window.chartAxis=(id,dim)=>{
+    const axis=instance(id)?.getModel().getComponent(dim,0)?.axis;
+    return axis?{type:axis.type,ticks:axis.scale.getTicks().map(t=>t.value),labels:axis.getViewLabels().map(l=>l.formattedLabel)}:null;
+  };
+  window.chartTexts=id=>[...document.getElementById(id).querySelectorAll('svg text')].filter(t=>t.getClientRects().length).map(t=>{const r=t.getBoundingClientRect();return {text:t.textContent,left:r.left,right:r.right,top:r.top,bottom:r.bottom};});
+}
 async function page(query, width=1280, setup){
   const p=await browser.newPage({viewport:{width,height:900}});p.errors=[];
   p.on('pageerror',e=>p.errors.push(e.message));
+  await p.addInitScript(chartHelpers);
   if(setup) await setup(p);
   await p.goto(base+query);await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
-  await p.waitForFunction(()=>typeof Plotly!=='undefined');
+  await p.waitForFunction(()=>typeof echarts!=='undefined');
   return p;
 }
 async function browseRows(p){return p.evaluate(()=>getChartData().map(r=>[r.title_o,r.title_r,r.outcome]));}
@@ -45,7 +60,8 @@ test('desktop/mobile search, DOI URLs, empty results, shared view and evidence a
   const p=await page('?tab=browse&kind=replication&q=power+posing',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
   await p.waitForFunction(()=>getChartData().length===4);
   const expected=await browseRows(p);assert.deepEqual(expected.map(r=>r[2]).sort(),['failed','failed','failed','mixed']);
-  const values=await p.evaluate(()=>Chart.getChart('browse-outcome-chart').data.datasets.map(d=>[d.label,d.data[0]]));
+  await p.waitForFunction(()=>chartSeries('browse-outcome-chart').some(s=>s.values[0]>0));
+  const values=await p.evaluate(()=>chartSeries('browse-outcome-chart').map(s=>[s.name,s.values[0]]));
   assert.equal(values.find(v=>v[0]==='Failed')[1],3);assert.equal(values.find(v=>v[0]==='Mixed')[1],1);
   assert.equal(await p.locator('#flora-table tbody tr').count(),4);
   await p.locator('.study-details').first().focus();await p.keyboard.press('Enter');
@@ -67,7 +83,7 @@ test('desktop/mobile search, DOI URLs, empty results, shared view and evidence a
   assert.equal(exportedRows.length,3);assert.match(exportedRows[0]['Export context'],/Unit: reference pair/);
   await p.fill('#browse-mobile-input','no-matching-flora-reference-zzzz');await p.waitForFunction(()=>getChartData().length===0);
   assert.equal(await p.locator('.bm-card').count(),0);
-  assert.equal(await p.evaluate(()=>Chart.getChart('browse-outcome-chart').data.datasets.reduce((n,d)=>n+d.data[0],0)),0);
+  await p.waitForFunction(()=>chartSeries('browse-outcome-chart').reduce((n,s)=>n+s.values[0],0)===0);
   assert.match(await p.locator('#browse-outcome-chart-data').textContent(),/No matching assessed outcomes/);
   await p.fill('#browse-mobile-input','');await p.click('.browse-kind-btn[data-kind="all"]');
   await p.waitForFunction(()=>getChartData().length===fullRowData.length);
@@ -124,17 +140,19 @@ test('Mean Citedness clears stale models and all distribution outcomes reconcile
   assert.ok(points.every(r=>['0','1'].includes(r['Observed outcome (1 = successful, 0 = failed)'])));
   assert.equal(exported.filter(r=>/^_(lo|hi)$/.test(r['Row type'])).length,0);
   assert.match(await p.locator('#mc-gam-chart-data caption').textContent(),/Success probability among successful \/ failed replications/);
-  const result=await p.evaluate(()=>({total:window._mcData.replication.overview.n_total, plotted:document.getElementById('mc-dist-chart').data.reduce((n,t)=>n+t.y.reduce((a,b)=>a+b,0),0)}));
+  // Each histogram segment carries its count as the fifth value.
+  await p.waitForFunction(()=>chartOption('mc-dist-chart')&&chartOption('mc-gam-chart'));
+  const result=await p.evaluate(()=>({total:window._mcData.replication.overview.n_total, plotted:chartSeries('mc-dist-chart').reduce((n,s)=>n+s.values.reduce((a,v)=>a+v[4],0),0)}));
   assert.equal(result.total,result.plotted);
-  assert.match(await p.locator('#mc-gam-chart').textContent(),/50% reference/);
+  await p.waitForFunction(()=>/50% reference/.test(document.getElementById('mc-gam-chart').textContent));
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('citation deep links, exclusive counts and modal keyboard focus',async()=>{
   const p=await page('?tab=citations&doi=10.1177%2F0956797610383437');
-  await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length>0);
+  await p.waitForFunction(()=>chartOption('study-plot')?.series?.length>0);
   assert.equal(await p.locator('#ci-modal').getAttribute('role'),'dialog');
   assert.equal(await p.evaluate(()=>document.activeElement.id),'ci-modal-close');
-  const total=await p.evaluate(()=>document.getElementById('study-plot').data.reduce((n,t)=>n+t.y.reduce((a,b)=>a+b,0),0));assert.equal(total,JSON.parse(fs.readFileSync('data/originals.json')).studies['10.1177/0956797610383437'].n_citations);
+  const total=await p.evaluate(()=>chartSeries('study-plot').reduce((n,s)=>n+s.values.reduce((a,b)=>a+b,0),0));assert.equal(total,JSON.parse(fs.readFileSync('data/originals.json')).studies['10.1177/0956797610383437'].n_citations);
   await p.keyboard.press('Shift+Tab');assert.ok(await p.evaluate(()=>document.getElementById('ci-modal').contains(document.activeElement)));
   await p.keyboard.press('Tab');assert.equal(await p.evaluate(()=>document.activeElement.id),'ci-modal-close');
   await p.keyboard.press('Escape');assert.ok(await p.locator('#ci-modal').isHidden());
@@ -144,7 +162,7 @@ test('citation deep links, exclusive counts and modal keyboard focus',async()=>{
 });
 test('shared citation outcome filters restore before asynchronous loading finishes',async()=>{
   const p=await page('?tab=citations&ci-outcome=failed');
-  await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length>0);
+  await p.waitForFunction(()=>chartOption('plot-cit')?.series?.length>0);
   const expected=Math.max(...JSON.parse(fs.readFileSync('data/aggregate.json')).failed.descriptive.n_units).toLocaleString('en-GB');
   const failedOriginals=JSON.parse(fs.readFileSync('data/originals_index.json')).filter(s=>s.first_replication_outcome==='failed').length.toLocaleString('en-GB');
   assert.ok((await p.locator('#plot-cit-sample').innerText()).includes(`Sample size: ${expected} of ${failedOriginals} originals `));
@@ -156,11 +174,11 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
   for(const tab of ['browse-tab','trends-tab','mc-tab','overlap-tab','pub-tab','citation-tab']){
     await p.click('#'+tab);await p.waitForTimeout(650);
   }
-  await p.click('#pub-tab');await p.waitForFunction(()=>document.getElementById('pub-chart')?.data?.length>0);
-  assert.ok(await p.evaluate(()=>['overview-outcome-chart','trend-orig-year','trend-field'].every(id=>{
-    const c=Chart.getChart(id);return JSON.stringify(c.legend.legendItems.map(d=>d.text))===JSON.stringify(c.getSortedVisibleDatasetMetas().filter(d=>c.data.datasets[d.index].data.some(value=>value>0)).map(d=>c.data.datasets[d.index].label));
-  })));
-  const sums=await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].x.map((_,i)=>t.reduce((n,s)=>n+s.y[i],0));});
+  await p.click('#pub-tab');await p.waitForFunction(()=>chartSeries('pub-chart').length>0);
+  // Legends list exactly the series that plot something, in series order.
+  assert.ok(await p.evaluate(()=>['overview-outcome-chart','trend-orig-year','trend-field'].every(id=>
+    JSON.stringify(chartLegend(id))===JSON.stringify(chartSeries(id).filter(s=>s.values.some(v=>v>0)).map(s=>s.name)))));
+  const sums=await p.evaluate(()=>{const s=chartSeries('pub-chart');return s[0].values.map((_,i)=>s.reduce((n,x)=>n+x.values[i],0));});
   assert.ok(sums.every(s=>Math.abs(s-100)<1e-8));
   // A blank venue is unknown only when the report's DOI or URL does not point to a repository; the pipeline applies that rule.
   const unknown=JSON.parse(fs.readFileSync('data/pub_status_data.json')).replication.overview.n_unknown;
@@ -176,15 +194,21 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
     await p.selectOption('#mobile-navigation','pub-tab');
     await p.click('#pubtype-study-type [data-value="reproduction-numerical"]');await p.waitForTimeout(350);
     assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    const overflowingPlots=await p.evaluate(()=>[...document.querySelectorAll('.js-plotly-plot')].filter(el=>el.getClientRects().length).filter(el=>el.querySelector('.svg-container')?.getBoundingClientRect().width > el.clientWidth+2).map(el=>el.id));
+    const overflowingPlots=await p.evaluate(()=>[...document.querySelectorAll('.echart')].filter(el=>el.getClientRects().length).filter(el=>el.querySelector('svg')?.getBoundingClientRect().width > el.clientWidth+2).map(el=>el.id));
     assert.deepEqual(overflowingPlots,[]);
-    assert.ok(await p.evaluate(()=>document.getElementById('pub-chart').data.every(t=>t.orientation==='h')));
+    // Narrow comparisons lay their groups down the side.
+    await p.waitForFunction(()=>chartOption('pub-chart')?.yAxis[0].type==='category');
+    // Counts plot each outcome's raw count side by side; percentages stack to 100 within every non-empty group.
+    const table=await p.locator('#pub-chart-data tbody tr').evaluateAll(rows=>rows.map(r=>[...r.children].map(c=>c.textContent)));
     await p.click('#pub-chart-mode');
-    assert.ok(await p.evaluate(()=>{const el=document.getElementById('pub-chart');return el._fullLayout.xaxis.type==='linear'&&el.data.every(t=>t.x.every((v,i)=>v===t.customdata[i][0]));}));
+    await p.waitForFunction(()=>chartSeries('pub-chart').every(s=>!s.stack));
+    const counted=await p.evaluate(()=>chartSeries('pub-chart').flatMap(s=>s.values));
+    assert.deepEqual(counted.map(v=>v.toLocaleString('en-GB')),table.map(r=>r[2]));
     await p.click('#pub-chart-mode');
-    assert.ok(await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].y.every((_,i)=>Math.abs(t.reduce((n,s)=>n+s.x[i],0)-(t[0].customdata[i][1] ? 100 : 0))<1e-8);}));
+    await p.waitForFunction(()=>chartSeries('pub-chart').every(s=>s.stack));
+    assert.ok(await p.evaluate(()=>{const s=chartSeries('pub-chart');return s[0].values.every((_,i)=>{const sum=s.reduce((n,x)=>n+x.values[i],0);return Math.abs(sum-100)<1e-8||sum===0;});}));
     await p.click('#theme-toggle');await p.waitForTimeout(350);
-    const missing=await p.evaluate(()=>[...document.querySelectorAll('canvas')].filter(c=>Chart.getChart(c)).filter(c=>!c.getAttribute('aria-label')||!document.getElementById(c.id+'-data')).map(c=>c.id));
+    const missing=await p.evaluate(()=>[...document.querySelectorAll('.echart')].filter(el=>echarts.getInstanceByDom(el)).filter(el=>!el.getAttribute('aria-label')||!document.getElementById(el.id+'-data')).map(el=>el.id));
     assert.deepEqual(missing,[]);
   }
   assert.deepEqual(p.errors,[]);await p.close();
@@ -237,7 +261,7 @@ test('tab changes reset the content scroll; definitions are described and dismis
 });
 test('citation content reflows at 320px after loading on desktop', async()=>{
   const p=await page('?tab=citations');
-  await p.waitForFunction(()=>document.querySelector('#citation-impact .js-plotly-plot'));
+  await p.waitForFunction(()=>document.querySelector('#citation-impact .echart svg'));
   await p.setViewportSize({width:320,height:844});
   await p.waitForTimeout(500);
   assert.ok(await p.locator('#mobile-navigation').evaluate(el=>el.clientWidth>=140));
@@ -307,21 +331,21 @@ test('Overview charts state denominators; placeholders, labels and headings stay
   }
   assert.equal(await p.getByLabel('Search originals').getAttribute('id'),'search-input');
   // Actions stay outside headings, and Trends chart headings sit under a panel heading.
-  await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
+  await p.click('#trends-tab');await p.waitForFunction(()=>chartOption('trend-orig-year'));
   assert.equal(await p.locator(':is(h1,h2,h3,h4,h5,h6) .chart-copy').count(),0);
   assert.deepEqual(await p.locator('#trends > h2, #trends .trend-desc h3').evaluateAll(hs=>hs.map(h=>h.tagName)),['H2','H3','H3','H3','H3','H3']);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('Trends "All" stacks every chart by study type and counts each pair once',async()=>{
-  const p=await page('?tab=trends&trends-kind=all',1280);await p.waitForFunction(()=>Chart.getChart('trend-field'));
+  const p=await page('?tab=trends&trends-kind=all',1280);await p.waitForFunction(()=>chartOption('trend-field'));
   assert.ok(await p.locator('#trends-all-note').isVisible());
   assert.ok(await p.locator('#trends-charts').isVisible());
   assert.match(await p.locator('#trend-filter-count').textContent(),/^All studies: \d{1,3}(,\d{3})* reference pairs$/);
   for(const id of ['trend-orig-year','trend-rep-year','trend-journal','trend-rep-journal','trend-field']){
-    const labels=await p.evaluate(id=>Chart.getChart(id).data.datasets.map(d=>d.label),id);
+    const labels=await p.evaluate(id=>chartSeries(id).map(s=>s.name),id);
     assert.deepEqual(labels,['Replication','Reproduction','Study type not recorded'],id);
   }
-  const plotted=await p.evaluate(()=>Chart.getChart('trend-field').data.datasets.reduce((n,d)=>n+d.data.reduce((a,b)=>a+b,0),0));
+  const plotted=await p.evaluate(()=>chartSeries('trend-field').reduce((n,s)=>n+s.values.reduce((a,b)=>a+b,0),0));
   assert.equal(plotted,await p.evaluate(()=>fullRowData.length));
   assert.match(await p.locator('#trend-field-n').textContent(),/none excluded/);
   assert.deepEqual(await p.locator('#trends .trend-desc h3').allInnerTexts(),['Reference pairs by original study year','Reference pairs by replication or reproduction report year','Reference pairs by original journal','Reference pairs by recorded replication or reproduction venue','Reference pairs by field']);
@@ -332,24 +356,25 @@ test('Trends "All" stacks every chart by study type and counts each pair once',a
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('Trends follow the selected study type, keep calendar spacing and reflow after narrowing',async()=>{
-  const p=await page('?tab=trends',1440);await p.waitForFunction(()=>Chart.getChart('trend-orig-year'));
-  const labels=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.labels);
+  const p=await page('?tab=trends',1440);await p.waitForFunction(()=>chartOption('trend-orig-year'));
+  const labels=await p.evaluate(()=>chartOption('trend-orig-year').xAxis[0].data);
   // Sparse early years pool into one leading column; from 1960 every calendar year has a slot.
   assert.equal(labels[0],'Before 1960');assert.equal(labels[1],'1960');
   const years=labels.slice(1).map(Number);
   assert.ok(years.every((y,i)=>i===0||y===years[i-1]+1),'original-year axis skips calendar years');
-  const pooled=await p.evaluate(()=>{const c=Chart.getChart('trend-orig-year');return c.data.datasets.reduce((n,d)=>n+d.data[0],0);});
+  const pooled=await p.evaluate(()=>chartSeries('trend-orig-year').reduce((n,s)=>n+s.values[0],0));
   assert.equal(pooled,await p.evaluate(()=>trendsFilteredData().filter(r=>{const m=String(r.year_o||'').match(/\d{4}/);return m&&+m[0]>=1800&&+m[0]<1960;}).length));
-  const plotted=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.datasets.reduce((n,d)=>n+d.data.reduce((a,b)=>a+b,0),0));
+  const plotted=await p.evaluate(()=>chartSeries('trend-orig-year').reduce((n,s)=>n+s.values.reduce((a,b)=>a+b,0),0));
   const withYear=await p.evaluate(()=>trendsFilteredData().filter(r=>{const m=String(r.year_o||'').match(/\d{4}/);return m&&+m[0]>=1800&&+m[0]<=2100;}).length);
   assert.equal(plotted,withYear);
   await p.click('#trends .trend-filter-btn[data-kind="reproduction-numerical"]');
   assert.deepEqual(await p.locator('#trends .trend-desc h3').allInnerTexts(),['Outcomes by original study year','Outcomes by reproduction report year','Outcomes by original journal','Outcomes by recorded reproduction venue','Outcomes by field']);
-  assert.doesNotMatch(await p.locator('#trends-charts').innerText(),/\breplications?\b/i);
+  // The page's own wording, not chart labels: venue names such as "Replication Research" are data.
+  assert.doesNotMatch(await p.locator('#trends-charts').evaluate(el=>{const copy=el.cloneNode(true);copy.querySelectorAll('.echart').forEach(c=>c.remove());document.body.append(copy);const text=copy.innerText;copy.remove();return text;}),/\breplications?\b/i);
   await p.click('#trends .trend-filter-btn[data-kind="replication"]');
   for(const width of [390,1440,390,1440,390]){
     await p.setViewportSize({width,height:844});await p.waitForTimeout(700);
-    const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, canvas')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
+    const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, .echart svg')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
     assert.deepEqual(overflow,[],`clipped at ${width}px`);
   }
   await p.click('#mobile-navigation');await p.selectOption('#mobile-navigation','citation-tab');
@@ -359,25 +384,40 @@ test('Trends follow the selected study type, keep calendar spacing and reflow af
 });
 test('narrow citation timelines number replication events to match the list',async()=>{
   const p=await page('?tab=citations&doi=10.1126%2Fscience.7455683',390);
-  await p.waitForFunction(()=>document.getElementById('study-plot')?.layout?.annotations?.length>0);
-  const marks=await p.evaluate(()=>document.getElementById('study-plot').layout.annotations.filter(a=>/^\d+$/.test(a.text)).map(a=>a.text));
+  await p.waitForFunction(()=>chartOption('study-plot')?.series?.[0]?.markLine?.data?.length>0);
+  const marks=await p.evaluate(()=>chartOption('study-plot').series[0].markLine.data.map(d=>d.label.formatter));
   const list=await p.locator('.rep-list .rep-marker').allInnerTexts();
   // Every replication of this study is dated, so each list entry has exactly one marker, in order.
   assert.ok(marks.length>=2);
   assert.deepEqual(marks,list);
   const years=await p.locator('.rep-list strong').allInnerTexts();
   assert.deepEqual(years.map(s=>+(s.match(/\((\d{4})\)/)||[])[1]),[2014,2018,2021,2022]);
+  // Marker badges are the numbers drawn above the plot's top tick, apart from the axis numbers.
+  await p.evaluate(()=>{window.markerBoxes=()=>{
+    const el=document.getElementById('study-plot'),chart=echarts.getInstanceByDom(el);
+    const top=el.getBoundingClientRect().top+chart.convertToPixel({yAxisIndex:0},Math.max(...chartAxis('study-plot','yAxis').ticks));
+    return chartTexts('study-plot').filter(t=>/^\d+$/.test(t.text)&&t.bottom<=top+1);
+  };});
   for(const width of [390,320]){
-    await p.setViewportSize({width,height:844});await p.waitForTimeout(500);
+    await p.setViewportSize({width,height:844});
+    // Wait for the redraw at the new width (its drawing matches the box), let its animation settle, then for every marker.
+    await p.waitForFunction(()=>{const el=document.getElementById('study-plot');return Math.abs(el.querySelector('svg').getBoundingClientRect().width-el.clientWidth)<1;});
+    await p.waitForTimeout(700);
+    await p.waitForFunction(n=>markerBoxes().length===n,marks.length,{timeout:5000}).catch(()=>{});
     const details=await p.evaluate(()=>{
-      const el=document.getElementById('study-plot');
-      const boxes=[...el.querySelectorAll('.annotation')].filter(e=>/^\d+$/.test(e.textContent)).map(e=>e.getBoundingClientRect());
-      return {overlap:boxes.some((a,i)=>boxes.slice(i+1).some(b=>a.left<b.right+2&&b.left<a.right+2&&a.top<b.bottom+2&&b.top<a.bottom+2)),
-        empty:el.data.filter(t=>t.showlegend!==false&&!t.y.some(v=>v>0)).map(t=>t.name),legend:el._fullLayout.legend.traceorder,
-        partial:el.layout.annotations.some(a=>/2026.*partial year/i.test(a.text))&&el.data.every(t=>t.marker.opacity.every((v,i)=>v===(t.x[i]===2026 ? 0.45 : 1))),hover:el._fullLayout.hoverlabel.namelength};
+      const el=document.getElementById('study-plot'),chart=echarts.getInstanceByDom(el),o=chart.getOption();
+      const boxes=markerBoxes();
+      const years=o.xAxis[0].data;
+      chart.dispatchAction({type:'showTip',seriesIndex:0,dataIndex:o.series[0].data.findIndex(d=>d.value>0)});
+      return {marks:boxes.length,overlap:boxes.some((a,i)=>boxes.slice(i+1).some(b=>a.left<b.right+2&&b.left<a.right+2&&a.top<b.bottom+2&&b.top<a.bottom+2)),
+        legend:chartLegend('study-plot'),plotted:chartSeries('study-plot').filter(s=>s.values.some(v=>v>0)).map(s=>s.name),
+        partial:o.graphic[0].elements.some(g=>/2026.*partial year/i.test(g.style?.text))&&o.series.every(s=>s.data.every((d,i)=>d.itemStyle.opacity===(years[i]==='2026' ? 0.45 : 1))),
+        tooltip:el.querySelector('.chart-tooltip')?.textContent||''};
     });
+    assert.equal(details.marks,marks.length,`every timeline marker is drawn at ${width}px`);
     assert.equal(details.overlap,false,`timeline markers touch at ${width}px`);
-    assert.deepEqual(details.empty,[]);assert.equal(details.legend,'normal');assert.ok(details.partial);assert.equal(details.hover,-1);
+    // The legend lists the non-empty series in series order; hovers name the full series.
+    assert.deepEqual(details.legend,details.plotted);assert.ok(details.partial);assert.match(details.tooltip,/[\d,]+ citing works/);assert.match(details.tooltip,/Cites original only: [\d,]+/);
   }
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   await p.getByRole('button',{name:'Copy link to this chart',exact:true}).click();
@@ -387,29 +427,25 @@ test('narrow citation timelines number replication events to match the list',asy
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
-test('citation timeline redraws wait for 120 ms without another resize',async()=>{
-  const p=await page('?tab=citations&doi=10.1126%2Fscience.7455683',390,p=>p.clock.install({time:new Date('2026-10-21T00:00:00Z')}));
-  await p.waitForFunction(()=>document.getElementById('study-plot')?.layout?.annotations?.length>0);
-  await p.clock.pauseAt(new Date('2026-10-21T01:00:00Z'));
+test('citation timeline redraws only for a real size change and stops when closed',async()=>{
+  const p=await page('?tab=citations&doi=10.1126%2Fscience.7455683',390);
+  await p.waitForFunction(()=>chartOption('study-plot')?.series?.[0]?.markLine?.data?.length>0);
+  await p.waitForTimeout(300);
   await p.evaluate(()=>{
-    const react=Plotly.react;
+    const chart=echarts.getInstanceByDom(document.getElementById('study-plot')),setOption=chart.setOption;
     window.timelineDraws=0;
-    Plotly.react=function(target,...args){
-      if(target.id==='study-plot') window.timelineDraws++;
-      return react.call(this,target,...args);
-    };
+    chart.setOption=function(...args){window.timelineDraws++;return setOption.apply(this,args);};
     for(let i=0;i<5;i++) window.dispatchEvent(new Event('resize'));
   });
-  await p.clock.runFor(119);
-  assert.equal(await p.evaluate(()=>window.timelineDraws),0);
-  await p.evaluate(()=>window.dispatchEvent(new Event('resize')));
-  await p.clock.runFor(119);
-  assert.equal(await p.evaluate(()=>window.timelineDraws),0,'a later resize restarts the delay');
-  await p.clock.runFor(1);
-  assert.equal(await p.evaluate(()=>window.timelineDraws),1,'the burst produces one redraw');
-  await p.evaluate(()=>window.dispatchEvent(new Event('resize')));
+  await p.waitForTimeout(300);
+  assert.equal(await p.evaluate(()=>window.timelineDraws),0,'resize events without a size change do not redraw');
+  await p.setViewportSize({width:1280,height:844});
+  await p.waitForFunction(()=>window.timelineDraws>=1);
+  await p.waitForTimeout(300);
+  assert.equal(await p.evaluate(()=>window.timelineDraws),1,'a size change produces one redraw');
   await p.keyboard.press('Escape');
-  await p.clock.runFor(120);
+  await p.waitForFunction(()=>!document.getElementById('study-plot'));
+  await p.setViewportSize({width:390,height:844});await p.waitForTimeout(300);
   assert.equal(await p.evaluate(()=>window.timelineDraws),1,'a closed modal is not redrawn');
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -455,36 +491,37 @@ test('seven Mean Citedness tiles fill desktop rows as 1 + 3 + 3',async()=>{
   }
   assert.deepEqual(p.errors,[]);await p.close();
 });
-test('comparison N labels and Plotly axis titles stay clear of legends and ticks',async()=>{
-  const p=await page('?tab=publication-type',1366);await p.waitForFunction(()=>document.getElementById('pub-chart')?.data?.length);
+test('comparison N labels and axis titles stay clear of legends and ticks',async()=>{
+  const p=await page('?tab=publication-type',1366);await p.waitForFunction(()=>chartSeries('pub-chart').length);
+  // Texts a chart draws, by role: N labels, legend entries, axis-title lines and numeric ticks.
+  const geometry=ids=>p.evaluate(ids=>ids.flatMap(id=>{
+    const box=document.getElementById(id).getBoundingClientRect(),texts=chartTexts(id),o=chartOption(id),names=chartLegend(id);
+    const inside=t=>t.left>=box.left-1&&t.right<=box.right+1&&t.top>=box.top-1&&t.bottom<=box.bottom+1;
+    const touches=(a,b)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+    const legend=texts.filter(t=>names.includes(t.text)),ticks=texts.filter(t=>/^−?[\d,.]+%?$/.test(t.text));
+    const titles=[...o.xAxis,...o.yAxis].flatMap(a=>(a.name||'').split('\n')).filter(Boolean);
+    const titleTexts=texts.filter(t=>titles.includes(t.text)),nLabels=texts.filter(t=>/^N=[\d,]+$/.test(t.text));
+    const issues=[];
+    // Comparison groups carry an "N=" line; every group must show it.
+    const groups=[...o.xAxis,...o.yAxis].find(a=>a.type==='category'&&(a.data||[]).some(d=>/\nN=/.test(d)));
+    if(groups&&nLabels.length!==groups.data.length) issues.push([id,`${nLabels.length} of ${groups.data.length} N labels drawn`]);
+    if(legend.length!==names.length) issues.push([id,'legend entries missing']);
+    const plotted=chartSeries(id).filter(s=>s.type!=='bar'||s.values.some(v=>v>0)).map(s=>s.name);
+    if(JSON.stringify(names)!==JSON.stringify(plotted)) issues.push([id,'legend does not match plotted series']);
+    for(const t of [...nLabels,...legend,...titleTexts]) if(!inside(t)) issues.push([id,t.text+' outside the chart']);
+    for(const n of nLabels) if(legend.some(l=>touches(n,l))) issues.push([id,n.text+' overlaps the legend']);
+    for(const t of titleTexts) if(ticks.some(k=>touches(t,k))) issues.push([id,t.text+' overlaps a tick']);
+    return issues;
+  }),ids);
   for(const width of [1366,1280,390,320,1280]){
     await p.setViewportSize({width,height:900});await p.waitForTimeout(700);
-    const issues=await p.evaluate(()=>['pub-chart','rr-chart','ls-chart'].flatMap(id=>{
-      const el=document.getElementById(id), svg=el.getBoundingClientRect(), legend=el.querySelector('.legend')?.getBoundingClientRect();
-      const ticks=[...el.querySelectorAll(innerWidth<600?'.ytick':'.xtick')];
-      if (legend && legend.bottom>svg.bottom+1) return [[id,'Legend below chart container']];
-      return ticks.filter(t=>{const r=t.getBoundingClientRect();return !/N=\d+/.test(t.textContent)||r.bottom>svg.bottom||r.left<svg.left||(legend&&r.left<legend.right&&r.right>legend.left&&r.top<legend.bottom&&r.bottom>legend.top);}).map(t=>[id,t.textContent]);
-    }));
-    assert.deepEqual(issues,[],`N labels clipped/overlapped at ${width}px`);
-    assert.ok(await p.evaluate(()=>['pub-chart','rr-chart','ls-chart'].every(id=>{
-      const el=document.getElementById(id);return JSON.stringify([...el.querySelectorAll('.legendtext')].map(e=>e.textContent))===JSON.stringify(el.data.filter(t=>t.showlegend!==false).map(t=>t.name));
-    })));
-    const clippedTitles=await p.evaluate(()=>['pub-chart','rr-chart','ls-chart'].filter(id=>{
-      const el=document.getElementById(id), r=el.getBoundingClientRect(), title=el.querySelector('.g-xtitle')?.getBoundingClientRect();
-      return title&&(title.left<r.left||title.right>r.right);
-    }));
-    assert.deepEqual(clippedTitles,[],`comparison axis titles clipped at ${width}px`);
+    assert.deepEqual(await geometry(['pub-chart','rr-chart','ls-chart']),[],`comparison labels clipped/overlapped at ${width}px`);
   }
   await p.setViewportSize({width:390,height:900});
-  await p.selectOption('#mobile-navigation','citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length);
+  await p.selectOption('#mobile-navigation','citation-tab');await p.waitForFunction(()=>chartSeries('plot-cit').length);
   for(const width of [390,320]){
     await p.setViewportSize({width,height:900});await p.waitForTimeout(700);
-    const issues=await p.evaluate(()=>['plot-cit','plot-cocit'].flatMap(id=>{
-      const el=document.getElementById(id), r=el.getBoundingClientRect();
-      const titles=[...el.querySelectorAll('.g-ytitle,.g-y2title')];
-      return titles.filter(t=>{const b=t.getBoundingClientRect();return b.left<r.left||b.right>r.right||[...el.querySelectorAll('.ytick,.y2tick')].some(tick=>{const a=tick.getBoundingClientRect();return a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;});}).map(t=>[id,t.textContent]);
-    }));
-    assert.deepEqual(issues,[],`axis titles clipped/overlapped at ${width}px`);
+    assert.deepEqual(await geometry(['plot-cit','plot-cocit']),[],`axis titles clipped/overlapped at ${width}px`);
   }
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -696,7 +733,7 @@ test('bare DOI deep links survive initial restoration without adding a history e
   const p=await page('?doi='+encodeURIComponent(doi),1280,p=>p.route('**/data/originals_index.json',async route=>{await indexGate;await route.continue();}));
   const initialHistory=await p.evaluate(()=>history.length);
   releaseIndex();
-  await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length>0,null,{timeout:10000});
+  await p.waitForFunction(()=>chartOption('study-plot')?.series?.length>0,null,{timeout:10000});
   assert.equal(new URL(p.url()).searchParams.get('doi'),doi);
   assert.equal(new URL(p.url()).searchParams.get('tab'),'citations');
   assert.equal(await p.evaluate(()=>history.length),initialHistory);
@@ -741,48 +778,56 @@ test('old shared citation links and Browse pagination restore with compact URLs'
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
-test('touch swipes scroll over every Plotly view while preserving chart ranges and hover',async()=>{
+test('touch swipes scroll over every chart while preserving chart ranges and hover',async()=>{
   const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+  await context.addInitScript(chartHelpers);
   const p=await context.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));
   await p.goto(base+'?tab=mean-citedness');
-  await p.waitForFunction(()=>document.getElementById('mc-gam-chart')?.data);
+  await p.waitForFunction(()=>chartOption('mc-gam-chart'));
   const cdp=await context.newCDPSession(p);
+  // An axis' tick values stand for its range: a zoom or pan would change them.
+  const ranges=id=>p.evaluate(id=>['xAxis','yAxis'].map(dim=>chartAxis(id,dim)?.ticks),id);
   async function swipe(selector,scroller){
     await p.locator(selector).scrollIntoViewIfNeeded();
     const box=await p.locator(selector).boundingBox();
     const y=Math.min(box.y+box.height-30,650),x=Math.min(box.x+box.width/2,350);
-    const before=await p.evaluate(({selector,scroller})=>({scroll:document.querySelector(scroller).scrollTop,ranges:Object.entries(document.querySelector(selector)._fullLayout).filter(([k])=>/^[xy]axis\d*$/.test(k)).map(([k,a])=>[k,a.range])}),{selector,scroller});
+    const before={scroll:await p.evaluate(s=>document.querySelector(s).scrollTop,scroller),ranges:await ranges(selector.slice(1))};
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
     for(let i=1;i<=8;i++){
       await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:y-i*20}]});await p.waitForTimeout(25);
     }
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
     await p.waitForTimeout(250);
-    const after=await p.evaluate(({selector,scroller})=>({scroll:document.querySelector(scroller).scrollTop,ranges:Object.entries(document.querySelector(selector)._fullLayout).filter(([k])=>/^[xy]axis\d*$/.test(k)).map(([k,a])=>[k,a.range])}),{selector,scroller});
+    const after={scroll:await p.evaluate(s=>document.querySelector(s).scrollTop,scroller),ranges:await ranges(selector.slice(1))};
     assert.ok(after.scroll>before.scroll+30,`${selector} should scroll ${scroller}: ${before.scroll} → ${after.scroll}`);
     assert.deepEqual(after.ranges,before.ranges,selector+' ranges');
   }
   for(const [tab,ids] of [['mc-tab',['mc-dist-chart','mc-gam-chart']],['overlap-tab',['ao-chart']],['pub-tab',['pub-chart','rr-chart','ls-chart']],['citation-tab',['plot-cit','plot-cocit']]]){
     await p.selectOption('#mobile-navigation',tab);
     for(const id of ids){
-      await p.waitForFunction(id=>document.getElementById(id)?.data,id);
-      const settings=await p.locator('#'+id).evaluate(el=>({dragmode:el._fullLayout.dragmode,axes:Object.entries(el._fullLayout).filter(([k])=>/^[xy]axis\d*$/.test(k)).every(([,a])=>a.fixedrange),scrollZoom:el._context.scrollZoom,doubleClick:el._context.doubleClick,hovermode:el._fullLayout.hovermode}));
-      assert.deepEqual(settings,{dragmode:false,axes:true,scrollZoom:false,doubleClick:false,hovermode:'closest'});
+      await p.waitForFunction(id=>chartOption(id),id);
+      // No zoom, pan or toolbox. Bar charts hover a whole category; lines, points and bins hover the item under the pointer.
+      const settings=await p.evaluate(id=>{const o=chartOption(id);return {dataZoom:(o.dataZoom||[]).length,toolbox:(o.toolbox||[]).length,brush:(o.brush||[]).length,trigger:o.tooltip[0].trigger,bars:o.series.every(s=>s.type==='bar')};},id);
+      assert.deepEqual(settings,{dataZoom:0,toolbox:0,brush:0,trigger:settings.bars?'axis':'item',bars:settings.bars},id);
       await swipe('#'+id,'.app-main');
     }
   }
-  await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>document.getElementById('study-plot')?.data);
+  await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>chartOption('study-plot'));
   await swipe('#study-plot','.modal-card');
   await p.evaluate(()=>document.querySelector('.modal-card').scrollTop=10000);
   const close=await p.locator('#ci-modal-close').boundingBox();assert.ok(close.width>=44&&close.height>=44&&close.y>=0&&close.y+close.height<844);
   assert.deepEqual(errors,[]);await context.close();
   const desktop=await page('?tab=mean-citedness');
-  await desktop.waitForFunction(()=>document.getElementById('mc-gam-chart')?.data);
-  await desktop.locator('#mc-gam-chart').scrollIntoViewIfNeeded();
-  const point=await desktop.locator('#mc-gam-chart .scatterlayer .points path.point').first().boundingBox();
-  await desktop.mouse.move(point.x+point.width/2,point.y+point.height/2);
-  await desktop.waitForSelector('#mc-gam-chart .hoverlayer .hovertext');
-  assert.match(await desktop.locator('#mc-gam-chart .hoverlayer').textContent(),/OMC =/);
+  await desktop.waitForFunction(()=>chartOption('mc-gam-chart'));
+  await desktop.locator('#mc-gam-chart').scrollIntoViewIfNeeded();await desktop.waitForTimeout(500);
+  // Move the real pointer onto the first plotted pair.
+  const point=await desktop.evaluate(()=>{
+    const el=document.getElementById('mc-gam-chart'),chart=echarts.getInstanceByDom(el),o=chart.getOption();
+    const index=o.series.findIndex(s=>s.type==='scatter'),[x,y]=chart.convertToPixel({seriesIndex:index},o.series[index].data[0]),r=el.getBoundingClientRect();
+    return {x:r.left+x,y:r.top+y};
+  });
+  await desktop.mouse.move(point.x,point.y);
+  await desktop.waitForFunction(()=>/OMC =/.test(document.querySelector('#mc-gam-chart .chart-tooltip')?.textContent||''));
   assert.deepEqual(desktop.errors,[]);await desktop.close();
 });
 
@@ -889,17 +934,13 @@ test('FAQ venue correction warns when the upstream heading changes',async()=>{
 });
 
 async function assertIntegerCountTicks(p,id,axisName){
-  // Debounced re-layouts briefly leave _fullLayout without a tick step; wait for a settled axis.
-  await p.waitForFunction(({id,axisName})=>document.getElementById(id)?._fullLayout?.[axisName]?.dtick!==undefined,{id,axisName}).catch(()=>{});
-  const ticks=await p.evaluate(({id,axisName})=>{
-    const plot=document.getElementById(id),axis=plot._fullLayout[axisName];
-    const labelClass=axisName==='yaxis2'?'y2':axisName[0];
-    return {step:axis.dtick,values:axis._vals.map(t=>t.x),labels:[...plot.querySelectorAll(`.${labelClass}tick text`)].map(t=>t.textContent)};
-  },{id,axisName});
-  assert.ok(ticks.step>=1,`${id} ${axisName} tick step: ${ticks.step}`);
-  assert.ok(ticks.values.every(Number.isInteger),`${id} fractional ticks: ${ticks.values}`);
+  await p.waitForFunction(({id,axisName})=>chartAxis(id,axisName)?.ticks.length>=2,{id,axisName});
+  const ticks=await p.evaluate(({id,axisName})=>chartAxis(id,axisName),{id,axisName});
+  assert.equal(ticks.type,'value',`${id} ${axisName} is a value axis`);
+  assert.ok(ticks.ticks.every(Number.isInteger),`${id} fractional ticks: ${ticks.ticks}`);
   assert.ok(ticks.labels.length>=2,`${id} should show count labels`);
   assert.equal(new Set(ticks.labels).size,ticks.labels.length,`${id} repeated labels: ${ticks.labels}`);
+  return ticks;
 }
 
 test('small comparison counts have distinct integer ticks on desktop and mobile',async()=>{
@@ -907,16 +948,19 @@ test('small comparison counts have distinct integer ticks on desktop and mobile'
   for(const group of Object.values(data.replication.by_outcome))for(const key of Object.keys(group))group[key]=['successful','failed','mixed'].includes(key)?1:0;
   const p=await page('?tab=authorship-overlap',1280,p=>p.route('**/data/author_overlap_data.json',route=>route.fulfill({json:data})));
   await p.waitForSelector('#ao-chart-mode');await p.click('#ao-chart-mode');
-  await assertIntegerCountTicks(p,'ao-chart','yaxis');
+  await p.waitForFunction(()=>chartSeries('ao-chart').every(s=>!s.stack));
+  await assertIntegerCountTicks(p,'ao-chart','yAxis');
   await p.setViewportSize({width:390,height:844});
   await p.click('#ao-chart-mode');
-  await p.waitForFunction(()=>document.getElementById('ao-chart').data[0].orientation==='h');
-  assert.deepEqual(await p.evaluate(()=>document.getElementById('ao-chart').layout.xaxis.range),[0,100]);
+  // Narrow percentages run along the bottom, from 0 to 100.
+  await p.waitForFunction(()=>chartOption('ao-chart').yAxis[0].type==='category'&&chartSeries('ao-chart').every(s=>s.stack));
+  assert.deepEqual(await p.evaluate(()=>{const a=chartOption('ao-chart').xAxis[0];return [a.min,a.max];}),[0,100]);
   await p.click('#ao-chart-mode');
-  await assertIntegerCountTicks(p,'ao-chart','xaxis');
+  await p.waitForFunction(()=>chartSeries('ao-chart').every(s=>!s.stack));
+  await assertIntegerCountTicks(p,'ao-chart','xAxis');
   await p.evaluate(()=>{window._aoData.replication.by_outcome.overlap.successful=1000;floraRefresh();});
-  await p.waitForFunction(()=>document.getElementById('ao-chart')._fullLayout.xaxis.dtick>1);
-  await assertIntegerCountTicks(p,'ao-chart','xaxis');
+  await p.waitForFunction(()=>{const t=chartAxis('ao-chart','xAxis')?.ticks||[];return t.length>=2&&t[1]-t[0]>1;});
+  await assertIntegerCountTicks(p,'ao-chart','xAxis');
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -929,13 +973,12 @@ test('small stacked citation timelines and study denominators have integer ticks
     await p.route('**/data/originals/*',route=>route.fulfill({json:study}));
     await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
   });
-  await p.waitForFunction(()=>document.getElementById('study-plot')?._fullLayout);
-  await assertIntegerCountTicks(p,'study-plot','yaxis');
+  await p.waitForFunction(()=>chartOption('study-plot'));
+  await assertIntegerCountTicks(p,'study-plot','yAxis');
   // The raw means are continuous quantities and must retain fractional ticks.
-  // Plotly can leave _fullLayout.yaxis.dtick unset after a re-layout, so read the rendered labels.
   await p.waitForFunction(()=>{
-    const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
-    return labels.length>=2&&labels.some(v=>v>0&&v<1)&&labels.every(v=>v<1);
+    const ticks=chartAxis('plot-cocit','yAxis')?.ticks||[];
+    return ticks.length>=2&&ticks.some(v=>v>0&&v<1)&&ticks.every(v=>v<1);
   });
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -988,9 +1031,9 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   assert.ok((await p.locator('#overview-outcome-caption').innerText()).includes(`Statistically successful but flawed ${qualified.toLocaleString('en-GB')} (<1%)`));
   assert.ok((await p.locator('#overview-outcome-chart-data .chart-summary').textContent()).includes(`Included in the plot: ${pub.n_total.toLocaleString('en-GB')}`));
   assert.deepEqual(await p.evaluate(()=>[FloraCharts.percent(0,1000),FloraCharts.percent(1,1000),FloraCharts.percent(7,2692),FloraCharts.percent(1,4),FloraCharts.number(-0.033,3)]),['0','<1','<1','25','−0.033']);
-  await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-journal'));
+  await p.click('#trends-tab');await p.waitForFunction(()=>chartOption('trend-journal'));
   // The committed data includes wrapped labels: the table and CSV must reconstruct their words.
-  const chartLabels=await p.evaluate(()=>Chart.getChart('trend-journal').data.labels.map(l=>Array.isArray(l)?l.join(' '):l));
+  const chartLabels=await p.evaluate(()=>chartOption('trend-journal').yAxis[0].data.map(l=>l.replace(/\n/g,' ')));
   assert.deepEqual(await p.locator('#trend-journal-data tbody th').allTextContents(),chartLabels);
   await p.click('#trend-journal-data-copy');
   let exported=await p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}).data);
@@ -1000,7 +1043,8 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   assert.match(await p.locator('#trend-orig-year-data .chart-summary').textContent(),/excluded from this selection: 1 reference pair\./);
   await p.evaluate(()=>floraRefresh());
   await p.click('#overlap-tab');await p.waitForSelector('#ao-chart-data');
-  const groups=await p.evaluate(()=>document.getElementById('ao-chart').data[0].x);
+  await p.waitForFunction(()=>chartOption('ao-chart'));
+  const groups=await p.evaluate(()=>chartOption('ao-chart').xAxis[0].data);
   assert.ok(groups.some(s=>s.includes('N='+ao.n_no_overlap.toLocaleString('en-GB'))));
   assert.ok((await p.locator('#ao-chart-data td').allTextContents()).includes(ao.n_no_overlap.toLocaleString('en-GB')));
   assert.ok((await p.locator('#ao-chart-data td').allTextContents()).includes('<1'));
@@ -1018,16 +1062,20 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
     assert.equal(+curve[i][key],+model.gam_curve[i][field].toFixed(5));
     assert.doesNotMatch(curve[i][key],/\.\d{6}/);
   }
-  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length);
+  await p.click('#citation-tab');await p.waitForFunction(()=>chartOption('plot-cit')&&chartOption('plot-cocit'));
   assert.ok(!requests.some(url=>url.endsWith('/fect_results.json')));
   assert.doesNotMatch(await p.locator('#plot-cit,#plot-cocit').allTextContents().then(t=>t.join(' ')),/Loading…/);
   assert.ok((await p.locator('#plot-cit-footnote').textContent()).includes(`N = ${Math.max(...aggregate.descriptive.n_units).toLocaleString('en-GB')} originals`));
   const nPoint=aggregate.descriptive.event_time.indexOf(-5);
-  await p.evaluate(i=>Plotly.Fx.hover('plot-cit',[{curveNumber:0,pointNumber:i}]),nPoint);
-  const hover=(await p.locator('#plot-cit .hoverlayer tspan.line').allTextContents()).join('\n');
-  assert.match(hover,/Years from first replication: −5/);assert.match(hover,/Mean citations per year: \d+\.\d{2}/);
-  await p.evaluate(()=>Plotly.Fx.hover('plot-cocit',[{curveNumber:0,pointNumber:0}]));
-  assert.match(await p.locator('#plot-cocit .hoverlayer').textContent(),/Mean co-citations per year: \d+\.\d{2}/);
+  // Hovers name the year offset and the mean to two decimals.
+  const hover=async(id,i)=>{
+    await p.evaluate(({id,i})=>echarts.getInstanceByDom(document.getElementById(id)).dispatchAction({type:'showTip',seriesIndex:0,dataIndex:i}),{id,i});
+    await p.waitForFunction(id=>document.querySelector('#'+id+' .chart-tooltip')?.textContent,id);
+    return p.locator('#'+id+' .chart-tooltip').innerText();
+  };
+  const cit=await hover('plot-cit',nPoint);
+  assert.match(cit,/Years from first replication: −5/);assert.match(cit,/Mean citations per year: \d+\.\d{2}/);
+  assert.match(await hover('plot-cocit',0),/Mean co-citations per year: \d+\.\d{2}/);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -1168,8 +1216,9 @@ test('Browse URL kinds and zero-result announcements match the filtered studies'
 
 test('chart alternatives and actions have distinct names; motion and forced colours respect preferences',async()=>{
   const p=await page('?tab=overview',1280,p=>p.emulateMedia({reducedMotion:'reduce'}));
-  assert.equal(await p.evaluate(()=>Chart.getChart('overview-outcome-chart').options.animation),false);
-  assert.match(await p.evaluate(()=>Chart.defaults.font.family),/Source Sans 3/);
+  await p.waitForFunction(()=>chartOption('overview-outcome-chart'));
+  assert.equal(await p.evaluate(()=>chartOption('overview-outcome-chart').animation),false);
+  assert.match(await p.evaluate(()=>chartOption('overview-outcome-chart').textStyle.fontFamily),/Source Sans 3/);
   assert.notEqual(await p.locator('#citation-copy-btn').getAttribute('aria-label'),await p.locator('#website-citation-copy-btn').getAttribute('aria-label'));
   for(const tab of ['browse','trends','citation','mc','overlap','pub']) {
     await p.click('#'+tab+'-tab');await p.waitForTimeout(600);
@@ -1407,21 +1456,22 @@ test('shared vocabulary preserves source codes, full badges and independent repr
 
 test('zero categories stay in chart tables and exports while legends show only observed outcomes',async()=>{
   const p=await page('?tab=browse&kind=replication',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
-  const chart=await p.evaluate(()=>{const chart=Chart.getChart('browse-outcome-chart');return {labels:chart.data.datasets.map(d=>d.label),legend:chart.legend.legendItems.map(d=>d.text)};});
+  await p.waitForFunction(()=>chartLegend('browse-outcome-chart').length);
+  const chart=await p.evaluate(()=>({labels:chartSeries('browse-outcome-chart').map(s=>s.name),legend:chartLegend('browse-outcome-chart')}));
   assert.deepEqual(chart.labels,['Successful','Failed','Mixed','Statistically successful but flawed','Descriptive only','Uninformative','Missing outcome','Unrecognised outcome']);
   assert.deepEqual(chart.legend,['Failed','Mixed']);
   assert.deepEqual((await p.locator('#browse-outcome-chart-data th').allTextContents()).slice(1,9),chart.labels);
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   await p.click('#browse-outcome-chart-data-copy');
   const csv=await p.evaluate(()=>navigator.clipboard.readText());assert.match(csv,/Uninformative/);assert.doesNotMatch(csv,/Inconclusive/);
-  await p.click('#citation-tab');await p.waitForFunction(()=>document.getElementById('plot-cit')?.data?.length);
+  await p.click('#citation-tab');await p.waitForFunction(()=>chartOption('plot-cit'));
   const exportChart=async id=>{
     await p.click('#'+id+'-data-copy');
     return p.evaluate(async()=>Papa.parse(await navigator.clipboard.readText(),{header:true,skipEmptyLines:true}));
   };
   const trajectory=await exportChart('plot-cit');assert.ok(!trajectory.meta.fields.includes('Reference-pair count'));
   assert.ok(trajectory.data.length&&trajectory.data.every(row=>row.Unit==='Mean citations per original per year'));
-  await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>document.getElementById('study-plot')?.data?.length);
+  await p.locator('.timeline-open').first().click();await p.waitForFunction(()=>chartOption('study-plot'));
   const timeline=await exportChart('study-plot');assert.ok(timeline.data.every(row=>row.Unit==='Citing works'));
   assert.equal(new Set(timeline.data.map(row=>row.Series)).size,5);
   await p.keyboard.press('Escape');
@@ -1467,17 +1517,19 @@ test('citation charts fit their axes when the main CSV arrives after a DOI deep 
   const aggregate={all:{descriptive:{event_time:[0,1,2],mean_citations:[0,0.5,1],mean_cocitations:[0,0.1,0.2],n_units:[0,1,2]}}};
   const p=await browser.newPage({viewport:{width:1280,height:900}});p.errors=[];
   p.on('pageerror',e=>p.errors.push(e.message));
+  await p.addInitScript(chartHelpers);
   await p.route('**/data/aggregate.json',route=>route.fulfill({json:aggregate}));
   let releaseCsv;const csvHeld=new Promise(r=>{releaseCsv=r;});
   await p.route('**/data/flora.csv',async route=>{await csvHeld;await route.continue();});
   await p.goto(base+'?tab=citations&doi='+encodeURIComponent(entry.doi));
   // Views mount only once the pairs have loaded, so no chart is sized against a hidden page.
   await p.waitForSelector('#global-loading');
-  assert.equal(await p.locator('#citation-impact .js-plotly-plot').count(),0);
+  assert.equal(await p.locator('#citation-impact .echart').count(),0);
   releaseCsv();
   await p.waitForFunction(()=>document.querySelector('#floraTabsContent').style.display==='block');
-  await p.waitForFunction(()=>{const axis=document.getElementById('plot-cocit')?._fullLayout?.yaxis;if(!axis)return false;const labels=[...document.querySelectorAll('#plot-cocit .ytick text')].map(t=>Number(t.textContent));
-    return axis.range[1]>0.2&&axis.range[1]<0.5&&labels.some(v=>v>0&&v<1);},null,{timeout:5000});
+  // Drawn against the loaded page: the axis fits the 0.2 maximum with fractional ticks.
+  await p.waitForFunction(()=>{const ticks=chartAxis('plot-cocit','yAxis')?.ticks;if(!ticks)return false;const top=Math.max(...ticks);
+    return top>=0.2&&top<0.5&&ticks.some(v=>v>0&&v<1);},null,{timeout:5000});
   assert.deepEqual(p.errors,[]);await p.close();
 });
 test('analysis charts show N of M with exclusions and distinct report counts beside pair counts',async()=>{
@@ -1488,7 +1540,7 @@ test('analysis charts show N of M with exclusions and distinct report counts bes
   const distinct=await p.evaluate(()=>distinctReportCounts(fullRowData.filter(r=>classifyKind(r)==='replication')));
   assert.ok(distinct.reports>0&&distinct.reports<Number((await p.locator('#ov-replications').textContent()).replace(/,/g,'')));
   assert.match(await p.locator('#ov-replications-distinct').textContent(),new RegExp(`^${n(distinct.reports)} distinct repetition reports · ${n(distinct.originals)} distinct original DOIs`));
-  await p.click('#trends-tab');await p.waitForFunction(()=>Chart.getChart('trend-journal'));
+  await p.click('#trends-tab');await p.waitForFunction(()=>chartOption('trend-journal'));
   for(const id of ['trend-orig-year-n','trend-rep-year-n','trend-journal-n','trend-rep-journal-n','trend-field-n'])
     assert.match(await p.locator('#'+id).textContent(),/^[\d,]+ of [\d,]+ reference pairs shown; (excluded: .+|none excluded)\.$/,id);
   assert.match(await p.locator('#trend-journal-n').textContent(),/outside the top 15 journals/);

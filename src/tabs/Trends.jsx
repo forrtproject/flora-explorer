@@ -8,46 +8,31 @@ import {setHook} from '../lib/hooks.js';
 import {useData} from '../state/data.jsx';
 import {useEnv, usePane} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
-import {BarFigure, useBarChart} from '../components/charts.jsx';
-import {Note, Section} from '../components/ui.jsx';
-import {chartTheme} from '../lib/theme.js';
+import {barTable, stackedBarOption} from '../lib/charts.js';
+import {ChartCopy, ChartData, EChart} from '../components/charts.jsx';
+import {Figure, Note, Section} from '../components/ui.jsx';
 import {CiteBlock, DataStamp, KindFilter, Pane, byKind4, kindLabel, repWord} from '../components/common.jsx';
-
-function stackedConfig(agg, buckets, horizontal) {
-    const labels = agg.map(r => horizontal ? wrapLabel(r.key, window.innerWidth < 600 ? 18 : 38) : r.key);
-    // A dashed rule sets a pooled leading column apart from the year-by-year axis.
-    const pooledSeparator = {
-        id: 'pooledSeparator',
-        afterDatasetsDraw(chart) {
-            if (!agg[0]?.pooled || agg.length < 2) return;
-            const x = chart.scales.x, area = chart.chartArea, c = chart.ctx;
-            const between = (x.getPixelForValue(0) + x.getPixelForValue(1)) / 2;
-            c.save(); c.strokeStyle = chartTheme().tick; c.setLineDash([4, 3]); c.lineWidth = 1;
-            c.beginPath(); c.moveTo(between, area.top); c.lineTo(between, area.bottom); c.stroke(); c.restore();
-        },
-    };
-    return {
-        type: 'bar',
-        data: {labels, datasets: buckets.map(b => ({label: b.label, data: agg.map(r => r.counts[b.key] || 0), backgroundColor: b.color}))},
-        options: {
-            indexAxis: horizontal ? 'y' : 'x',
-            plugins: {tooltip: {callbacks: {title: items => { const label = items[0].label; return Array.isArray(label) ? label.join(' ') : label; }}}},
-            layout: horizontal ? {padding: {left: 6}} : {},
-        },
-        plugins: [pooledSeparator],
-    };
-}
 
 function TrendBlock({id, title, agg, kind, eligible, horizontal, minHeight, coverage, children}) {
     const pane = usePane();
-    const {theme, tick} = useEnv();
+    // tick re-renders on resize, so the wrapped-label height below follows the window.
+    const {theme} = useEnv();
     const buckets = useMemo(() => outcomeBuckets(kind), [kind, theme]);
-    const {canvasProps, table} = useBarChart(id, title, () => stackedConfig(agg, buckets, horizontal), [agg, buckets, horizontal, tick], {enabled: pane.visited, eligible});
+    const series = useMemo(() => buckets.map(b => ({name: b.label, color: b.color, values: agg.map(r => r.counts[b.key] || 0)})), [agg, buckets]);
+    // Long field and journal names break down the side; a pooled first column gets a dashed rule after it.
+    const option = useMemo(() => ({width}) => stackedBarOption({categories: agg.map(r => r.key),
+        series, horizontal, pooledFirst: Boolean(agg[0]?.pooled), width}), [agg, series, horizontal]);
+    const table = useMemo(() => barTable(agg.map(r => r.key), series, eligible, 'counts'), [agg, series, eligible]);
     const lines = agg.reduce((n, r) => { const label = wrapLabel(r.key, window.innerWidth < 600 ? 18 : 38); return n + (Array.isArray(label) ? label.length : 1) * 15 + 15; }, 70);
     return (
         <Section className="trend-block" notesClass="trend-desc" level={3} title={title} notes={children}>
-            <BarFigure id={id} title={title} canvasProps={canvasProps} table={table} containerId={id + '-container'}
-                height={horizontal ? Math.max(minHeight, lines) : undefined} note={<Note id={id + '-n'}>{coverage}</Note>} />
+            <Figure note={<Note id={id + '-n'}>{coverage}</Note>} actions={<ChartCopy id={id} title={title} table={table} />}>
+                {/* Year charts keep their proportions as they widen; name charts grow with their row count. */}
+                <div className="chart-box" id={id + '-container'} style={{height: horizontal ? Math.max(minHeight, lines) : 'auto'}}>
+                    {pane.visited && (horizontal ? <EChart id={id} title={title} option={option} height="100%" /> : <EChart id={id} title={title} option={option} height={360} aspect={0.38} />)}
+                </div>
+                <ChartData id={id} title={title} table={table} />
+            </Figure>
         </Section>
     );
 }

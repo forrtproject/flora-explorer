@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import re
 import sys
@@ -375,6 +376,25 @@ from classification import REPLICATION_COLUMNS, add_outcome_columns, reproductio
 
 
 
+# Histogram bins are equal-width on log(OMC + 1), the GAM's scale: OMC is heavily skewed,
+# so linear bins put ~1,000 sub-pixel bars across the chart. Must match HIST_LOG_WIDTH and
+# the floor(log1p(OMC) / width) assignment in render_impact_factor.R.
+HIST_LOG_WIDTH = 0.15
+
+
+def omc_histogram(rows: list[dict], bucket_key: str, buckets: list[str]) -> list[dict]:
+    """Count rows per log1p(OMC) bin and bucket; bin_lo/bin_hi are in OMC units."""
+    if not rows:
+        return []
+    idx = [math.floor(math.log1p(r["impact_factor"]) / HIST_LOG_WIDTH) for r in rows]
+    histogram = [{"bin_lo": round(math.expm1(i * HIST_LOG_WIDTH), 4),
+                  "bin_hi": round(math.expm1((i + 1) * HIST_LOG_WIDTH), 4),
+                  **{b: 0 for b in buckets}} for i in range(max(idx) + 1)]
+    for i, r in zip(idx, rows):
+        histogram[i][r[bucket_key]] += 1
+    return histogram
+
+
 def compute_reproduction_impact_stats(rows: list[dict]) -> None:
     """Write descriptive journal Mean Citedness summaries for each reproduction dimension.
 
@@ -419,15 +439,7 @@ def compute_reproduction_impact_stats(rows: list[dict]) -> None:
         for b in buckets:
             overview[f"n_{b}"] = sum(1 for r in rows if r[bucket_key] == b)
 
-        top = max((r["impact_factor"] for r in rows), default=0)
-        breaks = [i * 0.5 for i in range(int(top // 0.5) + 2)]  # Matches the R histogram's bins.
-        histogram = []
-        for lo, hi in zip(breaks[:-1], breaks[1:]):
-            counts = {b: 0 for b in buckets}
-            for r in rows:
-                if lo <= r["impact_factor"] < hi:
-                    counts[r[bucket_key]] += 1
-            histogram.append({"bin_lo": lo, "bin_hi": hi, **counts})
+        histogram = omc_histogram(rows, bucket_key, buckets)
 
         aside = [r["status"] for r in set_aside_rows if r[bucket_key] in buckets]
         return {

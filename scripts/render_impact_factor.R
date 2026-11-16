@@ -95,12 +95,19 @@ overview <- list(
   n_disciplines = length(unique(df_all$discipline[df_all$discipline != "Uncategorized"]))
 )
 
-# ── Histogram data (bin width 0.5, 0 to just past the largest OMC) ───────────
-# A snapshot with no OMC values yields no bins rather than seq() failing on max() = -Inf.
-breaks    <- if (nrow(df_all) > 0) seq(0, floor(max(df_all$impact_factor) / 0.5) * 0.5 + 0.5, by = 0.5) else 0
-hist_data <- lapply(seq_len(length(breaks) - 1), function(i) {
-  lo <- breaks[i]; hi <- breaks[i + 1]
-  sub <- df_all[df_all$impact_factor >= lo & df_all$impact_factor < hi, ]
+# ── Histogram data (equal-width bins on log(OMC + 1), the model's scale) ─────
+# OMC is heavily right-skewed (most pairs under 5, a few past 500), so linear 0.5-wide
+# bins gave ~1,000 sub-pixel bars. Bins of width HIST_LOG_WIDTH on log1p(OMC) give ~40
+# visible bars; compute_omc.py uses the same width and assignment for reproductions.
+# A pair's bin is floor(log1p(OMC) / width), so every value lands in exactly one bin;
+# bin_lo/bin_hi are reported in OMC units (rounded) for labels only.
+# A snapshot with no OMC values yields no bins rather than failing on max() = -Inf.
+HIST_LOG_WIDTH <- 0.15
+bin_idx   <- floor(log1p(df_all$impact_factor) / HIST_LOG_WIDTH)
+n_bins    <- if (nrow(df_all) > 0) max(bin_idx) + 1 else 0
+hist_data <- lapply(seq_len(n_bins), function(i) {
+  lo <- round(expm1((i - 1) * HIST_LOG_WIDTH), 4); hi <- round(expm1(i * HIST_LOG_WIDTH), 4)
+  sub <- df_all[bin_idx == i - 1, ]
   oc  <- sub$outcome_class
   list(bin_lo     = lo,
        bin_hi     = hi,

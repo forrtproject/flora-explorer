@@ -1,10 +1,11 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {URLS} from '../lib/config.js';
-import {citationAuthors, countAxis, number, percent} from '../lib/format.js';
+import {categoryAxis, countAxis, escapeHtml, finishOption, labelColor, pointTable, stackCorners, tipLines, tipRow, valueAxis} from '../lib/charts.js';
+import {citationAuthors, number, percent} from '../lib/format.js';
 import {coverageText} from '../lib/coverage.js';
 import {outcomeBuckets} from '../lib/outcomes.js';
 import {matchesTokens, normalizeDoi, normalizedQuery, searchAuthorNames, searchTokens} from '../lib/search.js';
-import {chartTheme, token} from '../lib/theme.js';
+import {chartTheme, textScale, token} from '../lib/theme.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
 import {useData} from '../state/data.jsx';
 import {PaneContext, useEnv} from '../state/env.jsx';
@@ -51,20 +52,21 @@ function sliceDescriptive(desc, [lo, hi]) {
 function trajectorySpec(desc, field, ylabel, outcome, coverage) {
     const t = chartTheme(), color = outcomeColor(outcome);
     if (!desc?.event_time?.length) return {message: 'No data for this filter'};
-    return {coverage, config: {displayModeBar: false, responsive: true},
-        traces: [{
-            x: desc.event_time, y: desc[field], type: 'scatter', mode: 'lines+markers', line: {color, width: 2.25}, marker: {color, size: 7, line: {color: t.paper, width: 1.5}}, fill: 'tozeroy', fillcolor: t.band, name: 'Mean (raw)', legendgroup: 'raw', showlegend: true,
-            text: desc.event_time.map((x, i) => `Years from first replication: ${number(x)}<br>${ylabel}: ${number(desc[field][i], 2)}`), hovertemplate: '%{text}<extra></extra>',
-        }],
-        layout: {
-            margin: {t: 30, r: 50, b: 50, l: 60},
-            // Padded so the first and last points are not cut by the plot edge.
-            xaxis: {title: 'Years relative to first replication', showgrid: false, range: [Math.min(...desc.event_time) - .35, Math.max(...desc.event_time) + .35]},
-            yaxis: {title: ylabel, gridcolor: t.grid, color: t.font, rangemode: 'tozero'},
-            shapes: [{type: 'line', x0: 0, x1: 0, yref: 'paper', y0: 0, y1: 1, line: {color: t.primary, width: 1.5, dash: 'dash'}}],
-            annotations: [{x: 0, yref: 'paper', y: 1.04, xref: 'x', yanchor: 'bottom', text: 'Replication published', showarrow: false, font: {size: 11, color: t.primary}}],
-            plot_bgcolor: t.plot, paper_bgcolor: t.paper, font: {family: t.fontFamily, size: 12, color: t.font}, legend: {orientation: 'h', y: -0.22, font: {color: t.font}},
-        }};
+    const x = desc.event_time, y = desc[field], name = 'Mean (raw)';
+    const unit = field === 'mean_citations' ? 'Mean citations per original per year' : 'Mean co-citations per original per year';
+    return {coverage, table: pointTable([{name, x, y}], unit),
+        option: ({width}) => finishOption({
+            series: [{name, type: 'line', data: x.map((v, i) => [v, y[i]]), lineStyle: {color, width: 2.25}, itemStyle: {color, borderColor: t.paper, borderWidth: 1.5},
+                symbol: 'circle', symbolSize: 7, areaStyle: {color: t.band, opacity: 1}, emphasis: {disabled: true},
+                markLine: {silent: true, symbol: 'none', lineStyle: {color: t.primary, width: 1.5, type: 'dashed'}, data: [{xAxis: 0}],
+                    label: {position: 'end', formatter: 'Replication published', color: t.primary, fontSize: 11}}}],
+            tooltip: {formatter: p => tipLines([`Years from first replication: ${number(p.value[0])}`, `${escapeHtml(ylabel)}: ${number(p.value[1], 2)}`])},
+            // Padded so the first and last points are not cut by the plot edge; ticks stay on whole years.
+            xAxis: valueAxis({name: 'Years relative to first replication', min: Math.min(...x) - .35, max: Math.max(...x) + .35, splitLine: {show: false},
+                axisLabel: {customValues: x}, axisTick: {customValues: x}}),
+            yAxis: valueAxis({name: ylabel, min: 0}),
+        }, {width, top: 18}),
+    };
 }
 
 // "N of M originals" for one panel, and the same coverage as a sentence for its chart data.
@@ -98,11 +100,16 @@ function AggregatePlots({data, outcome}) {
     const tableN = outcome === 'all' ? data.index.filter(s => s.n_citations_post_first_rep > 0).length : data.breakdown?.outcome?.[outcome]?.n_originals;
     const group = outcome === 'all' ? 'replication' : `${label} replication`;
     return (
-        <div className="stack">
-            <Plot id="plot-cit" className="plot" heading="Citations to the original" title="Raw trajectory: Citations to the original" spec={built.citSpec} note={<Note id="plot-cit-sample">{built.cit.note}</Note>} />
-            <Note id="plot-cit-footnote">{built.cit.n > 0 && <>Mean citations estimated for <strong><i>N</i> = {number(built.cit.n)}</strong> originals (first replication {outcome === 'all' ? 'successful, failed or mixed' : label}; each observed over t = {number(built.span[0])} to +{number(built.span[1])} years).</>}</Note>
-            <Plot id="plot-cocit" className="plot" heading="Co-citations (original and replication)" title="Raw trajectory: Co-citations (original and replication)" spec={built.cocitSpec} note={<Note id="plot-cocit-sample">{built.cocit.note}</Note>} />
-            <Note id="plot-cocit-denominator">{tableN != null && <>The co-citation rate table below covers <strong><i>N</i> = {number(tableN)}</strong> originals (≥ 1 {group}; ≥ 1 citation since the first {group}), a wider set than the plotted panel above.</>}</Note>
+        // The two trajectories sit side by side on wide screens, each with its own note beneath it.
+        <div className="ci-pair">
+            <div className="stack">
+                <Plot id="plot-cit" className="plot" heading="Citations to the original" title="Raw trajectory: Citations to the original" spec={built.citSpec} note={<Note id="plot-cit-sample">{built.cit.note}</Note>} />
+                <Note id="plot-cit-footnote">{built.cit.n > 0 && <>Mean citations estimated for <strong><i>N</i> = {number(built.cit.n)}</strong> originals (first replication {outcome === 'all' ? 'successful, failed or mixed' : label}; each observed over t = {number(built.span[0])} to +{number(built.span[1])} years).</>}</Note>
+            </div>
+            <div className="stack">
+                <Plot id="plot-cocit" className="plot" heading="Co-citations (original and replication)" title="Raw trajectory: Co-citations (original and replication)" spec={built.cocitSpec} note={<Note id="plot-cocit-sample">{built.cocit.note}</Note>} />
+                <Note id="plot-cocit-denominator">{tableN != null && <>The co-citation rate table below covers <strong><i>N</i> = {number(tableN)}</strong> originals (≥ 1 {group}; ≥ 1 citation since the first {group}), a wider set than the plotted panel above.</>}</Note>
+            </div>
         </div>
     );
 }
@@ -253,43 +260,83 @@ function OriginalsTable({index, excluded, onOpen, status}) {
 // Sorted copy for display; stored order still defines ties in the aggregate model.
 const chronological = s => [...(s.replications || [])].sort((a, b) => (Number(a.year) || Infinity) - (Number(b.year) || Infinity));
 
-function timelineSpec(s, meta, width) {
-    const t = chartTheme(), tl = s.timeline || [];
-    if (!tl.length) return {message: 'No citation data available'};
-    const years = tl.map(p => p.year);
-    // The coverage year stays partial even if this snapshot is viewed in a later year.
-    const partialYear = Number((meta?.last_updated || '').slice(0, 4)) || new Date().getFullYear();
-    const series = [['only', 'Cites original only', token('--color-chart-neutral')], ['with_failed', 'Also cites Failed replication', outcomeColor('failed')], ['with_mixed', 'Also cites Mixed replication', outcomeColor('mixed')],
-        ['with_successful', 'Also cites Successful replication', outcomeColor('successful')], ['with_multiple', 'Also cites replications with multiple outcomes', token('--color-chart-qualified')]];
-    const traces = series.map(([key, name, color]) => {
-        const y = tl.map(p => p[key] || 0);
-        // Empty series stay in the data table and export but not in the legend.
-        return {x: years, y, name, type: 'bar', marker: {color, opacity: years.map(year => year === partialYear ? 0.45 : 1)}, hovertemplate: 'Year: %{x}<br>Citing works: %{y:,.0f}<extra>%{fullData.name}</extra>', ...(y.some(v => v > 0) ? {} : {showlegend: false})};
-    });
-    const narrow = window.innerWidth < 600;
-    const shapes = [], annotations = [], lanes = [];
-    const span = Math.max(...years) - Math.min(...years) + 1, usable = width - (narrow ? 80 : 60);
-    chronological(s).forEach((r, i) => {
-        if (!r.year) return;
-        const color = r.outcome ? outcomeColor(r.outcome) || t.primary : t.primary;
-        shapes.push({type: 'line', x0: r.year, x1: r.year, yref: 'paper', y0: 0, y1: 1, line: {color, width: 2, dash: 'dash'}});
-        const label = narrow ? String(i + 1) : `${i + 1} · ${FloraVocabulary.label(r.outcome)} ${r.year}`;
-        // Nearby events, including same-year ties, go in separate pixel-spaced lanes.
-        const x = (r.year - Math.min(...years)) * usable / span, half = label.length * (narrow ? 3.5 : 3) + 5;
-        let lane = lanes.findIndex(end => end + 6 < x - half);
+// A hex colour at the given opacity; other colour forms pass through unchanged.
+const withAlpha = (color, alpha) => {
+    const hex = /^#([0-9a-f]{6})$/i.exec(String(color).trim());
+    return hex ? `rgba(${[0, 2, 4].map(i => parseInt(hex[1].slice(i, i + 2), 16)).join(',')},${alpha})` : color;
+};
+// Bars shade from full colour at the top to a lighter foot, so tall columns read as shapes rather than slabs.
+const barFill = color => ({type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{offset: 0, color: withAlpha(color, 1)}, {offset: 1, color: withAlpha(color, .62)}]});
+
+// Replication markers: a numbered circle above the plot for each dated replication, in its outcome colour,
+// matching the numbered list under the chart. Same-year or adjacent events go in separate lanes so circles never overlap.
+function replicationMarks(s, years, width) {
+    const lanes = [], scale = textScale();
+    const first = years[0], span = years.length, usable = width - 70;
+    return chronological(s).map((r, i) => [r, i]).filter(([r]) => r.year).map(([r, i]) => {
+        const label = String(i + 1);
+        const x = (r.year - first + .5) * usable / span, half = (label.length * 3.5 + 9) * scale;
+        let lane = lanes.findIndex(end => end + 4 < x - half);
         if (lane < 0) lane = lanes.length;
         lanes[lane] = x + half;
-        annotations.push({name: 'replication-event', x: r.year, yref: 'paper', y: 1.02, yshift: -lane * 22, text: label, showarrow: false, borderpad: 2, font: {size: narrow ? 11 : 10, color}, bgcolor: t.paper});
+        return {year: r.year, index: i + 1, outcome: r.outcome, label, lane, color: r.outcome ? outcomeColor(r.outcome) || token('--color-primary') : token('--color-primary')};
     });
-    if (years.includes(partialYear)) annotations.push({name: 'partial-year', x: partialYear, xref: 'x', yref: 'paper', y: 1.14, xanchor: 'right', text: `${partialYear}: partial year`, showarrow: false, font: {size: 11, color: t.muted}});
-    const maxYearly = Math.max(0, ...years.map((_, i) => traces.reduce((n, trace) => n + trace.y[i], 0)));
-    const plotted = traces.reduce((n, trace) => n + trace.y.reduce((a, v) => a + (Number(v) || 0), 0), 0);
+}
+
+function timelineSpec(s, meta) {
+    const t = chartTheme(), tl = s.timeline || [];
+    if (!tl.length) return {message: 'No citation data available'};
+    const recorded = tl.map(p => p.year);
+    // One column per year from the first citing year or replication to the last, gaps included.
+    const repYears = (s.replications || []).map(r => Number(r.year)).filter(Boolean);
+    const lo = Math.min(...recorded, ...repYears), hi = Math.max(...recorded, ...repYears);
+    const years = Array.from({length: hi - lo + 1}, (_, i) => lo + i);
+    const byYear = new Map(tl.map(p => [p.year, p]));
+    // The coverage year stays partial even if this snapshot is viewed in a later year.
+    const partialYear = Number((meta?.last_updated || '').slice(0, 4)) || new Date().getFullYear();
+    // Plain citations are the neutral baseline; co-citations take the outcome colour of the replication they cite,
+    // and works citing replications with different outcomes take the "multiple outcomes" colour.
+    const kinds = [['only', 'Cites original only', token('--color-chart-neutral')], ['with_failed', 'Also cites Failed replication', outcomeColor('failed')], ['with_mixed', 'Also cites Mixed replication', outcomeColor('mixed')],
+        ['with_successful', 'Also cites Successful replication', outcomeColor('successful')], ['with_multiple', 'Also cites replications with multiple outcomes', token('--color-chart-qualified')]];
+    const series = kinds.map(([key, name, color]) => ({name, color, values: years.map(year => byYear.get(year)?.[key] || 0)}));
+    const plotted = series.reduce((n, x) => n + x.values.reduce((a, v) => a + v, 0), 0);
     const coverage = coverageText(plotted, s.n_citations || 0, [[(s.n_citations || 0) - plotted, 'without a recorded citing year']], 'citing works of this original');
-    return {traces, coverage, config: {displayModeBar: false, responsive: true}, layout: {
-        barmode: 'stack', margin: {t: 50, r: 10, b: 40, l: 50},
-        xaxis: {title: 'Year', gridcolor: t.grid, color: t.font}, yaxis: {title: 'Citing works', ...countAxis(maxYearly), gridcolor: t.grid, color: t.font},
-        shapes, annotations, hoverlabel: {namelength: -1}, plot_bgcolor: t.plot, paper_bgcolor: t.paper,
-        legend: {orientation: 'h', y: -0.18, font: {color: t.font}}, font: {family: t.fontFamily, size: 12, color: t.font},
+    const table = pointTable(kinds.map(([key, name]) => ({name, x: recorded, y: tl.map(p => p[key] || 0)})), 'Citing works');
+    const corners = stackCorners(series.map(x => x.values), false, 4);
+    // A wide, flat ratio suits a year-by-year timeline and keeps the replication list close below it.
+    return {coverage, table, aspect: .3, option: ({width}) => {
+        const scale = textScale();
+        const marks = replicationMarks(s, years, width);
+        const lanes = Math.max(0, ...marks.map(m => m.lane + 1));
+        const partial = years.includes(partialYear);
+        // The partial coverage year is faded and hatched, so it reads as incomplete at a glance.
+        const hatch = {symbol: 'rect', symbolSize: 1, dashArrayX: [1, 0], dashArrayY: [2, 3], rotation: Math.PI / 4, color: withAlpha(t.paper, .55)};
+        const bars = series.map((x, si) => ({
+            name: x.name, type: 'bar', stack: 'year', barMaxWidth: 30, barCategoryGap: '22%', emphasis: {focus: 'series'},
+            // Co-citations are often a sliver of a year's citations; a minimum height keeps every non-zero one visible.
+            ...(si ? {barMinHeight: 3} : {}),
+            itemStyle: {color: barFill(x.color), borderColor: t.paper, borderWidth: 1},
+            data: x.values.map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
+        }));
+        // Light dotted rules mark each replication behind the bars; the numbered circle carries the outcome colour.
+        bars[0].markLine = {silent: true, symbol: 'none', z: 1, data: marks.map(m => ({xAxis: String(m.year), name: m.label,
+            lineStyle: {color: m.color, width: 1, type: [2, 3], opacity: .7},
+            label: {position: 'end', formatter: m.label, color: labelColor(m.color), backgroundColor: m.color, fontSize: 11, fontWeight: 700,
+                width: 12, align: 'center', padding: [3, 4], borderRadius: 10, distance: (5 + m.lane * 22) * scale}}))};
+        // The partial-year note gets its own line above the legend, which can wrap to any width.
+        const ownLine = partial;
+        // The hover names the year and its total, then only the categories that year has, and any replication published in it.
+        const tooltip = {formatter: ps => {
+            const i = ps[0].dataIndex, total = ps.reduce((n, p) => n + (Number(p.value) || 0), 0);
+            const events = marks.filter(m => m.year === years[i]).map(m => tipRow(m.color, `Replication ${m.index} published (${FloraVocabulary.label(m.outcome)})`));
+            return tipLines([`<strong>${years[i]}</strong> · ${number(total)} citing works${years[i] === partialYear ? ' (partial year)' : ''}`,
+                ...ps.filter(p => p.value > 0).map(p => tipRow(series[p.seriesIndex].color, `${p.seriesName}: ${number(p.value)}`)), ...events]);
+        }};
+        return finishOption({series: bars, tooltip, legend: {top: ownLine ? 18 * scale : 0},
+            graphic: partial ? [{type: 'text', right: 12, top: 0, silent: true, style: {text: `${partialYear}: partial year`, fill: t.muted, fontSize: 11, fontStyle: 'italic', fontFamily: t.fontFamily}}] : [],
+            xAxis: categoryAxis({name: 'Year', data: years.map(String), axisLabel: {hideOverlap: true}, axisLine: {show: true, lineStyle: {color: t.grid}}}),
+            yAxis: valueAxis({name: 'Citing works', ...countAxis(), splitLine: {lineStyle: {color: t.grid, type: [3, 4]}}}),
+        }, {width, top: 12 + lanes * 22 + (ownLine ? 18 : 0)});
     }};
 }
 
@@ -300,28 +347,61 @@ function StudyHeader({entry}) {
     </>;
 }
 
+// First author's family name, with "et al." when there are more.
+const leadAuthor = author => {
+    const names = String(author || '').split(';').map(a => a.trim()).filter(Boolean);
+    return names.length ? names[0].split(',')[0] + (names.length > 1 ? ' et al.' : '') : 'Unknown author';
+};
+
+// The chart's numbered markers, spelled out beside it: one chip per replication, in the list's order.
+// A chip jumps to that replication's full entry below the chart and briefly highlights it.
+function ReplicationChips({reps}) {
+    const jump = n => {
+        const item = document.getElementById(`rep-${n}`);
+        if (!item) return;
+        item.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center'});
+        item.focus({preventScroll: true});
+        item.classList.remove('is-target'); void item.offsetWidth; item.classList.add('is-target');
+    };
+    return (
+        <div id="study-plot-key" className="rep-chips">
+            <span className="rep-chips-label">Replications{reps.some(r => !r.year) ? ' (undated ones have no marker)' : ''}:</span>
+            {reps.map((r, i) => (
+                <button type="button" key={i} className="rep-chip" onClick={() => jump(i + 1)}
+                    aria-label={`Replication ${i + 1}: ${FloraVocabulary.label(r.outcome)}, ${leadAuthor(r.author)} ${r.year || 'undated'}. Show details below.`}>
+                    <span className="rep-marker" style={{color: r.outcome ? `var(--color-chart-${r.outcome})` : 'inherit'}} aria-hidden="true">{i + 1}</span>
+                    <span>{FloraVocabulary.label(r.outcome)} · {leadAuthor(r.author)} {r.year || '(undated)'}</span>
+                </button>
+            ))}
+        </div>
+    );
+}
+
 function Timeline({study, meta}) {
-    const {theme, tick} = useEnv();
+    const {theme} = useEnv();
     const {linkFor} = useView();
-    const wrap = useRef(null);
-    const [width, setWidth] = useState(0);
     const [copied, setCopied] = useState(false);
-    useLayoutEffect(() => { setWidth(wrap.current.clientWidth); }, [tick]);
-    const spec = useMemo(() => width ? timelineSpec(study, meta, width) : null, [study, meta, width, theme, tick]);
+    const spec = useMemo(() => timelineSpec(study, meta), [study, meta, theme]);
     const link = linkFor({tab: 'citation-tab', doi: study.doi});
     const share = () => navigator.clipboard.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => window.prompt('Copy this link:', link));
     const many = study.cocit_conflated > 1;
+    const reps = chronological(study);
     return (
         <div className="modal-body">
             <StudyHeader entry={study} />
-            <button type="button" className="btn ci-share-btn" data-doi={study.doi} onClick={share}>{copied ? 'Link copied' : 'Copy link to this chart'}</button>
-            <h3>Citation timeline</h3>
             {study.cocit_conflated ? <Callout tone="caution">Co-citation can't be measured for {many ? 'some replications of ' : ''}this study: OpenCitations groups the original and {many ? 'those replications' : 'its replication'} under one record, so citations of the two can't be told apart. The timeline below counts all of them as citations of the original.</Callout> : null}
-            <div ref={wrap} className="study-plot-wrap">{spec && <Plot id="study-plot" title="Citation timeline" spec={spec} height={380} />}</div>
+            {/* The dialog is titled "Citation timeline", so the figure names what is plotted; its actions share the chart or copy its data. */}
+            <div className="study-plot-wrap"><Plot id="study-plot" title="Citation timeline" heading="Citations per year" spec={spec} height={400} note={<ReplicationChips reps={reps} />}
+                actions={<>
+                    <button type="button" className="btn ci-share-btn" data-doi={study.doi} onClick={share} aria-label={copied ? 'Link copied' : 'Copy link to this chart'}>
+                        {copied ? <Icon.check /> : <Icon.link />}<span>{copied ? 'Link copied' : 'Copy link'}</span>
+                    </button>
+                    <span className="visually-hidden" role="status">{copied ? 'Link to this chart copied' : ''}</span>
+                </>} /></div>
             <h3>Replications ({number(study.n_replications)})</h3>
             <ul className="rep-list">
-                {chronological(study).map((r, i) => (
-                    <li key={i}>
+                {reps.map((r, i) => (
+                    <li key={i} id={`rep-${i + 1}`} tabIndex={-1}>
                         <span className="rep-marker" role="img" style={{color: r.outcome ? `var(--color-chart-${r.outcome})` : 'inherit'}} aria-label={`Marker ${i + 1}`}>{i + 1}</span>{' '}
                         <span className={`outcome-badge ${r.outcome}`}>{FloraVocabulary.label(r.outcome)}</span>{' '}
                         <strong>{citationAuthors(r.author, 2)} ({r.year || '?'})</strong>{r.title ? ' — ' + r.title : ''}

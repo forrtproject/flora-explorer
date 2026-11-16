@@ -2,7 +2,8 @@ import {useMemo} from 'react';
 import {dimensionCaption, dimensionChartData} from '../lib/aggregate.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
 import {useEnv} from '../state/env.jsx';
-import {ChartCopy, ChartData, outcomeBarConfig, useBarChart} from './charts.jsx';
+import {barTable, stackedBarOption} from '../lib/charts.js';
+import {ChartCopy, ChartData, EChart} from './charts.jsx';
 import {InfoTip} from './common.jsx';
 
 const DIMENSIONS = {
@@ -18,8 +19,10 @@ export function OutcomeChartRow({prefix, dimension, rows, scope, rowId, hidden})
     const title = (prefix === 'browse' ? 'Browse results: ' : '') + d.title;
     const data = useMemo(() => dimensionChartData(rows, dimension), [rows, dimension, theme]);
     const reproduction = dimension !== 'replicability';
-    const {canvasProps, table} = useBarChart(id, title, () => outcomeBarConfig(data.datasets, data.total, d.category), [data],
-        {eligible: data.eligible, scope: reproduction ? 'reproduction' : 'replication'});
+    // One horizontal stacked bar: the share of each outcome within the dimension.
+    const series = useMemo(() => data.datasets.map(s => ({name: s.label, color: s.backgroundColor, values: s.data})), [data]);
+    const option = useMemo(() => ({width}) => stackedBarOption({categories: [d.category], series, proportion: true, total: data.total, width}), [series, data.total, d.category]);
+    const table = useMemo(() => barTable([d.category], series, data.eligible, reproduction ? 'reproduction' : 'replication'), [series, data.eligible, reproduction, d.category]);
     const entries = FloraVocabulary.entries(d.vocabulary);
     return (
         <div className="outcome-chart-row" id={rowId} style={hidden ? {display: 'none'} : undefined}>
@@ -38,7 +41,7 @@ export function OutcomeChartRow({prefix, dimension, rows, scope, rowId, hidden})
                 <ChartCopy id={id} title={title} table={table} />
             </div>
             <p className="note chart-caption" id={`${prefix}-${d.slug}-caption`}>{dimensionCaption(rows, dimension)}</p>
-            <div className="chart-box chart-container-stack"><canvas {...canvasProps} /></div>
+            <EChart id={id} title={title} option={option} className="chart-box chart-container-stack" />
             <ChartData id={id} title={title} table={table} />
         </div>
     );
