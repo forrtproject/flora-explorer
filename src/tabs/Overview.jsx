@@ -216,9 +216,9 @@ export default function Overview({citation}) {
             <Section title="Outcome breakdown" notes={<Callout tone="caution" className="coverage-caution">FLoRA’s coverage is incomplete and uneven across fields, languages and venues. These shares describe recorded entries; they do not estimate how often research in general replicates or reproduces. <a href="#flora-coverage">Coverage limits</a></Callout>}>
                 <OutcomeDefinitions />
                 <Figure>
+                    <OutcomeChartRow prefix="overview" dimension="replicability" rows={rows} scope={<>Currently, this distribution covers <strong>replications only</strong>. Reproductions are shown separately below, since they're coded along different dimensions.</>} />
                     <OutcomeChartRow prefix="overview" dimension="computational" rows={rows} scope={<>Covers <strong>reproductions only</strong>: were the original results obtained? Reproduction coverage is still small, so this chart will fill in as more are added.</>} />
                     <OutcomeChartRow prefix="overview" dimension="robustness" rows={rows} scope={<>Covers <strong>reproductions only</strong>: do results hold under alternative analysis choices? Not every reproduction has a robustness check yet.</>} />
-                    <OutcomeChartRow prefix="overview" dimension="replicability" rows={rows} scope={<>Currently, this distribution covers <strong>replications only</strong>. Reproductions are shown separately above, since they're coded along different dimensions.</>} />
                 </Figure>
             </Section>
             <About />

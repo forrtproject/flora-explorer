@@ -68,7 +68,7 @@
         "descriptive only"
       ],
       "assessed": false,
-      "color": "other"
+      "color": "descriptive"
     },
     {
       "key": "uninformative",
@@ -78,7 +78,7 @@
         "uninformative"
       ],
       "assessed": false,
-      "color": "other"
+      "color": "uninformative"
     },
     {
       "key": "missing",
@@ -86,7 +86,7 @@
       "definition": "No outcome code is recorded.",
       "aliases": [],
       "assessed": false,
-      "color": "other"
+      "color": "missing"
     },
     {
       "key": "unrecognised",
@@ -94,7 +94,7 @@
       "definition": "A recorded value falls outside the supported vocabulary.",
       "aliases": [],
       "assessed": false,
-      "color": "other"
+      "color": "unrecognised"
     }
   ],
   "computational": [
@@ -139,7 +139,7 @@
         "computation not checked"
       ],
       "assessed": false,
-      "color": "other"
+      "color": "not-checked"
     },
     {
       "key": "missing",
@@ -147,7 +147,7 @@
       "definition": "No verdict is recorded for this dimension.",
       "aliases": [],
       "assessed": false,
-      "color": "other"
+      "color": "missing"
     },
     {
       "key": "unrecognised",
@@ -155,7 +155,7 @@
       "definition": "A recorded value falls outside the supported vocabulary.",
       "aliases": [],
       "assessed": false,
-      "color": "other"
+      "color": "unrecognised"
     }
   ],
   "robustness": [
@@ -188,7 +188,7 @@
         "robustness not checked"
       ],
       "assessed": false,
-      "color": "other"
+      "color": "not-checked"
     },
     {
       "key": "missing",
@@ -196,7 +196,7 @@
       "definition": "No verdict is recorded for this dimension.",
       "aliases": [],
       "assessed": false,
-      "color": "other"
+      "color": "missing"
     },
     {
       "key": "unrecognised",
@@ -204,7 +204,7 @@
       "definition": "A recorded value falls outside the supported vocabulary.",
       "aliases": [],
       "assessed": false,
-      "color": "other"
+      "color": "unrecognised"
     }
   ],
   "study_types": {

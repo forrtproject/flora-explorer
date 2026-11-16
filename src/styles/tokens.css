@@ -96,12 +96,18 @@
        which stays deliberately faint (2.6:1) for unassessed rows. */
     --color-badge-successful: #1f7468;
     --color-badge-on-outcome: #fff;
-    --color-chart-successful: #27877a;
+    --color-chart-successful: #248073; /* white in-bar labels reach 4.76:1 (was #27877a, 4.35:1) */
     --color-chart-failed: #c24a33;
     --color-chart-mixed: #d9a441;
     --color-chart-inconclusive: #6f7686;
     --color-chart-qualified: #7b61a8;
     --color-chart-other: #8d93a0;
+    /* The "no verdict" outcomes: one muted family, told apart by lightness and warmth. Missing stays
+       deliberately faint, like --color-chart-not-coded. */
+    --color-chart-descriptive: #5d7186;
+    --color-chart-uninformative: #a3907a;
+    --color-chart-missing: #b9bec6;
+    --color-chart-unrecognised: #3e434d;
     --color-chart-technical-failure: #7a2a23;
     --color-chart-not-checked: #8a8f9c;
     --color-chart-not-coded: #c3c7ce;   /* deliberately faint: unassessed */
@@ -304,6 +310,10 @@
     --color-chart-inconclusive: #a3a9b6;
     --color-chart-qualified: #c0a8fa;
     --color-chart-other: #9a9099;
+    --color-chart-descriptive: #7a92a8;
+    --color-chart-uninformative: #c2b29c;
+    --color-chart-missing: #5a5f69;
+    --color-chart-unrecognised: #d5d8de;
     --color-chart-technical-failure: #d9645a;
     --color-chart-not-checked: #7f8590;
     --color-chart-not-coded: #5a5f69;

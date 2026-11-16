@@ -8,7 +8,7 @@ import {useData, useJson} from '../state/data.jsx';
 import {useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot, comparisonSpec} from '../components/charts.jsx';
-import {Callout, Note, Section} from '../components/ui.jsx';
+import {Callout, LoadError, Note, Section} from '../components/ui.jsx';
 import {Caveat, Chips, CiteBlock, DataStamp, Pane, Placeholder, StatTiles, WebsiteCitation, byKind, kindLabel, repWord} from '../components/common.jsx';
 
 const GROUPS = {overlap: 'Author overlap', no_overlap: 'No author overlap'};
@@ -18,7 +18,7 @@ export default function AuthorshipOverlap() {
     const {theme, rev} = useEnv();
     const {rows} = useData();
     const kind = view.aoKind;
-    const {data, error} = useJson(URLS.overlap, view.tab === 'overlap-tab');
+    const {data, error, retry} = useJson(URLS.overlap, view.tab === 'overlap-tab');
     setHook('_aoData', () => data);
     const d = data?.[kind], ov = d?.overview;
     const enough = ov && ov.n_total >= ANALYSIS_MIN_N;
@@ -43,7 +43,7 @@ export default function AuthorshipOverlap() {
                 <Chips id="ao-study-type" label="Authorship Overlap study type" value={kind} onChange={k => setView({aoKind: k})} />
                 <div id="ao-content" className="stack">
                     {!data && !error && <Callout tone="empty" id="ao-loading">Loading analysis…</Callout>}
-                    {error && <Callout tone="caution" id="ao-error">Failed to load authorship overlap data. <code id="ao-error-detail">{error}</code></Callout>}
+                    {error && <LoadError id="ao-error" label="Could not load the authorship overlap data." reason={error} onRetry={retry} />}
                     {data && !enough && <Placeholder id="ao-placeholder">Not enough {studyTypeLabel(kind)} with known authorship yet (n={ov?.n_total || 0}; need at least {ANALYSIS_MIN_N}).</Placeholder>}
                     {enough && <>
                         <StatTiles id="ao-overview" box tiles={[

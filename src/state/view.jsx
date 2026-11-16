@@ -7,6 +7,8 @@ const DEFAULTS = {
     trendsKind: 'replication', journalTopN: '15', repJournalTopN: '15',
     ciKind: 'replication', ciOutcome: 'all', filterOutcome: '', ciQ: '',
     mcKind: 'replication', aoKind: 'replication', pubKind: 'replication',
+    // Comparison charts shown as counts instead of within-group percentages.
+    aoCounts: false, pubCounts: false, rrCounts: false, lsCounts: false,
 };
 
 // [state key, URL parameter, owning tab]; a shared URL carries only the active view's choices.
@@ -16,9 +18,11 @@ const PARAMS = [
     ['trendsKind', 'trends-kind', 'trends-tab'], ['journalTopN', 'journal-top-n', 'trends-tab'], ['repJournalTopN', 'rep-journal-top-n', 'trends-tab'],
     ['ciKind', 'ci-kind', 'citation-tab'], ['ciOutcome', 'ci-outcome', 'citation-tab'], ['filterOutcome', 'filter-outcome', 'citation-tab'], ['ciQ', 'ci-q', 'citation-tab'],
     ['mcKind', 'mc-kind', 'mc-tab'], ['aoKind', 'ao-kind', 'overlap-tab'], ['pubKind', 'pub-kind', 'pub-tab'],
+    ['aoCounts', 'ao-counts', 'overlap-tab'], ['pubCounts', 'pub-counts', 'pub-tab'], ['rrCounts', 'rr-counts', 'pub-tab'], ['lsCounts', 'ls-counts', 'pub-tab'],
 ];
 
 const oneOf = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
+const flag = value => value === 'true' || value === '1';
 const positive = (value, fallback) => { const n = Number(value); return Number.isSafeInteger(n) && n > 0 ? n : fallback; };
 
 function parse(url) {
@@ -45,6 +49,7 @@ function parse(url) {
         mcKind: oneOf(get('mc-kind'), KINDS, 'replication'),
         aoKind: oneOf(get('ao-kind'), KINDS, 'replication'),
         pubKind: oneOf(get('pub-kind'), KINDS, 'replication'),
+        aoCounts: flag(get('ao-counts')), pubCounts: flag(get('pub-counts')), rrCounts: flag(get('rr-counts')), lsCounts: flag(get('ls-counts')),
     };
 }
 

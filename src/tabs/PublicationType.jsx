@@ -8,7 +8,7 @@ import {useData, useJson} from '../state/data.jsx';
 import {useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot, comparisonSpec} from '../components/charts.jsx';
-import {Callout, Disclosure, Note, Section, TableScroll} from '../components/ui.jsx';
+import {Callout, Disclosure, LoadError, Note, Section, TableScroll} from '../components/ui.jsx';
 import {Caveat, Chips, CiteBlock, DataStamp, ExternalLink, OutcomeBadge, Pane, Placeholder, StatTiles, WebsiteCitation, byKind, kindLabel, repWord} from '../components/common.jsx';
 import {ReportLink} from './Browse.jsx';
 
@@ -26,7 +26,7 @@ function Comparison({prefix, state, d, kind, shortage, tiles, groups, chartTitle
     return (
         <div id={`${prefix}-content`} className="stack">
             {!state.data && !state.error && <Callout tone="empty" id={`${prefix}-loading`}>Loading analysis…</Callout>}
-            {state.error && <Callout tone="caution" id={`${prefix}-error`}>{state.errorLabel} <code id={`${prefix}-error-detail`}>{state.error}</code></Callout>}
+            {state.error && <LoadError id={`${prefix}-error`} label={state.errorLabel} reason={state.error} onRetry={state.retry} />}
             {state.data && !enough && <Placeholder id={`${prefix}-placeholder`}>Not enough {studyTypeLabel(kind)} {shortage} yet (n={d?.overview?.n_total || 0}; need at least {ANALYSIS_MIN_N}).</Placeholder>}
             {enough && <>
                 <StatTiles id={`${prefix}-overview`} tiles={tiles(d.overview)} />
@@ -108,7 +108,7 @@ export default function PublicationType() {
                 <DataStamp source="pub_status" />
                     <p>Venues are grouped mainly from the recorded venue name: repositories/preprints, conference outputs, and theses where recognisable. Where no venue name is recorded, the report’s DOI or URL is used instead: a pair whose identifier points to a repository (for example OSF, PsyArXiv or bioRxiv) is grouped as repository / preprint, and all other pairs without a venue name remain unknown. A name containing “proceedings” counts as a conference output only when it refers to a specific event (for example a numbered edition or a symposium); journals such as PNAS do not. All other names are labelled “other named venue”; this does not verify a journal article or peer review. Chart percentages use all selected reference pairs within each venue group; summary-card percentages use all selected reference pairs.</p>
             </>}>
-                    <Comparison prefix="pub" state={{...pub, errorLabel: 'Failed to load Publication Status data.'}} d={pubD} kind={kind} shortage="with publication-status data" groups={VENUES} chartTitle="Outcomes by publication venue"
+                    <Comparison prefix="pub" state={{...pub, errorLabel: 'Could not load the publication-status data.'}} d={pubD} kind={kind} shortage="with publication-status data" groups={VENUES} chartTitle="Outcomes by publication venue"
                         tiles={ov => [{value: ov.n_total, label: 'Reference pairs', always: true}, ...Object.entries(VENUES).map(([key, label]) => ({value: ov['n_' + key] || 0, label: `${label} (${percent(ov['n_' + key] || 0, ov.n_total)}%)`}))]}
                         caveat="Publication-venue status is derived from the report venue recorded in FLoRA, classified as above. Some studies currently classified as preprints may since have been formally published in a different venue without FLoRA yet reflecting that update. Any outcome differences between these groups should also not be read as caused by publication venue alone: constructive peer review, a tendency for more selective journals to accept more polished work, and publication-pressure effects — for example a bias toward reporting positive or successful results in order to get published, or conversely extra editorial scrutiny catching more issues before publication — could all plausibly produce real differences independent of, or entangled with, venue itself."
                         studies={<StudyList prefix="pub" summary="Reference pairs with publication-status data" count={pubStudies.length} head={['Study', 'Journal', 'Status', 'Year', 'Outcome', 'DOI']}>
@@ -125,7 +125,7 @@ export default function PublicationType() {
                     <CiteBlock label="Registered Reports data source"><div className="cite-ref">Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., Morillo, D., … Armstrong, C. (2026, May 14). <em>Database of Published Registered Reports</em>. <ExternalLink href="https://doi.org/10.17605/OSF.IO/VUR72">https://doi.org/10.17605/OSF.IO/VUR72</ExternalLink></div></CiteBlock>
                     {snapshotsDiffer && <Note id="rr-snapshot-note">This section uses {nPairs(rrTotal)}, while the venue section above uses {nPairs(pubD.overview.n_total)}. The two sections were refreshed from different FLoRA snapshots; see each section’s update stamp.</Note>}
             </>}>
-                    <Comparison prefix="rr" excluded={[['n_unknown', 'without a report DOI or title to check']]} state={{...rr, errorLabel: 'Failed to load Registered Reports data.'}} d={rrD} kind={kind} shortage="checked against the Registered Reports database" groups={RR_GROUPS} chartTitle={rrTitle}
+                    <Comparison prefix="rr" excluded={[['n_unknown', 'without a report DOI or title to check']]} state={{...rr, errorLabel: 'Could not load the Registered Reports data.'}} d={rrD} kind={kind} shortage="checked against the Registered Reports database" groups={RR_GROUPS} chartTitle={rrTitle}
                         tiles={ov => [
                             {value: ov.n_total || 0, label: `${Word} reference pairs checked`},
                             {value: ov.n_rr || 0, label: `Registered Reports (${percent(ov.n_rr, ov.n_total)}%)`, sub: fromReports(ov.n_rr_reports)},
@@ -148,7 +148,7 @@ export default function PublicationType() {
             <Section title="Reports by number of original targets" notes={<>
                     <p>This analysis groups replication and reproduction reports by their number of recorded original targets. <strong>Multiple-target reports</strong> contain more than three distinct original targets in the recorded data. The remaining group contains reports with up to three targets and records with missing report identifiers. Target count does not establish the number of laboratories or membership of a coordinated project. Chart percentages count reference pairs; the evidence list counts reports.</p>
             </>}>
-                    <Comparison prefix="ls" state={{...pub, errorLabel: 'Failed to load project-scale data.'}} d={sizeD} kind={kind} shortage="with report-size data" groups={SIZE_GROUPS} chartTitle="Outcomes by report size"
+                    <Comparison prefix="ls" state={{...pub, errorLabel: 'Could not load the report-size data.'}} d={sizeD} kind={kind} shortage="with report-size data" groups={SIZE_GROUPS} chartTitle="Outcomes by report size"
                         tiles={ov => [
                             {value: ov.n_total || 0, label: `${Word} reference pairs checked`},
                             {value: ov.n_individual || 0, label: `Up to 3 targets / unknown (${percent(ov.n_individual, ov.n_total)}%)`},

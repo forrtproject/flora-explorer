@@ -230,6 +230,12 @@ export default function Browse({citation}) {
                 </div>
                 <KindFilter className="browse-kind-filter" buttonClass="browse-kind-btn" value={kind} onChange={k => refilter({kind: k})} count={countText} countId="browse-kind-count" />
                 {!dimension && <Note id="browse-chart-hint">Choose a study type to see its outcome breakdown.</Note>}
+                {/* The breakdown summarises the current filter, so it sits with the filter controls; the results follow directly below. */}
+                <div id="browse-outcome-card" className="browse-breakdown" style={dimension && total ? undefined : {display: 'none'}}>
+                    <OutcomeChartRow prefix="browse" dimension="computational" rowId="browse-computational-row" hidden={dimension !== 'computational'} rows={filtered} scope="Reflects the reproductions in the table below: were the original results obtained?" />
+                    <OutcomeChartRow prefix="browse" dimension="robustness" rowId="browse-robustness-row" hidden={dimension !== 'robustness'} rows={filtered} scope="Reflects the reproductions in the table below: do results hold under alternative analysis choices?" />
+                    <OutcomeChartRow prefix="browse" dimension="replicability" rowId="browse-replicability-row" hidden={dimension !== 'replicability'} rows={filtered} scope={<>Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are shown separately when their filter is selected.</>} />
+                </div>
             </Figure>
             <Callout tone="empty" id="browse-empty" role="status" hidden={total > 0}>
                 {total === 0 && <>
@@ -251,13 +257,6 @@ export default function Browse({citation}) {
                 </CiteBlock>
             </div>
 
-            <Section title="Outcome breakdown" id="browse-outcome-card" style={dimension && total ? undefined : {display: 'none'}}>
-                <Figure>
-                    <OutcomeChartRow prefix="browse" dimension="computational" rowId="browse-computational-row" hidden={dimension !== 'computational'} rows={filtered} scope="Reflects the reproductions in the table below: were the original results obtained?" />
-                    <OutcomeChartRow prefix="browse" dimension="robustness" rowId="browse-robustness-row" hidden={dimension !== 'robustness'} rows={filtered} scope="Reflects the reproductions in the table below: do results hold under alternative analysis choices?" />
-                    <OutcomeChartRow prefix="browse" dimension="replicability" rowId="browse-replicability-row" hidden={dimension !== 'replicability'} rows={filtered} scope={<>Reflects the studies in the table below. Currently this breakdown covers <strong>replications only</strong>; reproductions are shown separately when their filter is selected.</>} />
-                </Figure>
-            </Section>
 
             <Section wide title="Reference pairs" titleId="browse-results-heading">
                 <Figure>

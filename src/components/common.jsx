@@ -10,6 +10,7 @@ const svg = {viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeW
 export const Icon = {
     info: () => <svg {...svg}><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>,
     copy: () => <svg {...svg}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>,
+    chart: () => <svg {...svg}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>,
     check: () => <svg {...svg} strokeWidth="2.5"><path d="m5 12 5 5L20 7" /></svg>,
     link: () => <svg {...svg}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>,
     download: () => <svg {...svg}><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3" /></svg>,

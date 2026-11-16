@@ -10,7 +10,7 @@ import {useData, useJson} from '../state/data.jsx';
 import {useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot} from '../components/charts.jsx';
-import {Callout, Note, Section} from '../components/ui.jsx';
+import {Callout, LoadError, Note, Section} from '../components/ui.jsx';
 import {Chips, CiteBlock, DataStamp, Gloss, Pane, Placeholder, StatTiles, byKind, kindLabel} from '../components/common.jsx';
 
 // OMC tick labels for an axis drawn on log(OMC + 1), the model's scale; a true log axis cannot show OMC = 0.
@@ -158,7 +158,7 @@ export default function MeanCitedness() {
                 <Chips id="mc-study-type" label="Mean Citedness study type" value={kind} onChange={k => setView({mcKind: k})} />
                 <div id="mc-content" className="stack">
                     {!all && !replication.error && <Callout tone="empty" id="mc-loading">Loading analysis…</Callout>}
-                    {replication.error && <Callout tone="caution" id="mc-error">Failed to load analysis data. <code id="mc-error-detail">{replication.error}</code></Callout>}
+                    {replication.error && <LoadError id="mc-error" label="Could not load the Mean Citedness analysis." reason={replication.error} onRetry={replication.retry} />}
                     {all && !enough && <Placeholder id="mc-placeholder">Not enough {studyTypeLabel(kind)} with a Mean Citedness match yet (n={ov?.n_total || 0}; need at least {ANALYSIS_MIN_N}).</Placeholder>}
                     {enough && <>
                         <StatTiles id="mc-overview" tiles={[

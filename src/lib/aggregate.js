@@ -54,8 +54,11 @@ export const yearOf = raw => {
     return y >= 1800 && y <= 2100 ? y : null;
 };
 
-// Records before this year are sparse, so they pool into one leading column.
+// Records before these years are sparse, so they pool into one leading column. Original studies
+// thin out before 1960; reports are rarer still before 2000 (about 2% of pairs, but over half the
+// calendar years since the first report in 1969), so a year-by-year axis left most of the plot empty.
 export const POOL_BEFORE = 1960;
+export const REPORT_POOL_BEFORE = 2000;
 
 // Every calendar year between the first and last observation gets a slot, so gaps keep their scale.
 export function byYear(data, field, kind, poolBefore = null) {

@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {URLS} from '../lib/config.js';
 import {categoryAxis, countAxis, escapeHtml, finishOption, labelColor, pointTable, stackCorners, tipLines, tipRow, valueAxis} from '../lib/charts.js';
 import {citationAuthors, number, percent} from '../lib/format.js';
@@ -7,11 +7,11 @@ import {outcomeBuckets} from '../lib/outcomes.js';
 import {matchesTokens, normalizeDoi, normalizedQuery, searchAuthorNames, searchTokens} from '../lib/search.js';
 import {chartTheme, textScale, token} from '../lib/theme.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
-import {useData} from '../state/data.jsx';
+import {describeLoadError, useData} from '../state/data.jsx';
 import {PaneContext, useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot} from '../components/charts.jsx';
-import {Button, Callout, Figure, Note, Section, TableScroll} from '../components/ui.jsx';
+import {Button, Callout, Figure, LoadError, Note, Section, TableScroll} from '../components/ui.jsx';
 import {Chips, CiteBlock, Icon, DataStamp, ExcludedRows, ExternalLink, Gloss, Pane, Placeholder, byKind, kindLabel, excludedOriginalLabel, exclusionReason, stampInfo} from '../components/common.jsx';
 
 const PER_PAGE = 20;
@@ -37,9 +37,11 @@ function useCitationData(enabled) {
         setState({status: 'loading'});
         Promise.all([fetchJson(URLS.citationMeta), fetchJson(URLS.aggregate), fetchJson(URLS.originalsIndex), fetchJson(URLS.cocitBreakdown, true), fetchJson(URLS.reproductionCitations, true)])
             .then(([meta, agg, index, breakdown, repro]) => setState({status: 'ready', meta, agg, index, breakdown, repro}),
-                e => { console.error('Citation Impact load failed:', e); setState({status: 'error'}); });
+                e => { console.error('Citation Impact load failed:', e); setState({status: 'error', reason: describeLoadError(e)}); });
     }, [enabled, state.status]);
-    return state;
+    // Back to idle, so the effect above loads again.
+    const retry = useCallback(() => setState({status: 'idle'}), []);
+    return {...state, retry};
 }
 
 const COCIT_WINDOW = [0, 5];
@@ -226,19 +228,19 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                                 <button type="button" className={'cocit-sort-btn' + (sort.col === 'n_cocitations' ? ` sort-${sort.dir}` : '')} data-sort="n_cocitations" title="Sort by co-citation count" aria-label="Sort by co-citation count" aria-pressed={sort.col === 'n_cocitations'} onClick={() => sortBy('n_cocitations')}>#</button>
                                 <button type="button" className={'cocit-sort-btn' + (sort.col === 'cocit_prop' ? ` sort-${sort.dir}` : '')} data-sort="cocit_prop" title="Sort by co-citation share" aria-label="Sort by co-citation percentage" aria-pressed={sort.col === 'cocit_prop'} onClick={() => sortBy('cocit_prop')}>%</button>
                             </span></th>
-                            <th scope="col"><span className="visually-hidden">Timeline</span></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {status !== 'ready' && <tr><td colSpan={6} className="table-empty">{status === 'error' ? 'No data yet.' : 'Loading…'}</td></tr>}
+                        {status !== 'ready' && <tr><td colSpan={5} className="table-empty">{status === 'error' ? 'No data yet.' : 'Loading…'}</td></tr>}
                         {slice.map(s => (
                             <tr key={s.doi} data-doi={s.doi} onClick={() => onOpen(s.doi)}>
-                                <td><div className="title-cell">{s.title || '(untitled)'}</div><div className="author-cell">{citationAuthors(s.author)}{venueText(s.venue)}</div></td>
+                                {/* The timeline action sits with the title it opens, so it stays in view on narrow screens. */}
+                                <td><div className="title-cell">{s.title || '(untitled)'}</div><div className="author-cell">{citationAuthors(s.author)}{venueText(s.venue)}</div>
+                                    <button type="button" className="btn timeline-open" aria-label={`Open citation timeline for ${s.title || s.doi}`}><Icon.chart />Timeline</button></td>
                                 <td>{s.year || '—'}</td>
                                 <td><OutcomeMixBar mix={s.outcome_mix} total={s.n_replications} /></td>
                                 <td>{number(s.n_citations || 0)}</td>
                                 <td><CocitCell s={s} /></td>
-                                <td><button type="button" className="btn timeline-open" aria-label={`Open citation timeline for ${s.title || s.doi}`}>Timeline</button></td>
                             </tr>
                         ))}
                     </tbody>
@@ -556,7 +558,7 @@ export default function CitationImpact({data}) {
 
             <div id="ci-content" style={kind === 'replication' ? undefined : {display: 'none'}}>
                 <div className="stat-band kpi-row" id="kpis">
-                    {data.status === 'error' && <Callout tone="caution" className="kpi-note"><strong>Citation data not yet available.</strong><br />Citation data could not be loaded. Please try again later.</Callout>}
+                    {data.status === 'error' && <LoadError className="kpi-note" id="ci-error" label="Could not load the citation data." reason={data.reason} onRetry={data.retry} />}
                     {!ready && data.status !== 'error' && <Callout tone="empty" className="kpi-note">Loading citation data…</Callout>}
                     {ready && <>
                     <div className="stat kpi"><div className="stat-value kpi-value">{kpi(data.meta?.n_originals)}</div><div className="stat-label kpi-label">Distinct originals with complete citation data</div></div>

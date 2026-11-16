@@ -61,6 +61,25 @@ const valueOf = v => Number(v && typeof v === 'object' && !Array.isArray(v) ? v.
 const hasData = s => s.type !== 'bar' || (s.data || []).some(v => valueOf(v) > 0);
 
 // Rows of legend items at this width, so the plot starts below them instead of under them.
+// Category names down the side of a horizontal bar chart wrap within this width, to at most three lines;
+// longer names end in an ellipsis, with the full name in the hover and the data table.
+const LABEL_LINES = 3, LABEL_LINE_HEIGHT = 14;
+export const categoryLabelWidth = width => (width < 560 ? 110 : 150) * textScale();
+const wrappedLines = (text, chars) => String(text).split(/\s+/).reduce((acc, word) => {
+    const last = acc[acc.length - 1];
+    if (last && (last + ' ' + word).length <= chars) acc[acc.length - 1] = last + ' ' + word; else acc.push(word);
+    return acc;
+}, []).length;
+
+// The height a horizontal bar chart needs at this width. ECharts gives every category the same band, so the
+// longest label sets the band; the legend's rows and the value axis come on top.
+export function horizontalBarHeight(categories, legendNames, width) {
+    const scale = textScale(), chars = Math.max(8, Math.floor(categoryLabelWidth(width) / (5.8 * scale)));
+    const lines = Math.min(LABEL_LINES, Math.max(1, ...categories.map(c => wrappedLines(c, chars))));
+    const band = Math.max(28, lines * LABEL_LINE_HEIGHT * scale + 14);
+    return Math.round(categories.length * band + legendRows(legendNames, width, scale) * 20 * scale + 6 + 48 * scale);
+}
+
 function legendRows(names, width, scale = 1) {
     if (!names.length) return 0;
     let rows = 1, used = 0;
@@ -138,7 +157,7 @@ export function stackedBarOption({categories, series, horizontal = false, pooled
     }
     // Long field and journal names break onto further lines within 150px.
     const cats = categoryAxis({data: categories, inverse: horizontal,
-        axisLabel: horizontal ? {interval: 0, width: 150 * textScale(), overflow: 'break'} : {hideOverlap: true},
+        axisLabel: horizontal ? {interval: 0, width: categoryLabelWidth(width), overflow: 'break', lineHeight: LABEL_LINE_HEIGHT, height: LABEL_LINES * LABEL_LINE_HEIGHT, lineOverflow: 'truncate'} : {hideOverlap: true},
         // Category split line i falls at the start of column i; only the one after the pooled column is drawn.
         splitLine: pooledFirst && categories.length > 1 ? {show: true, showMinLine: false, showMaxLine: false, interval: i => i === 1, lineStyle: {color: t.tick, type: [4, 3], width: 1}} : {show: false}});
     const values = valueAxis(countAxis());
@@ -156,15 +175,21 @@ export function barSummary(total, eligible, scope) {
     return sample + 'Counts are reference pairs in the displayed categories; journal charts show only the selected top N.';
 }
 
-// Dark text on light fills and white on dark ones, for labels drawn inside a bar.
+// For labels drawn inside a bar: whichever of dark or white text contrasts more with the fill.
+// Every chart fill reaches at least 4.5:1 with its choice (see the chart colour tokens).
 export function labelColor(fill) {
     const hex = /^#([0-9a-f]{6})$/i.exec(String(fill).trim());
     if (!hex) return '#fff';
     const [r, g, b] = [0, 2, 4].map(i => parseInt(hex[1].slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
-    return .2126 * r + .7152 * g + .0722 * b > .32 ? '#1f1a1d' : '#fff';
+    const fillLum = .2126 * r + .7152 * g + .0722 * b;
+    const DARK_LUM = 0.0112; // relative luminance of #1f1a1d
+    return (fillLum + .05) / (DARK_LUM + .05) > 1.05 / (fillLum + .05) ? '#1f1a1d' : '#fff';
 }
 
-const COMPARISON_SUMMARY = 'Denominator: all reference pairs in each group with the metadata required by this analysis. All recorded outcome categories and missing outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent.';
+// Groups smaller than this are too small for their percentages to mean much: at N=8 one pair moves a
+// share by 12.5 points. They stay in the chart and table, drawn faded and hatched without percentage labels.
+export const GROUP_MIN_N = 10;
+const COMPARISON_SUMMARY = `Denominator: all reference pairs in each group with the metadata required by this analysis. All recorded outcome categories and missing outcomes are retained. Missing authorship or Registered Report metadata are reported in the summary above. Repeated reports and targets mean these observations are not independent. Groups with fewer than ${GROUP_MIN_N} pairs are drawn faded and hatched: their percentages are too unstable to compare.`;
 
 // Grouped outcome comparisons (authorship, Registered Reports, venue, report size): each group's
 // outcomes as within-group percentages (stacked) or as counts (grouped). Narrow screens lay the
@@ -173,18 +198,33 @@ export function comparisonOption({groups, series}, {counts = false, width = 600}
     const t = chartTheme(), narrow = width < 600;
     const totals = groups.map((_, i) => series.reduce((sum, s) => sum + (Number(s.values[i]) || 0), 0));
     const share = (v, i) => totals[i] ? 100 * v / totals[i] : 0;
-    // Group names break onto further lines within 80px; the group's N sits on its own last line.
-    const labels = groups.map((g, i) => `${plain(g)}\nN=${number(totals[i])}`);
+    const small = totals.map(n => n > 0 && n < GROUP_MIN_N);
+    // Group names break onto further lines within 80px; the group's N sits on its own line, then any small-group note.
+    const labels = groups.map((g, i) => `${plain(g)}\nN=${number(totals[i])}${small[i] && !counts ? '\n(too few to compare)' : ''}`);
     const shares = series.map(s => s.values.map((v, i) => counts ? v : share(v, i)));
     const corners = stackCorners(shares, narrow, 4);
+    const hatch = {symbol: 'rect', symbolSize: 1, dashArrayX: [1, 0], dashArrayY: [2, 3], rotation: Math.PI / 4, color: 'rgba(255,255,255,.5)'};
     const bars = series.map((s, si) => ({
         name: s.name, type: 'bar', stack: counts ? undefined : 'share', ...(counts ? {barMaxWidth: 28} : {barWidth: '52%'}),
         itemStyle: {color: s.color, borderColor: t.paper, borderWidth: 1}, emphasis: {focus: 'series'},
         // Shares large enough to hold a label are written on the segment itself, in a colour that reads on its fill.
         label: {show: !counts, position: 'inside', color: labelColor(s.color), fontSize: 11, fontFamily: t.fontFamily, formatter: p => p.value >= 7 ? Math.round(p.value) + '%' : ''},
-        data: shares[si].map((v, i) => ({value: v, itemStyle: {borderRadius: counts ? (narrow ? [0, 3, 3, 0] : [3, 3, 0, 0]) : corners(si, i)}})),
+        data: shares[si].map((v, i) => {
+            const faded = small[i] && !counts;
+            return {value: v, ...(faded ? {label: {show: false}} : {}),
+                itemStyle: {borderRadius: counts ? (narrow ? [0, 3, 3, 0] : [3, 3, 0, 0]) : corners(si, i), ...(faded ? {opacity: .4, decal: hatch} : {})}};
+        }),
     }));
-    const tooltip = {valueFormatter: counts ? v => `${number(v)} reference pairs` : v => v.toFixed(1) + '%'};
+    // The hover names the group and its size, warns when it is too small, then each outcome's share and count.
+    const tooltip = {formatter: ps => {
+        const i = ps[0].dataIndex;
+        return tipLines([`<strong>${escapeHtml(plain(groups[i]))}</strong> · N=${number(totals[i])}`,
+            small[i] && `Only ${number(totals[i])} pairs: too few for stable percentages.`,
+            ...ps.filter(p => series[p.seriesIndex].values[i] > 0).map(p => {
+                const n = series[p.seriesIndex].values[i];
+                return tipRow(series[p.seriesIndex].color, counts ? `${p.seriesName}: ${number(n)}` : `${p.seriesName}: ${percent(n, totals[i], 1)}% (${number(n)})`);
+            })]);
+    }};
     const values = valueAxis(counts ? {...countAxis(), name: 'Reference pairs'}
         : {name: narrow ? 'Within-group\npercentage' : 'Within-group percentage', min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}});
     const cats = categoryAxis({data: labels, inverse: narrow, axisLabel: {interval: 0, width: 80 * textScale(), overflow: 'break'}});

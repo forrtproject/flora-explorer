@@ -1,14 +1,13 @@
 import {useMemo} from 'react';
-import {POOL_BEFORE, byField, byJournal, byYear, journalKey, trendCoverage, yearKey} from '../lib/aggregate.js';
+import {POOL_BEFORE, REPORT_POOL_BEFORE, byField, byJournal, byYear, journalKey, trendCoverage, yearKey} from '../lib/aggregate.js';
 import {nPairs} from '../lib/coverage.js';
 import {BROWSE_KIND_LABELS} from '../lib/config.js';
-import {wrapLabel} from '../lib/format.js';
 import {filterByKind, outcomeBuckets} from '../lib/outcomes.js';
 import {setHook} from '../lib/hooks.js';
 import {useData} from '../state/data.jsx';
 import {useEnv, usePane} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
-import {barTable, stackedBarOption} from '../lib/charts.js';
+import {barTable, horizontalBarHeight, stackedBarOption} from '../lib/charts.js';
 import {ChartCopy, ChartData, EChart} from '../components/charts.jsx';
 import {Figure, Note, Section} from '../components/ui.jsx';
 import {CiteBlock, DataStamp, KindFilter, Pane, byKind4, kindLabel, repWord} from '../components/common.jsx';
@@ -23,13 +22,15 @@ function TrendBlock({id, title, agg, kind, eligible, horizontal, minHeight, cove
     const option = useMemo(() => ({width}) => stackedBarOption({categories: agg.map(r => r.key),
         series, horizontal, pooledFirst: Boolean(agg[0]?.pooled), width}), [agg, series, horizontal]);
     const table = useMemo(() => barTable(agg.map(r => r.key), series, eligible, 'counts'), [agg, series, eligible]);
-    const lines = agg.reduce((n, r) => { const label = wrapLabel(r.key, window.innerWidth < 600 ? 18 : 38); return n + (Array.isArray(label) ? label.length : 1) * 15 + 15; }, 70);
+    // Name charts size themselves from the width they get: every row needs room for the longest name.
+    const heightFor = useMemo(() => horizontal ? width => Math.max(minHeight || 0, horizontalBarHeight(agg.map(r => r.key), series.filter(s => s.values.some(v => v > 0)).map(s => s.name), width)) : undefined,
+        [horizontal, agg, series, minHeight]);
     return (
         <Section className="trend-block" notesClass="trend-desc" level={3} title={title} notes={children}>
             <Figure note={<Note id={id + '-n'}>{coverage}</Note>} actions={<ChartCopy id={id} title={title} table={table} />}>
                 {/* Year charts keep their proportions as they widen; name charts grow with their row count. */}
-                <div className="chart-box" id={id + '-container'} style={{height: horizontal ? Math.max(minHeight, lines) : 'auto'}}>
-                    {pane.visited && (horizontal ? <EChart id={id} title={title} option={option} height="100%" /> : <EChart id={id} title={title} option={option} height={360} aspect={0.38} />)}
+                <div className="chart-box" id={id + '-container'} style={{height: 'auto'}}>
+                    {pane.visited && (horizontal ? <EChart id={id} title={title} option={option} height={minHeight} heightFor={heightFor} /> : <EChart id={id} title={title} option={option} height={360} aspect={0.38} />)}
                 </div>
                 <ChartData id={id} title={title} table={table} />
             </Figure>
@@ -55,7 +56,7 @@ export default function Trends() {
     const kind = view.trendsKind;
     const data = useMemo(() => filterByKind(rows, kind), [rows, kind, rev]);
     const origYear = useMemo(() => byYear(data, 'year_o', kind, POOL_BEFORE), [data, kind]);
-    const repYear = useMemo(() => byYear(data, 'year_r', kind), [data, kind]);
+    const repYear = useMemo(() => byYear(data, 'year_r', kind, REPORT_POOL_BEFORE), [data, kind]);
     const journals = useMemo(() => byJournal(data, 'journal_o', Number(view.journalTopN), kind), [data, kind, view.journalTopN]);
     const venues = useMemo(() => byJournal(data, 'journal_r', Number(view.repJournalTopN), kind), [data, kind, view.repJournalTopN]);
     const fields = useMemo(() => byField(data, kind, disciplineFor), [data, kind, disciplineFor]);
@@ -105,6 +106,9 @@ export default function Trends() {
                 <TrendBlock id="trend-rep-year" coverage={notes.repYear} title={`${subject} by ${word} report year`} agg={repYear} {...common}>
                     <p>Grouped by the year of the <strong>{word}</strong> report itself, this view shows the growth of FLoRA's coverage and how {all ? 'the mix of study types has' : 'outcome profiles have'} shifted over time.</p>
                     <p>The rightmost years may reflect ongoing data entry rather than a genuine decline in activity.</p>
+                    <p id="trend-rep-year-axis-note">{repYear[0]?.pooled
+                        ? `Reports published before ${REPORT_POOL_BEFORE} are sparse and are pooled into the first column, set apart by a dashed line. From ${REPORT_POOL_BEFORE} the axis runs year by year.`
+                        : 'The axis runs year by year, so years without any recorded pair appear as gaps and elapsed time keeps its scale.'}</p>
                 </TrendBlock>
 
                 <TrendBlock id="trend-journal" coverage={notes.journals} title={`${subject} by original journal`} agg={journals} horizontal minHeight={Math.max(400, journals.length * 36)} {...common}>

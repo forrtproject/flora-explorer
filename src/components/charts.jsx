@@ -2,6 +2,10 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {cellText, comparisonOption, comparisonTable, csvText, echarts, plain} from '../lib/charts.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
 import {useEnv, usePane} from '../state/env.jsx';
+import {useView} from '../state/view.jsx';
+
+// View keys holding each comparison chart's counts/percentages choice.
+const COUNTS_KEYS = {'ao-chart': 'aoCounts', 'pub-chart': 'pubCounts', 'rr-chart': 'rrCounts', 'ls-chart': 'lsCounts'};
 import {Icon} from './common.jsx';
 import {Button, Figure, IconButton} from './ui.jsx';
 
@@ -48,14 +52,16 @@ export function ChartCopy({id, title, table}) {
             await navigator.clipboard.writeText(csvText(table.headers, table.rows, table.summary + '\n' + context));
             setState('copied');
             setTimeout(() => setState(s => s === 'copied' ? 'idle' : s), 2000);
-        } catch { setState('failed'); }
+        } catch { setState('failed'); setTimeout(() => setState(s => s === 'failed' ? 'idle' : s), 3000); }
     };
     const label = state === 'copied' ? 'Chart CSV copied' : state === 'failed' ? 'Could not copy chart CSV' : 'Copy chart CSV';
+    // The result shows beside the button for two seconds (a check mark and a short label) and is announced.
     return (
-        <>
-            <IconButton id={id + '-data-copy'} className="chart-copy" label={(state === 'copied' ? 'Chart CSV copied for ' : 'Copy chart CSV for ') + title} title={label} onClick={copy}><Icon.copy /></IconButton>
+        <span className="chart-copy-wrap">
+            {state !== 'idle' && <span className={'copy-feedback' + (state === 'failed' ? ' copy-feedback--failed' : '')} aria-hidden="true">{state === 'copied' ? 'CSV copied' : 'Copy failed'}</span>}
+            <IconButton id={id + '-data-copy'} className="chart-copy" label={(state === 'copied' ? 'Chart CSV copied for ' : 'Copy chart CSV for ') + title} title={label} onClick={copy}>{state === 'copied' ? <Icon.check /> : <Icon.copy />}</IconButton>
             <span id={id + '-data-copy-status'} className="visually-hidden" role="status">{state === 'idle' ? '' : label}</span>
-        </>
+        </span>
     );
 }
 
@@ -64,7 +70,8 @@ export function ChartCopy({id, title, table}) {
 // div no width, so drawing waits until it is shown; resizes redraw at the new width.
 // aspect (height ÷ width) lets a chart grow taller as it gets wider, from `height` up to 70% of the
 // window, so wide screens get well-proportioned charts instead of long flat strips.
-export function EChart({id, title, option, height: minHeight, aspect, className = '', describedBy}) {
+// heightFor(width), when given, sets the height outright: charts whose rows need a set amount of space each.
+export function EChart({id, title, option, height: minHeight, aspect, heightFor, className = '', describedBy}) {
     const ref = useRef(null);
     const chart = useRef(null);
     const [width, setWidth] = useState(0);
@@ -80,8 +87,8 @@ export function EChart({id, title, option, height: minHeight, aspect, className 
         return () => { cancelAnimationFrame(frame); observer.disconnect(); chart.current?.dispose(); chart.current = null; };
     }, []);
     const resolved = useMemo(() => width ? (typeof option === 'function' ? option({width}) : option) : null, [option, width]);
-    const height = aspect && width && typeof minHeight === 'number'
-        ? Math.round(Math.max(minHeight, Math.min(width * aspect, window.innerHeight * 0.7))) : minHeight;
+    const height = heightFor && width ? heightFor(width)
+        : aspect && width && typeof minHeight === 'number' ? Math.round(Math.max(minHeight, Math.min(width * aspect, window.innerHeight * 0.7))) : minHeight;
     useEffect(() => {
         const el = ref.current;
         if (!resolved) return;
@@ -103,7 +110,11 @@ export function EChart({id, title, option, height: minHeight, aspect, className 
 // actions adds chart-specific controls before the shared ones (counts switch, CSV copy).
 export function Plot({id, title, spec, className = '', height, heading, note, frameId, actions}) {
     const {theme} = useEnv();
-    const [counts, setCounts] = useState(false);
+    const {view, setView} = useView();
+    // A comparison's counts/percentages choice is part of the view, so a shared link reopens it the same way.
+    const countsKey = COUNTS_KEYS[id];
+    const counts = Boolean(countsKey && view[countsKey]);
+    const setCounts = flip => countsKey && setView(prev => ({[countsKey]: flip(Boolean(prev[countsKey]))}));
     const drawable = spec && !spec.message;
     const comparison = drawable && spec.comparison;
     const option = useMemo(() => !drawable ? null : comparison ? ({width}) => comparisonOption(comparison, {counts, width}) : spec.option,

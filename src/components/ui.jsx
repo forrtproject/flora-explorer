@@ -46,6 +46,15 @@ export function Note({as: Tag = 'p', className, children, ...rest}) {
 export function Button({variant, className, children, ...rest}) {
     return <button type="button" className={cx('btn', variant && `btn--${variant}`, className)} {...rest}>{children}</button>;
 }
+// A failed load: what failed, why in plain words, and a way to try again. Announced as an alert.
+export function LoadError({id, label, reason, onRetry, className}) {
+    return (
+        <Callout tone="caution" id={id} className={cx('load-error', className)} role="alert">
+            <p><strong>{label}</strong>{reason && <> The reason: <span id={id && id + '-detail'}>{reason}</span>.</>}</p>
+            {onRetry && <Button onClick={onRetry}>Try again</Button>}
+        </Callout>
+    );
+}
 export function IconButton({label, className, children, ...rest}) {
     return <button type="button" className={cx('icon-btn', className)} aria-label={label} title={label} {...rest}>{children}</button>;
 }

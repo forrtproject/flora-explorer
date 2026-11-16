@@ -1,4 +1,4 @@
-import {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import Papa from 'papaparse';
 import {STAMPS, URLS} from '../lib/config.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
@@ -8,6 +8,18 @@ export const useData = () => useContext(DataContext);
 
 const OUTCOME_CODE_COLUMNS = new Set(['outcome', 'outcome_replication', 'outcome_computation', 'outcome_robustness']);
 const REPLICATION_FALLBACK = {outcome_replication: 'outcome', outcome_replication_quote: 'outcome_quote', out_quote_replication_source: 'outcome_quote_source'};
+
+// A load failure in words a reader can act on. Network failures reach here as a TypeError from fetch or,
+// from Papa Parse, as an Error wrapping the browser's ProgressEvent ("[object ProgressEvent]").
+export function describeLoadError(e) {
+    const text = String(e?.message ?? e ?? '');
+    const status = /HTTP (\d{3})/.exec(text)?.[1];
+    if (status === '404') return 'the data file was not found on the server (HTTP 404)';
+    if (status) return `the server could not provide the data (HTTP ${status})`;
+    if (e instanceof SyntaxError) return 'the data file could not be read';
+    if (!text || e instanceof TypeError || /ProgressEvent|NetworkError|Failed to fetch|Load failed/i.test(text)) return 'the network request failed; check your connection';
+    return text;
+}
 
 const parseCsv = url => new Promise((resolve, reject) => {
     Papa.parse(url, {download: true, header: true, skipEmptyLines: true, complete: resolve, error: reject});
@@ -69,12 +81,12 @@ export function DataProvider({children}) {
         let cancelled = false;
         (async () => {
             try { await FloraVocabulary.ready; if (!cancelled) setState(s => ({...s, vocabulary: true})); }
-            catch (e) { if (!cancelled) setState(s => ({...s, status: 'error', error: 'Error loading the outcome definitions: ' + (e.message || e)})); return; }
+            catch (e) { if (!cancelled) setState(s => ({...s, status: 'error', error: `Could not load the outcome definitions: ${describeLoadError(e)}.`})); return; }
             try {
                 const [rows, disciplines] = await Promise.all([loadRows(), loadDisciplines()]);
                 if (!cancelled) setState({status: 'ready', rows, disciplines, error: '', vocabulary: true});
             } catch (e) {
-                if (!cancelled) setState(s => ({...s, status: 'error', error: 'Error loading FLoRA data: ' + (e.message || e)}));
+                if (!cancelled) setState(s => ({...s, status: 'error', error: `Could not load FLoRA data: ${describeLoadError(e)}.`}));
             }
         })();
         loadStamps().then(loaded => { if (!cancelled) setStamps(loaded); });
@@ -88,7 +100,8 @@ export function DataProvider({children}) {
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 
-// Fetches one JSON resource the first time its tab is opened.
+// Fetches one JSON resource the first time its tab is opened. A failure gives a readable `error`
+// and `retry()`, which clears it so the next render fetches again.
 export function useJson(url, enabled, optional = false) {
     const [state, setState] = useState({data: null, error: '', loading: false});
     useEffect(() => {
@@ -98,7 +111,8 @@ export function useJson(url, enabled, optional = false) {
             if (!res.ok) throw new Error('HTTP ' + res.status);
             return res.json();
         }).then(data => setState({data, error: '', loading: false}),
-            err => setState({data: optional ? {} : null, error: optional ? '' : String(err), loading: false}));
+            err => setState({data: optional ? {} : null, error: optional ? '' : describeLoadError(err), loading: false}));
     }, [url, enabled, optional, state.data, state.loading, state.error]);
-    return state;
+    const retry = useCallback(() => setState({data: null, error: '', loading: false}), []);
+    return {...state, retry};
 }

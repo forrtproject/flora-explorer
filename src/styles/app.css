@@ -152,12 +152,19 @@ code { font-family: var(--font-mono); font-size: .85em; }
 /* Each chart is its own stacking context, so a lingering tooltip never sits above a dialog. */
 .echart { width: 100%; isolation: isolate; }
 .chart-tooltip { line-height: 1.45; }
+.chart-copy-wrap { display: inline-flex; align-items: center; gap: var(--space-2); }
+.copy-feedback { padding: .15rem .55rem; border-radius: 999px; background: var(--color-primary-faint); color: var(--color-text); font-size: var(--fs-3); font-weight: 600; white-space: nowrap; animation: copyIn .18s var(--ease); }
+.copy-feedback--failed { background: var(--color-warning-bg); }
+@keyframes copyIn { from { opacity: 0; transform: translateX(4px); } }
+@media (prefers-reduced-motion: reduce) { .copy-feedback { animation: none; } }
 .chart-tip-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 .plot-message { display: grid; place-items: center; min-height: 160px; padding: var(--space-5); color: var(--color-text-secondary); text-align: center; }
 
 /* Callout: a tinted panel for a caveat, a warning or an empty state. */
 .callout { padding: var(--space-3) var(--space-4); border: 1px solid var(--primary-soft); border-radius: var(--r); background: var(--color-primary-faint); color: var(--color-text-secondary); font-size: var(--fs-5); }
 .callout > :last-child { margin-bottom: 0; }
+.load-error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.load-error p { margin: 0; }
 .callout--caution { border-color: var(--color-warning-border); background: var(--color-warning-bg); }
 .callout--empty { padding: var(--space-5); border: 1.5px dashed var(--color-primary-border); background: var(--color-surface-raised); text-align: center; }
 .callout-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-3); }
@@ -325,6 +332,9 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .stats-card .distinct { margin-top: .3rem; font-size: var(--fs-3); line-height: 1.35; color: var(--color-text-secondary); }
 
 /* Outcome charts: three rows inside one figure. */
+.browse-breakdown { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--color-border-light); }
+/* Browse shows one outcome row at a time; the others are hidden but still siblings, so the row dividers below must not apply. */
+.browse-breakdown .outcome-chart-row + .outcome-chart-row { margin-top: 0; padding-top: 0; border-top: 0; }
 .outcome-chart-row + .outcome-chart-row { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border-light); }
 .outcome-chart-label { display: flex; align-items: center; gap: .35rem; font-size: var(--fs-5); font-weight: 700; }
 .outcome-chart-label .chart-copy { margin-left: auto; }
@@ -471,6 +481,7 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
 .modal-body .study-plot-wrap { margin-top: var(--space-5); }
 .modal-body > h3 { font-size: var(--fs-6); margin: var(--space-5) 0 var(--space-2); }
 .modal-wait { padding: 40px 0; text-align: center; }
+#originals-table .timeline-open { margin-top: var(--space-2); }
 .rep-list { list-style: none; margin: 0; padding: 0; }
 .rep-list li { padding-block: var(--space-3); border-top: 1px solid var(--color-border-light); font-size: var(--fs-5); overflow-wrap: anywhere; }
 /* The timeline's marker key: a chip per replication, above the chart, linking to its entry in the list. */
@@ -479,7 +490,12 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
 .rep-chip { display: inline-flex; align-items: center; gap: .45rem; padding: .2rem .7rem .2rem .3rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); font-size: var(--fs-3); color: var(--color-text); }
 .rep-chip:hover { border-color: var(--color-primary); background: var(--color-primary-faint); }
 .rep-chip > span:last-child { white-space: nowrap; }
-@media (pointer: coarse) { .rep-chip, .ci-share-btn { min-height: 44px; } .figure-actions .chart-copy { min-width: 44px; min-height: 44px; } }
+/* Touch screens: every compact control gets a 44px target. Mouse layouts keep their compact sizes,
+   which already meet the 24px WCAG 2.2 AA minimum. */
+@media (pointer: coarse) {
+    .rep-chip, .btn, .theme-toggle, .icon-btn, .table-sort, .cocit-sort-btn { min-height: 44px; }
+    .theme-toggle, .icon-btn, .cocit-sort-btn { min-width: 44px; }
+}
 /* Phones keep the chips on one swipeable line, so the chart stays near the top of the dialog. */
 @media (max-width: 600px) {
     .rep-chips { flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: 2px; }
