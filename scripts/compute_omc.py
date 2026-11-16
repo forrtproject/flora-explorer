@@ -395,8 +395,6 @@ def compute_reproduction_impact_stats(rows: list[dict]) -> None:
             impact = float(row.get("impact_factor") or "")
         except ValueError:
             impact = None
-        if impact is None:
-            continue
         journal = (row.get("journal_o") or "").strip()
         repro_rows.append({
             "impact_factor": impact,
@@ -411,10 +409,13 @@ def compute_reproduction_impact_stats(rows: list[dict]) -> None:
         # dropped rather than kept as their own bucket - they say nothing about it. Applied
         # per dimension, so a reproduction whose robustness was never checked still counts
         # toward the computational breakdown.
-        rows = [r for r in repro_rows if r[bucket_key] in buckets]
+        with_verdict = [r for r in repro_rows if r[bucket_key] in buckets]
+        rows = [r for r in with_verdict if r["impact_factor"] is not None]
         journals = {r["journal"] for r in rows if r["journal"]}
         disciplines = {r["discipline"] for r in rows if r["discipline"] != "Uncategorized"}
-        overview = {"n_total": len(rows), "n_journals": len(journals), "n_disciplines": len(disciplines)}
+        overview = {"n_total": len(rows), "n_input": len(with_verdict),
+                    "n_excluded": len(with_verdict) - len(rows),
+                    "n_journals": len(journals), "n_disciplines": len(disciplines)}
         for b in buckets:
             overview[f"n_{b}"] = sum(1 for r in rows if r[bucket_key] == b)
 

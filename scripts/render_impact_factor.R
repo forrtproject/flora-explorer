@@ -154,12 +154,22 @@ if (nrow(df) >= 30) {
       p_hi = round(plogis(gp$fit[i] + 1.96 * gp$se.fit[i]), 4)
     ))
 
+    first_present <- function(...) {
+      out <- rep(NA_character_, nrow(df))
+      for (v in list(...)) out <- ifelse(is.na(out) & !is.na(v) & nzchar(trimws(v)), trimws(v), out)
+      out
+    }
+    df$original_id <- first_present(df$doi_o, df$title_o)
+    df$report_id   <- first_present(df$doi_r, df$url_r, df$title_r)
+    cols <- c("impact_factor", "outcome_binary", "original_id", "report_id")
+
     # A random sample within the curve's range, plus every pair beyond it.
-    jdf <- df[!beyond, c("impact_factor", "outcome_binary")]
+    jdf <- df[!beyond, cols]
     if (nrow(jdf) > 800) jdf <- jdf[sample(nrow(jdf), 800), ]
-    jdf <- rbind(jdf, df[beyond, c("impact_factor", "outcome_binary")])
+    jdf <- rbind(jdf, df[beyond, cols])
     jitter <- lapply(seq_len(nrow(jdf)), function(i)
-      list(omc = round(jdf$impact_factor[i], 3), outcome = jdf$outcome_binary[i]))
+      list(omc = round(jdf$impact_factor[i], 3), outcome = jdf$outcome_binary[i],
+           original = jdf$original_id[i], report = jdf$report_id[i]))
   }
 }
 

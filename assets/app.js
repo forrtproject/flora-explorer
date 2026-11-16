@@ -180,7 +180,7 @@ function mountSegmented(container, {label, options, value, onChange, countOf}) {
         if (onChange) onChange(ctl.value);
         ctl.refreshCount();
     }));
-    ctl.select(options.some(o => o.value === value) || value === 'reproduction' ? value : options[0].value);
+    ctl.select(options.some(o => o.value === value) ? value : options[0].value);
     SEGMENTED_CONTROLS.push(ctl);
     return ctl;
 }
@@ -219,8 +219,8 @@ function studyTypeOutcomeBuckets(kind) {
 }
 
 // Static copy that depends on the selected study type carries its three variants in
-// data-kind-text="replication|numerical|robustness"; the markup is authored, not data.
-const KIND_TEXT_INDEX = {replication: 0, 'reproduction-numerical': 1, 'reproduction-robustness': 2};
+// data-kind-text="replication|numerical|robustness[|all]"; the markup is authored, not data.
+const KIND_TEXT_INDEX = {replication: 0, 'reproduction-numerical': 1, 'reproduction-robustness': 2, all: 3};
 function applyKindText(root, kind) {
     const i = KIND_TEXT_INDEX[kind]; if (i === undefined || !root) return;
     root.querySelectorAll('[data-kind-text]').forEach(el => {
@@ -247,6 +247,7 @@ mountStudyTypeControl('pubtype-study-type', kind => {
     renderPubStatusCharts();
     renderRRCharts();
     renderLargeScaleCharts();
+    renderPubTypeSnapshotNote();
 });
 
 function getOutcomeBadge(row) {
@@ -276,11 +277,12 @@ function escapeHtml(text) {
 
 // ===== KPI tile (single component, used on every tab) =====
 // value: number or preformatted string; label: required; denominator: optional third line.
-function kpiHtml(value, label, denominator) {
+function kpiHtml(value, label, denominator, extraHtml) {
     const v = typeof value === 'number' ? value.toLocaleString('en-GB') : value;
     return '<div class="kpi"><div class="kpi-value">' + escapeHtml(v) + '</div>' +
         '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
         (denominator ? '<div class="kpi-denominator">' + escapeHtml(denominator) + '</div>' : '') +
+        (extraHtml || '') +
         '</div>';
 }
 // Denominator line for a share of a total, e.g. "42.1% of 1,234".
@@ -397,13 +399,65 @@ function chartLibMissing(elId, lib) {
 }
 
 // ===== Overview =====
+function normalizeDoi(doi) {
+    return String(doi || '').trim().toLowerCase()
+        .replace(/^https?:\/\/(dx\.)?doi\.org\//, '').replace(/^doi:\s*/, '').replace(/^[/ ]+|[/ ]+$/g, '');
+}
+function normalizeTitle(title) {
+    return String(title || '').normalize('NFD').replace(/\p{Mn}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+// Must match report_key() in scripts/compute_rr_status.py.
+function reportKey(row) {
+    const doi = normalizeDoi(row.doi_r);
+    if (doi) return 'doi:' + doi;
+    const url = String(row.url_r || '').trim().toLowerCase();
+    if (url) return 'url:' + url;
+    const title = normalizeTitle(row.title_r);
+    return title ? 'title:' + title : '';
+}
+function distinctReportCounts(rows) {
+    const originals = new Set(rows.map(r => normalizeDoi(r.doi_o)).filter(Boolean));
+    return {
+        originals: originals.size,
+        noOriginalDoi: rows.filter(r => !normalizeDoi(r.doi_o)).length,
+        reports: new Set(rows.map(reportKey).filter(Boolean)).size,
+    };
+}
+const nPairs = n => `${n.toLocaleString('en-GB')} reference ${n === 1 ? 'pair' : 'pairs'}`;
+
+const kindNoun = kind => (kind === 'replication' ? 'replication' : 'reproduction') + ' reference pairs';
+function kindPairCount(kind) {
+    return fullRowData.filter(r => classifyKind(r) === (kind === 'replication' ? 'replication' : 'reproduction')).length;
+}
+// Pairs of the selected type that are neither plotted nor covered by a stated reason.
+function unexplainedReason(kind) {
+    return kind === 'replication' ? 'not in this analysis snapshot' : 'without a verdict on this dimension';
+}
+// reasons: [[count, 'without …'], …]. M never drops below N plus the stated exclusions.
+function coverageText(n, m, reasons = [], noun = 'reference pairs', kind = null) {
+    const fmt = v => v.toLocaleString('en-GB');
+    const listed = reasons.filter(([k]) => k > 0);
+    const stated = listed.reduce((sum, [k]) => sum + k, 0);
+    const total = Math.max(m || 0, n + stated);
+    if (kind && total - n - stated > 0) listed.push([total - n - stated, unexplainedReason(kind)]);
+    const counted = total === 1 ? noun.replace(/\b(pairs|originals|works)\b/, w => w.slice(0, -1)) : noun;
+    return `Included in the plot: ${fmt(n)} of ${fmt(total)} ${counted}; ` +
+        (listed.length ? `excluded: ${listed.map(([k, why]) => `${fmt(k)} ${why}`).join(', ')}.` : 'none excluded.');
+}
+function setCoverage(chartId, text) { setCaption(chartId + '-n', text); return text; }
+
 function updateOverviewStats(data) {
-    const total = data.length;
-    const replications = data.filter(r => classifyKind(r) === 'replication').length;
-    const reproductions = data.filter(r => classifyKind(r) === 'reproduction').length;
-    document.getElementById('ov-total').textContent = total.toLocaleString('en-GB');
-    document.getElementById('ov-replications').textContent = replications.toLocaleString('en-GB');
-    document.getElementById('ov-reproductions').textContent = reproductions.toLocaleString('en-GB');
+    const groups = {
+        total: data,
+        replications: data.filter(r => classifyKind(r) === 'replication'),
+        reproductions: data.filter(r => classifyKind(r) === 'reproduction'),
+    };
+    for (const [key, rows] of Object.entries(groups)) {
+        document.getElementById('ov-' + key).textContent = rows.length.toLocaleString('en-GB');
+        const c = distinctReportCounts(rows);
+        const missing = c.noOriginalDoi ? `; ${nPairs(c.noOriginalDoi)} without an original DOI` : '';
+        setCaption('ov-' + key + '-distinct', `${c.reports.toLocaleString('en-GB')} distinct repetition reports · ${c.originals.toLocaleString('en-GB')} distinct original DOIs${missing}`);
+    }
 }
 
 // Builds the {datasets, total} for one of the three outcome dimensions shown on the
@@ -1208,23 +1262,21 @@ let trendsKind = 'replication';
 function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
 function updateTrendsCount() { trendsControl?.refreshCount(); }
 
-// Plain per-category counts (year/journal/field) - no outcome breakdown. A prior version
-// stacked these by outcome, but for 'reproduction-numerical'/'reproduction-robustness' kinds
-// the label fell back to the row's full raw (compound) outcome string regardless of which
-// dimension was selected, so both dimensions showed up under either kind. Simple counts sidestep
-// that entirely and are also the more legible default for a "how many, by category" view.
-// Which outcome bucket (per studyTypeOutcomeBuckets/trendOutcomeBuckets) a row falls
-// into, for whichever study type is currently selected in the trend filter.
+// Which bucket (per trendOutcomeBuckets) a row falls into for the selected study type.
 function outcomeBucketKeyForRow(row, kind) {
+    if (kind === 'all') return classifyKind(row);
     if (kind === 'reproduction-numerical') return parseReproductionOutcome(row).computational || 'not_coded';
     if (kind === 'reproduction-robustness') return parseReproductionOutcome(row).robustness || 'not_coded';
     return FloraVocabulary.replication(row);
 }
 
-// Reproduction selections include assessed verdicts only. Replication selections
-// retain every category, including missing and unrecognised outcomes.
+// "All" stacks by study type: replication and reproduction outcome vocabularies cannot share a bar.
 function trendOutcomeBuckets(kind) {
-    if (kind === 'reproduction-numerical' || kind === 'reproduction-robustness') return studyTypeOutcomeBuckets(kind);
+    if (kind === 'all') return [
+        {key: 'replication', label: 'Replication', color: FloraCharts.token('--color-primary')},
+        {key: 'reproduction', label: 'Reproduction', color: FloraCharts.token('--color-link')},
+        {key: 'unknown', label: 'Study type not recorded', color: chartToken('not-coded')},
+    ];
     return studyTypeOutcomeBuckets(kind);
 }
 
@@ -1250,14 +1302,38 @@ function aggregateStackedCounts(data, keyFn, kind) {
 // Records before this year are sparse (16 replication pairs across 1880–1959), so the
 // original-year chart pools them into one leading column instead of 80 mostly empty years.
 const TREND_POOL_BEFORE = 1960;
+function recordedYear(row, yearField) {
+    const yRaw = row[yearField]; if (!yRaw) return null;
+    const match = String(yRaw).match(/\d{4}/); if (!match) return null;
+    const y = parseInt(match[0], 10);
+    if (!y || y < 1800 || y > 2100) return null;
+    return String(y);
+}
+const journalKey = field => row => (row[field] || '').trim() || null;
+
+// Visible "N of M shown" line; the same pairs the chart drops, with the reason for each.
+function trendCoverageNote(id, data, keyFn, kind, missingWhat, top = null) {
+    const el = document.getElementById(id); if (!el) return;
+    const bucketKeys = new Set(trendOutcomeBuckets(kind).map(b => b.key));
+    let shown = 0, noKey = 0, noVerdict = 0, notTop = 0;
+    data.forEach(row => {
+        const k = keyFn(row);
+        if (k === null || k === undefined || k === '') noKey++;
+        else if (!bucketKeys.has(outcomeBucketKeyForRow(row, kind))) noVerdict++;
+        else if (top && !top.keys.has(k)) notTop++;
+        else shown++;
+    });
+    const excluded = [
+        noKey && `${nPairs(noKey)} without a recorded ${missingWhat}`,
+        noVerdict && `${nPairs(noVerdict)} without a verdict on this dimension`,
+        notTop && `${nPairs(notTop)} outside the top ${top.keys.size} ${top.noun}`,
+    ].filter(Boolean);
+    el.textContent = `${shown.toLocaleString('en-GB')} of ${nPairs(data.length)} shown` +
+        (excluded.length ? `; excluded: ${excluded.join(', ')}.` : '; none excluded.');
+}
+
 function aggregateByYear(data, yearField, kind, poolBefore = null) {
-    const yearKey = row => {
-        const yRaw = row[yearField]; if (!yRaw) return null;
-        const match = String(yRaw).match(/\d{4}/); if (!match) return null;
-        const y = parseInt(match[0], 10);
-        if (!y || y < 1800 || y > 2100) return null;
-        return String(y);
-    };
+    const yearKey = row => recordedYear(row, yearField);
     // Fill every calendar year between the first and last observation with zero counts, so a
     // 55-year gap takes 55 slots on the category axis rather than one.
     const out = aggregateStackedCounts(data, yearKey, kind);
@@ -1283,7 +1359,7 @@ function aggregateByYear(data, yearField, kind, poolBefore = null) {
 }
 
 function aggregateByJournal(data, field, topN, kind) {
-    const out = aggregateStackedCounts(data, row => (row[field] || '').trim() || null, kind);
+    const out = aggregateStackedCounts(data, journalKey(field), kind);
     out.sort((a, b) => b.total - a.total);
     return out.slice(0, topN);
 }
@@ -1359,6 +1435,7 @@ function renderStackedCountChart(canvasId, agg, orientation, existing, buckets, 
 
 function renderTrendOrigYear() {
     const agg = aggregateByYear(trendsFilteredData(), 'year_o', trendsKind, TREND_POOL_BEFORE);
+    trendCoverageNote('trend-orig-year-n', trendsFilteredData(), row => recordedYear(row, 'year_o'), trendsKind, 'original publication year');
     const note = document.getElementById('trend-orig-year-axis-note');
     if (note) note.textContent = agg[0]?.pooled
         ? `Pairs with original studies published before ${TREND_POOL_BEFORE} are sparse and are pooled into the first column, set apart by a dashed line. From ${TREND_POOL_BEFORE} the axis runs year by year, so years without any recorded pair appear as gaps.`
@@ -1366,34 +1443,35 @@ function renderTrendOrigYear() {
     trendOrigYearChart = renderStackedCountChart('trend-orig-year', agg, 'vertical', trendOrigYearChart, trendOutcomeBuckets(trendsKind));
 }
 function renderTrendRepYear() {
+    trendCoverageNote('trend-rep-year-n', trendsFilteredData(), row => recordedYear(row, 'year_r'), trendsKind, 'report year');
     trendRepYearChart = renderStackedCountChart('trend-rep-year', aggregateByYear(trendsFilteredData(), 'year_r', trendsKind), 'vertical', trendRepYearChart, trendOutcomeBuckets(trendsKind));
 }
 function renderTrendJournal() {
     const topN = parseInt(document.getElementById('journal-top-n').value, 10) || 15;
     const agg = aggregateByJournal(trendsFilteredData(), 'journal_o', topN, trendsKind);
+    trendCoverageNote('trend-journal-n', trendsFilteredData(), journalKey('journal_o'), trendsKind, 'original journal', {keys: new Set(agg.map(g => g.key)), noun: 'journals'});
     document.getElementById('trend-journal-container').style.height = Math.max(400, agg.length * 36) + 'px';
     trendJournalChart = renderStackedCountChart('trend-journal', agg, 'horizontal', trendJournalChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
 }
 function renderTrendRepJournal() {
     const topN = parseInt(document.getElementById('rep-journal-top-n').value, 10) || 15;
     const agg = aggregateByJournal(trendsFilteredData(), 'journal_r', topN, trendsKind);
+    trendCoverageNote('trend-rep-journal-n', trendsFilteredData(), journalKey('journal_r'), trendsKind, 'report venue', {keys: new Set(agg.map(g => g.key)), noun: 'venues'});
     document.getElementById('trend-rep-journal-container').style.height = Math.max(400, agg.length * 36) + 'px';
     trendRepJournalChart = renderStackedCountChart('trend-rep-journal', agg, 'horizontal', trendRepJournalChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
 }
 function renderTrendField() {
     const agg = aggregateByField(trendsFilteredData(), trendsKind);
+    trendCoverageNote('trend-field-n', trendsFilteredData(), row => disciplineForJournal(row.journal_o), trendsKind, 'field');
     document.getElementById('trend-field-container').style.height = Math.max(360, agg.length * 44) + 'px';
     trendFieldChart = renderStackedCountChart('trend-field', agg, 'horizontal', trendFieldChart, trendOutcomeBuckets(trendsKind), { wrapLabels: true });
 }
 function renderAllTrends() {
     updateTrendsCount();
     const chartsEl = document.getElementById('trends-charts');
-    const placeholderEl = document.getElementById('trends-placeholder');
-    const show = trendsKind !== 'all';
-    if (chartsEl) chartsEl.style.display = show ? '' : 'none';
-    if (placeholderEl) placeholderEl.style.display = show ? 'none' : '';
-    if (!show) return;
-    applyKindText(document.getElementById('trends-charts'), trendsKind);
+    const allNote = document.getElementById('trends-all-note');
+    if (allNote) allNote.hidden = trendsKind !== 'all';
+    applyKindText(chartsEl, trendsKind);
     renderTrendOrigYear(); renderTrendRepYear();
     renderTrendJournal(); renderTrendRepJournal();
     renderTrendField();
@@ -1442,6 +1520,8 @@ function renderMcCharts() {
     const d = window._mcData && window._mcData[mcKind];
     const insufficientEl = document.getElementById('mc-placeholder');
     const overviewEl = document.getElementById('mc-overview');
+    const eligibleEl = document.getElementById('mc-eligible');
+    if (eligibleEl) eligibleEl.style.display = 'none';
     const distCard = document.getElementById('mc-dist-card');
     const gamCard = document.getElementById('mc-gam-card');
     if (!d || !d.overview || d.overview.n_total < ANALYSIS_MIN_N) {
@@ -1479,6 +1559,9 @@ function renderMcCharts() {
         statCards +
         kpiHtml(ov.n_journals, 'Journals matched') +
         kpiHtml(ov.n_disciplines, 'Disciplines');
+    const noOmc = 'without an OMC (no original journal recorded, journal not found in OpenAlex, or OMC set aside)';
+    const distCoverage = coverageText(ov.n_total, kindPairCount(mcKind), [[ov.n_excluded || 0, noOmc]], kindNoun(mcKind), mcKind);
+    if (eligibleEl) { eligibleEl.textContent = distCoverage; eligibleEl.style.display = ''; }
 
     // ── Distribution chart (Plotly stacked bar) ───────────────────────────
     const bins  = d.histogram || [];
@@ -1496,7 +1579,7 @@ function renderMcCharts() {
         font: { family: t.fontFamily, size: 12, color: t.font },
         legend: { orientation: 'h', y: -0.2, font: { color: t.font } },
         height: 320,
-    }, { displayModeBar: false, responsive: true });
+    }, { displayModeBar: false, responsive: true }, { coverage: distCoverage });
 
     const st = d.stats || {};
     const curve = d.curve && d.curve.end_omc !== undefined ? d.curve : null;
@@ -1569,26 +1652,34 @@ function renderMcCharts() {
     // The data table lists model quantities, not plotting internals: one row per curve point
     // with its interval, then the displayed sample's raw values (not the jittered positions).
     const points = Array.isArray(d.jitter) ? d.jitter : [];
+    const notModelled = buckets.filter(b => !['successful', 'failed'].includes(b.key))
+        .map(b => [ov[b.overviewKey] || 0, b.label.toLowerCase()]);
+    const modelCoverage = coverageText(st.n_model, kindPairCount('replication'),
+        [[ov.n_excluded || 0, noOmc], ...notModelled], 'replication reference pairs', 'replication');
     const modelTable = {
-        headers: ['Row type', 'OMC', 'Estimated P(success)', '95% CI lower', '95% CI upper', 'Observed outcome (1 = successful, 0 = failed)'],
+        headers: ['Row type', 'OMC', 'Estimated P(success)', '95% CI lower', '95% CI upper', 'Observed outcome (1 = successful, 0 = failed)', 'Original (DOI or title)', 'Report (DOI, URL or title)'],
         rows: [
-            ...gc.map(p => ['Fitted curve', p.omc, p.p, p.p_lo, p.p_hi, '']),
-            ...points.map(p => ['Displayed pair', p.omc, '', '', '', p.outcome]),
+            ...gc.map(p => ['Fitted curve', p.omc, p.p, p.p_lo, p.p_hi, '', '', '']),
+            ...points.map(p => ['Displayed pair', p.omc, '', '', '', p.outcome, p.original || '', p.report || '']),
         ],
-        summary: `Fitted curve: logistic smooth of log(OMC + 1) with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs${curve ? ` and shown up to OMC ${curve.end_omc}` : ''}. Displayed pairs: ${points.length.toLocaleString()} of these pairs (a random sample${curve && curve.n_beyond ? `, plus all ${curve.n_beyond.toLocaleString('en-GB')} beyond the curve` : ''}), with their raw OMC and outcome; the chart jitters their positions for legibility. The sample has no pair identifiers.`,
+        summary: `Fitted curve: logistic smooth of log(OMC + 1) with pointwise 95% intervals, estimated from ${Number(st.n_model).toLocaleString()} successful or failed reference pairs${curve ? ` and shown up to OMC ${curve.end_omc}` : ''}. Model statistics at full precision: edf = ${st.edf}, χ² = ${st.chi_sq}, p = ${st.p_val}, McFadden R² = ${st.r2}. Displayed pairs: ${points.length.toLocaleString()} of these pairs (a random sample${curve && curve.n_beyond ? `, plus all ${curve.n_beyond.toLocaleString('en-GB')} beyond the curve` : ''}), with their raw OMC, outcome and identifiers; the chart jitters their positions for legibility.`,
     };
-    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true }, { table: modelTable });
+    FloraCharts.plot('mc-gam-chart', gamTraces, gamLayout, { displayModeBar: false, responsive: true }, { table: modelTable, coverage: modelCoverage });
     const pNote = (st.p_val !== null && st.p_val !== undefined)
         ? (st.p_val < 0.001 ? 'p < .001' : 'p = ' + st.p_val.toFixed(3))
         : '';
     const glossEdf = '<span class="gloss" tabindex="0">edf<span class="gloss-tip">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</span></span>';
     const glossR2 = '<span class="gloss" tabindex="0">McFadden R²<span class="gloss-tip">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</span></span>';
+    const sig2 = v => Number(v).toLocaleString('en-GB', { maximumSignificantDigits: 2 });
+    const modelExcluded = buckets.filter(b => !['successful', 'failed'].includes(b.key) && ov[b.overviewKey] > 0)
+        .map(b => `${escapeHtml(b.label.toLowerCase())} ${ov[b.overviewKey].toLocaleString('en-GB')}`);
     document.getElementById('mc-gam-stats').innerHTML =
-        'Logistic smooth of log(OMC + 1): ' + glossEdf + ' = ' + st.edf +
-        ', χ² = ' + st.chi_sq +
+        'Logistic smooth of log(OMC + 1): ' + glossEdf + ' = ' + sig2(st.edf) +
+        ', χ² = ' + sig2(st.chi_sq) +
         (pNote ? ', ' + pNote : '') +
-        '; ' + glossR2 + ' = ' + st.r2 +
-        '; N = ' + st.n_model.toLocaleString('en-GB') + ' (successful vs. failed)';
+        '; ' + glossR2 + ' = ' + sig2(st.r2) +
+        '; N = ' + st.n_model.toLocaleString('en-GB') + ' of ' + nPairs(ov.n_total) + ' with OMC (successful vs. failed)' +
+        (modelExcluded.length ? '; excluded: ' + modelExcluded.join(', ') : '') + '.';
 }
 
 function mcSetAsideNote(d) {
@@ -1676,7 +1767,7 @@ function renderOverlapCharts() {
             kpiHtml(ov.n_total || 0, (aoKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs included') +
             kpiHtml(ov.n_overlap || 0, 'With author overlap', kpiShare(ov.n_overlap, ov.n_total)) +
             kpiHtml(ov.n_no_overlap || 0, 'Without author overlap', kpiShare(ov.n_no_overlap, ov.n_total)) +
-            kpiHtml(ov.n_unknown || 0, 'Overlap unknown', kpiShare(ov.n_unknown, ov.n_total));
+            kpiHtml(ov.n_unknown || 0, 'Overlap unknown', kpiShare(ov.n_unknown, (ov.n_total || 0) + (ov.n_unknown || 0)));
         omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
@@ -1716,7 +1807,8 @@ function renderOverlapCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ao-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('ao-chart', coverageText(ov.n_total || 0, kindPairCount(aoKind), [[ov.n_unknown || 0, 'with authorship overlap unknown']], kindNoun(aoKind), aoKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     chartCard.style.display = '';
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
@@ -1783,13 +1875,15 @@ function renderRRCharts() {
     const by = d.by_outcome;
 
     // ── Overview boxes ─────────────────────────────────────────────────────────
+    const fromReports = n => n === undefined ? ''
+        : `<span class="mc-stat-sub">pairs from ${n.toLocaleString('en-GB')} distinct ${n === 1 ? 'report' : 'reports'}</span>`;
     const ovEl = document.getElementById('rr-overview');
     if (ovEl) {
         ovEl.innerHTML =
             kpiHtml(ov.n_total || 0, (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs checked') +
-            kpiHtml(ov.n_rr || 0, 'Registered Reports', kpiShare(ov.n_rr, ov.n_total)) +
-            kpiHtml(ov.n_non_rr || 0, 'Not found in RR database', kpiShare(ov.n_non_rr, ov.n_total)) +
-            kpiHtml(ov.n_unknown || 0, 'Not checkable', kpiShare(ov.n_unknown, ov.n_total));
+            kpiHtml(ov.n_rr || 0, 'Registered Reports', kpiShare(ov.n_rr, ov.n_total), fromReports(ov.n_rr_reports)) +
+            kpiHtml(ov.n_non_rr || 0, 'Not found in RR database', kpiShare(ov.n_non_rr, ov.n_total), fromReports(ov.n_non_rr_reports)) +
+            kpiHtml(ov.n_unknown || 0, 'Not checkable', kpiShare(ov.n_unknown, (ov.n_total || 0) + (ov.n_unknown || 0)));
         omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
@@ -1829,26 +1923,38 @@ function renderRRCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('rr-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('rr-chart', coverageText(ov.n_total || 0, kindPairCount(pubTypeKind), [[ov.n_unknown || 0, 'without a report DOI or title to check']], kindNoun(pubTypeKind), pubTypeKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     chartCard.style.display = '';
 
-    // ── Included-studies table ───────────────────────────────────────────────────
+    // ── Included-reports table: one row per report, with its pairs' outcomes ──────
     const studies = Array.isArray(d.rr_studies) ? d.rr_studies : [];
+    const reports = new Map();
+    studies.forEach((s, i) => {
+        const key = reportKey(s) || 'pair:' + i;
+        if (!reports.has(key)) reports.set(key, []);
+        reports.get(key).push(s);
+    });
     const tbody = document.querySelector('#rr-studies-table tbody');
     if (tbody) {
-        tbody.innerHTML = studies.map(s => {
-            const doiLink = formatUrlOrDoi(s.url_r, s.doi_r);
+        const type = pubTypeKind === 'replication' ? 'replication' : 'reproduction';
+        tbody.innerHTML = Array.from(reports.values()).map(pairs => {
+            const s = pairs[0];
+            const badges = new Map();
+            pairs.forEach(p => { const b = getOutcomeBadge({...p, type}); badges.set(b, (badges.get(b) || 0) + 1); });
+            const outcomes = Array.from(badges, ([b, n]) => n > 1 ? `${b} ×${n}` : b).join(' ');
             return '<tr>' +
                 '<td>' + escapeHtml(s.title_r) + '</td>' +
                 '<td>' + escapeHtml(s.journal_r) + '</td>' +
                 '<td>' + escapeHtml(s.year_r) + '</td>' +
-                '<td>' + getOutcomeBadge({...s, type:pubTypeKind === 'replication' ? 'replication' : 'reproduction'}) + '</td>' +
-                '<td>' + doiLink + '</td>' +
+                '<td>' + pairs.length.toLocaleString('en-GB') + '</td>' +
+                '<td>' + outcomes + '</td>' +
+                '<td>' + formatUrlOrDoi(s.url_r, s.doi_r) + '</td>' +
             '</tr>';
         }).join('');
         if (studiesCard) studiesCard.style.display = studies.length ? '' : 'none';
         const countEl = document.getElementById('rr-studies-count');
-        if (countEl) countEl.textContent = '(' + studies.length.toLocaleString() + ')';
+        if (countEl) countEl.textContent = `(${nPairs(studies.length)} from ${reports.size.toLocaleString('en-GB')} ${reports.size === 1 ? 'report' : 'reports'})`;
     }
 
     // ── Caveat ─────────────────────────────────────────────────────────────────
@@ -1961,7 +2067,8 @@ function renderPubStatusCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('pub-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('pub-chart', coverageText(ov.n_total || 0, kindPairCount(pubTypeKind), [], kindNoun(pubTypeKind), pubTypeKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     chartCard.style.display = '';
 
     // ── All-studies table ─────────────────────────────────────────────────────
@@ -2097,7 +2204,8 @@ function renderLargeScaleCharts() {
 
     const config = { responsive: true, displayModeBar: false };
     const chartEl = document.getElementById('ls-chart');
-    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config);
+    const coverage = setCoverage('ls-chart', coverageText(ov.n_total || 0, kindPairCount(pubTypeKind), [], kindNoun(pubTypeKind), pubTypeKind));
+    if (chartEl) FloraCharts.plot(chartEl, traces, layout, config, { coverage });
     if (chartCard) chartCard.style.display = '';
 
     // ── Large-scale projects table ───────────────────────────────────────────────
@@ -2135,9 +2243,22 @@ function renderLargeScaleCharts() {
 // One combined loader for the merged "Publication Type" tab: fetches both backing
 // files (Registered Reports needs its own Zotero-derived file; Publication Status +
 // the large-scale plot share pub_status_data.json) and renders all three sections.
+// The two sections come from separately refreshed files, so their totals can drift apart.
+function renderPubTypeSnapshotNote() {
+    const el = document.getElementById('rr-snapshot-note'); if (!el) return;
+    const rr = window._rrData && window._rrData[pubTypeKind] && window._rrData[pubTypeKind].overview;
+    const pub = window._pubData && window._pubData[pubTypeKind] && window._pubData[pubTypeKind].overview;
+    const rrTotal = rr ? (rr.n_total || 0) + (rr.n_unknown || 0) : null;
+    const differs = rr && pub && rrTotal !== pub.n_total;
+    el.style.display = differs ? '' : 'none';
+    if (differs) el.textContent = `This section uses ${nPairs(rrTotal)}, while the venue section above uses ${nPairs(pub.n_total)}. ` +
+        'The two sections were refreshed from different FLoRA snapshots; see each section’s update stamp.';
+}
+
 async function loadPublicationType() {
     await Promise.all([loadRegisteredReports(), loadPubStatus()]);
     renderLargeScaleCharts();
+    renderPubTypeSnapshotNote();
 }
 document.getElementById('pub-tab').addEventListener('shown.bs.tab', loadPublicationType);
 
@@ -2180,6 +2301,81 @@ function withReplicationColumns(row) {
     return row;
 }
 
+const EXCLUSION_REASONS = {
+    own_fetch_failed: 'its citation fetch failed',
+    replication_fetch_failed: 'a replication’s citation fetch failed',
+    time_budget: 'the refresh ran out of time before reaching it',
+    not_processed: 'it was not processed in this refresh'
+};
+const EXCLUSION_CHIPS = {
+    own_fetch_failed: ['Citation fetch failed', 'error'],
+    replication_fetch_failed: ['Replication fetch failed', 'warning'],
+    time_budget: ['Refresh time limit', 'muted'],
+    not_processed: ['Not processed', 'muted']
+};
+function exclusionReason(code) {
+    return EXCLUSION_REASONS[code] || EXCLUSION_REASONS.not_processed;
+}
+function excludedOriginalLabel(e) {
+    const authors = String(e.author || '').split(';').map(a => a.trim()).filter(Boolean);
+    const who = authors.length ? authors[0] + (authors.length > 1 ? ' et al.' : '') : '';
+    return [who, e.year ? `(${e.year})` : ''].filter(Boolean).join(' ') || e.doi;
+}
+function excludedOriginalRows(list) {
+    return list.map(e => {
+        const [chip, tone] = EXCLUSION_CHIPS[e.reason] || EXCLUSION_CHIPS.not_processed;
+        return `<li class="excluded-row">
+            <div class="excluded-row-main">
+                <span class="excluded-row-who">${escapeHtml(excludedOriginalLabel(e))}</span>
+                ${e.title ? `<span class="excluded-row-title">${escapeHtml(e.title)}</span>` : ''}
+            </div>
+            <div class="excluded-row-meta">
+                <span class="excluded-chip excluded-chip-${tone}" title="Left out because ${escapeHtml(exclusionReason(e.reason))}">${chip}</span>
+                <a class="doi-link excluded-row-doi" href="https://doi.org/${encodeURI(e.doi)}" target="_blank" rel="noopener">${escapeHtml(e.doi)}</a>
+            </div>
+        </li>`;
+    }).join('');
+}
+function citationCoverageSentence(meta) {
+    const fmt = v => v.toLocaleString('en-GB');
+    return `${fmt(meta.n_originals)} of ${fmt(meta.n_originals_eligible)} eligible originals included`;
+}
+function renderExcludedOriginals(stamp, meta) {
+    const next = stamp.nextElementSibling;
+    if (next && next.classList.contains('excluded-originals')) next.remove();
+    const excluded = meta ? meta.excluded_originals : [];
+    stamp.classList.toggle('partial', excluded.length > 0);
+    if (!excluded.length) return;
+    const fmt = v => v.toLocaleString('en-GB');
+    const n = excluded.length;
+    // A handful of exclusions out of thousands would otherwise be an invisible sliver.
+    const pct = Math.min(meta.n_originals / meta.n_originals_eligible * 100, 98);
+    const pairs = meta.n_pairs_excluded ? `${fmt(meta.n_pairs_excluded)} reference ${meta.n_pairs_excluded === 1 ? 'pair' : 'pairs'} · ` : '';
+    const details = document.createElement('details');
+    details.className = 'excluded-originals';
+    details.innerHTML = `<summary>
+            <svg class="excluded-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9"/><path d="M10 5.5v5.5M10 13.8v.2"/></svg>
+            <span class="excluded-summary-text">
+                <span class="excluded-headline">${fmt(n)} original${n === 1 ? '' : 's'} left out of this snapshot</span>
+                <span class="excluded-sub">${pairs}omitted from the figures below, not counted as zero · retried next refresh</span>
+            </span>
+            <span class="excluded-toggle" aria-hidden="true"></span>
+        </summary>
+        <div class="excluded-coverage">
+            <div class="excluded-bar" role="img" aria-label="${fmt(meta.n_originals)} included, ${fmt(n)} left out, of ${fmt(meta.n_originals_eligible)} eligible originals">
+                <span style="width:${pct}%"></span>
+            </div>
+            <div class="excluded-legend">
+                <span><i class="dot-included"></i>${fmt(meta.n_originals)} included</span>
+                <span><i class="dot-excluded"></i>${fmt(n)} left out</span>
+                <span>${fmt(meta.n_originals_eligible)} eligible</span>
+            </div>
+        </div>
+        <p class="excluded-note">These originals are in FLoRA, but their citation data could not be completed in this refresh. They are <strong>left out</strong> of every figure on this tab rather than counted as having no citations.</p>
+        <ul class="excluded-list">${excludedOriginalRows(excluded)}</ul>`;
+    stamp.after(details);
+}
+
 async function loadDataStamps() {
     const cache = {};
     const sources = Array.from(new Set(Array.from(document.querySelectorAll('.data-stamp')).map(el => el.dataset.stampSource)));
@@ -2212,8 +2408,11 @@ async function loadDataStamps() {
                 el.innerHTML += ` · <span title="${escapeHtml(String(meta.input_snapshot))}">input snapshot: ${escapeHtml(label)}</span>`;
             }
             if (meta.recalculated_at) el.innerHTML += ` · recalculated: ${new Date(meta.recalculated_at).toLocaleDateString()}`;
-            if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
+            const coverage = Array.isArray(meta.excluded_originals) && meta.n_originals_eligible ? meta : null;
+            if (coverage) el.innerHTML += ' · ' + citationCoverageSentence(coverage);
+            else if (meta.partial_run) el.innerHTML += ' · Partial refresh: some records are unavailable';
             if (meta.source_url) el.innerHTML += ` · <a class="doi-link" href="${meta.source_url}" target="_blank">${escapeHtml(label)} source</a>`;
+            renderExcludedOriginals(el, coverage);
         } else {
             el.classList.add('missing');
             el.innerHTML = `${label}: <em>no snapshot yet</em>`;
