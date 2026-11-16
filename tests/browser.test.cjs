@@ -318,7 +318,8 @@ test('Overview charts state denominators; placeholders, labels and headings stay
   await p.waitForSelector('.faq-question');
   assert.equal(await p.locator('.faq-question em').textContent(),'and');
   assert.doesNotMatch(await p.locator('.faq-question').first().innerText(),/\*/);
-  assert.deepEqual(await p.locator('#overview .chart-data caption').allTextContents(),['Computational reproducibility','Robustness','Replication outcomes']);
+  // Replications, the larger set, come first.
+  assert.deepEqual(await p.locator('#overview .chart-data caption').allTextContents(),['Replication outcomes','Computational reproducibility','Robustness']);
   // Placeholder instructions meet 4.5:1 in both themes.
   const contrast=async()=>p.evaluate(()=>{
     const rgb=c=>c.match(/[\d.]+/g).map(Number);
@@ -1104,7 +1105,10 @@ test('small-sample and unavailable-data messages use reader-facing words',async(
   assert.deepEqual(p.errors,[]);await p.close();
   const missing=await page('?tab=citations',1280,p=>p.route('**/data/aggregate.json',route=>route.fulfill({status:404,body:'Missing'})));
   await missing.waitForSelector('#kpis strong');
-  assert.match(await missing.locator('#kpis').innerText(),/Citation data could not be loaded. Please try again later/);
+  // A failed load says what failed and why in plain words, and offers a way to try again.
+  assert.match(await missing.locator('#kpis').innerText(),/Could not load the citation data\. The reason: the data file was not found on the server \(HTTP 404\)/);
+  assert.equal(await missing.locator('#ci-error').getAttribute('role'),'alert');
+  assert.ok(await missing.locator('#ci-error').getByRole('button',{name:'Try again',exact:true}).isVisible());
   assert.doesNotMatch(await missing.locator('#kpis').innerText(),/workflow|secrets|GitHub|refresh-data/);
   assert.deepEqual(missing.errors,[]);await missing.close();
 });
@@ -1136,7 +1140,8 @@ test('keyboard landmarks, citation sorting and paging retain focus and expose st
   assert.equal(await p.evaluate(()=>document.activeElement.getAttribute('aria-current')),'page');
   await p.locator('#pagination button[data-p="3"]').click();
   assert.equal(await p.evaluate(()=>document.activeElement.dataset.p),'3');
-  assert.equal(await p.locator('#originals-table th').last().innerText(),'Timeline');
+  // Each row's timeline action sits in its title cell, beside the study it opens.
+  assert.equal(await p.locator('#originals-table tbody tr[data-doi]').first().locator('td').first().locator('.timeline-open').count(),1);
   for(const size of await p.locator('#originals-table button[data-sort]').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return [r.width,r.height];}))) assert.ok(size.every(v=>v>=24),`sort target ${size}`);
   assert.deepEqual(p.errors,[]);await p.close();
 });
@@ -1397,7 +1402,8 @@ test('Outcome column groups rows by outcome in both directions',async()=>{
 
 test('shared vocabulary preserves source codes, full badges and independent reproduction dimensions',async()=>{
   const cases=JSON.parse(fs.readFileSync('tests/fixtures/outcome-vocabulary.json'));
-  const headers=fs.readFileSync('tests/fixtures/browse.csv','utf8').split('\n')[0].split(',');
+  // Split on CRLF too: a Windows checkout gives the fixture CRLF endings, which would leave "type\r" as a header.
+  const headers=fs.readFileSync('tests/fixtures/browse.csv','utf8').split(/\r?\n/)[0].split(',');
   const outcomes=['statistically successful but flawed','uninformative','NA','inconclusive','successful || computationally reproducible, robustness not checked','computation not checked, robust','computationally reproducible, robustness not checked'];
   // Reproductions are classified from their per-axis columns; the combined outcome is kept but not read.
   // Replications have no outcome_replication column here, so they exercise the fallback to `outcome`.
