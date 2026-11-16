@@ -345,7 +345,7 @@ test('Trends "All" stacks every chart by study type and counts each pair once',a
   const p=await page('?tab=trends&trends-kind=all',1280);await p.waitForFunction(()=>Chart.getChart('trend-field'));
   assert.ok(await p.locator('#trends-all-note').isVisible());
   assert.ok(await p.locator('#trends-charts').isVisible());
-  assert.match(await p.locator('#trend-filter-count').textContent(),/^All studies: \d{1,3}(,\d{3})* reference pairs$/);
+  assert.match(await p.locator('#trends-study-type .seg-count').textContent(),/^All studies: \d{1,3}(,\d{3})* reference pairs$/);
   for(const id of ['trend-orig-year','trend-rep-year','trend-journal','trend-rep-journal','trend-field']){
     const labels=await p.evaluate(id=>Chart.getChart(id).data.datasets.map(d=>d.label),id);
     assert.deepEqual(labels,['Replication','Reproduction','Study type not recorded'],id);
@@ -1139,8 +1139,8 @@ test('mobile paging focuses the results heading; counts and chip changes have on
   assert.equal(await p.locator('#browse-kind-count[role="status"]').count(),0);
   await p.selectOption('#mobile-navigation','trends-tab');
   await p.locator('#trends-study-type .seg-btn[data-value="reproduction-numerical"]').click();
-  assert.equal(await p.locator('#trend-filter-count').getAttribute('role'),'status');
-  assert.match(await p.locator('#trend-filter-count').textContent(),/Numerical reproductions/);
+  assert.equal(await p.locator('#trends-study-type .seg-count').getAttribute('role'),'status');
+  assert.match(await p.locator('#trends-study-type .seg-count').textContent(),/Numerical reproductions/);
   await p.selectOption('#mobile-navigation','mc-tab');
   await p.waitForSelector('#mc-dist-chart-data');
   await p.locator('#mc-study-type [data-value="reproduction-numerical"]').click();

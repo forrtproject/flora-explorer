@@ -1169,8 +1169,9 @@ function syncBrowseUrl() {
 // ===== Browse kind filter =====
 const BROWSE_KIND_LABELS = STUDY_TYPE_LABELS;
 let browseControl = null;
+const BROWSE_KINDS = ['all', 'replication', 'reproduction-numerical', 'reproduction-robustness'];
 function normalizeBrowseKind(kind) {
-    return Object.hasOwn(BROWSE_KIND_LABELS, kind) ? kind : 'all';
+    return BROWSE_KINDS.includes(kind) ? kind : 'all';
 }
 let browseKind = normalizeBrowseKind(new URLSearchParams(location.search).get('kind'));
 let browseQuery = new URLSearchParams(location.search).get('q') || '';
