@@ -1,0 +1,63 @@
+name: Deploy explorer to staging
+
+# Pushing a tag such as `staging-2026-11-17` builds the tagged commit and publishes it to
+# https://staging.forrt.org/flora-explorer/. The FORRT website serves staging from the
+# `staging` branch of forrtproject/webpage-staging; this workflow only replaces the
+# flora-explorer/ folder on that branch and leaves the rest of the site untouched.
+on:
+  push:
+    tags: ['staging*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-flora-explorer
+  cancel-in-progress: true
+
+env:
+  STAGING_REPO: forrtproject/webpage-staging
+  STAGING_BRANCH: staging
+  SLUG: flora-explorer
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: https://staging.forrt.org/flora-explorer/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Check out staging site
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.STAGING_REPO }}
+          ref: ${{ env.STAGING_BRANCH }}
+          token: ${{ secrets.STAGING_GITHUB_TOKEN }}
+          path: staging-site
+
+      - name: Publish to staging
+        working-directory: staging-site
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          rm -rf "$SLUG"
+          cp -r ../dist "$SLUG"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A "$SLUG"
+          if git diff --cached --quiet; then
+            echo "Staging already matches $REF."
+            exit 0
+          fi
+          git commit -m "Deploy flora-explorer $REF (${GITHUB_SHA::7})"
+          git push origin "HEAD:$STAGING_BRANCH"
