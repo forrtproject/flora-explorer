@@ -52,6 +52,14 @@ RRDB_SOURCE_URL = "https://github.com/LukasRoeseler/RRDB/blob/main/zotero_regist
 ZOTERO_GROUP_ID = "5937153"
 NON_RR_COLLECTIONS = {"BB5B9YHG"}
 ZOTERO_PAGE_SIZE = 100
+# Background papers once held in that reading list (Ioannidis 2005, OSC 2015, Simmons et al.
+# 2011). The list may legitimately be empty, so finding any of these after filtering is what
+# shows that reading-list items are back in the library under a collection not excluded here.
+KNOWN_NON_RR_DOIS = {
+    "10.1371/journal.pmed.0020124",
+    "10.1126/science.aac4716",
+    "10.1177/0956797611417632",
+}
 
 RRDB_CITATION = (
     "Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., "
@@ -87,7 +95,6 @@ def only_in_non_rr_collections(collections) -> bool:
 def fetch_non_rr_keys() -> set[str]:
     """Zotero item keys filed only in a non-RR collection (the shared reading list)."""
     keys: set[str] = set()
-    n_fetched = 0
     for collection in sorted(NON_RR_COLLECTIONS):
         url = f"https://api.zotero.org/groups/{ZOTERO_GROUP_ID}/collections/{collection}/items/top"
         start = 0
@@ -95,7 +102,6 @@ def fetch_non_rr_keys() -> set[str]:
             resp = requests.get(url, params={"format": "json", "limit": ZOTERO_PAGE_SIZE, "start": start}, timeout=60)
             resp.raise_for_status()
             page = resp.json()
-            n_fetched += len(page)
             for item in page:
                 data = item.get("data", {})
                 if only_in_non_rr_collections(data.get("collections")):
@@ -104,10 +110,6 @@ def fetch_non_rr_keys() -> set[str]:
             start += len(page)
             if not page or start >= total:
                 break
-    if not n_fetched:
-        # An empty collection means the lookup failed or the list moved; items filed in
-        # both the list and an RR collection are kept, so an empty key set is fine.
-        raise ValueError("Zotero returned no reading-list items; retaining previous outputs")
     return keys
 
 
@@ -136,6 +138,9 @@ def fetch_rr_library() -> tuple[set[str], set[str]]:
     titles = set(df_rr.get("title", pd.Series(dtype=str)).apply(normalize_title)) - {""}
     if not dois and not titles:
         raise ValueError("RRDB CSV has no usable DOI or title; retaining previous outputs")
+    leaked = sorted(dois & KNOWN_NON_RR_DOIS)
+    if leaked:
+        raise ValueError(f"RRDB still lists known non-RR papers after filtering ({', '.join(leaked)}); retaining previous outputs")
     return dois, titles
 
 

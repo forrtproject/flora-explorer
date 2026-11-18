@@ -369,6 +369,11 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
             csv_text='key,DOI,title\nRR1,https://doi.org/10.test/A,Example title\nREADING,10.1126/science.aac4716,Estimating the reproducibility of psychological science\n'
             with patch.object(rr.requests,'get',return_value=Mock(text=csv_text)), patch.object(rr,'fetch_non_rr_keys',return_value={'READING'}):
                 self.assertEqual(rr.fetch_rr_library(),({'10.test/a'},{'exampletitle'}))
+            # Known reading-list papers surviving the filter must not replace the outputs.
+            with patch.object(rr.requests,'get',return_value=Mock(text=csv_text)), patch.object(rr,'fetch_non_rr_keys',return_value=set()), patch.object(rr,'OUT_DATA',output), patch.object(rr,'OUT_META',meta):
+                with self.assertRaisesRegex(ValueError,'known non-RR'): rr.main()
+            self.assertEqual(output.read_text(),'previous data')
+            self.assertEqual(meta.read_text(),'previous metadata')
 
     def test_rrdb_skips_items_filed_only_in_the_reading_list(self):
         def page(items,total):
@@ -380,7 +385,7 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
             self.assertEqual(rr.fetch_non_rr_keys(),{'A'})
         self.assertEqual(get.call_args_list[1].kwargs['params']['start'],2)
         with patch.object(rr.requests,'get',return_value=page([],0)):
-            with self.assertRaises(ValueError): rr.fetch_non_rr_keys()
+            self.assertEqual(rr.fetch_non_rr_keys(),set())
         with patch.object(rr.requests,'get',return_value=page([also_rr],1)):
             self.assertEqual(rr.fetch_non_rr_keys(),set())
 
