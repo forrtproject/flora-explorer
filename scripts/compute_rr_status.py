@@ -108,7 +108,9 @@ def fetch_non_rr_keys() -> set[str]:
                     keys.add(data.get("key") or item.get("key"))
             total = int(resp.headers.get("Total-Results", 0))
             start += len(page)
-            if not page or start >= total:
+            if not page and start < total:
+                raise ValueError("Zotero returned an incomplete reading list; retaining previous outputs")
+            if start >= total:
                 break
     return keys
 

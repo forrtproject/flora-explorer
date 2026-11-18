@@ -386,6 +386,8 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         self.assertEqual(get.call_args_list[1].kwargs['params']['start'],2)
         with patch.object(rr.requests,'get',return_value=page([],0)):
             self.assertEqual(rr.fetch_non_rr_keys(),set())
+        with patch.object(rr.requests,'get',return_value=page([],2)):
+            with self.assertRaisesRegex(ValueError,'incomplete'): rr.fetch_non_rr_keys()
         with patch.object(rr.requests,'get',return_value=page([also_rr],1)):
             self.assertEqual(rr.fetch_non_rr_keys(),set())
 
