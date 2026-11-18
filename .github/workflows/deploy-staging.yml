@@ -1,15 +1,26 @@
-name: Deploy explorer to staging
+name: Deploy to staging
 
-# Publishes a build to https://staging.forrt.org/flora-explorer/. Three ways to deploy:
+# Publishes this repository's site to https://staging.forrt.org/<SLUG>/.
+#
+# COPYING THIS FILE TO ANOTHER REPOSITORY
+#   1. Copy it to .github/workflows/deploy-staging.yml.
+#   2. Edit the two places marked "EDIT": the settings under `env:` and the build steps.
+#   3. Make sure the repo can use the STAGING_GITHUB_TOKEN secret (org secret, or add it
+#      to the repo). It needs write access to forrtproject/webpage-staging.
+#   4. The site must work from a sub-folder: use relative asset paths, or set its base
+#      path to /<SLUG>/ (e.g. Vite `base`, Hugo `baseURL`, Quarto `site-url`).
+#
+# HOW TO DEPLOY
 #   - Push to the `staging` branch, or to any `staging/<name>` branch.
 #   - Push a tag starting with `staging`, e.g. `staging-2026-11-18`.
-#   - Actions -> "Deploy explorer to staging" -> Run workflow, and enter any branch, tag or
-#     commit (leave empty to deploy the branch picked in the dropdown).
-# The latest deploy wins: staging shows one build of the explorer at a time.
+#   - Actions -> "Deploy to staging" -> Run workflow, and enter any branch, tag or commit
+#     (empty = the branch picked in the dropdown). This button only appears once the
+#     file is on the default branch.
+# The latest deploy wins: staging shows one build per repository at a time.
 #
 # The FORRT website serves staging from the `staging` branch of forrtproject/webpage-staging.
-# This workflow only replaces the flora-explorer/ folder there. The `.staging-subsite` marker
-# tells the website's own staging deploy to keep the folder when it rebuilds the branch.
+# This workflow only replaces the <SLUG>/ folder there. The `.staging-subsite` marker tells
+# the website's own staging deploy to keep the folder when it rebuilds the branch.
 on:
   push:
     branches: ['staging', 'staging/**']
@@ -26,80 +37,89 @@ permissions:
   contents: read
 
 concurrency:
-  group: staging-flora-explorer
+  group: deploy-staging
   cancel-in-progress: true
 
 env:
+  # ---- EDIT: settings for this repository --------------------------------------------
+  # Folder on staging.forrt.org. Defaults to the repository name.
+  SLUG: ${{ github.event.repository.name }}
+  # Folder holding the built site after the build steps, relative to the repo root.
+  # Use '.' for a plain static site with no build step.
+  SITE_DIR: dist
+  # -------------------------------------------------------------------------------------
   STAGING_REPO: forrtproject/webpage-staging
   STAGING_BRANCH: staging
-  SLUG: flora-explorer
 
 jobs:
   deploy:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     environment:
       name: staging
-      url: https://staging.forrt.org/flora-explorer/
+      url: https://staging.forrt.org/${{ env.SLUG }}/
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      - name: Describe source
-        id: source
-        env:
-          REF: ${{ inputs.ref || github.ref_name }}
-        run: |
-          echo "ref=$REF" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
+      # ---- EDIT: build steps. Replace these with whatever builds your site into SITE_DIR.
+      # Delete them for a plain static site. Examples for other stacks:
+      #   Hugo:   - uses: peaceiris/actions-hugo@v3
+      #           - run: hugo --minify --baseURL "https://staging.forrt.org/$SLUG/"
+      #   Quarto: - uses: quarto-dev/quarto-actions/setup@v2
+      #           - run: quarto render
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - run: npm ci
       - run: npm run build
+      # -------------------------------------------------------------------------------------
 
+      # Nothing below needs editing.
       - name: Check out staging site
         uses: actions/checkout@v4
         with:
           repository: ${{ env.STAGING_REPO }}
           ref: ${{ env.STAGING_BRANCH }}
           token: ${{ secrets.STAGING_GITHUB_TOKEN }}
-          path: staging-site
+          path: .staging-site
 
       - name: Publish to staging
-        working-directory: staging-site
         env:
-          REF: ${{ steps.source.outputs.ref }}
-          SHA: ${{ steps.source.outputs.sha }}
+          REF: ${{ inputs.ref || github.ref_name }}
         run: |
-          rm -rf "$SLUG"
-          cp -r ../dist "$SLUG"
-          touch "$SLUG/.staging-subsite"
+          SHA=$(git rev-parse --short HEAD)
+          if [ ! -d "$SITE_DIR" ]; then
+            echo "::error::SITE_DIR '$SITE_DIR' does not exist. Check the build steps."
+            exit 1
+          fi
+          mkdir -p ".staging-site/$SLUG"
+          rsync -a --delete --exclude .git --exclude .github --exclude .staging-site \
+            "$SITE_DIR/" ".staging-site/$SLUG/"
+          touch ".staging-site/$SLUG/.staging-subsite"
+
+          cd .staging-site
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A "$SLUG"
           if git diff --cached --quiet; then
             echo "Staging already matches $REF ($SHA)."
-            exit 0
+          else
+            git commit -m "Deploy $SLUG $REF ($SHA)"
+            # Other repositories deploy to the same branch. Each only touches its own
+            # folder, so a rejected push is fixed by rebasing onto theirs and retrying.
+            pushed=false
+            for attempt in 1 2 3 4 5; do
+              if git push origin "HEAD:$STAGING_BRANCH"; then pushed=true; break; fi
+              echo "Push rejected (attempt $attempt), rebasing onto latest staging."
+              sleep $((attempt * 3))
+              git pull --rebase origin "$STAGING_BRANCH"
+            done
+            if [ "$pushed" != true ]; then
+              echo "::error::Could not push to $STAGING_BRANCH after 5 attempts."
+              exit 1
+            fi
           fi
-          git commit -m "Deploy $SLUG $REF ($SHA)"
-          # Other apps deploy to the same branch. They only touch their own folders,
-          # so a rejected push is fixed by rebasing onto theirs and trying again.
-          for attempt in 1 2 3 4 5; do
-            git push origin "HEAD:$STAGING_BRANCH" && exit 0
-            echo "Push rejected (attempt $attempt), rebasing onto latest staging."
-            sleep $((attempt * 3))
-            git pull --rebase origin "$STAGING_BRANCH"
-          done
-          echo "Could not push to $STAGING_BRANCH after 5 attempts."
-          exit 1
-
-      - name: Summary
-        env:
-          REF: ${{ steps.source.outputs.ref }}
-          SHA: ${{ steps.source.outputs.sha }}
-        run: |
           echo "Deployed \`$REF\` (\`$SHA\`) to https://staging.forrt.org/$SLUG/" >> "$GITHUB_STEP_SUMMARY"
