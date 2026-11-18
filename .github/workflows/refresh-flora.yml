@@ -43,7 +43,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/flora.csv data/flora_meta.json data/author_overlap_data.json data/author_overlap_meta.json data/pub_status_data.json data/pub_status_meta.json
+          git add data/flora.csv data/flora_meta.json data/author_overlap_data.json data/author_overlap_meta.json data/pub_status_data.json data/pub_status_meta.json data/pub_status_changes.csv
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
