@@ -7,7 +7,7 @@ name: Deploy to staging
 on:
   push:
     branches: ['staging', 'staging/**']
-    tags: ['staging*']
+    tags: ['staging**']
   workflow_dispatch:
     inputs:
       ref:
