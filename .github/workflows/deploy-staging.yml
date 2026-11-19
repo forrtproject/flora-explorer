@@ -1,26 +1,9 @@
 name: Deploy to staging
 
-# Publishes this repository's site to https://staging.forrt.org/<SLUG>/.
-#
-# COPYING THIS FILE TO ANOTHER REPOSITORY
-#   1. Copy it to .github/workflows/deploy-staging.yml.
-#   2. Edit the two places marked "EDIT": the settings under `env:` and the build steps.
-#   3. Make sure the repo can use the STAGING_GITHUB_TOKEN secret (org secret, or add it
-#      to the repo). It needs write access to forrtproject/webpage-staging.
-#   4. The site must work from a sub-folder: use relative asset paths, or set its base
-#      path to /<SLUG>/ (e.g. Vite `base`, Hugo `baseURL`, Quarto `site-url`).
-#
-# HOW TO DEPLOY
-#   - Push to the `staging` branch, or to any `staging/<name>` branch.
-#   - Push a tag starting with `staging`, e.g. `staging-2026-11-18`.
-#   - Actions -> "Deploy to staging" -> Run workflow, and enter any branch, tag or commit
-#     (empty = the branch picked in the dropdown). This button only appears once the
-#     file is on the default branch.
-# The latest deploy wins: staging shows one build per repository at a time.
-#
-# The FORRT website serves staging from the `staging` branch of forrtproject/webpage-staging.
-# This workflow only replaces the <SLUG>/ folder there. The `.staging-subsite` marker tells
-# the website's own staging deploy to keep the folder when it rebuilds the branch.
+# Publishes this repository's site to https://staging.forrt.org/flora-explorer/ through the
+# shared FORRT workflow (forrtproject/.github), which documents the details.
+#   - Push to `staging` or `staging/<name>`, or push a tag starting with `staging`.
+#   - Or Actions -> "Deploy to staging" -> Run workflow, entering any branch, tag or commit.
 on:
   push:
     branches: ['staging', 'staging/**']
@@ -36,96 +19,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: deploy-staging
-  cancel-in-progress: true
-
-env:
-  # ---- EDIT: settings for this repository --------------------------------------------
-  # Folder on staging.forrt.org. Defaults to the repository name.
-  SLUG: ${{ github.event.repository.name }}
-  # Folder holding the built site after the build steps, relative to the repo root.
-  # Use '.' for a plain static site with no build step.
-  SITE_DIR: dist
-  # -------------------------------------------------------------------------------------
-  STAGING_REPO: forrtproject/webpage-staging
-  STAGING_BRANCH: staging
-
 jobs:
   deploy:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    environment:
-      name: staging
-      url: https://staging.forrt.org/${{ env.SLUG }}/
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-
-      # ---- EDIT: build steps. Replace these with whatever builds your site into SITE_DIR.
-      # Delete them for a plain static site. Examples for other stacks:
-      #   Hugo:   - uses: peaceiris/actions-hugo@v3
-      #           - run: hugo --minify --baseURL "https://staging.forrt.org/$SLUG/"
-      #   Quarto: - uses: quarto-dev/quarto-actions/setup@v2
-      #           - run: quarto render
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      # -------------------------------------------------------------------------------------
-
-      # Nothing below needs editing.
-      - name: Check out staging site
-        uses: actions/checkout@v7
-        with:
-          repository: ${{ env.STAGING_REPO }}
-          ref: ${{ env.STAGING_BRANCH }}
-          token: ${{ secrets.STAGING_GITHUB_TOKEN }}
-          path: .staging-site
-
-      - name: Publish to staging
-        env:
-          REF: ${{ inputs.ref || github.ref_name }}
-        run: |
-          SHA=$(git rev-parse --short HEAD)
-          if [ ! -d "$SITE_DIR" ]; then
-            echo "::error::SITE_DIR '$SITE_DIR' does not exist. Check the build steps."
-            exit 1
-          fi
-          # Refuse to overwrite a folder this workflow did not create, such as a page of
-          # the FORRT website itself (e.g. /cv/ or /impact/). Pick another SLUG instead.
-          if [ -d ".staging-site/$SLUG" ] && [ ! -f ".staging-site/$SLUG/.staging-subsite" ]; then
-            echo "::error::staging.forrt.org/$SLUG/ already holds content that was not deployed by this workflow. Set SLUG to another folder name."
-            exit 1
-          fi
-          mkdir -p ".staging-site/$SLUG"
-          rsync -a --delete --exclude .git --exclude .github --exclude .staging-site \
-            "$SITE_DIR/" ".staging-site/$SLUG/"
-          touch ".staging-site/$SLUG/.staging-subsite"
-
-          cd .staging-site
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A "$SLUG"
-          if git diff --cached --quiet; then
-            echo "Staging already matches $REF ($SHA)."
-          else
-            git commit -m "Deploy $SLUG $REF ($SHA)"
-            # Other repositories deploy to the same branch. Each only touches its own
-            # folder, so a rejected push is fixed by rebasing onto theirs and retrying.
-            pushed=false
-            for attempt in 1 2 3 4 5; do
-              if git push origin "HEAD:$STAGING_BRANCH"; then pushed=true; break; fi
-              echo "Push rejected (attempt $attempt), rebasing onto latest staging."
-              sleep $((attempt * 3))
-              git pull --rebase origin "$STAGING_BRANCH"
-            done
-            if [ "$pushed" != true ]; then
-              echo "::error::Could not push to $STAGING_BRANCH after 5 attempts."
-              exit 1
-            fi
-          fi
-          echo "Deployed \`$REF\` (\`$SHA\`) to https://staging.forrt.org/$SLUG/" >> "$GITHUB_STEP_SUMMARY"
+    uses: forrtproject/.github/.github/workflows/deploy-staging.yml@main
+    with:
+      ref: ${{ inputs.ref }}
+      site-dir: dist
+      node-version: '22'
+      build: |
+        npm ci
+        npm run build
+    secrets:
+      STAGING_GITHUB_TOKEN: ${{ secrets.STAGING_GITHUB_TOKEN }}
