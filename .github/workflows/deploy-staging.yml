@@ -59,7 +59,7 @@ jobs:
       name: staging
       url: https://staging.forrt.org/${{ env.SLUG }}/
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.ref }}
 
@@ -69,7 +69,7 @@ jobs:
       #           - run: hugo --minify --baseURL "https://staging.forrt.org/$SLUG/"
       #   Quarto: - uses: quarto-dev/quarto-actions/setup@v2
       #           - run: quarto render
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -79,7 +79,7 @@ jobs:
 
       # Nothing below needs editing.
       - name: Check out staging site
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.STAGING_REPO }}
           ref: ${{ env.STAGING_BRANCH }}
@@ -93,6 +93,12 @@ jobs:
           SHA=$(git rev-parse --short HEAD)
           if [ ! -d "$SITE_DIR" ]; then
             echo "::error::SITE_DIR '$SITE_DIR' does not exist. Check the build steps."
+            exit 1
+          fi
+          # Refuse to overwrite a folder this workflow did not create, such as a page of
+          # the FORRT website itself (e.g. /cv/ or /impact/). Pick another SLUG instead.
+          if [ -d ".staging-site/$SLUG" ] && [ ! -f ".staging-site/$SLUG/.staging-subsite" ]; then
+            echo "::error::staging.forrt.org/$SLUG/ already holds content that was not deployed by this workflow. Set SLUG to another folder name."
             exit 1
           fi
           mkdir -p ".staging-site/$SLUG"
