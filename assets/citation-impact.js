@@ -22,6 +22,7 @@
     };
 
     let ciKind = 'replication';
+    let outcomeControl = null;
 
     function escapeHtml(s) {
         if (s == null) return '';
@@ -156,7 +157,7 @@
             await plotlyReady();
             renderKPIs(); renderAggregate(); renderTable(); renderCocitBreakdown(); bindEvents();
             renderCiKindGate(ciKind);
-            document.querySelectorAll('#outcome-chips .chip').forEach(b=>{b.classList.toggle('active',b.dataset.value===CI.outcome);b.setAttribute('aria-pressed',String(b.dataset.value===CI.outcome));});
+            outcomeControl?.select(CI.outcome);
             CI.loaded = true;
         } catch (e) {
             console.error('Citation Impact load failed:', e);
@@ -251,12 +252,12 @@
     function renderKPIs() {
         const c = (CI.meta && CI.meta.outcome_counts) || {};
         const fmt = n => (n == null ? '—' : FloraCharts.number(n));
-        document.getElementById('kpis').innerHTML = `
-            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_originals)}</div><div class="kpi-label">Distinct originals with complete citation data</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(CI.meta && CI.meta.n_replications)}</div><div class="kpi-label">Eligible replication reference pairs</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(c.failed)}</div><div class="kpi-label">Eligible reference pairs: Failed</div></div>
-            <div class="kpi"><div class="kpi-value">${fmt(c.successful)}</div><div class="kpi-label">Eligible reference pairs: Successful</div></div>
-            <p class="muted kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</p>`;
+        document.getElementById('kpis').innerHTML =
+            kpiHtml(fmt(CI.meta && CI.meta.n_originals), 'Distinct originals with complete citation data') +
+            kpiHtml(fmt(CI.meta && CI.meta.n_replications), 'Eligible replication reference pairs') +
+            kpiHtml(fmt(c.failed), 'Eligible reference pairs: Failed') +
+            kpiHtml(fmt(c.successful), 'Eligible reference pairs: Successful') +
+            '<p class="muted kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</p>';
     }
 
     function renderAggregate() {
@@ -332,7 +333,7 @@
             traces.push({
                 x: desc.event_time, y: desc[descField], type: 'scatter', mode: 'lines+markers',
                 line: { color, width: 2.5 }, marker: { color, size: 7 },
-                name: 'Mean (raw)', 
+                name: 'Mean (raw)',
                 text:desc.event_time.map((x,i)=>`Years from first replication: ${FloraCharts.number(x)}<br>${ylabel}: ${FloraCharts.number(desc[descField][i],2)}`),
                 hovertemplate: '%{text}<extra></extra>',
                 legendgroup: 'raw', showlegend: true
@@ -670,13 +671,6 @@
     }
 
     function bindEvents() {
-        document.querySelectorAll('#outcome-chips .chip').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('#outcome-chips .chip').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                CI.outcome = btn.dataset.value; renderAggregate();
-            });
-        });
         const input = document.getElementById('search-input');
         let searchTimer;
         input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { CI.page = 1; renderTable(); }, 200); });
@@ -795,7 +789,13 @@
         if (CI.loaded) renderTable();
     });
 
-    setupStudyTypeSelect('ci-study-type', kind => { ciKind = kind; renderCiKindGate(kind); });
+    mountStudyTypeControl('ci-study-type', kind => { ciKind = kind; renderCiKindGate(kind); });
+    outcomeControl = mountSegmented(document.getElementById('outcome-chips'), {
+        label: 'Replication outcome',
+        options: [{value: 'all', label: 'All'}, {value: 'failed', label: 'Failed'}, {value: 'successful', label: 'Successful'}, {value: 'mixed', label: 'Mixed'}],
+        value: CI.outcome,
+        onChange: v => { CI.outcome = v; if (CI.loaded) renderAggregate(); }
+    });
 
     // Open a study popup straight away if arrived via /citations/?doi=…
     handleDeepLink();

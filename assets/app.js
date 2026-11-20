@@ -129,18 +129,75 @@ function filterByKind(data, kind) {
     return data;
 }
 
-// Shared single-select chip-group control used by the study-type selector on Citation
-// Impact, Mean Citedness, Authorship Overlap, and Registered Reports. Unlike browseKind/
-// trendsKind there's no "all" option here - one of the 3 chips is always active.
-function setupStudyTypeSelect(containerId, onChange) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.querySelectorAll('.chip').forEach(btn => {
-        btn.addEventListener('click', () => {
-            container.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            onChange(btn.dataset.value);
-        });
+// ===== Segmented control =====
+// The one single-select filter component. It is the study-type selector on every tab
+// (Browse, Years & Disciplines, Citation Impact, Mean Citedness, Authorship Overlap,
+// Publication Type) and also the Citation Impact outcome filter. The markup is generated
+// here so labels, order, pressed state and the count line cannot drift between tabs.
+const STUDY_TYPE_LABELS = {
+    all: 'All studies',
+    replication: 'Replications',
+    reproduction: 'Reproductions',
+    'reproduction-numerical': 'Numerical reproductions',
+    'reproduction-robustness': 'Robustness reproductions'
+};
+const SEGMENTED_CONTROLS = [];
+
+// options: [{value, label}]. countOf(value) -> number adds the "n of N reference pairs" line.
+function mountSegmented(container, {label, options, value, onChange, countOf}) {
+    if (!container) return null;
+    const labelId = (container.id || 'seg') + '-label';
+    container.classList.add('seg');
+    container.innerHTML =
+        '<span class="seg-label" id="' + labelId + '">' + escapeHtml(label) + '</span>' +
+        '<div class="seg-options" role="group" aria-labelledby="' + labelId + '">' +
+            options.map(o => '<button type="button" class="seg-btn" data-value="' + escapeHtml(o.value) + '" aria-pressed="false">' + escapeHtml(o.label) + '</button>').join('') +
+        '</div>' +
+        (countOf ? '<span class="seg-count" role="status"></span>' : '');
+    const buttons = [...container.querySelectorAll('.seg-btn')];
+    const countEl = container.querySelector('.seg-count');
+    const ctl = {
+        value: null,
+        // Update the pressed state only (no callback).
+        select(v) {
+            ctl.value = v;
+            buttons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.value === v)));
+        },
+        refreshCount() {
+            if (!countEl) return;
+            const total = fullRowData.length;
+            if (!total) { countEl.textContent = ''; return; }
+            const n = countOf(ctl.value);
+            const all = ctl.value === 'all';
+            const noun = 'reference ' + ((all ? n : total) === 1 ? 'pair' : 'pairs');
+            countEl.innerHTML = '<span class="visually-hidden">' + escapeHtml(STUDY_TYPE_LABELS[ctl.value] || '') + ': </span>' +
+                n.toLocaleString('en-GB') + (all ? '' : ' of ' + total.toLocaleString('en-GB')) + ' ' + noun;
+        },
+        set(v) { ctl.select(v); ctl.refreshCount(); }
+    };
+    buttons.forEach(b => b.addEventListener('click', () => {
+        ctl.select(b.dataset.value);
+        if (onChange) onChange(ctl.value);
+        ctl.refreshCount();
+    }));
+    ctl.select(options.some(o => o.value === value) ? value : options[0].value);
+    SEGMENTED_CONTROLS.push(ctl);
+    return ctl;
+}
+
+// Study-type selector: same label, option wording and count line wherever it appears.
+// The mount point declares which options make sense via data-kinds ("all" is only offered
+// where mixed replication/reproduction results are meaningful: Browse and Years & Disciplines).
+function mountStudyTypeControl(id, onChange, opts = {}) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const kinds = (el.dataset.kinds || 'replication,reproduction-numerical,reproduction-robustness').split(',');
+    return mountSegmented(el, {
+        label: 'Study type',
+        options: kinds.map(k => ({value: k, label: STUDY_TYPE_LABELS[k]})),
+        value: opts.value || el.dataset.value || kinds[0],
+        onChange,
+        countOf: opts.countOf || (k => filterByKind(fullRowData, k).length)
     });
 }
 
@@ -182,9 +239,9 @@ let aoKind = 'replication';
 // project plot live together on the merged "Publication Type" tab and share one filter.
 let pubTypeKind = 'replication';
 
-setupStudyTypeSelect('mc-study-type', kind => { mcKind = kind; applyKindText(document.getElementById('mean-citedness'), kind); renderMcCharts(); });
-setupStudyTypeSelect('ao-study-type', kind => { aoKind = kind; applyKindText(document.getElementById('authorship-overlap'), kind); renderOverlapCharts(); });
-setupStudyTypeSelect('pubtype-study-type', kind => {
+mountStudyTypeControl('mc-study-type', kind => { mcKind = kind; applyKindText(document.getElementById('mean-citedness'), kind); renderMcCharts(); });
+mountStudyTypeControl('ao-study-type', kind => { aoKind = kind; applyKindText(document.getElementById('authorship-overlap'), kind); renderOverlapCharts(); });
+mountStudyTypeControl('pubtype-study-type', kind => {
     pubTypeKind = kind;
     applyKindText(document.getElementById('publication-type'), kind);
     renderPubStatusCharts();
@@ -216,6 +273,21 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = String(text);
     return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ===== KPI tile (single component, used on every tab) =====
+// value: number or preformatted string; label: required; denominator: optional third line.
+function kpiHtml(value, label, denominator, extraHtml) {
+    const v = typeof value === 'number' ? value.toLocaleString('en-GB') : value;
+    return '<div class="kpi"><div class="kpi-value">' + escapeHtml(v) + '</div>' +
+        '<div class="kpi-label">' + escapeHtml(label) + '</div>' +
+        (denominator ? '<div class="kpi-denominator">' + escapeHtml(denominator) + '</div>' : '') +
+        (extraHtml || '') +
+        '</div>';
+}
+// Denominator line for a share of a total, e.g. "42.1% of 1,234".
+function kpiShare(n, total) {
+    return FloraCharts.percent(n, total) + '% of ' + (total || 0).toLocaleString('en-GB');
 }
 
 function truncateText(text, maxLength = 60) {
@@ -381,7 +453,7 @@ function updateOverviewStats(data) {
         reproductions: data.filter(r => classifyKind(r) === 'reproduction'),
     };
     for (const [key, rows] of Object.entries(groups)) {
-        document.getElementById('ov-' + key).textContent = rows.length.toLocaleString();
+        document.getElementById('ov-' + key).textContent = rows.length.toLocaleString('en-GB');
         const c = distinctReportCounts(rows);
         const missing = c.noOriginalDoi ? `; ${nPairs(c.noOriginalDoi)} without an original DOI` : '';
         setCaption('ov-' + key + '-distinct', `${c.reports.toLocaleString('en-GB')} distinct repetition reports · ${c.originals.toLocaleString('en-GB')} distinct original DOIs${missing}`);
@@ -420,8 +492,8 @@ function kindChartCaption(data, kind) {
     return `${scope}. ${total ? counts + '. ' : ''}A reference pair can contribute to both dimensions.`;
 }
 function omitEmptyCategoryTiles(container) {
-    container.querySelectorAll('.mc-stat, .mc-stat-box').forEach(tile => {
-        if (tile.querySelector('.mc-stat-value')?.textContent.trim() === '0') tile.remove();
+    container.querySelectorAll('.kpi').forEach(tile => {
+        if (tile.querySelector('.kpi-value')?.textContent.trim() === '0') tile.remove();
     });
 }
 function setCaption(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
@@ -1095,12 +1167,20 @@ function syncBrowseUrl() {
 }
 
 // ===== Browse kind filter =====
-const BROWSE_KIND_LABELS = {all: 'All studies', replication: 'Replications', reproduction: 'Reproductions', 'reproduction-numerical': 'Numerical reproductions', 'reproduction-robustness': 'Robustness reproductions'};
+const BROWSE_KIND_LABELS = STUDY_TYPE_LABELS;
+let browseControl = null;
+const BROWSE_KINDS = ['all', 'replication', 'reproduction-numerical', 'reproduction-robustness'];
 function normalizeBrowseKind(kind) {
-    return Object.hasOwn(BROWSE_KIND_LABELS, kind) ? kind : 'all';
+    return BROWSE_KINDS.includes(kind) ? kind : 'all';
 }
 let browseKind = normalizeBrowseKind(new URLSearchParams(location.search).get('kind'));
 let browseQuery = new URLSearchParams(location.search).get('q') || '';
+// Mounted at script load (not after the data pipeline) so the control is visible even if a later
+// load step fails; its count fills in once the data arrives.
+browseControl = mountStudyTypeControl('browse-study-type', kind => {
+    browseKind = kind || 'all';
+    applyBrowseKind();
+}, {value: browseKind, countOf: () => getChartData().length});
 let browseOutcomeChart = null;
 let browseComputationalChart = null;
 let browseRobustnessChart = null;
@@ -1154,13 +1234,11 @@ function renderBrowseEmpty(n) {
 document.getElementById('browse-empty')?.addEventListener('click', e => {
     const action = e.target.closest('[data-browse-action]')?.dataset.browseAction;
     if (action === 'clear-search') { document.getElementById('browse-mobile-input').value = ''; bmApplySearch(''); document.getElementById('browse-mobile-input').focus(); }
-    if (action === 'all-kinds') document.querySelector('.browse-kind-btn[data-kind="all"]')?.click();
+    if (action === 'all-kinds') document.querySelector('#browse-study-type .seg-btn[data-value="all"]')?.click();
 });
 
 function updateBrowseKindCount() {
-    const el = document.getElementById('browse-kind-count'); if (!el) return;
-    const n = getChartData().length; const total = fullRowData.length;
-    el.textContent = browseKind === 'all' ? `${n.toLocaleString()} reference ${n === 1 ? "pair" : "pairs"}` : `${n.toLocaleString()} of ${total.toLocaleString()} reference ${total === 1 ? "pair" : "pairs"}`;
+    browseControl?.refreshCount();
     document.querySelectorAll('[data-browse-report-kind]').forEach(el => { el.textContent = browseKind === 'all' ? 'Replication or reproduction' : browseKind === 'replication' ? 'Replication' : 'Reproduction'; });
     document.querySelector('#export-browse span').textContent = browseQuery.trim() || browseKind !== 'all' ? 'Download filtered CSV' : 'Download full CSV';
 }
@@ -1171,32 +1249,19 @@ function applyBrowseKind() {
 }
 
 function setupBrowseKindFilter() {
-    document.querySelectorAll('.browse-kind-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.browse-kind-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            browseKind = btn.dataset.kind || 'all';
-            applyBrowseKind();
-        });
-    });
+    browseControl?.select(browseKind);
     $.fn.dataTable.ext.search.push(function(settings, searchData, dataIndex) {
         if (settings.nTable.id !== 'flora-table') return true;
         const row = fullRowData[dataIndex]; if (!row) return true;
         return filterByKind([row], browseKind).length > 0 && matchesBrowseQuery(row, browseQuery);
     });
-    document.querySelectorAll('.browse-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === browseKind));
     applyBrowseKind();
 }
 
 // ===== Trends =====
 let trendsKind = 'replication';
 function trendsFilteredData() { return filterByKind(fullRowData, trendsKind); }
-function updateTrendsCount() {
-    const el = document.getElementById('trend-filter-count'); if (!el) return;
-    const n = trendsFilteredData().length; const total = fullRowData.length;
-    const count = trendsKind === 'all' ? nPairs(n) : `${n.toLocaleString('en-GB')} of ${nPairs(total)}`;
-    el.innerHTML = `<span class="visually-hidden">${BROWSE_KIND_LABELS[trendsKind]}: </span>${count}`;
-}
+function updateTrendsCount() { trendsControl?.refreshCount(); }
 
 // Which bucket (per trendOutcomeBuckets) a row falls into for the selected study type.
 function outcomeBucketKeyForRow(row, kind) {
@@ -1415,13 +1480,9 @@ function renderAllTrends() {
 
 document.getElementById('journal-top-n').addEventListener('change', renderTrendJournal);
 document.getElementById('rep-journal-top-n').addEventListener('change', renderTrendRepJournal);
-document.querySelectorAll('#trends .trend-filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('#trends .trend-filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        trendsKind = btn.dataset.kind || 'all';
-        if (trendsInitialized && fullRowData.length) renderAllTrends();
-    });
+const trendsControl = mountStudyTypeControl('trends-study-type', kind => {
+    trendsKind = kind || 'all';
+    if (trendsInitialized && fullRowData.length) renderAllTrends();
 });
 
 document.getElementById('trends-tab').addEventListener('shown.bs.tab', () => {
@@ -1492,14 +1553,13 @@ function renderMcCharts() {
     const ov = d.overview;
     const statCards = buckets.filter(b => ov[b.overviewKey] > 0).map(b => {
         const n = ov[b.overviewKey] || 0;
-        const pct = FloraCharts.percent(n, ov.n_total);
-        return `<div class="mc-stat"><span class="mc-stat-value">${n.toLocaleString()}</span><span class="mc-stat-label">${b.label} (${escapeHtml(pct)}%)</span></div>`;
+        return kpiHtml(n, b.label, kpiShare(n, ov.n_total));
     }).join('');
-    document.getElementById('mc-overview').innerHTML = `
-        <div class="mc-stat"><span class="mc-stat-value">${ov.n_total.toLocaleString()}</span><span class="mc-stat-label">Reference pairs with OMC</span></div>
-        ${statCards}
-        <div class="mc-stat"><span class="mc-stat-value">${ov.n_journals.toLocaleString()}</span><span class="mc-stat-label">Journals matched</span></div>
-        <div class="mc-stat"><span class="mc-stat-value">${ov.n_disciplines.toLocaleString('en-GB')}</span><span class="mc-stat-label">Disciplines</span></div>`;
+    document.getElementById('mc-overview').innerHTML =
+        kpiHtml(ov.n_total, 'Reference pairs with OMC') +
+        statCards +
+        kpiHtml(ov.n_journals, 'Journals matched') +
+        kpiHtml(ov.n_disciplines, 'Disciplines');
     const noOmc = 'without an OMC (no original journal recorded, journal not found in OpenAlex, or OMC set aside)';
     const distCoverage = coverageText(ov.n_total, kindPairCount(mcKind), [[ov.n_excluded || 0, noOmc]], kindNoun(mcKind), mcKind);
     if (eligibleEl) { eligibleEl.textContent = distCoverage; eligibleEl.style.display = ''; }
@@ -1705,22 +1765,10 @@ function renderOverlapCharts() {
     const ovEl = document.getElementById('ao-overview');
     if (ovEl) {
         ovEl.innerHTML =
-            '<div class="mc-stat-box">' +
-                '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + (aoKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs included</div>' +
-            '</div>' +
-            '<div class="mc-stat-box">' +
-                '<div class="mc-stat-value">' + (ov.n_overlap || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">With author overlap (' + escapeHtml(FloraCharts.percent(ov.n_overlap, ov.n_total)) + '%)</div>' +
-            '</div>' +
-            '<div class="mc-stat-box">' +
-                '<div class="mc-stat-value">' + (ov.n_no_overlap || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Without author overlap (' + escapeHtml(FloraCharts.percent(ov.n_no_overlap, ov.n_total)) + '%)</div>' +
-            '</div>' +
-            '<div class="mc-stat-box">' +
-                '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Overlap unknown</div>' +
-            '</div>';
+            kpiHtml(ov.n_total || 0, (aoKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs included') +
+            kpiHtml(ov.n_overlap || 0, 'With author overlap', kpiShare(ov.n_overlap, ov.n_total)) +
+            kpiHtml(ov.n_no_overlap || 0, 'Without author overlap', kpiShare(ov.n_no_overlap, ov.n_total)) +
+            kpiHtml(ov.n_unknown || 0, 'Overlap unknown', kpiShare(ov.n_unknown, (ov.n_total || 0) + (ov.n_unknown || 0)));
         omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
@@ -1833,24 +1881,10 @@ function renderRRCharts() {
     const ovEl = document.getElementById('rr-overview');
     if (ovEl) {
         ovEl.innerHTML =
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs checked</div>' +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_rr || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Registered Reports (' + escapeHtml(FloraCharts.percent(ov.n_rr, ov.n_total)) + '%)</div>' +
-                fromReports(ov.n_rr_reports) +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_non_rr || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Not found in RR database (' + escapeHtml(FloraCharts.percent(ov.n_non_rr, ov.n_total)) + '%)</div>' +
-                fromReports(ov.n_non_rr_reports) +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_unknown || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Not checkable</div>' +
-            '</div>';
+            kpiHtml(ov.n_total || 0, (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs checked') +
+            kpiHtml(ov.n_rr || 0, 'Registered Reports', kpiShare(ov.n_rr, ov.n_total), fromReports(ov.n_rr_reports)) +
+            kpiHtml(ov.n_non_rr || 0, 'Not found in RR database', kpiShare(ov.n_non_rr, ov.n_total), fromReports(ov.n_non_rr_reports)) +
+            kpiHtml(ov.n_unknown || 0, 'Not checkable', kpiShare(ov.n_unknown, (ov.n_total || 0) + (ov.n_unknown || 0)));
         omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
@@ -1992,8 +2026,9 @@ function renderPubStatusCharts() {
     const ovEl = document.getElementById('pub-overview');
     if (ovEl) {
         const venueLabels = {journal:'Other named venue', preprint:'Repository / preprint', conference:'Conference output', thesis:'Thesis / dissertation', unknown:'Unknown venue'};
-        ovEl.innerHTML = `<div class="mc-stat"><div class="mc-stat-value">${ov.n_total.toLocaleString('en-GB')}</div><div class="mc-stat-label">Reference pairs</div></div>` +
-            Object.entries(venueLabels).filter(([key]) => ov['n_'+key] > 0).map(([key,label])=>`<div class="mc-stat"><div class="mc-stat-value">${(ov['n_'+key] || 0).toLocaleString('en-GB')}</div><div class="mc-stat-label">${label} (${escapeHtml(FloraCharts.percent(ov['n_'+key] || 0, ov.n_total))}%)</div></div>`).join('');
+        ovEl.innerHTML = kpiHtml(ov.n_total, 'Reference pairs') +
+            Object.entries(venueLabels).filter(([key]) => ov['n_'+key] > 0)
+                .map(([key, label]) => kpiHtml(ov['n_'+key] || 0, label, kpiShare(ov['n_'+key] || 0, ov.n_total))).join('');
         omitEmptyCategoryTiles(ovEl);
         ovEl.style.display = '';
     }
@@ -2128,18 +2163,9 @@ function renderLargeScaleCharts() {
     // ── Overview boxes ─────────────────────────────────────────────────────────
     if (overviewEl) {
         overviewEl.innerHTML =
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_total || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">' + (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs checked</div>' +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_individual || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Up to 3 targets / unknown (' + escapeHtml(FloraCharts.percent(ov.n_individual, ov.n_total)) + '%)</div>' +
-            '</div>' +
-            '<div class="mc-stat">' +
-                '<div class="mc-stat-value">' + (ov.n_large_scale || 0).toLocaleString() + '</div>' +
-                '<div class="mc-stat-label">Multiple-target report (' + escapeHtml(FloraCharts.percent(ov.n_large_scale, ov.n_total)) + '%)</div>' +
-            '</div>';
+            kpiHtml(ov.n_total || 0, (pubTypeKind === 'replication' ? 'Replication' : 'Reproduction') + ' reference pairs checked') +
+            kpiHtml(ov.n_individual || 0, 'Up to 3 targets / unknown', kpiShare(ov.n_individual, ov.n_total)) +
+            kpiHtml(ov.n_large_scale || 0, 'Multiple-target report', kpiShare(ov.n_large_scale, ov.n_total));
         omitEmptyCategoryTiles(overviewEl);
         overviewEl.style.display = '';
     }
@@ -2478,6 +2504,7 @@ async function loadData() {
     initDataTable(data);
     setupBrowseMobile(data);
     setupBrowseKindFilter();
+    SEGMENTED_CONTROLS.forEach(c => c.refreshCount());
     loadCitation();
     loadFaqs();
     loadDataStamps();

@@ -27,7 +27,7 @@ body {
     padding: 1.5rem 0 3rem;
 }
 
-h1, .serif, .card-header, .stats-card .number,
+h1, .serif, .card-header,
 .intro-text h3, .trend-desc h3, .detail-row h6 {
     font-family: var(--font-display);
     font-weight: 600;
@@ -225,16 +225,19 @@ h1, .serif, .card-header, .stats-card .number,
     .excluded-legend span:last-child { margin-left: 0; }
 }
 
-/* Stats cards */
-.stats-card {
-    text-align: center; padding: 1.35rem 1rem 1.1rem; border-radius: 10px;
-    background: var(--color-surface-raised); border: 1px solid var(--color-border); margin-bottom: 1rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+/* KPI tile: the single stat component used on every tab (value, label, optional denominator line) */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.85rem; margin: 0.75rem 0 1.25rem; }
+.kpi {
+    display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+    padding: 1rem; border-radius: 10px; min-width: 0;
+    background: var(--color-surface-raised); border: 1px solid var(--color-border); box-shadow: 0 1px 2px var(--color-shadow);
 }
-.stats-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px var(--color-shadow-hover); border-color: var(--color-primary-border); }
-.stats-card .number { font-size: 2.35rem; font-weight: 700; color: var(--color-primary); line-height: 1.1; }
-.stats-card .label { color: var(--color-muted-fg); font-size: 0.78rem; font-weight: 600; margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-body); }
-.stats-card .distinct { color: var(--color-muted-fg); font-size: 0.78rem; margin-top: 0.4rem; line-height: 1.35; }
+.kpi-value { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; line-height: 1.15; color: var(--color-primary); }
+.kpi-label { margin-top: 0.3rem; font-size: 0.72rem; font-weight: 600; color: var(--color-muted-fg); text-transform: uppercase; letter-spacing: 0.07em; }
+.kpi-denominator { margin-top: 0.2rem; font-size: 0.8rem; color: var(--color-muted-fg); }
+/* On a card (Authorship Overlap, Mean Citedness, Publication Type) the tile steps to the subtle
+   surface so it still reads as a box against the card's own raised background. */
+.card-body .kpi { background: var(--color-surface-subtle); }
 .mc-stat-sub { display: block; font-size: 0.75rem; color: var(--color-muted-fg); margin-top: 0.2rem; }
 
 /* Badges */
@@ -309,7 +312,7 @@ h1, .serif, .card-header, .stats-card .number,
 /* Citation */
 .citation-box { background: var(--color-surface-subtle); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem 1.25rem; font-size: var(--text-md); line-height: 1.65; font-family: var(--font-display); position: relative; color: var(--color-text); }
 /* Shared outlined button: card background, hairline border, page font. */
-.citation-box .copy-btn, .trend-filter-btn, .refresh-btn, .bm-page-btn, .pagination button, .ci-share-btn {
+.citation-box .copy-btn, .refresh-btn, .bm-page-btn, .pagination button, .ci-share-btn {
     background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 6px;
     cursor: pointer; font-family: var(--font-body);
 }
@@ -386,13 +389,6 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 }
 
 /* Trends filter */
-.trend-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1.5rem; background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 10px; box-shadow: 0 1px 2px var(--color-shadow); }
-.trend-filter-label { font-weight: 600; color: var(--color-muted-fg); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 0.25rem; }
-.trend-filter-btn { background: transparent; color: var(--color-text); padding: 0.4rem 0.85rem; font-size: 0.88rem; font-weight: 500; transition: all 0.15s ease; }
-.trend-filter-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
-.trend-filter-btn.active { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); }
-.trend-filter-btn.active:hover { background: var(--color-primary-dark); border-color: var(--color-primary-dark); color: var(--color-on-primary); }
-.trend-filter-count { margin-left: auto; color: var(--color-muted-fg); font-size: 0.85rem; font-style: italic; }
 
 .trend-block { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
 /* minmax(0, …) lets the columns shrink below a chart's last drawn width when the viewport narrows. */
@@ -463,7 +459,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 @media (max-width: 768px) {
     .nav-tabs .nav-link { padding: 0 0.75rem; font-size: 0.86rem; }
     .table td, .table th { font-size: 0.85rem; }
-    .stats-card .number { font-size: 1.85rem; }
+    .kpi-value { font-size: 1.5rem; }
     .card-body { padding: 1rem; }
     .card-header { font-size: 1.05rem; }
     .browse-desktop { display: none; }
@@ -481,23 +477,29 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 .ci-lede {
     color: var(--color-text-secondary); font-size: var(--text-md); line-height: 1.6; max-width: 850px; margin: 0 0 1.25rem 0;
 }
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.85rem; margin-top: 0.75rem; }
-.kpi { background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.95rem 1rem; box-shadow: 0 1px 2px var(--color-shadow); }
-.kpi-value { font-family: var(--font-display); font-size: 1.65rem; font-weight: 700; color: var(--color-primary); }
-.kpi-label { font-size: 0.72rem; color: var(--color-muted-fg); text-transform: uppercase; letter-spacing: 0.07em; margin-top: 0.2rem; }
 
 .ci-card .muted { color: var(--color-muted-fg); font-size: var(--text-base); }
 
-.filters { margin: 0.75rem 0 0.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-.filter-label { font-size: 0.78rem; color: var(--color-muted-fg); text-transform: uppercase; letter-spacing: 0.07em; }
-.chip-group { display: flex; gap: 0.45rem; flex-wrap: wrap; }
-.chip {
-    background: var(--color-surface-raised); border: 1px solid var(--color-border); color: var(--color-text);
-    padding: 0.4rem 0.95rem; border-radius: 999px; cursor: pointer; font-size: 0.88rem;
-    transition: all 0.15s; font-family: var(--font-body);
+/* Segmented control: the single-select filter used for study type on every tab (and the
+   Citation Impact outcome filter). Built by mountSegmented() in app.js. */
+.seg { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.75rem; margin: 0 0 0.5rem; }
+.seg:not(:has(+ .study-type-note)) { margin-bottom: 1rem; }
+.seg-label { font-size: 0.82rem; font-weight: 600; color: var(--color-muted-fg); }
+.seg-options { display: inline-flex; max-width: 100%; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface-raised); }
+.seg-btn {
+    position: relative; padding: 0.4rem 0.95rem; border: 0; border-left: 1px solid var(--color-border);
+    background: transparent; color: var(--color-text); cursor: pointer;
+    font-family: var(--font-body); font-size: 0.88rem; font-weight: 500; line-height: 1.3;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
-.chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
-.chip.active { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); }
+.seg-btn:first-child { border-left: 0; border-radius: 7px 0 0 7px; }
+.seg-btn:last-child { border-radius: 0 7px 7px 0; }
+.seg-btn:only-child { border-radius: 7px; }
+.seg-btn:hover { color: var(--color-primary); }
+.seg-btn:focus-visible { z-index: 1; outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.seg-btn[aria-pressed="true"] { background: var(--color-primary); color: var(--color-on-primary); }
+.seg-btn[aria-pressed="true"]:hover { background: var(--color-primary-dark); color: var(--color-on-primary); }
+.seg-count { margin-left: auto; color: var(--color-muted-fg); font-size: 0.85rem; font-style: italic; }
 
 .plot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1rem; }
 @media (max-width: 900px) { .plot-grid { grid-template-columns: 1fr; } }
@@ -607,8 +609,7 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 }
 .scope-note svg { width: 13px; height: 13px; flex-shrink: 0; }
 
-/* Study-type selector (Citation Impact / Mean Citedness / Authorship Overlap / Registered Reports) */
-.study-type-select { margin-bottom: 0.4rem; }
+/* Notes under the study-type selector */
 .study-type-note {
     color: var(--color-muted-fg); font-size: 0.82rem; margin: 0 0 1rem;
 }
@@ -621,10 +622,6 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
 }
 
 /* Mean Citedness — overview grid from R fragment */
-.mc-overview-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 0.75rem; margin: 0 0 1.25rem;
-}
 /* Keep the remaining Mean Citedness tiles in balanced rows. */
 #mc-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 #mc-overview:has(> :nth-child(5):last-child),
@@ -636,12 +633,6 @@ tr.shown td.details-control .study-details::before { transform: rotate(90deg); }
     #mc-overview, #mc-overview:has(> :nth-child(n):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     #mc-overview:has(> :nth-child(odd):last-child) > :first-child { grid-column: 1 / -1; }
 }
-.mc-stat {
-    background: var(--color-surface-subtle); border: 1px solid var(--color-border);
-    border-radius: 8px; padding: 0.8rem 1rem; text-align: center;
-}
-.mc-stat-value { display: block; font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; color: var(--color-primary); }
-.mc-stat-label { display: block; font-size: 0.72rem; color: var(--color-muted-fg); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.15rem; }
 .mc-model-note { font-size: 0.88rem; color: var(--color-muted-fg); margin: 0.25rem 0 1rem; }
 
 /* Mean Citedness — Chart.js chart cards */
@@ -684,7 +675,8 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .browse-search label {display:block;font-weight:700;margin-bottom:.4rem;}
 .browse-search-row {display:flex;align-items:stretch;gap:.5rem;}
 .browse-search-row input {min-width:0;flex:1;}
-.browse-kind-filter {margin:.9rem 0 0;padding:.9rem 0 0;border:0;border-top:1px solid var(--color-border);border-radius:0;box-shadow:none;}
+.browse-kind-filter {margin:.9rem 0 0;padding:.9rem 0 0;border-top:1px solid var(--color-border);}
+.browse-kind-filter .seg {margin-bottom:0;}
 .icon-action,.browse-download,.timeline-open,.chart-mode {border:1px solid var(--color-border);border-radius:.3rem;background:var(--color-surface-raised);color:var(--color-text);padding:.35rem .65rem;}
 .icon-action {display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;flex-shrink:0;color:var(--color-muted-fg);cursor:pointer;}
 .icon-action svg,.browse-download svg {width:17px;height:17px;}
@@ -820,7 +812,7 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
     *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
 }
 @media (forced-colors: active) {
-    .chip.active, .trend-filter-btn.active { outline: 3px solid Highlight; outline-offset: -4px; border-color: Highlight; }
+    .seg-btn[aria-pressed="true"] { outline: 3px solid Highlight; outline-offset: -4px; border-color: Highlight; }
     .nav-tabs .nav-link.active { border-bottom: 5px double Highlight; }
     .rep-bar { border: 1px solid CanvasText; }
     .rep-seg { forced-color-adjust: none; background: Canvas !important; border-right: 1px solid CanvasText; }
@@ -887,30 +879,18 @@ h1,.card-header,.mc-chart-title {font-family:var(--font-display);}
 .info-tip .tip-definitions li { display: flex; gap: 0.5rem; align-items: baseline; }
 .info-tip .tip-swatch { flex: none; width: 0.65rem; height: 0.65rem; border-radius: 2px; transform: translateY(0.05rem); }
 
-.study-type-select > .filter-label, .trend-filter-label {
-    text-transform: none; letter-spacing: normal; align-self: center;
-}
-
-/* Study-type filter: compact layout on phones.
-   Header row (label + count) on top, buttons in a 2-column grid below. */
+/* Segmented control on phones: label and count share the top row, options sit in a
+   2-column grid below. */
 @media (max-width: 600px) {
-    .trend-filter {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.4rem;
-        padding: 0.6rem 0.75rem;
-        margin-bottom: 1rem;
+    .seg { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem; }
+    .seg-label { grid-column: 1; grid-row: 1; }
+    .seg-count { grid-column: 2; grid-row: 1; margin-left: 0; text-align: right; font-size: 0.78rem; line-height: 1.2; }
+    .seg-options { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; border: 0; background: none; }
+    .seg-btn, .seg-btn:first-child, .seg-btn:last-child {
+        border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface-raised);
+        padding: 0.35rem 0.4rem; font-size: 0.8rem; line-height: 1.2; text-align: center; min-height: 2.25rem;
     }
-    .browse-kind-filter { padding: 0.7rem 0 0; margin-top: 0.7rem; }
-    .trend-filter-label { grid-column: 1; grid-row: 1; margin-right: 0; font-size: 0.78rem; }
-    .trend-filter-count { grid-column: 2; grid-row: 1; margin-left: 0; text-align: right; font-size: 0.78rem; line-height: 1.2; }
-    .trend-filter-btn {
-        padding: 0.35rem 0.4rem;
-        font-size: 0.8rem;
-        line-height: 1.2;
-        text-align: center;
-        min-height: 2.25rem;
-    }
+    .seg-btn[aria-pressed="true"] { background: var(--color-primary); border-color: var(--color-primary); }
 }
 
 @media (max-width: 767px) {

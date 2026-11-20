@@ -82,7 +82,7 @@ test('desktop/mobile search, DOI URLs, empty results, shared view and evidence a
   assert.equal(await p.locator('.bm-card').count(),0);
   assert.equal(await p.evaluate(()=>Chart.getChart('browse-outcome-chart').data.datasets.reduce((n,d)=>n+d.data[0],0)),0);
   assert.match(await p.locator('#browse-outcome-chart-data').textContent(),/No matching assessed outcomes/);
-  await p.fill('#browse-mobile-input','');await p.click('.browse-kind-btn[data-kind="all"]');
+  await p.fill('#browse-mobile-input','');await p.click('#browse-study-type .seg-btn[data-value="all"]');
   await p.waitForFunction(()=>getChartData().length===fullRowData.length);
   assert.equal(await p.locator('#export-browse').innerText(),'Download full CSV');
   const fullDownloadEvent=p.waitForEvent('download');await p.click('#export-browse');
@@ -176,7 +176,7 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
   const sums=await p.evaluate(()=>{const t=document.getElementById('pub-chart').data;return t[0].x.map((_,i)=>t.reduce((n,s)=>n+s.y[i],0));});
   assert.ok(sums.every(s=>Math.abs(s-100)<1e-8));
   const unknown=await p.evaluate(csv=>Papa.parse(csv,{header:true,skipEmptyLines:true}).data.filter(r=>r.type.toLowerCase().includes('replication')&&!r.type.toLowerCase().includes('reproduc')&&['','na','nan','none','null'].includes((r.journal_r||'').trim().toLowerCase())).length,fs.readFileSync('data/flora.csv','utf8'));
-  assert.equal(Number(await p.locator('#pub-overview .mc-stat').filter({hasText:'Unknown venue'}).locator('.mc-stat-value').textContent()),unknown);
+  assert.equal(Number(await p.locator('#pub-overview .kpi').filter({hasText:'Unknown venue'}).locator('.kpi-value').textContent()),unknown);
   await p.locator('#pub-studies-card summary').click();
   const thesis=p.locator('#pub-studies-table tbody tr').filter({hasText:'Digital Library of Theses'});
   assert.ok(await thesis.count());assert.match(await thesis.first().innerText(),/Thesis \/ dissertation/);
@@ -230,7 +230,7 @@ test('late Chart.js loading preserves chart ownership through repeated redraws',
     release();await p.waitForLoadState('load');
     await p.waitForFunction(()=>typeof Chart!=='undefined'&&Chart.getChart('overview-outcome-chart'));
     assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
-    await p.click('#theme-toggle');await p.click('.browse-kind-btn[data-kind="replication"]');
+    await p.click('#theme-toggle');await p.click('#browse-study-type .seg-btn[data-value="replication"]');
     assert.ok(await p.evaluate(()=>overviewChart===Chart.getChart('overview-outcome-chart')&&browseOutcomeChart===Chart.getChart('browse-outcome-chart')));
     assert.deepEqual(errors,[]);
   } finally {release();await p.close();}
@@ -246,7 +246,7 @@ test('FAQ URLs stay inside href attributes and default filter states agree',asyn
   assert.equal(links.length,2);assert.equal(links[0].href,'https://example.org/"onmouseover="alert');
   assert.ok(links.every(a=>!a.attributes.some(n=>n.startsWith('on'))));
   assert.equal(links[1].href,'mailto:a@example.org');
-  assert.deepEqual(await p.locator('#trends .trend-filter-btn').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('active')=== (n.getAttribute('aria-pressed')==='true'))),[true,true,true,true]);
+  assert.equal(await p.locator('#trends-study-type .seg-btn[aria-pressed="true"]').count(),1);
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
@@ -295,7 +295,7 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   await p.setViewportSize({width:1633,height:830});
   const firstRow=await p.locator('#flora-table tbody tr').first().evaluate(e=>e.getBoundingClientRect().bottom);
   assert.ok(firstRow<830,`first result ends at ${firstRow}px`);
-  await p.click('.browse-kind-btn[data-kind="replication"]');
+  await p.click('#browse-study-type .seg-btn[data-value="replication"]');
   assert.ok(await p.locator('#browse-outcome-card').isVisible());
   assert.match(await p.locator('#browse-outcome-caption').innerText(),/^4 replication reference pairs: .*Failed 3 \(75%\).*Mixed 1 \(25%\)/);
   await p.fill('#browse-mobile-input','unicornzzzz');await p.waitForFunction(()=>getChartData().length===0);
@@ -306,7 +306,7 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   assert.ok(!new URL(p.url()).searchParams.has('q'));
   // Mobile cards sort through the same DataTables order as the desktop headers.
   await p.setViewportSize({width:390,height:844});
-  await p.click('.browse-kind-btn[data-kind="all"]');
+  await p.click('#browse-study-type .seg-btn[data-value="all"]');
   await p.selectOption('#bm-sort','2:asc');
   await p.waitForFunction(()=>new URL(location.href).searchParams.get('sort')==='2:asc');
   const years=await p.locator('.bm-card .bm-row:first-child .bm-row-meta').allInnerTexts();
@@ -345,7 +345,7 @@ test('Trends "All" stacks every chart by study type and counts each pair once',a
   const p=await page('?tab=trends&trends-kind=all',1280);await p.waitForFunction(()=>Chart.getChart('trend-field'));
   assert.ok(await p.locator('#trends-all-note').isVisible());
   assert.ok(await p.locator('#trends-charts').isVisible());
-  assert.match(await p.locator('#trend-filter-count').textContent(),/^All studies: \d{1,3}(,\d{3})* reference pairs$/);
+  assert.match(await p.locator('#trends-study-type .seg-count').textContent(),/^All studies: \d{1,3}(,\d{3})* reference pairs$/);
   for(const id of ['trend-orig-year','trend-rep-year','trend-journal','trend-rep-journal','trend-field']){
     const labels=await p.evaluate(id=>Chart.getChart(id).data.datasets.map(d=>d.label),id);
     assert.deepEqual(labels,['Replication','Reproduction','Study type not recorded'],id);
@@ -355,7 +355,7 @@ test('Trends "All" stacks every chart by study type and counts each pair once',a
   assert.match(await p.locator('#trend-field-n').textContent(),/none excluded/);
   assert.deepEqual(await p.locator('#trends .trend-desc h3').allInnerTexts(),['Reference pairs by original study year','Reference pairs by replication or reproduction report year','Reference pairs by original journal','Reference pairs by recorded replication or reproduction venue','Reference pairs by field']);
   assert.doesNotMatch(await p.locator('#trends-charts .trend-desc').allInnerTexts().then(t=>t.join(' ')),/outcome/i);
-  await p.click('#trends .trend-filter-btn[data-kind="replication"]');
+  await p.click('#trends-study-type .seg-btn[data-value="replication"]');
   assert.ok(await p.locator('#trends-all-note').isHidden());
   assert.match(await p.locator('#trends .trend-desc h3').first().innerText(),/^Outcomes by/);
   assert.deepEqual(p.errors,[]);await p.close();
@@ -372,10 +372,10 @@ test('Trends follow the selected study type, keep calendar spacing and reflow af
   const plotted=await p.evaluate(()=>Chart.getChart('trend-orig-year').data.datasets.reduce((n,d)=>n+d.data.reduce((a,b)=>a+b,0),0));
   const withYear=await p.evaluate(()=>trendsFilteredData().filter(r=>{const m=String(r.year_o||'').match(/\d{4}/);return m&&+m[0]>=1800&&+m[0]<=2100;}).length);
   assert.equal(plotted,withYear);
-  await p.click('#trends .trend-filter-btn[data-kind="reproduction-numerical"]');
+  await p.click('#trends-study-type .seg-btn[data-value="reproduction-numerical"]');
   assert.deepEqual(await p.locator('#trends .trend-desc h3').allInnerTexts(),['Outcomes by original study year','Outcomes by reproduction report year','Outcomes by original journal','Outcomes by recorded reproduction venue','Outcomes by field']);
   assert.doesNotMatch(await p.locator('#trends-charts').innerText(),/\breplications?\b/i);
-  await p.click('#trends .trend-filter-btn[data-kind="replication"]');
+  await p.click('#trends-study-type .seg-btn[data-value="replication"]');
   for(const width of [390,1440,390,1440,390]){
     await p.setViewportSize({width,height:844});await p.waitForTimeout(700);
     const overflow=await p.evaluate(()=>[...document.querySelectorAll('#trends .card')].flatMap(card=>{const right=card.getBoundingClientRect().right+1;return [...card.querySelectorAll('.trend-desc, canvas')].filter(el=>el.getBoundingClientRect().right>right).map(el=>el.id||el.className);}));
@@ -444,13 +444,13 @@ test('citation timeline redraws wait for 120 ms without another resize',async()=
 });
 
 test('Mean Citedness omits empty KPI tiles and avoids a lone tile on the last row',async()=>{
-  const p=await page('?tab=mean-citedness');await p.waitForSelector('#mc-overview .mc-stat');
+  const p=await page('?tab=mean-citedness');await p.waitForSelector('#mc-overview .kpi');
   for(const kind of ['replication','reproduction-numerical','reproduction-robustness']){
     await p.click(`#mc-study-type [data-value="${kind}"]`);
-    assert.ok((await p.locator('#mc-overview .mc-stat-value').allTextContents()).every(s=>Number(s.replaceAll(',',''))>0));
+    assert.ok((await p.locator('#mc-overview .kpi-value').allTextContents()).every(s=>Number(s.replaceAll(',',''))>0));
     for(const width of [1280,1024,768,390]){
       await p.setViewportSize({width,height:900});
-      const rows=await p.locator('#mc-overview .mc-stat').evaluateAll(els=>Object.values(els.reduce((rows,el)=>{const y=el.getBoundingClientRect().top;rows[y]=(rows[y]||0)+1;return rows;},{})));
+      const rows=await p.locator('#mc-overview .kpi').evaluateAll(els=>Object.values(els.reduce((rows,el)=>{const y=el.getBoundingClientRect().top;rows[y]=(rows[y]||0)+1;return rows;},{})));
       assert.ok(rows.length===1||rows.at(-1)>1,`${kind} orphan at ${width}px: ${rows}`);
     }
   }
@@ -467,8 +467,8 @@ test('seven Mean Citedness tiles fill desktop rows as 1 + 3 + 3',async()=>{
     }
     return route.fulfill({json:data});
   }));
-  await p.waitForSelector('#mc-overview .mc-stat');
-  assert.equal(await p.locator('#mc-overview .mc-stat').count(),7);
+  await p.waitForSelector('#mc-overview .kpi');
+  assert.equal(await p.locator('#mc-overview .kpi').count(),7);
   for(const width of [1280,1024,768,390,1280]){
     await p.setViewportSize({width,height:900});
     const rows=await p.locator('#mc-overview').evaluate(grid=>{
@@ -847,7 +847,7 @@ test('copy follows each study type and preserves complete rendered sentences',as
   const repro=await p.evaluate(()=>{const r=fullRowData.find(r=>classifyKind(r)==='reproduction');renderRandomExamples([r]);return reportKindLabel(r);});
   assert.equal(repro,'Reproduction');
   assert.deepEqual(await p.locator('#random-examples .ex-line-label').allTextContents(),['Original report','Reproduction report']);
-  const views=[['trends-tab','#trends','#trends .trend-filter-btn','kind'],['mc-tab','#mean-citedness','#mc-study-type .chip','value'],['overlap-tab','#authorship-overlap','#ao-study-type .chip','value'],['pub-tab','#publication-type','#pubtype-study-type .chip','value'],['citation-tab','#citation-impact','#ci-study-type .chip','value']];
+  const views=[['trends-tab','#trends','#trends-study-type .seg-btn','value'],['mc-tab','#mean-citedness','#mc-study-type .seg-btn','value'],['overlap-tab','#authorship-overlap','#ao-study-type .seg-btn','value'],['pub-tab','#publication-type','#pubtype-study-type .seg-btn','value'],['citation-tab','#citation-impact','#ci-study-type .seg-btn','value']];
   for(const [tab,pane,controls,key] of views){
     await p.click('#'+tab);
     for(const kind of ['replication','reproduction-numerical','reproduction-robustness']){
@@ -863,7 +863,7 @@ test('copy follows each study type and preserves complete rendered sentences',as
   }
   await p.click('#browse-tab');
   for(const kind of ['reproduction-numerical','reproduction-robustness','replication','all']){
-    await p.click(`.browse-kind-btn[data-kind="${kind}"]`);
+    await p.click(`#browse-study-type .seg-btn[data-value="${kind}"]`);
     const expected=kind==='all'?'Replication or reproduction':kind==='replication'?'Replication':'Reproduction';
     assert.deepEqual(await p.locator('[data-browse-report-kind]').allTextContents(),[expected]);
     assert.equal(await p.locator('#flora-table thead th').last().textContent(),'Report link');
@@ -1040,7 +1040,7 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   assert.ok((await p.locator('#ao-chart-data td').allTextContents()).includes('<1'));
   await p.click('#pub-tab');await p.waitForSelector('#rr-chart-data');
   assert.match(await p.locator('#rr-overview').textContent(),/Not found in RR database/);
-  assert.equal(await p.locator('#pub-overview .mc-stat-value').first().textContent(),pub.n_total.toLocaleString('en-GB'));
+  assert.equal(await p.locator('#pub-overview .kpi-value').first().textContent(),pub.n_total.toLocaleString('en-GB'));
   assert.doesNotMatch(await p.locator('#pub-overview').innerText(),/\(\d+\.\d+%\)/);
   await p.click('#mc-tab');await p.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
   assert.ok((await p.locator('#mc-gam-stats').textContent()).replace(/\s/g,'').includes('N='+model.stats.n_model.toLocaleString('en-GB')));
@@ -1138,9 +1138,9 @@ test('mobile paging focuses the results heading; counts and chip changes have on
   assert.ok(position);
   assert.equal(await p.locator('#browse-kind-count[role="status"]').count(),0);
   await p.selectOption('#mobile-navigation','trends-tab');
-  await p.locator('#trends .trend-filter-btn[data-kind="reproduction-numerical"]').click();
-  assert.equal(await p.locator('#trend-filter-count').getAttribute('role'),'status');
-  assert.match(await p.locator('#trend-filter-count').textContent(),/Numerical reproductions/);
+  await p.locator('#trends-study-type .seg-btn[data-value="reproduction-numerical"]').click();
+  assert.equal(await p.locator('#trends-study-type .seg-count').getAttribute('role'),'status');
+  assert.match(await p.locator('#trends-study-type .seg-count').textContent(),/Numerical reproductions/);
   await p.selectOption('#mobile-navigation','mc-tab');
   await p.waitForSelector('#mc-dist-chart-data');
   await p.locator('#mc-study-type [data-value="reproduction-numerical"]').click();
@@ -1216,7 +1216,7 @@ test('chart alternatives and actions have distinct names; motion and forced colo
     assert.ok(names.every(Boolean),selector);assert.equal(new Set(names).size,names.length,`${selector}: ${names}`);
   }
   await p.emulateMedia({forcedColors:'active'});
-  const selected=p.locator('#pubtype-study-type .chip.active');
+  const selected=p.locator('#pubtype-study-type .seg-btn[aria-pressed="true"]');
   assert.equal(await selected.evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
   assert.equal(await p.locator('#pub-tab').evaluate(el=>getComputedStyle(el).borderBottomStyle),'double');
   await p.click('#citation-tab');
@@ -1270,7 +1270,7 @@ test('focus rings, small targets and the dark success/failure pair keep sufficie
 test('filter state restored from a shared URL is not announced',async()=>{
   const p=await page('?tab=mean-citedness&mc-kind=reproduction-numerical',390);
   await p.waitForSelector('#mc-dist-chart-data');
-  assert.equal(await p.locator('#mc-study-type .chip.active').getAttribute('data-value'),'reproduction-numerical');
+  assert.equal(await p.locator('#mc-study-type .seg-btn[aria-pressed="true"]').getAttribute('data-value'),'reproduction-numerical');
   assert.equal((await p.locator('#analysis-feedback').textContent()).trim(),'');
   await p.close();
 });
@@ -1425,14 +1425,14 @@ test('shared vocabulary preserves source codes, full badges and independent repr
   assert.deepEqual(full.data.map(row=>row.outcome_replication),[...outcomes.slice(0,5),'','']);
   assert.ok(full.data.every(row=>row['Export context'].includes('Study type: All')));
   assert.equal(full.data[2].outcome_label,'Missing outcome');
-  await p.click('.browse-kind-btn[data-kind="reproduction-numerical"]');
+  await p.click('#browse-study-type .seg-btn[data-value="reproduction-numerical"]');
   const filtered=await readDownload();assert.equal(filtered.data.length,1);
   assert.equal([filtered.data[0].outcome_computation,filtered.data[0].outcome_robustness].join(', '),outcomes[6]);
   assert.equal(filtered.data[0].outcome_label,'Computational: Computationally reproducible; Robustness: Not checked');
   assert.match(filtered.data[0]['Export context'],/Study type: Numerical reproductions/);
   await p.fill('#browse-mobile-input','zzzz-missing');await p.waitForFunction(()=>getChartData().length===0);
   const empty=await readDownload();assert.deepEqual(empty.meta.fields,full.meta.fields);assert.deepEqual(empty.data,[]);
-  await p.fill('#browse-mobile-input','');await p.click('.browse-kind-btn[data-kind="all"]');
+  await p.fill('#browse-mobile-input','');await p.click('#browse-study-type .seg-btn[data-value="all"]');
   await p.waitForFunction(()=>getChartData().length===fullRowData.length&&document.querySelectorAll('.bm-card').length===fullRowData.length);
   await p.setViewportSize({width:390,height:900});
   assert.deepEqual(await p.locator('.bm-card .bm-tags .badge').allTextContents(),await p.locator('#flora-table .badge').allTextContents());

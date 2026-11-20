@@ -135,28 +135,10 @@
                     </section>
                     <div class="data-stamp" data-stamp-source="flora"></div>
 
-                    <div class="row mb-3">
-                        <div class="col-6 col-md-4">
-                            <div class="stats-card">
-                                <div class="number" id="ov-total">-</div>
-                                <div class="label">Reference pairs</div>
-                                <div class="distinct" id="ov-total-distinct"></div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-4">
-                            <div class="stats-card">
-                                <div class="number" id="ov-replications">-</div>
-                                <div class="label">Replication reference pairs</div>
-                                <div class="distinct" id="ov-replications-distinct"></div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-4">
-                            <div class="stats-card">
-                                <div class="number" id="ov-reproductions">-</div>
-                                <div class="label">Reproduction reference pairs</div>
-                                <div class="distinct" id="ov-reproductions-distinct"></div>
-                            </div>
-                        </div>
+                    <div class="kpi-row" id="ov-kpis">
+                        <div class="kpi"><div class="kpi-value" id="ov-total">-</div><div class="kpi-label">Reference pairs</div><div class="kpi-denominator" id="ov-total-distinct"></div></div>
+                        <div class="kpi"><div class="kpi-value" id="ov-replications">-</div><div class="kpi-label">Replication reference pairs</div><div class="kpi-denominator" id="ov-replications-distinct"></div></div>
+                        <div class="kpi"><div class="kpi-value" id="ov-reproductions">-</div><div class="kpi-label">Reproduction reference pairs</div><div class="kpi-denominator" id="ov-reproductions-distinct"></div></div>
                     </div>
 
                     <details class="tab-cite-block">
@@ -548,18 +530,8 @@
                                     </svg><span>Download full CSV</span></button></div><span id="view-feedback"
                                 role="status"></span>
                         </div>
-                        <div class="trend-filter browse-kind-filter" role="group" aria-label="Study type">
-                            <span class="trend-filter-label">Study type:</span>
-                            <button type="button" class="trend-filter-btn browse-kind-btn active" data-kind="all"
-                                aria-pressed="true">All</button>
-                            <button type="button" class="trend-filter-btn browse-kind-btn" data-kind="replication"
-                                aria-pressed="false">Replications</button>
-                            <button type="button" class="trend-filter-btn browse-kind-btn"
-                                data-kind="reproduction-numerical" aria-pressed="false">Numerical reproductions</button>
-                            <button type="button" class="trend-filter-btn browse-kind-btn"
-                                data-kind="reproduction-robustness" aria-pressed="false">Robustness
-                                reproductions</button>
-                            <span class="trend-filter-count" id="browse-kind-count"></span>
+                        <div class="browse-kind-filter">
+                            <div class="seg" id="browse-study-type" data-kinds="all,replication,reproduction-numerical,reproduction-robustness"></div>
                         </div>
                         <p id="browse-chart-hint" class="study-type-note">Choose a study type to see its outcome
                             breakdown.</p>
@@ -707,17 +679,7 @@
                                 Sciences and Humanities.</em></div>
                     </details>
 
-                    <div class="trend-filter" role="group" aria-label="Study type">
-                        <span class="trend-filter-label">Study type:</span>
-                        <button type="button" class="trend-filter-btn" data-kind="all" aria-pressed="false">All</button>
-                        <button type="button" class="trend-filter-btn active" data-kind="replication"
-                            aria-pressed="true">Replications</button>
-                        <button type="button" class="trend-filter-btn" data-kind="reproduction-numerical"
-                            aria-pressed="false">Numerical reproductions</button>
-                        <button type="button" class="trend-filter-btn" data-kind="reproduction-robustness"
-                            aria-pressed="false">Robustness reproductions</button>
-                        <span class="trend-filter-count" id="trend-filter-count" role="status"></span>
-                    </div>
+                    <div class="seg" id="trends-study-type" data-kinds="all,replication,reproduction-numerical,reproduction-robustness" data-value="replication"></div>
 
                     <p id="trends-all-note" class="study-type-note" hidden>Replications and reproductions record outcomes in
                         different categories, so with All selected each bar is split by study type instead of by
@@ -892,16 +854,7 @@
                         <h2 class="ci-h2"
                             data-kind-text="Citation patterns around the first replication|Citation counts for numerical reproductions|Citation counts for robustness reproductions">
                             Citation patterns around the first replication</h2>
-                        <div class="chip-group study-type-select" id="ci-study-type" role="group"
-                            aria-label="Citation Impact study type">
-                            <span class="filter-label">Study type:</span>
-                            <button class="chip active" data-value="replication"
-                                aria-pressed="true">Replications</button>
-                            <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
-                                reproductions</button>
-                            <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness
-                                reproductions</button>
-                        </div>
+                        <div class="seg" id="ci-study-type"></div>
                         <div class="study-type-note">Numerical and robustness reproductions show descriptive citation
                             counts. No reproduction event-study model is fitted.</div>
                         <p class="ci-lede">
@@ -967,17 +920,7 @@
                                     after change visualised here is only descriptive, and cannot by itself be
                                     interpreted as an effect of replication.</p>
 
-                                <div class="filters">
-                                    <span class="filter-label">Replication outcome</span>
-                                    <div class="chip-group" id="outcome-chips" role="group"
-                                        aria-label="Replication outcome">
-                                        <button class="chip active" data-value="all" aria-pressed="true">All</button>
-                                        <button class="chip" data-value="failed" aria-pressed="false">Failed</button>
-                                        <button class="chip" data-value="successful"
-                                            aria-pressed="false">Successful</button>
-                                        <button class="chip" data-value="mixed" aria-pressed="false">Mixed</button>
-                                    </div>
-                                </div>
+                                <div class="seg" id="outcome-chips"></div>
 
                                 <div class="plot-grid">
                                     <div class="plot-card">
@@ -1144,16 +1087,7 @@
                                 update stamp identifies the analysis snapshot. Any fitted model describes an
                                 association.
                             </p>
-                            <div class="chip-group study-type-select" id="mc-study-type" role="group"
-                                aria-label="Mean Citedness study type">
-                                <span class="filter-label">Study type:</span>
-                                <button class="chip active" data-value="replication"
-                                    aria-pressed="true">Replications</button>
-                                <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
-                                    reproductions</button>
-                                <button class="chip" data-value="reproduction-robustness"
-                                    aria-pressed="false">Robustness reproductions</button>
-                            </div>
+                            <div class="seg" id="mc-study-type"></div>
                             <div class="study-type-note">Reproduction summaries include only pairs with a verdict on the
                                 selected dimension and an available OMC. Unchecked and uncoded dimensions are
                                 excluded; the two subsets can overlap.</div>
@@ -1162,7 +1096,7 @@
                                 yet for this study type — coming soon.</div>
                             <div id="mc-content">
                                 <div id="mc-loading" class="note note-loading">Loading analysis…</div>
-                                <div id="mc-overview" class="mc-overview-grid" style="display:none;"></div>
+                                <div id="mc-overview" class="kpi-row" style="display:none;"></div>
                                 <p id="mc-eligible" class="mc-model-note" style="display:none;"></p>
                                 <div id="mc-dist-card" class="mc-chart-card" style="display:none;">
                                     <h3 class="mc-chart-title">Distribution of reference pairs by journal Mean Citedness
@@ -1228,16 +1162,7 @@
                                 This may produce <strong>false positives</strong> for common family names when two
                                 unrelated researchers share a surname.
                             </p>
-                            <div class="chip-group study-type-select" id="ao-study-type" role="group"
-                                aria-label="Authorship Overlap study type">
-                                <span class="filter-label">Study type:</span>
-                                <button class="chip active" data-value="replication"
-                                    aria-pressed="true">Replications</button>
-                                <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
-                                    reproductions</button>
-                                <button class="chip" data-value="reproduction-robustness"
-                                    aria-pressed="false">Robustness reproductions</button>
-                            </div>
+                            <div class="seg" id="ao-study-type"></div>
                             <div class="study-type-note">Numerical reproductions include reference pairs with a
                                 computational verdict. Robustness reproductions include reference pairs with a
                                 robustness verdict. The selections can overlap. Pairs without a verdict on the selected
@@ -1247,7 +1172,7 @@
                             <div id="ao-content">
                                 <div id="ao-loading" class="note note-loading">Loading analysis…</div>
 
-                                <div id="ao-overview" class="mc-overview-grid" style="display:none;"></div>
+                                <div id="ao-overview" class="kpi-row" style="display:none;"></div>
 
                                 <div id="ao-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
                                     <h3 class="mc-chart-title"><span
@@ -1292,15 +1217,7 @@
                         </div>
                     </details>
 
-                    <div class="chip-group study-type-select" id="pubtype-study-type" role="group"
-                        aria-label="Publication Type study type (all three comparisons)">
-                        <span class="filter-label">Study type:</span>
-                        <button class="chip active" data-value="replication" aria-pressed="true">Replications</button>
-                        <button class="chip" data-value="reproduction-numerical" aria-pressed="false">Numerical
-                            reproductions</button>
-                        <button class="chip" data-value="reproduction-robustness" aria-pressed="false">Robustness
-                            reproductions</button>
-                    </div>
+                    <div class="seg" id="pubtype-study-type"></div>
                     <div class="study-type-note">This filter applies to all three analyses below. It is computed for all
                         three study types; reproduction results may show a low-data message given how few reproductions
                         exist so far.</div>
@@ -1327,7 +1244,7 @@
                             <div id="pub-content">
                                 <div id="pub-loading" class="note note-loading">Loading analysis…</div>
 
-                                <div id="pub-overview" class="mc-overview-grid" style="display:none;"></div>
+                                <div id="pub-overview" class="kpi-row" style="display:none;"></div>
 
                                 <div id="pub-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
                                     <h3 class="mc-chart-title">Outcomes by publication venue</h3>
@@ -1428,7 +1345,7 @@
                             <div id="rr-content">
                                 <div id="rr-loading" class="note note-loading">Loading analysis…</div>
 
-                                <div id="rr-overview" class="mc-overview-grid" style="display:none;"></div>
+                                <div id="rr-overview" class="kpi-row" style="display:none;"></div>
                                 <p id="rr-snapshot-note" class="study-type-note" style="display:none;"></p>
 
                                 <div id="rr-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
@@ -1508,7 +1425,7 @@
                             <div id="ls-content">
                                 <div id="ls-loading" class="note note-loading">Loading analysis…</div>
 
-                                <div id="ls-overview" class="mc-overview-grid" style="display:none;"></div>
+                                <div id="ls-overview" class="kpi-row" style="display:none;"></div>
 
                                 <div id="ls-chart-card" class="mc-chart-card" style="display:none;margin-top:1.25rem;">
                                     <h3 class="mc-chart-title">Outcomes by report size</h3>
