@@ -76,13 +76,16 @@ function modelSpec(d, jitter, coverage) {
                 {name: '95% confidence interval', type: 'line', stack: 'ci', data: x.map((v, i) => [v, curve[i].p_hi - curve[i].p_lo]), lineStyle: {opacity: 0},
                     areaStyle: {color: t.band, opacity: 1}, symbol: 'circle', symbolSize: 8, itemStyle: {color: t.band, opacity: 0}, emphasis: {disabled: true},
                     tooltip: {formatter: p => tipLines([`OMC = ${number(curve[p.dataIndex].omc, 2)}`, `95% CI: ${pct(curve[p.dataIndex].p_lo)} to ${pct(curve[p.dataIndex].p_hi)}`])}},
+                {name: 'Smooth fit', type: 'line', data: x.map((v, i) => [v, curve[i].p]), lineStyle: {color: t.primary, width: 2.5}, z: 3,
+                    symbol: 'circle', symbolSize: 8, showSymbol: true, itemStyle: {color: t.primary, opacity: 0}, emphasis: {itemStyle: {opacity: 1}},
+                    tooltip: {formatter: p => tipLines([`OMC = ${number(curve[p.dataIndex].omc, 2)}`, `Estimated P(success) = ${pct(curve[p.dataIndex].p)}`])}},
                 {name: 'Reference pairs', type: 'scatter', data: shown.map(p => [p.x, p.y]), symbolSize: 5, itemStyle: {color: t.point}, emphasis: {scale: 1.6},
                     tooltip: {formatter: p => tipLines([`OMC = ${number(shown[p.dataIndex].omc, 2)}`, shown[p.dataIndex].label])},
                     markLine: {silent: true, symbol: 'none', data: [{yAxis: 0.5}], lineStyle: {color: t.rule, width: 1.5, type: 'dashed'},
                         label: {position: 'insideEndTop', formatter: '50% reference', color: t.ruleLabel, fontSize: 11}}},
             ],
             // The band's own symbols are invisible hover targets, so its legend swatch names its fill.
-            legend: {data: [{name: '95% confidence interval', itemStyle: {color: t.band, opacity: 1}}, 'Reference pairs']},
+            legend: {data: ['Smooth fit', {name: '95% confidence interval', itemStyle: {color: t.band, opacity: 1}}, 'Reference pairs']},
             xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', range[0], range[1]),
             yAxis: valueAxis({name: 'P(success | successful or failed)', min: -0.08, max: 1.08,
                 axisLabel: {customValues: [0, .25, .5, .75, 1], formatter: v => Math.round(v * 100) + '%'}, axisTick: {customValues: [0, .25, .5, .75, 1]}}),
@@ -137,7 +140,6 @@ export default function MeanCitedness() {
         [[ov.n_excluded || 0, NO_OMC], ...notModelled.map(b => [ov[overviewKey(b)] || 0, b.label.toLowerCase()])], 'replication reference pairs', 'replication') : '';
     const distribution = useMemo(() => enough ? distributionSpec(d, buckets, distCoverage) : null, [enough, d, buckets, distCoverage]);
     const model = useMemo(() => enough && kind === 'replication' ? modelSpec(d, jitterCache.current, modelCoverage) : null, [enough, d, kind, theme, modelCoverage]);
-    const modelExcluded = notModelled.filter(b => ov?.[overviewKey(b)] > 0).map(b => `${b.label.toLowerCase()} ${ov[overviewKey(b)].toLocaleString('en-GB')}`);
     const aside = setAsideNote(d?.set_aside);
 
     return (
@@ -172,11 +174,12 @@ export default function MeanCitedness() {
                         {kind !== 'replication' && <Note id="mc-repro-note">Reproduction summaries are descriptive. No reproduction model has been fitted.</Note>}
                     </>}
                     <div id="mc-gam-card" style={model ? undefined : {display: 'none'}}>
+                        <Callout tone="caution" id="mc-gam-wip" label="Work in progress:">This model and graph are still being developed and may change.</Callout>
                         {model
                             ? <Plot id="mc-gam-chart" heading="Success probability among successful / failed replications" title="Success probability among successful / failed replications" spec={model} note={
                                 <Note id="mc-gam-stats">{!model.message && <>
                                     Logistic smooth of log(OMC + 1): <Gloss term="edf">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</Gloss> = {sig2(stats.edf)}, χ² = {sig2(stats.chi_sq)}
-                                    {stats.p_val != null && (stats.p_val < 0.001 ? ', p < .001' : ', p = ' + stats.p_val.toFixed(3))}; <Gloss term="McFadden R²">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</Gloss> = {sig2(stats.r2)}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed){modelExcluded.length > 0 && '; excluded: ' + modelExcluded.join(', ')}.
+                                    {stats.p_val != null && (stats.p_val < 0.001 ? ', p < .001' : ', p = ' + stats.p_val.toFixed(3))}; <Gloss term="McFadden R²">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</Gloss> = {sig2(stats.r2)}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed).
                                 </>}</Note>} />
                             : <><Note id="mc-gam-stats" /><div id="mc-gam-chart" /></>}
                         <Note>The data underlying the graph include all records from the FLORA database with complete information, particularly a lifetime Mean Citedness for the journal in which the original study was published, and a clearly successful or unsuccessful replication outcome (i.e., replications with mixed outcomes were excluded). The shaded band shows the 95% confidence interval for the estimated probability of success.</Note>
