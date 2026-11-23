@@ -3,7 +3,7 @@ import {BROWSE_KIND_LABELS, KINDS, TABS, TAB_ALIASES} from '../lib/config.js';
 
 const DEFAULTS = {
     tab: 'overview-tab', doi: '',
-    q: '', kind: 'all', sort: '4:desc', page: 1, pageSize: 25, mobilePage: 1,
+    q: '', kind: 'all', outcome: '', sort: '4:desc', page: 1, pageSize: 25, mobilePage: 1,
     trendsKind: 'replication', journalTopN: '15', repJournalTopN: '15',
     ciKind: 'replication', ciOutcome: 'all', filterOutcome: '', ciQ: '',
     mcKind: 'replication', aoKind: 'replication', pubKind: 'replication',
@@ -15,7 +15,7 @@ const DEFAULTS = {
 
 // [state key, URL parameter, owning tab]; a shared URL carries only the active view's choices.
 const PARAMS = [
-    ['q', 'q', 'browse-tab'], ['kind', 'kind', 'browse-tab'], ['sort', 'sort', 'browse-tab'], ['page', 'page', 'browse-tab'],
+    ['q', 'q', 'browse-tab'], ['kind', 'kind', 'browse-tab'], ['outcome', 'outcome', 'browse-tab'], ['sort', 'sort', 'browse-tab'], ['page', 'page', 'browse-tab'],
     ['pageSize', 'page-size', 'browse-tab'], ['mobilePage', 'mobile-page', 'browse-tab'],
     ['trendsKind', 'trends-kind', 'trends-tab'], ['journalTopN', 'journal-top-n', 'trends-tab'], ['repJournalTopN', 'rep-journal-top-n', 'trends-tab'],
     ['ciKind', 'ci-kind', 'citation-tab'], ['ciOutcome', 'ci-outcome', 'citation-tab'], ['filterOutcome', 'filter-outcome', 'citation-tab'], ['ciQ', 'ci-q', 'citation-tab'],
@@ -38,6 +38,7 @@ function parse(url) {
         doi: get('doi') || '',
         q: get('q') || '',
         kind: oneOf(get('kind'), Object.keys(BROWSE_KIND_LABELS), 'all'),
+        outcome: (get('outcome') || '').trim().toLowerCase(),
         sort: sort && /^[1-8]$/.test(sort[0]) && ['asc', 'desc'].includes(sort[1]) ? sort.join(':') : '4:desc',
         page: positive(get('page'), 1),
         pageSize: oneOf(Number(get('page-size') || 25), [10, 25, 50, 100, -1], 25),
