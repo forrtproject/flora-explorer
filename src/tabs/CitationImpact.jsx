@@ -161,8 +161,11 @@ const CI_MOBILE_SORTS = [
     ['n_citations:desc', 'Most cited'],
     ['n_citations:asc', 'Least cited'],
     ['n_cocitations:desc', 'Most co-cited (count)'],
+    ['n_cocitations:asc', 'Least co-cited (count)'],
     ['cocit_prop:desc', 'Highest co-citation share'],
+    ['cocit_prop:asc', 'Lowest co-citation share'],
     ['n_replications:desc', 'Most replications'],
+    ['n_replications:asc', 'Least replications'],
     ['year:desc', 'Newest original'],
     ['year:asc', 'Oldest original'],
 ];
@@ -172,11 +175,19 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     const [input, setInput] = useState(view.ciQ);
     const [sort, setSort] = useState({col: 'n_citations', dir: 'desc'});
     const [page, setPage] = useState(1);
+    const [mobile, setMobile] = useState(() => matchMedia('(max-width: 767px)').matches);
     const debounce = useRef();
     const inputRef = useRef(null);
     const pagination = useRef(null);
     const refocus = useRef(false);
     useEffect(() => { setInput(view.ciQ); }, [view.ciQ]);
+    useEffect(() => {
+        const mq = matchMedia('(max-width: 767px)');
+        const onChange = () => setMobile(mq.matches);
+        onChange();
+        mq.addEventListener('change', onChange);
+        return () => mq.removeEventListener('change', onChange);
+    }, []);
     const query = view.ciQ, filter = view.filterOutcome;
 
     const matches = useMemo(() => {
@@ -207,7 +218,9 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     }, [current]);
 
     const first = Math.max(1, current - 2), lastPage = Math.min(pages, first + 4);
-    const sortButton = (col, label, extra = '') => <th className={'sortable' + (sort.col === col ? ` sort-${sort.dir}` : '') + (extra ? ' ' + extra : '')} data-sort={col} scope="col" aria-sort={ariaSort(col)}><button type="button" className="table-sort" data-sort={col} onClick={() => sortBy(col)}>{label}</button></th>;
+    const sortButton = (col, label, extra = '') => mobile
+        ? <th className={extra || undefined} scope="col">{label}</th>
+        : <th className={'sortable' + (sort.col === col ? ` sort-${sort.dir}` : '') + (extra ? ' ' + extra : '')} data-sort={col} scope="col" aria-sort={ariaSort(col)}><button type="button" className="table-sort" data-sort={col} onClick={() => sortBy(col)}>{label}</button></th>;
     const cocitSort = ['n_cocitations', 'cocit_prop'].includes(sort.col);
     return (
         <>
@@ -230,10 +243,9 @@ function OriginalsTable({index, excluded, onOpen, status}) {
             {/* A key for the replication bars; each bar also names its counts to screen readers and on hover. */}
             <div className="rep-key" aria-hidden="true"><span>Replications bar:</span>{MIX_ORDER.map(o => <span key={o}><i className={o} />{FloraVocabulary.label(o)}</span>)}</div>
             <label className="bm-sort ci-mobile-sort" htmlFor="ci-mobile-sort">Sort by <select id="ci-mobile-sort" className="form-select"
-                value={CI_MOBILE_SORTS.some(([v]) => v === `${sort.col}:${sort.dir}`) ? `${sort.col}:${sort.dir}` : 'custom'}
+                value={`${sort.col}:${sort.dir}`}
                 onChange={e => { const [col, dir] = e.target.value.split(':'); setSort({col, dir}); setPage(1); }}>
                 {CI_MOBILE_SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                <option value="custom" disabled hidden>Order set in desktop table</option>
             </select></label>
             <TableScroll label="Originals with citation data">
                 <table id="originals-table" tabIndex={-1} className="table" data-query={status === 'ready' ? query : undefined}>
@@ -243,10 +255,10 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                             {sortButton('year', 'Year', 'num')}
                             {sortButton('n_replications', 'Replications')}
                             {sortButton('n_citations', 'Citations, all years', 'num')}
-                            <th className="cocit-th num" scope="col" aria-sort={cocitSort ? ariaSort(sort.col) : undefined}>Co-citations since first recorded replication <span className="cocit-sort-toggle" role="group" aria-label="Sort co-citations by">
+                            <th className="cocit-th num" scope="col" aria-sort={!mobile && cocitSort ? ariaSort(sort.col) : undefined}>Co-citations since first recorded replication {!mobile && <span className="cocit-sort-toggle" role="group" aria-label="Sort co-citations by">
                                 <button type="button" className={'cocit-sort-btn' + (sort.col === 'n_cocitations' ? ` sort-${sort.dir}` : '')} data-sort="n_cocitations" title="Sort by co-citation count" aria-label="Sort by co-citation count" aria-pressed={sort.col === 'n_cocitations'} onClick={() => sortBy('n_cocitations')}>Count</button>
                                 <button type="button" className={'cocit-sort-btn' + (sort.col === 'cocit_prop' ? ` sort-${sort.dir}` : '')} data-sort="cocit_prop" title="Sort by co-citation share" aria-label="Sort by co-citation percentage" aria-pressed={sort.col === 'cocit_prop'} onClick={() => sortBy('cocit_prop')}>Share</button>
-                            </span></th>
+                            </span>}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -445,7 +457,7 @@ const studyCache = new Map();
 const DIALOG_CONTEXT = {active: true, visited: true, selection: '', kind: ''};
 
 // The timeline dialog: traps focus, closes on Escape or backdrop click, and returns focus to its opener.
-function TimelineDialog({entry, meta, openerRef, onClose}) {
+function TimelineDialog({entry, meta, openerRef, historyRef, onClose}) {
     const {stamps} = useData();
     const [state, setState] = useState({});
     const modal = useRef(null);
@@ -471,6 +483,7 @@ function TimelineDialog({entry, meta, openerRef, onClose}) {
     useEffect(() => {
         const opener = openerRef?.current || document.activeElement;
         if (openerRef) openerRef.current = null;
+        const openTick = historyRef.current;
         const background = document.querySelectorAll('.top-bar, main, .footer-bar');
         background.forEach(el => { el.inert = true; });
         closeButton.current.focus();
@@ -486,8 +499,9 @@ function TimelineDialog({entry, meta, openerRef, onClose}) {
         return () => {
             document.removeEventListener('keydown', onKey);
             background.forEach(el => { el.inert = false; });
-            // After back/forward the destination pane takes focus instead of a control in a hidden pane.
-            if (opener?.isConnected && opener.getClientRects().length) opener.focus();
+            // History-driven dismissal focuses the restored active pane rather than a cached row button.
+            const viaHistory = historyRef.current !== openTick;
+            if (!viaHistory && opener?.isConnected && opener.getClientRects().length) opener.focus();
             else document.querySelector('.tab-pane.active')?.focus({preventScroll: true});
         };
     }, []);
@@ -508,14 +522,16 @@ function TimelineDialog({entry, meta, openerRef, onClose}) {
 }
 
 export function CitationDialog({data}) {
-    const {view, setView} = useView();
+    const {view, setView, historyTick} = useView();
+    const historyRef = useRef(historyTick);
+    historyRef.current = historyTick;
     const entry = useMemo(() => {
         const target = normalizeDoi(view.doi);
         return target && data.index ? data.index.find(s => normalizeDoi(s.doi) === target) : null;
     }, [view.doi, data.index]);
     // The hidden shell keeps #ci-modal addressable while no timeline is open.
     if (!entry || view.tab !== 'citation-tab') return <div className="modal-backdrop" id="ci-modal" role="dialog" aria-modal="true" aria-label="Citation timeline and replication evidence" hidden />;
-    return <TimelineDialog entry={entry} meta={data.meta} openerRef={data.openerRef} onClose={() => setView({doi: ''})} />;
+    return <TimelineDialog entry={entry} meta={data.meta} openerRef={data.openerRef} historyRef={historyRef} onClose={() => setView({doi: ''})} />;
 }
 
 export function useCitations() {

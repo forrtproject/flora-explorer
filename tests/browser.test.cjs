@@ -1589,15 +1589,19 @@ test('Citation Impact mobile provides visible Sort by control, removes hidden th
   const p=await page('?tab=citations',390);
   await p.waitForSelector('.timeline-open');
   assert.ok(await p.locator('#ci-mobile-sort').isVisible());
-  // Hidden desktop table headers must not remain keyboard-focusable on phones.
-  const theadVisible=await p.locator('#originals-table thead').evaluate(el=>getComputedStyle(el).display);
-  assert.equal(theadVisible,'none');
+  // Semantic column headers remain in the DOM on phones while hidden desktop sort buttons leave the tab order.
+  assert.equal(await p.locator('#originals-table thead th').count(),5);
+  assert.notEqual(await p.locator('#originals-table thead').evaluate(el=>getComputedStyle(el).display),'none');
+  assert.equal(await p.locator('#originals-table thead button').count(),0);
+  assert.equal(await p.locator('#ci-mobile-sort option').count(),10);
   await p.selectOption('#ci-mobile-sort','year:asc');
   const years=await p.locator('#originals-table tbody tr td[data-label="Year"]').allTextContents();
   const numericYears=years.map(Number).filter(Boolean);
   assert.deepEqual(numericYears,[...numericYears].sort((a,b)=>a-b));
-  // Clicking a row title (not the Timeline button) still returns focus to that row's Timeline button on Escape.
+  await p.selectOption('#ci-mobile-sort','n_replications:asc');
+  // Clicking a row title (not the Timeline button) returns focus to that row's Timeline button on Escape.
   await p.setViewportSize({width:1280,height:900});
+  await p.waitForFunction(()=>document.querySelectorAll('#originals-table thead button').length===5);
   const secondRow=p.locator('#originals-table tbody tr[data-doi]').nth(1);
   const expectedDoi=await secondRow.getAttribute('data-doi');
   await secondRow.locator('.title-cell').click();
@@ -1607,5 +1611,11 @@ test('Citation Impact mobile provides visible Sort by control, removes hidden th
   const focusedDoi=await p.evaluate(()=>document.activeElement?.closest('tr')?.dataset?.doi||null);
   assert.equal(focusedDoi,expectedDoi);
   assert.ok(await p.evaluate(()=>document.activeElement.classList.contains('timeline-open')));
+  // History-driven dismissal focuses the restored active pane instead of the cached row button.
+  await secondRow.locator('.title-cell').click();
+  await p.waitForSelector('#ci-modal:not([hidden])');
+  await p.evaluate(()=>history.back());
+  await p.waitForFunction(()=>document.getElementById('ci-modal').hidden);
+  assert.ok(await p.evaluate(()=>document.activeElement.matches('.tab-pane.active')));
   assert.deepEqual(p.errors,[]);await p.close();
 });
