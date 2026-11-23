@@ -124,7 +124,19 @@ df  <- df_all[oc_all %in% c("successful", "failed"), ]
 df$outcome_binary <- ifelse(df$outcome_class == "failed", 0L, 1L)
 df$omc_log        <- log(df$impact_factor + 1)
 
-stats_out <- list(edf = NA, chi_sq = NA, p_val = NA, r2 = NA, n_model = nrow(df))
+# Tie-exact ROC AUC via rank sum (Mann-Whitney U), using double precision to avoid integer overflow.
+compute_auc <- function(y, score) {
+  ok <- !is.na(y) & !is.na(score)
+  y <- as.integer(y[ok])
+  score <- as.numeric(score[ok])
+  n1 <- as.numeric(sum(y == 1L))
+  n0 <- as.numeric(sum(y == 0L))
+  if (n1 == 0 || n0 == 0) return(NA_real_)
+  r <- rank(score, ties.method = "average")
+  (sum(r[y == 1L]) - n1 * (n1 + 1) / 2) / (n1 * n0)
+}
+
+stats_out <- list(edf = NA, chi_sq = NA, p_val = NA, r2 = NA, auc = NA, n_model = nrow(df))
 gam_curve <- list()
 jitter    <- list()
 curve_info <- NULL
@@ -144,6 +156,7 @@ if (nrow(df) >= 30) {
       chi_sq  = round(gam_sum$chi.sq, 3),
       p_val   = round(gam_sum$s.pv,   4),
       r2      = round(as.numeric(1 - logLik(gam_fit) / null_ll), 4),
+      auc     = round(compute_auc(df$outcome_binary, fitted(gam_fit)), 4),
       n_model = nrow(df)
     )
 

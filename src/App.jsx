@@ -52,7 +52,7 @@ function TopBar() {
                 </a>
                 <label className="mobile-navigation"><span>Explore</span>{' '}
                     <select id="mobile-navigation" ref={select} aria-label="Choose explorer tab" value={view.tab} onChange={e => switchTab(e.target.value)}>
-                        {TABS.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+                        {TABS.map(tab => <option key={tab.id} value={tab.id}>{tab.shortLabel || tab.label}</option>)}
                     </select>
                 </label>
                 <ul className="nav nav-tabs" id="floraTabs" role="tablist" ref={tabs} onKeyDown={onKeyDown}>
