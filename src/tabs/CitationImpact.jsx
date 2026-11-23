@@ -329,7 +329,7 @@ function timelineSpec(s, meta) {
             // Co-citations are often a sliver of a year's citations; a minimum height keeps every non-zero one visible.
             ...(si ? {barMinHeight: 3} : {}),
             itemStyle: {color: barFill(x.color), borderColor: t.paper, borderWidth: 1},
-            data: x.values.map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
+            data: x.values.map((v, i) => ({value: si && !v ? null : v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
         }));
         // Light dotted rules mark each replication behind the bars; the numbered circle carries the outcome colour.
         bars[0].markLine = {silent: true, symbol: 'none', z: 1, data: marks.map(m => ({xAxis: String(m.year), name: m.label,

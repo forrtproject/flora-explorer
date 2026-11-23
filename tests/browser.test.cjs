@@ -1691,3 +1691,26 @@ test('Mean Citedness GAM reports AUC with an interpretive tooltip instead of McF
   assert.ok(!fallbackSummary.includes('AUC')&&!fallbackSummary.includes('undefined'),`unexpected fallback summary: ${fallbackSummary}`);
   assert.deepEqual(p2.errors,[]);await p2.close();
 });
+
+test('citation timeline does not draw phantom bars for zero-valued co-citation series',async()=>{
+  // Bem (2011) has only Failed replications, so mixed/successful/multiple co-citations are all zero.
+  const p=await page('?tab=citations&doi=10.1037%2Fa0021524',1280);
+  await p.waitForFunction(()=>chartOption('study-plot')?.series?.length>0);
+  await p.waitForTimeout(400);
+  const check=await p.evaluate(()=>{
+    const o=chartOption('study-plot');
+    const zeroSeries=o.series.slice(1).filter(s=>s.data.every(d=>!(Number(d.value)>0)));
+    const hasZeroNumbers=o.series.slice(1).some(s=>s.data.some(d=>d.value===0));
+    const qualifiedFill=FloraCharts.token('--color-chart-qualified').toLowerCase();
+    const svg=document.querySelector('#study-plot svg');
+    const phantomPaths=[...svg.querySelectorAll('path')].filter(el=>(el.getAttribute('fill')||'').toLowerCase().includes(qualifiedFill)).length;
+    const defsWithQualified=[...svg.querySelectorAll('linearGradient stop')].filter(el=>(el.getAttribute('stop-color')||'').toLowerCase().includes('123,97,168')).length;
+    return {zeroSeriesCount:zeroSeries.length,hasZeroNumbers,phantomPaths,defsWithQualified};
+  });
+  assert.ok(check.zeroSeriesCount>=3,'expected all-zero co-citation series');
+  assert.equal(check.hasZeroNumbers,false,'zero co-citations should map to null rather than 0 so barMinHeight ignores them');
+  assert.equal(check.phantomPaths,0,'no SVG paths should render for empty multiple-outcomes series');
+  assert.equal(check.defsWithQualified,0,'no gradient fill should be drawn for empty multiple-outcomes series');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
