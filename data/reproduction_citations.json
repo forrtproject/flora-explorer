@@ -1,14 +1,14 @@
 {
   "reproduction-numerical": {
     "successful": {
-      "n_originals": 106,
-      "n_reproductions": 107,
-      "n_citations_to_original": 14905,
+      "n_originals": 105,
+      "n_reproductions": 106,
+      "n_citations_to_original": 14875,
       "n_citations_to_reproduction": 129,
       "n_cocitations": 57,
-      "median_citations_per_original": 59.0,
-      "mean_citations_per_reproduction": 1.21,
-      "mean_cocitation_rate": 0.0093
+      "median_citations_per_original": 60.0,
+      "mean_citations_per_reproduction": 1.22,
+      "mean_cocitation_rate": 0.0094
     },
     "issues": {
       "n_originals": 46,
@@ -33,19 +33,19 @@
   },
   "reproduction-robustness": {
     "robust": {
-      "n_originals": 6,
-      "n_reproductions": 6,
-      "n_citations_to_original": 490,
+      "n_originals": 5,
+      "n_reproductions": 5,
+      "n_citations_to_original": 347,
       "n_citations_to_reproduction": 10,
       "n_cocitations": 1,
-      "median_citations_per_original": 85.5,
-      "mean_citations_per_reproduction": 1.67,
-      "mean_cocitation_rate": 0.0061
+      "median_citations_per_original": 40.0,
+      "mean_citations_per_reproduction": 2.0,
+      "mean_cocitation_rate": 0.0076
     },
     "challenges": {
       "n_originals": 25,
       "n_reproductions": 25,
-      "n_citations_to_original": 23595,
+      "n_citations_to_original": 23708,
       "n_citations_to_reproduction": 421,
       "n_cocitations": 196,
       "median_citations_per_original": 167.0,
