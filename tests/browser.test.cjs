@@ -1594,14 +1594,15 @@ test('Mean Citedness GAM reports AUC with an interpretive tooltip instead of McF
     clone.querySelectorAll('.gloss-tip').forEach(t=>t.remove());
     return clone.textContent.replace(/\s+/g,' ').trim();
   });
-  assert.ok(visible.includes(`AUC = ${Number(model.stats.auc).toFixed(2)}`),`expected rounded AUC in note: ${visible}`);
+  const rounded=Number(model.stats.auc).toFixed(2);
+  assert.equal(visible.match(/AUC = ([0-9.]+)/)?.[1],rounded,`expected 2-decimal AUC in note: ${visible}`);
   assert.ok(!visible.includes('McFadden'),`McFadden R² should be replaced by AUC: ${visible}`);
-  assert.ok(!visible.includes(String(model.stats.auc)),'full-precision AUC stays out of the visible note');
   const aucGloss=p.locator('#mc-gam-stats .gloss').filter({hasText:'AUC'});
+  const aucTip=aucGloss.locator('.gloss-tip');
   await aucGloss.click();
-  await p.waitForFunction(()=>getComputedStyle(document.querySelectorAll('#mc-gam-stats .gloss-tip')[1]).opacity==='1');
-  const tipText=await aucGloss.locator('.gloss-tip').innerText();
-  assert.match(tipText,/0\.50.*0\.60.*0\.70.*0\.80/);
+  await p.waitForFunction(el=>getComputedStyle(el).opacity==='1',await aucTip.elementHandle());
+  const tipText=await aucTip.innerText();
+  assert.match(tipText,/ties as half.*0\.50.*0\.60.*0\.70.*0\.80/);
   const summary=await p.locator('#mc-gam-chart-data .chart-summary').textContent();
   assert.ok(summary.includes(`AUC = ${model.stats.auc}`),`expected full-precision AUC in chart summary: ${summary}`);
   assert.ok(!summary.includes('McFadden'),`McFadden R² should not remain in chart summary: ${summary}`);
@@ -1615,5 +1616,7 @@ test('Mean Citedness GAM reports AUC with an interpretive tooltip instead of McF
   await p2.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
   const fallback=await p2.locator('#mc-gam-stats').innerText();
   assert.ok(!fallback.includes('AUC')&&!fallback.includes('NaN')&&!fallback.includes('undefined'),`unexpected fallback note: ${fallback}`);
+  const fallbackSummary=await p2.locator('#mc-gam-chart-data .chart-summary').textContent();
+  assert.ok(!fallbackSummary.includes('AUC')&&!fallbackSummary.includes('undefined'),`unexpected fallback summary: ${fallbackSummary}`);
   assert.deepEqual(p2.errors,[]);await p2.close();
 });

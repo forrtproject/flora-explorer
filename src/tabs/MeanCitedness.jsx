@@ -185,7 +185,7 @@ export default function MeanCitedness() {
                                     {model.plain && <span className="mc-gam-plain">{model.plain}<br /></span>}
                                     Logistic smooth of log(OMC + 1): <Gloss term="edf">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</Gloss> = {sig2(stats.edf)}, χ² = {sig2(stats.chi_sq)}
                                     {stats.p_val != null && (stats.p_val < 0.001 ? ', p < .001' : ', p = ' + stats.p_val.toFixed(3))}
-                                    {stats.auc != null && <>; <Gloss term="AUC">Area under the ROC curve: probability that the model gives a randomly chosen successful replication a higher predicted success rate than a failed one. 0.50 is chance, ~0.60 modest, 0.70 moderate, and 0.80+ strong.</Gloss> = {Number(stats.auc).toFixed(2)}</>}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed).
+                                    {stats.auc != null && <>; <Gloss term="AUC">Area under the ROC curve: probability that the model gives a randomly chosen successful replication a higher predicted success rate than a failed one (counting ties as half). 0.50 is chance, ~0.60 modest, 0.70 moderate, and 0.80+ strong.</Gloss> = {Number(stats.auc).toFixed(2)}</>}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed).
                                 </>}</Note>} />
                             : <><Note id="mc-gam-stats" /><div id="mc-gam-chart" /></>}
                     </div>
