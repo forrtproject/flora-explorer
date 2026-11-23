@@ -188,7 +188,7 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     const search = text => { clearTimeout(debounce.current); setInput(text); debounce.current = setTimeout(() => { setPage(1); setView({ciQ: text}); }, 200); };
     const sortBy = col => { setSort(prev => ({col, dir: prev.col === col && prev.dir === 'desc' ? 'asc' : 'desc'})); setPage(1); };
     const ariaSort = col => sort.col === col ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined;
-    const goTo = p => { refocus.current = true; setPage(p); };
+    const goTo = p => { if (p === current) return; refocus.current = true; setPage(p); };
     // A Previous/Next button that disappears at the ends hands focus to the current page, and paging returns to the table top.
     useLayoutEffect(() => {
         if (!refocus.current) return;

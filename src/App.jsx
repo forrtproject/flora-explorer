@@ -94,8 +94,7 @@ export default function App() {
             if (!scroller || document.querySelector('#ci-modal:not([hidden])')) return;
             const el = document.activeElement;
             if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-            if (e.key === ' ' && el && el.closest('button, a[href], summary, [role="tab"], [role="button"]')) return;
-            if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && el && el.closest('button, a[href], summary, [role="tab"], select')) return;
+            if (e.key === ' ' && el && el.closest('button, summary, [role="tab"], [role="button"]')) return;
             if (el && scroller.contains(el) && el !== scroller && el.closest('.table-wrap, .table-scroll, .excluded-list')) return;
             const pageStep = Math.round(scroller.clientHeight * 0.85);
             const delta = e.key === 'PageDown' ? pageStep

@@ -1590,7 +1590,7 @@ test('keyboard PageDown scrolls main content, Home/End navigate tabs, and deskto
   // Immediately after load (focus on body), PageDown scrolls .app-main without needing a click first.
   await p.keyboard.press('PageDown');
   await p.waitForFunction(()=>document.querySelector('.app-main').scrollTop>200);
-  // Home and End jump to the first and last tab in the tablist.
+  // Home and End jump to the first and last tab in the tablist; ArrowDown from a focused tab still scrolls .app-main.
   await p.locator('#overview-tab').focus();
   await p.keyboard.press('End');
   assert.equal(await p.evaluate(()=>document.activeElement.id),'pub-tab');
@@ -1598,7 +1598,9 @@ test('keyboard PageDown scrolls main content, Home/End navigate tabs, and deskto
   await p.keyboard.press('Home');
   assert.equal(await p.evaluate(()=>document.activeElement.id),'overview-tab');
   assert.equal(await p.locator('.tab-pane.active').getAttribute('id'),'overview');
-  // Clicking Page 2 at the bottom of Browse desktop table scrolls smoothly back to the results heading.
+  await p.keyboard.press('ArrowDown');
+  await p.waitForFunction(()=>document.querySelector('.app-main').scrollTop>0);
+  // Clicking Page 2 at the bottom of Browse desktop table focuses and scrolls smoothly back to the results heading.
   await p.click('#browse-tab');
   await p.waitForSelector('#flora-table_paginate');
   await p.locator('#flora-table_paginate button[aria-label="Page 2"]').scrollIntoViewIfNeeded();
@@ -1606,9 +1608,24 @@ test('keyboard PageDown scrolls main content, Home/End navigate tabs, and deskto
   assert.ok(beforeTop>300);
   await p.locator('#flora-table_paginate button[aria-label="Page 2"]').click();
   await p.waitForFunction(()=>document.getElementById('browse-results-heading').getBoundingClientRect().top>=52&&document.getElementById('browse-results-heading').getBoundingClientRect().top<180);
-  // Same for Citation Impact originals pagination.
+  assert.equal(await p.evaluate(()=>document.activeElement.id),'browse-results-heading');
+  // Guard checks on Citation Impact: typing Space in #search-input and PageDown inside an open modal do not scroll .app-main.
   await p.click('#citation-tab');
   await p.waitForSelector('#pagination button[aria-label="Page 2"]');
+  await p.locator('#search-input').focus();
+  const spaceBefore=await p.evaluate(()=>document.querySelector('.app-main').scrollTop);
+  await p.keyboard.press('Space');
+  assert.equal(await p.locator('#search-input').inputValue(),' ');
+  assert.equal(await p.evaluate(()=>document.querySelector('.app-main').scrollTop),spaceBefore);
+  await p.locator('#search-input').fill('');
+  await p.locator('.timeline-open').first().click();
+  await p.waitForSelector('#ci-modal:not([hidden])');
+  const modalBefore=await p.evaluate(()=>document.querySelector('.app-main').scrollTop);
+  await p.keyboard.press('PageDown');
+  assert.equal(await p.evaluate(()=>document.querySelector('.app-main').scrollTop),modalBefore);
+  await p.keyboard.press('Escape');
+  await p.waitForFunction(()=>document.getElementById('ci-modal').hidden);
+  // Desktop pagination on Citation Impact scrolls back to the originals heading while retaining pagination focus.
   await p.locator('#pagination button[aria-label="Page 2"]').scrollIntoViewIfNeeded();
   await p.locator('#pagination button[aria-label="Page 2"]').click();
   await p.waitForFunction(()=>document.getElementById('ci-originals-heading').getBoundingClientRect().top>=52&&document.getElementById('ci-originals-heading').getBoundingClientRect().top<180);

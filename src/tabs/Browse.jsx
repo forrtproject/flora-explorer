@@ -206,7 +206,7 @@ export default function Browse({citation}) {
     const paged = useRef(false);
     const desktopPaged = useRef(false);
     const showMobilePage = delta => { paged.current = true; setView({mobilePage: mobilePage + delta}); };
-    const showDesktopPage = next => { desktopPaged.current = true; setView({page: next}); };
+    const showDesktopPage = next => { if (next === page) return; desktopPaged.current = true; setView({page: next}); };
     // Runs after the new cards are in place, so the list changing height cannot cancel the scroll.
     useEffect(() => {
         if (!paged.current) return;
@@ -218,7 +218,9 @@ export default function Browse({citation}) {
     useEffect(() => {
         if (!desktopPaged.current) return;
         desktopPaged.current = false;
-        document.getElementById('browse-results-heading')?.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+        const heading = document.getElementById('browse-results-heading');
+        heading?.focus({preventScroll: true});
+        heading?.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     }, [page]);
     const first = total ? (page - 1) * size + 1 : 0, last = Math.min(total, page * size);
     const info = `Showing ${total ? `${first.toLocaleString('en-GB')} to ${last.toLocaleString('en-GB')} of ` : ''}${total.toLocaleString('en-GB')} ${pairs(total)}${total !== rows.length ? ` (filtered from ${rows.length.toLocaleString('en-GB')} ${pairs(rows.length)})` : ''}`;
