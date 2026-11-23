@@ -1,9 +1,6 @@
 /* Shareable filters, exports, and keyboard-visible navigation. */
 (() => {
     let restoring = false, ready = false;
-    function pressed() {
-        document.querySelectorAll('.chip, .trend-filter-btn').forEach(b => b.setAttribute('aria-pressed',String(b.classList.contains('active'))));
-    }
     const initial = new URL(location.href);
     // A DOI-only share link targets Citation Impact even before its data arrives.
     if (!initial.searchParams.has('tab') && initial.searchParams.get('doi')) initial.searchParams.set('tab','citations');
@@ -25,13 +22,12 @@
         }
         if (tab === 'trends-tab') put('trends-kind',trendsKind,'replication');
         for (const [id,[key,owner,fallback]] of Object.entries(selectGroups)) {
-            if(tab===owner) put(key,document.querySelector('#'+id+' .active')?.dataset.value || fallback,fallback);
+            if(tab===owner) put(key,document.querySelector('#'+id+' .seg-btn[aria-pressed="true"]')?.dataset.value || fallback,fallback);
         }
         for (const [id,[key,owner,fallback]] of Object.entries(controls)) {
             if(tab===owner) put(key,document.getElementById(id).value,fallback);
         }
         history.replaceState(null,'',url);
-        pressed();
     }
     window.FloraView = {recordState};
     function restore(url, fromHistory = false) {
@@ -44,7 +40,7 @@
         }
         browseKind=normalizeBrowseKind(url.searchParams.get('kind'));
         browseQuery=url.searchParams.get('q') || '';document.getElementById('browse-mobile-input').value=browseQuery;
-        document.querySelectorAll('.browse-kind-btn').forEach(b=>b.classList.toggle('active',b.dataset.kind===browseKind));
+        browseControl?.select(browseKind);
         const sort=url.searchParams.get('sort')?.split(':');
         dataTable.order(sort && /^[1-8]$/.test(sort[0]) && ['asc','desc'].includes(sort[1]) ? [[Number(sort[0]),sort[1]]] : [[4,'desc']]);
         const length=Number(url.searchParams.get('page-size') || 25);
@@ -56,14 +52,14 @@
         bmPage=Number.isSafeInteger(mobilePage) && mobilePage>0 ? mobilePage-1 : 0;bmRender();
         for (const [id,[key,,fallback]] of Object.entries(selectGroups)) {
             const value=url.searchParams.get(key) || fallback;
-            const buttons=[...document.querySelectorAll('#'+id+' .chip')];
+            const buttons=[...document.querySelectorAll('#'+id+' .seg-btn')];
             const btn=buttons.find(b=>b.dataset.value===value) || buttons.find(b=>b.dataset.value===fallback);
-            if(btn && !btn.classList.contains('active'))btn.click();
+            if(btn && btn.getAttribute('aria-pressed')!=='true')btn.click();
         }
         const trend=url.searchParams.get('trends-kind') || 'replication';
-        const trendButtons=[...document.querySelectorAll('#trends .trend-filter-btn')];
-        const trendButton=trendButtons.find(b=>b.dataset.kind===trend) || trendButtons.find(b=>b.dataset.kind==='replication');
-        if(trendButton && !trendButton.classList.contains('active'))trendButton.click();
+        const trendButtons=[...document.querySelectorAll('#trends-study-type .seg-btn')];
+        const trendButton=trendButtons.find(b=>b.dataset.value===trend) || trendButtons.find(b=>b.dataset.value==='replication');
+        if(trendButton && trendButton.getAttribute('aria-pressed')!=='true')trendButton.click();
         for (const [id,[key,,fallback]] of Object.entries(controls)) {
             const el=document.getElementById(id);
             let value=url.searchParams.get(key) ?? (id==='search-input' ? url.searchParams.get('search-input') : null) ?? fallback;
@@ -71,7 +67,7 @@
             if(el.value!==value){el.value=value;el.dispatchEvent(new Event(id==='search-input'?'input':'change'));}
         }
         history.replaceState(null,'',url);
-        applyTabFromUrl();pressed();restoring=false;ready=true;recordState();
+        applyTabFromUrl();restoring=false;ready=true;recordState();
         if (fromHistory && hadOpenTimeline) {
             const pane = document.querySelector('.tab-pane.active');
             pane.setAttribute('tabindex','-1');pane.focus({preventScroll:true});
@@ -80,12 +76,13 @@
     }
     document.addEventListener('flora-ready',()=>restore(initial),{once:true});
     document.addEventListener('click',e=>{
-        const chip = e.target.closest('.chip, .trend-filter-btn');
+        const chip = e.target.closest('.seg-btn');
         if(chip) {
-            pressed();recordState();
-            // Announce user choices by their group label; state restored from the URL stays silent.
-            const group = chip.closest('#ci-study-type, #outcome-chips, #mc-study-type, #ao-study-type, #pubtype-study-type');
-            if (group && !restoring) document.getElementById('analysis-feedback').textContent = group.getAttribute('aria-label') + ': ' + chip.textContent.trim() + ' selected.';
+            recordState();
+            // Selectors with a count line announce through it (role="status"). Those without one
+            // (the outcome filter) are announced by their label; state restored from the URL stays silent.
+            const group = chip.closest('.seg');
+            if (group && !group.querySelector('.seg-count') && !restoring) document.getElementById('analysis-feedback').textContent = group.querySelector('.seg-label').textContent + ': ' + chip.textContent.trim() + ' selected.';
         }
     });
     document.addEventListener('change',e=>{if(Object.keys(controls).includes(e.target.id))recordState();});
@@ -168,5 +165,4 @@
         document.querySelectorAll('.info-icon:hover, .info-icon:focus, .gloss:hover, .gloss:focus').forEach(el => { if (el !== openingTip) el.classList.add('tip-dismissed'); });
     }, true);
     describeTips();
-    pressed();
 })();

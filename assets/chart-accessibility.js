@@ -57,9 +57,10 @@ window.FloraCharts = (() => {
     function context(el) {
         const pane = el.closest('.tab-pane');
         const stamp = (pane ? [...pane.querySelectorAll('.data-stamp')].map(s=>s.textContent.trim()).filter(Boolean).join('; ') : document.querySelector('#citation-impact .data-stamp')?.textContent.trim()) || 'Snapshot date: see tab update stamp';
-        const filters = [...(pane?.querySelectorAll('.chip.active, .trend-filter-btn.active') || [])].map(e => e.textContent.trim()).join('; ');
-        const selected = pane?.querySelector('.chip.active, .trend-filter-btn.active');
-        const kind = selected?.dataset.kind || selected?.dataset.value;
+        const pressed = [...(pane?.querySelectorAll('.seg-btn[aria-pressed="true"]') || [])];
+        const filters = pressed.map(e => e.textContent.trim()).join('; ');
+        const selected = pane?.querySelector('[id$="study-type"] .seg-btn[aria-pressed="true"]');
+        const kind = selected?.dataset.value;
         const reportKind = kind?.startsWith('reproduction') ? 'reproduction' : kind === 'replication' ? 'replication' : 'replication or reproduction';
         const unitDefinition = FloraVocabulary.unitDefinition('Reference pair').replace('replication or reproduction', reportKind);
         return `${stamp}. ${filters ? 'Selection: ' + filters + '. ' : ''}Values and units correspond to the labelled series. ${unitDefinition ? unitDefinition + ' ' : ''}Reproduction dimensions can overlap.`;
