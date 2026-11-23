@@ -196,6 +196,10 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .disclosure > :not(summary) { margin-inline: var(--space-4); }
 .disclosure[open] { padding-bottom: var(--space-3); }
 .disclosure--panel > summary { padding: var(--space-3) var(--space-4); font-size: var(--fs-5); color: var(--color-text); }
+.study-list-controls { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.study-list-controls input { flex: 1 1 220px; min-width: 0; }
+.study-list-controls select { flex: 0 1 220px; min-width: 0; }
+.study-list-footer { margin-bottom: 0; }
 .figure > .chart-data { border: 0; border-top: 1px solid var(--color-border-light); border-radius: 0; padding-bottom: 0; }
 .figure > .chart-data > summary { padding-inline: 0; }
 .figure > .chart-data > :not(summary) { margin-inline: 0; }

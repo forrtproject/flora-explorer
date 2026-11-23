@@ -184,6 +184,7 @@ test('all seven tabs, percentages, venue evidence, responsive redraws and chart 
   const unknown=JSON.parse(fs.readFileSync('data/pub_status_data.json')).replication.overview.n_unknown;
   assert.equal(Number(await p.locator('#pub-overview .mc-stat').filter({hasText:'Unknown venue'}).locator('.mc-stat-value').textContent()),unknown);
   await p.locator('#pub-studies-card summary').click();
+  await p.selectOption('#pub-studies-filter','thesis');
   const thesis=p.locator('#pub-studies-table tbody tr').filter({hasText:'Digital Library of Theses'});
   assert.ok(await thesis.count());assert.match(await thesis.first().innerText(),/Thesis \/ dissertation/);
   assert.ok(await p.locator('#ls-loading').isHidden());
@@ -841,9 +842,9 @@ test('originals and Publication Type tables expose their last columns at phone a
   for(const width of [390,768]){
     await p.setViewportSize({width,height:844});
     await p.selectOption('#mobile-navigation','citation-tab');await reachable('originals-table');
-    await p.selectOption('#mobile-navigation','pub-tab');await p.waitForFunction(()=>document.querySelector('#pub-studies-table tbody tr'));
+    await p.selectOption('#mobile-navigation','pub-tab');await p.waitForSelector('#pub-studies-card');
     for(const [details,table] of [['pub-studies-card','pub-studies-table'],['rr-studies-card','rr-studies-table'],['ls-studies-card','ls-studies-table']]){
-      await p.locator('#'+details).evaluate(el=>el.open=true);await reachable(table);
+      await p.locator('#'+details).evaluate(el=>{if(!el.open)el.open=true;});await p.waitForSelector('#'+table+' tbody tr');await reachable(table);
     }
   }
   assert.deepEqual(p.errors,[]);await p.close();
@@ -1560,6 +1561,8 @@ test('analysis charts show N of M with exclusions and distinct report counts bes
   assert.ok(!stats.includes(String(model.stats.chi_sq)),'full precision stays out of the visible note');
   await p.click('#pub-tab');await p.waitForSelector('#rr-chart-data');
   assert.match(await p.locator('#rr-overview').textContent(),new RegExp(`pairs from ${n(rrData.overview.n_rr_reports)} distinct reports`));
+  await p.locator('#rr-studies-card summary').click();
+  await p.locator('#rr-studies-card button',{hasText:/^Show all/}).click();
   assert.equal(await p.locator('#rr-studies-table tbody tr').count(),rrData.overview.n_rr_reports);
   assert.equal(await p.locator('#rr-studies-count').textContent(),`(${n(rrData.overview.n_rr)} reference pairs from ${n(rrData.overview.n_rr_reports)} reports)`);
   assert.ok(await p.locator('#rr-snapshot-note').isHidden());
@@ -1582,5 +1585,27 @@ test('every chart states N of M in its chart data',async()=>{
   const [plotted,reproductions]=await p.evaluate(()=>[computeKindChartData(getChartData(),'computational').total,getChartData().filter(r=>classifyKind(r)==='reproduction').length]);
   assert.ok(plotted<reproductions&&reproductions<await p.evaluate(()=>getChartData().length));
   assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('Publication Type study lists mount lazily, paginate, and support search and category filtering',async()=>{
+  const p=await page('?tab=publication-type',1280);
+  await p.waitForSelector('#pub-studies-card');
+  // Closed disclosure mounts zero table rows upfront.
+  assert.equal(await p.locator('#pub-studies-table tbody tr').count(),0);
+  await p.locator('#pub-studies-card summary').click();
+  await p.waitForSelector('#pub-studies-table tbody tr');
+  assert.equal(await p.locator('#pub-studies-table tbody tr').count(),50);
+  // Category filter and search narrow the list immediately.
+  await p.selectOption('#pub-studies-filter','thesis');
+  const thesisCount=await p.locator('#pub-studies-table tbody tr').count();
+  assert.ok(thesisCount>0&&thesisCount<50);
+  await p.selectOption('#pub-studies-filter','');
+  await p.fill('#pub-studies-search','Digital Library of Theses');
+  assert.ok(await p.locator('#pub-studies-table tbody tr').filter({hasText:'Digital Library of Theses'}).count()>=1);
+  // Clearing filters restores pagination and Next page advances.
+  await p.fill('#pub-studies-search','');
+  await p.locator('#pub-studies-card .pagination button',{hasText:'Next'}).click();
+  assert.match(await p.locator('#pub-studies-card .study-list-footer').innerText(),/Showing 51–100/);
   assert.deepEqual(p.errors,[]);await p.close();
 });
