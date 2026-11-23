@@ -33,7 +33,7 @@ function chartHelpers(){
   const value=v=>v&&typeof v==='object'&&!Array.isArray(v)?v.value:v;
   window.chartOption=id=>instance(id)?.getOption()||null;
   window.chartSeries=id=>(chartOption(id)?.series||[]).map(s=>({name:s.name,type:s.type,stack:s.stack,values:(s.data||[]).map(value)}));
-  window.chartLegend=id=>(chartOption(id)?.legend?.[0]?.data||[]).map(d=>typeof d==='string'?d:d.name);
+  window.chartLegend=id=>{const l=chartOption(id)?.legend?.[0];return l&&l.show===false?[]:(l?.data||[]).map(d=>typeof d==='string'?d:d.name);};
   window.chartAxis=(id,dim)=>{
     const axis=instance(id)?.getModel().getComponent(dim,0)?.axis;
     return axis?{type:axis.type,ticks:axis.scale.getTicks().map(t=>t.value),labels:axis.getViewLabels().map(l=>l.formattedLabel)}:null;
@@ -292,7 +292,10 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   assert.ok(firstRow<830,`first result ends at ${firstRow}px`);
   await p.click('.browse-kind-btn[data-kind="replication"]');
   assert.ok(await p.locator('#browse-outcome-card').isVisible());
-  assert.match(await p.locator('#browse-outcome-caption').innerText(),/^4 replication reference pairs: .*Failed 3 \(75%\).*Mixed 1 \(25%\)/);
+  assert.equal((await p.locator('#browse-outcome-caption').innerText()).trim(),'4 replication reference pairs.');
+  await p.waitForFunction(()=>[...document.querySelectorAll('#browse-outcome-chart svg text')].some(el=>/^\d+%$/.test(el.textContent.trim())));
+  const browseBarLabels=await p.locator('#browse-outcome-chart svg text').allTextContents();
+  assert.ok(browseBarLabels.includes('75%')&&browseBarLabels.includes('25%'),`expected 75% and 25% inline bar labels: ${browseBarLabels}`);
   await p.fill('#browse-mobile-input','unicornzzzz');await p.waitForFunction(()=>getChartData().length===0);
   assert.match(await p.locator('#browse-empty').innerText(),/No replications match “unicornzzzz”/);
   await p.click('[data-browse-action="clear-search"]');
@@ -518,9 +521,10 @@ test('comparison N labels and axis titles stay clear of legends and ticks',async
     // Comparison groups carry an "N=" line; every group must show it.
     const groups=[...o.xAxis,...o.yAxis].find(a=>a.type==='category'&&(a.data||[]).some(d=>/\nN=/.test(d)));
     if(groups&&nLabels.length!==groups.data.length) issues.push([id,`${nLabels.length} of ${groups.data.length} N labels drawn`]);
-    if(legend.length!==names.length) issues.push([id,'legend entries missing']);
+    const showLegend=o.legend?.[0]?.show!==false;
+    if(showLegend&&legend.length!==names.length) issues.push([id,'legend entries missing']);
     const plotted=chartSeries(id).filter(s=>s.type!=='bar'||s.values.some(v=>v>0)).map(s=>s.name);
-    if(JSON.stringify(names)!==JSON.stringify(plotted)) issues.push([id,'legend does not match plotted series']);
+    if(showLegend&&JSON.stringify(names)!==JSON.stringify(plotted)) issues.push([id,'legend does not match plotted series']);
     for(const t of [...nLabels,...legend,...titleTexts]) if(!inside(t)) issues.push([id,t.text+' outside the chart']);
     for(const n of nLabels) if(legend.some(l=>touches(n,l))) issues.push([id,n.text+' overlaps the legend']);
     for(const t of titleTexts) if(ticks.some(k=>touches(t,k))) issues.push([id,t.text+' overlaps a tick']);
@@ -1041,7 +1045,13 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   const qualified=await p.evaluate(()=>fullRowData.filter(r=>classifyKind(r)==='replication'&&classifyOutcome(r.outcome)==='qualified').length);
   assert.ok(qualified>0&&qualified/pub.n_total<0.01);
-  assert.ok((await p.locator('#overview-outcome-caption').innerText()).includes(`Statistically successful but flawed ${qualified.toLocaleString('en-GB')} (<1%)`));
+  assert.equal((await p.locator('#overview-outcome-caption').innerText()).trim(),`${pub.n_total.toLocaleString('en-GB')} replication reference pairs.`);
+  assert.ok((await p.locator('#overview-outcome-chart-data').textContent()).includes('Statistically successful but flawed'));
+  await p.waitForFunction(()=>[...document.querySelectorAll('#overview-outcome-chart svg text')].some(el=>/^\d+%$/.test(el.textContent.trim())));
+  const ovBarLabels=await p.locator('#overview-outcome-chart svg text').allTextContents();
+  const pctLabels=ovBarLabels.filter(t=>/^\d+%$/.test(t));
+  assert.ok(pctLabels.length>=3,`expected inline percentage labels on overview replication bar: ${ovBarLabels}`);
+  assert.ok(!ovBarLabels.includes('<1%')&&!ovBarLabels.includes('0%'),`tiny segments must not print cluttered labels: ${ovBarLabels}`);
   assert.ok((await p.locator('#overview-outcome-chart-data .chart-summary').textContent()).includes(`Included in the plot: ${pub.n_total.toLocaleString('en-GB')}`));
   assert.deepEqual(await p.evaluate(()=>[FloraCharts.percent(0,1000),FloraCharts.percent(1,1000),FloraCharts.percent(7,2692),FloraCharts.percent(1,4),FloraCharts.number(-0.033,3)]),['0','<1','<1','25','−0.033']);
   await p.click('#trends-tab');await p.waitForFunction(()=>chartOption('trend-journal'));
@@ -1567,7 +1577,7 @@ test('analysis charts show N of M with exclusions and distinct report counts bes
   assert.match(await p.locator('#mc-eligible').textContent(),new RegExp(`^Included in the plot: ${n(ov.n_total)} of ${n(ov.n_input)} replication reference pairs; excluded: ${n(ov.n_excluded)} without an OMC`));
   const stats=(await p.locator('#mc-gam-stats').textContent()).replace(/\s+/g,' ');
   assert.ok(stats.includes(`N = ${n(model.stats.n_model)} of ${n(ov.n_total)} reference pairs with OMC`));
-  assert.ok(stats.includes(`mixed ${n(ov.n_mixed)}`));
+  assert.ok(stats.includes('mixed outcomes are excluded'));
   assert.ok(stats.includes(`χ² = ${Number(model.stats.chi_sq).toLocaleString('en-GB',{maximumSignificantDigits:2})}`));
   assert.ok(!stats.includes(String(model.stats.chi_sq)),'full precision stays out of the visible note');
   await p.click('#pub-tab');await p.waitForSelector('#rr-chart-data');
@@ -1594,5 +1604,53 @@ test('every chart states N of M in its chart data',async()=>{
   const [plotted,reproductions]=await p.evaluate(()=>[computeKindChartData(getChartData(),'computational').total,getChartData().filter(r=>classifyKind(r)==='reproduction').length]);
   assert.ok(plotted<reproductions&&reproductions<await p.evaluate(()=>getChartData().length));
   assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+
+test('redesign polish: distinct study-type colors, tablet cards, visible mobile tooltips, badges and balanced tiles',async()=>{
+  const p=await page('?tab=trends&trends-kind=all',1280);
+  await p.waitForFunction(()=>chartOption('trend-orig-year')?.series?.length>=2);
+  for(const theme of ['light','dark']){
+    if(await p.evaluate(()=>currentTheme())!==theme) await p.click('#theme-toggle');
+    await p.waitForTimeout(150);
+    const colors=await p.evaluate(()=>chartOption('trend-orig-year').series.slice(0,2).map(s=>s.itemStyle.color));
+    assert.notEqual(colors[0],colors[1],`${theme}: Replication and Reproduction colors must differ`);
+  }
+  await p.click('#theme-toggle');
+  await p.click('#trends .trend-filter-btn[data-kind="replication"]');
+  await p.click('#trend-field-mode');
+  assert.match(await p.locator('#trends-charts .trend-block').last().innerText(),/reference-pair counts[\s\S]*Show percentages/i);
+  await p.click('#browse-tab');
+  await p.setViewportSize({width:768,height:1024});
+  assert.ok(await p.locator('.browse-mobile').isVisible());
+  assert.ok(await p.locator('.browse-desktop').isHidden());
+  await p.setViewportSize({width:1280,height:900});
+  await p.locator('.study-details').first().click();
+  assert.equal(await p.locator('.detail-row h6').count(),0);
+  assert.ok(await p.locator('.detail-row h3').count()>=3);
+  // No-verdict outcome badges keep visible non-transparent styling.
+  await p.goto(base+'?tab=browse&sort=5:desc');
+  await p.waitForSelector('#flora-table .badge-uninformative');
+  const uninfBg=await p.locator('#flora-table .badge-uninformative').first().evaluate(el=>getComputedStyle(el).backgroundColor);
+  assert.notEqual(uninfBg,'rgba(0, 0, 0, 0)');
+  // Mobile InfoTip stays inside the viewport and Outcome Key tabs stay inside their disclosure at 320px.
+  await p.setViewportSize({width:320,height:700});
+  await p.selectOption('#mobile-navigation','overview-tab');
+  const tip=p.locator('#overview .info-icon').first();
+  await tip.scrollIntoViewIfNeeded();
+  await tip.click();
+  await p.waitForFunction(()=>getComputedStyle(document.querySelector('#overview .info-tip')).opacity==='1');
+  const tipBox=await p.locator('#overview .info-tip').first().boundingBox();
+  assert.ok(tipBox.x>=0&&tipBox.x+tipBox.width<=320&&tipBox.y>=0&&tipBox.y+tipBox.height<=700,`mobile InfoTip off-screen: ${JSON.stringify(tipBox)}`);
+  const det=p.locator('#overview .outcome-definitions');
+  await det.locator('summary').click();
+  const keyFits=await det.evaluate(el=>{const r=el.getBoundingClientRect();return [...el.querySelectorAll('.key-tabs button')].every(b=>b.getBoundingClientRect().right<=r.right+1);});
+  assert.ok(keyFits,'Outcome key tabs overflow at 320px');
+  // Mean Citedness 10-tile stat band has balanced rows without blank trailing cells.
+  await p.setViewportSize({width:1440,height:900});
+  await p.click('#mc-tab');
+  await p.waitForSelector('#mc-overview .mc-stat');
+  const mcRows=await p.locator('#mc-overview .mc-stat').evaluateAll(els=>Object.values(els.reduce((m,el)=>{const y=Math.round(el.getBoundingClientRect().top);m[y]=(m[y]||0)+1;return m;},{})));
+  assert.deepEqual(mcRows,[5,5],`Mean Citedness rows at 1440px: ${mcRows}`);
   assert.deepEqual(p.errors,[]);await p.close();
 });

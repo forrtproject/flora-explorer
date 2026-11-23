@@ -14,9 +14,10 @@ import {Callout, LoadError, Note, Section} from '../components/ui.jsx';
 import {Chips, CiteBlock, DataStamp, Gloss, Pane, Placeholder, StatTiles, byKind, kindLabel} from '../components/common.jsx';
 
 // OMC tick labels for an axis drawn on log(OMC + 1), the model's scale; a true log axis cannot show OMC = 0.
-function omcAxis(name, min, max) {
+function omcAxis(name, min, max, width = 600) {
     const ticks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].map(Math.log1p).filter(v => v >= min && v <= max);
-    return valueAxis({name, min, max, axisLabel: {customValues: ticks, formatter: v => String(Math.round(Math.expm1(v)))}, axisTick: {customValues: ticks}, splitLine: {show: false}});
+    const label = width < 360 ? 'OMC (log scale)' : name;
+    return valueAxis({name: label, nameGap: 26, min, max, axisLabel: {customValues: ticks, formatter: v => String(Math.round(Math.expm1(v)))}, axisTick: {customValues: ticks}, splitLine: {show: false}});
 }
 
 function distributionSpec(d, buckets, coverage) {
@@ -42,7 +43,7 @@ function distributionSpec(d, buckets, coverage) {
         coverage, height: 320,
         option: ({width}) => finishOption({series, legend: {data: series.filter(s => s.data.length).map(s => s.name)},
             tooltip: {formatter: p => tipLines([`OMC ${number(p.value[5], 2)} to ${number(p.value[6], 2)}`, tipRow(p.color, `${p.seriesName}: ${number(p.value[4])} reference pairs`)])},
-            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', 0, max),
+            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', 0, max, width),
             yAxis: valueAxis({name: 'Reference pairs', ...countAxis()}),
         }, {width}),
         // The bars sit at log positions, so the table states each bin's OMC range instead.
@@ -86,11 +87,15 @@ function modelSpec(d, jitter, coverage) {
                 {name: 'Reference pairs', type: 'scatter', data: shown.map(p => [p.x, p.y]), symbolSize: 5, itemStyle: {color: t.point}, emphasis: {scale: 1.6},
                     tooltip: {formatter: p => tipLines([`OMC = ${number(shown[p.dataIndex].omc, 2)}`, shown[p.dataIndex].label])},
                     markLine: {silent: true, symbol: 'none', data: [{yAxis: 0.5}], lineStyle: {color: t.rule, width: 1.5, type: 'dashed'},
-                        label: {position: 'insideEndTop', formatter: '50% reference', color: t.ruleLabel, fontSize: 11}}},
+                        label: {position: width < 420 ? 'insideStartTop' : 'insideEndTop', formatter: '50% reference', color: t.ruleLabel, fontSize: 11}}},
             ],
-            // The band's own symbols are invisible hover targets, so its legend swatch names its fill.
-            legend: {data: ['Smooth fit', {name: '95% confidence interval', itemStyle: {color: t.band, opacity: 1}}, 'Reference pairs']},
-            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', range[0], range[1]),
+            // Explicit legend swatches keep every series legible even when point symbols are translucent or hidden.
+            legend: {data: [
+                {name: 'Smooth fit', icon: 'roundRect', itemStyle: {color: t.primary, opacity: 1}},
+                {name: '95% confidence interval', icon: 'roundRect', itemStyle: {color: t.band, borderColor: t.primary, borderWidth: 1, opacity: 1}},
+                {name: 'Reference pairs', icon: 'circle', itemStyle: {color: t.tick, opacity: 0.7}},
+            ]},
+            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', range[0], range[1], width),
             yAxis: valueAxis({name: 'P(success | successful or failed)', min: -0.08, max: 1.08,
                 axisLabel: {customValues: [0, .25, .5, .75, 1], formatter: v => Math.round(v * 100) + '%'}, axisTick: {customValues: [0, .25, .5, .75, 1]}}),
         }, {width}),

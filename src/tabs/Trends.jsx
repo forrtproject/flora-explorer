@@ -21,8 +21,8 @@ function TrendBlock({id, title, agg, kind, eligible, horizontal, minHeight, cove
     const shares = Boolean(sharesToggle) && !view.fieldCounts;
     const buckets = useMemo(() => outcomeBuckets(kind), [kind, theme]);
     const series = useMemo(() => buckets.map(b => ({name: b.label, color: b.color, values: agg.map(r => r.counts[b.key] || 0)})), [agg, buckets]);
-    // Percentages hide group size, so each category's N (the plotted pairs, the percentages' denominator) joins its name.
-    const categories = useMemo(() => agg.map((r, i) => shares ? `${r.key} (N=${series.reduce((n, s) => n + s.values[i], 0).toLocaleString('en-GB')})` : r.key), [agg, series, shares]);
+    // Percentages hide group size, so each category's N sits on its own line beneath the name and stays visible on phones.
+    const categories = useMemo(() => agg.map((r, i) => shares ? `${r.key}\n(N=${series.reduce((n, s) => n + s.values[i], 0).toLocaleString('en-GB')})` : r.key), [agg, series, shares]);
     // Long field and journal names break down the side; a pooled first column gets a dashed rule after it.
     const option = useMemo(() => ({width}) => stackedBarOption({categories,
         series, horizontal, pooledFirst: Boolean(agg[0]?.pooled), width, shares}), [agg, categories, series, horizontal, shares]);
@@ -140,7 +140,9 @@ export default function Trends() {
 
                 <TrendBlock id="trend-field" coverage={notes.fields} title={`${subject} by field`} agg={fields} horizontal minHeight={Math.max(360, fields.length * 44)} sharesToggle={!all} {...common}>
                     <p>A bird's-eye view grouping reference pairs by research discipline. Each bar shows the {all ? 'study-type breakdown' : 'outcome breakdown'} of {all ? 'replication and reproduction' : attempt} attempts targeting work originally published in journals from that field.</p>
-                    {!all && <p>Bars show percentages within each field, so fields of different sizes can be compared; N is the number of reference pairs in the field. Fields with fewer than {GROUP_MIN_N} pairs are faded, because their shares are unstable. Choose <em>Show counts</em> to see how many pairs each field has.</p>}
+                    {!all && (view.fieldCounts
+                        ? <p>Bars show reference-pair counts within each field, so fields with more recorded pairs appear longer. Choose <em>Show percentages</em> to compare within-field outcome shares across fields of different sizes.</p>
+                        : <p>Bars show percentages within each field, so fields of different sizes can be compared; N is the number of reference pairs in the field. Fields with fewer than {GROUP_MIN_N} pairs are faded, because their shares are unstable. Choose <em>Show counts</em> to see how many pairs each field has.</p>)}
                     <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" className="doi-link">journal-to-discipline mapping</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
                     <p className="note">Coverage is still growing. Journals that are not yet classified may leave some fields under-represented.</p>
                 </TrendBlock>

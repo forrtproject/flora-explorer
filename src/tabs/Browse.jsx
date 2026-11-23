@@ -11,7 +11,7 @@ import {useData} from '../state/data.jsx';
 import {useView} from '../state/view.jsx';
 import {CiteBlock, DataStamp, ExternalLink, Icon, KindFilter, OutcomeBadge, Pane, WebsiteCitation, kindLabel, stampInfo} from '../components/common.jsx';
 import {OutcomeChartRow} from '../components/OutcomeChartRow.jsx';
-import {Button, Callout, Figure, IconButton, Note, Section} from '../components/ui.jsx';
+import {Button, Callout, Figure, IconButton, Note, Section, TableScroll} from '../components/ui.jsx';
 import {DatasetCitation, REUSE_TEXT} from './Overview.jsx';
 
 const MOBILE_PAGE_SIZE = 20;
@@ -74,7 +74,7 @@ const Field = ({label, children}) => <div><span className="detail-label">{label}
 export function Evidence({row, evidenceFirst}) {
     const recorded = (
         <div className="detail-card">
-            <h6>Recorded evidence</h6>
+            <h3>Recorded evidence</h3>
             <div className="detail-section">
                 <Field label="Outcome"><OutcomeBadge row={row} /></Field>
                 <OutcomeEvidence row={row} />
@@ -85,10 +85,10 @@ export function Evidence({row, evidenceFirst}) {
     return (
         <div className="detail-row">
             {evidenceFirst && recorded}
-            {evidenceFirst && <h6 className="detail-subhead">Full report details</h6>}
+            {evidenceFirst && <h3 className="detail-subhead">Full report details</h3>}
             <div className="detail-grid">
                 <div className="detail-card">
-                    <h6>Original report</h6>
+                    <h3>Original report</h3>
                     <div className="detail-section">
                         <Field label="Title">{row.title_o || '-'}</Field>
                         <Field label="Authors">{fullAuthors(row.author_o)}</Field>
@@ -98,7 +98,7 @@ export function Evidence({row, evidenceFirst}) {
                     </div>
                 </div>
                 <div className="detail-card">
-                    <h6>{reportKindLabel(row)} report</h6>
+                    <h3>{reportKindLabel(row)} report</h3>
                     <div className="detail-section">
                         <Field label="Title">{row.title_r || '-'}</Field>
                         <Field label="Authors">{fullAuthors(row.author_r)}</Field>
@@ -150,8 +150,11 @@ export default function Browse({citation}) {
     const [expanded, setExpanded] = useState(() => new Set());
     const [feedback, setFeedback] = useState('');
     const debounce = useRef();
+    const feedbackTimer = useRef();
     const inputRef = useRef(null);
     useEffect(() => { setInput(q); }, [q]);
+    useEffect(() => { clearTimeout(feedbackTimer.current); setFeedback(''); }, [q, kind]);
+    useEffect(() => () => clearTimeout(feedbackTimer.current), []);
 
     const [column, direction] = useMemo(() => { const [c, d] = view.sort.split(':'); return [Number(c), d]; }, [view.sort]);
     const indexOf = useMemo(() => new Map(rows.map((r, i) => [r, i])), [rows]);
@@ -191,9 +194,11 @@ export default function Browse({citation}) {
 
     const share = async () => {
         clearTimeout(debounce.current);
+        clearTimeout(feedbackTimer.current);
         if (input !== q) refilter({q: input});
         try { await navigator.clipboard.writeText(linkFor(input !== q ? {q: input, page: 1, mobilePage: 1} : {})); setFeedback('Link copied'); }
         catch { setFeedback('Copy the current address from your browser.'); }
+        feedbackTimer.current = setTimeout(() => setFeedback(''), 2500);
     };
     const exportCsv = () => {
         const keys = Object.keys(rows[0] || {}).flatMap(key => key === 'outcome' ? [key, 'outcome_label'] : [key]);
@@ -227,7 +232,7 @@ export default function Browse({citation}) {
                     <label htmlFor="browse-mobile-input">Find a reference pair</label>
                     <div className="browse-search-row">
                         <div className="search-field"><Icon.search />
-                            <input type="search" id="browse-mobile-input" ref={inputRef} className="form-control" placeholder="Title, author, year, DOI or DOI URL" autoComplete="off" value={input} onChange={e => search(e.target.value)} />
+                            <input type="search" id="browse-mobile-input" ref={inputRef} className="form-control" placeholder="Title, author, year or DOI" autoComplete="off" value={input} onChange={e => search(e.target.value)} />
                         </div>
                         <IconButton id="share-view" label="Copy current view link" onClick={share}><Icon.link /></IconButton>
                         <Button id="export-browse" onClick={exportCsv}><Icon.download /><span>{filteredView ? 'Download filtered CSV' : 'Download full CSV'}</span></Button>
@@ -272,7 +277,7 @@ export default function Browse({citation}) {
                                 {PAGE_SIZES.map(n => <option key={n} value={n}>{n === -1 ? 'All' : n}</option>)}
                             </select> reference pairs</label>
                         </div>
-                        <div className="table-wrap">
+                        <TableScroll label="Reference pairs">
                             <table id="flora-table" className="table">
                                 <thead>
                                     <tr>
@@ -307,7 +312,7 @@ export default function Browse({citation}) {
                                     })}
                                 </tbody>
                             </table>
-                        </div>
+                        </TableScroll>
                         <div className="table-footer">
                             <div id="flora-table_info" className="table-info" role="status">{info}</div>
                             {pages > 1 && (
