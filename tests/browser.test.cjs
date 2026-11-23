@@ -468,32 +468,44 @@ test('Mean Citedness omits empty KPI tiles and avoids a lone tile on the last ro
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
-test('seven Mean Citedness tiles fill desktop rows as 1 + 3 + 3',async()=>{
-  // Retain four observed categories so the real renderer produces seven tiles.
-  const p=await page('?tab=mean-citedness',1280,p=>p.route('**/data/impact_factor_data.json',route=>{
-    const data=JSON.parse(fs.readFileSync('data/impact_factor_data.json','utf8'));
-    for(const key of ['qualified','uninformative','missing','unrecognised']){
-      data.overview.n_success+=data.overview['n_'+key];data.overview['n_'+key]=0;
-      data.histogram.forEach(bin=>{bin.successful+=bin[key];bin[key]=0;});
-    }
-    return route.fulfill({json:data});
-  }));
-  await p.waitForSelector('#mc-overview .mc-stat');
-  assert.equal(await p.locator('#mc-overview .mc-stat').count(),7);
-  for(const width of [1280,1024,768,390,1280]){
+test('Mean Citedness shows a single 6-tile desktop band with rare outcomes in a footnote',async()=>{
+  const data=JSON.parse(fs.readFileSync('data/impact_factor_data.json','utf8'));
+  const p=await page('?tab=mean-citedness',1440);await p.waitForSelector('#mc-overview .mc-stat');
+  assert.equal(await p.locator('#mc-overview .mc-stat').count(),6);
+  const note=await p.locator('#mc-overview .stat-band-note').innerText();
+  assert.match(note,/^Other recorded outcomes:/);
+  assert.ok(note.includes(`Statistically successful but flawed ${data.overview.n_qualified}`)&&note.includes(`Descriptive only ${data.overview.n_descriptive}`)&&note.includes(`Uninformative ${data.overview.n_uninformative}`)&&note.includes(`Missing outcome ${data.overview.n_missing}`),`unexpected footnote: ${note}`);
+  assert.ok(!note.includes('Unrecognised'),'zero-valued rare outcomes stay out of the footnote');
+  for(const [width,expected] of [[1440,[6]],[1280,[6]],[1024,[3,3]],[768,[3,3]],[390,[2,2,2]]]){
     await p.setViewportSize({width,height:900});
     const rows=await p.locator('#mc-overview').evaluate(grid=>{
       const bounds=grid.getBoundingClientRect();
-      return Object.values([...grid.children].reduce((rows,el)=>{
+      return Object.values([...grid.querySelectorAll('.mc-stat')].reduce((rows,el)=>{
         const r=el.getBoundingClientRect();
-        (rows[r.top]??=[]).push({left:r.left,right:r.right});
+        const y=Math.round(r.top);
+        (rows[y]??=[]).push({left:r.left,right:r.right});
         return rows;
       },{})).map(row=>({count:row.length,filled:Math.abs(row[0].left-bounds.left)<1&&Math.abs(row.at(-1).right-bounds.right)<1}));
     });
-    assert.deepEqual(rows.map(row=>row.count),width<768?[1,2,2,2]:[1,3,3],`row counts at ${width}px`);
+    assert.deepEqual(rows.map(row=>row.count),expected,`row counts at ${width}px`);
     assert.ok(rows.every(row=>row.filled),`each row fills the grid at ${width}px`);
+    const overflow=await p.locator('#mc-overview .mc-stat').evaluateAll(els=>els.some(el=>el.scrollWidth>el.clientWidth+1));
+    assert.equal(overflow,false,`tile text overflow at ${width}px`);
   }
   assert.deepEqual(p.errors,[]);await p.close();
+  // When no rare/no-verdict outcomes exist, the footnote is omitted.
+  const p2=await page('?tab=mean-citedness',1280,p=>p.route('**/data/impact_factor_data.json',route=>{
+    const d=JSON.parse(fs.readFileSync('data/impact_factor_data.json','utf8'));
+    for(const key of ['qualified','descriptive','uninformative','missing','unrecognised']){
+      d.overview.n_success+=d.overview['n_'+key];d.overview['n_'+key]=0;
+      d.histogram.forEach(bin=>{bin.successful+=bin[key];bin[key]=0;});
+    }
+    return route.fulfill({json:d});
+  }));
+  await p2.waitForSelector('#mc-overview .mc-stat');
+  assert.equal(await p2.locator('#mc-overview .mc-stat').count(),6);
+  assert.equal(await p2.locator('#mc-overview .stat-band-note').count(),0);
+  assert.deepEqual(p2.errors,[]);await p2.close();
 });
 test('comparison N labels and axis titles stay clear of legends and ticks',async()=>{
   const p=await page('?tab=publication-type',1366);await p.waitForFunction(()=>chartSeries('pub-chart').length);
@@ -1639,6 +1651,6 @@ test('redesign polish: distinct study-type colors, tablet cards, visible mobile 
   await p.click('#mc-tab');
   await p.waitForSelector('#mc-overview .mc-stat');
   const mcRows=await p.locator('#mc-overview .mc-stat').evaluateAll(els=>Object.values(els.reduce((m,el)=>{const y=Math.round(el.getBoundingClientRect().top);m[y]=(m[y]||0)+1;return m;},{})));
-  assert.deepEqual(mcRows,[5,5],`Mean Citedness rows at 1440px: ${mcRows}`);
+  assert.deepEqual(mcRows,[6],`Mean Citedness rows at 1440px: ${mcRows}`);
   assert.deepEqual(p.errors,[]);await p.close();
 });

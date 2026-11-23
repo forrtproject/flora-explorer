@@ -303,7 +303,7 @@ export function Chips({id, label, value, onChange, options = KIND_OPTIONS.filter
 }
 
 // Zero-valued categories carry no information as headline tiles.
-export function StatTiles({id, tiles, box}) {
+export function StatTiles({id, tiles, box, note}) {
     const shown = tiles.filter(t => t && (t.always || t.value > 0));
     return (
         <div id={id} className="stat-band" data-count={shown.length}>
@@ -314,6 +314,7 @@ export function StatTiles({id, tiles, box}) {
                     {t.sub && <span className="stat-sub">{t.sub}</span>}
                 </div>
             ))}
+            {note && <p className="note kpi-note stat-band-note">{note}</p>}
         </div>
     );
 }
