@@ -1,14 +1,15 @@
-import {useMemo} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {ANALYSIS_MIN_N, URLS} from '../lib/config.js';
 import {percent} from '../lib/format.js';
 import {kindNoun, kindPairCount, outcomeBuckets, studyTypeLabel} from '../lib/outcomes.js';
 import {coverageText, nPairs, reportKey} from '../lib/coverage.js';
+import {matchesTokens, normalizedQuery, searchTokens} from '../lib/search.js';
 import {setHook} from '../lib/hooks.js';
 import {useData, useJson} from '../state/data.jsx';
 import {useEnv} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {Plot, comparisonSpec} from '../components/charts.jsx';
-import {Callout, Disclosure, LoadError, Note, Section, TableScroll} from '../components/ui.jsx';
+import {Button, Callout, Disclosure, LoadError, Note, Section, TableScroll} from '../components/ui.jsx';
 import {Caveat, Chips, CiteBlock, DataStamp, ExternalLink, OutcomeBadge, Pane, Placeholder, StatTiles, WebsiteCitation, byKind, kindLabel, repWord} from '../components/common.jsx';
 import {ReportLink} from './Browse.jsx';
 
@@ -38,16 +39,81 @@ function Comparison({prefix, state, d, kind, shortage, tiles, groups, chartTitle
     );
 }
 
-function StudyList({prefix, summary, count, countText, head, children}) {
+const STUDY_PAGE_SIZE = 50;
+const doiUrl = url => /^https?:\/\/(?:dx\.)?doi\.org\//i.test(url || '') ? url : '';
+const pubFilterKey = s => s.pub_status || 'unknown';
+const pubSearchText = s => [s.title_r, s.journal_r, VENUES[s.pub_status], s.year_r, s.doi_r, doiUrl(s.url_r)].filter(Boolean).join(' ');
+const rrSearchText = ({first: s}) => [s.title_r, s.journal_r, s.year_r, s.doi_r, doiUrl(s.url_r)].filter(Boolean).join(' ');
+const lsSearchText = s => [s.title_r, s.journal_r, s.year_r, s.doi_r, doiUrl(s.url_r)].filter(Boolean).join(' ');
+
+function StudyList({prefix, summary, items, count, countText, head, renderRow, searchTextFor, filterOptions, filterKey}) {
+    const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
+    const [filter, setFilter] = useState('');
+    const [page, setPage] = useState(1);
+    const [showAll, setShowAll] = useState(false);
+    useEffect(() => { setPage(1); setShowAll(false); }, [items, query, filter]);
+    const filtered = useMemo(() => {
+        if (!open) return [];
+        const tokens = searchTokens(query);
+        return items.filter(item => {
+            if (filter && filterKey && filterKey(item) !== filter) return false;
+            if (tokens.length && searchTextFor) return matchesTokens(normalizedQuery(searchTextFor(item)), tokens);
+            return true;
+        });
+    }, [open, items, query, filter, filterKey, searchTextFor]);
     if (!count) return null;
+    const paginate = items.length > STUDY_PAGE_SIZE;
+    const pages = Math.max(1, Math.ceil(filtered.length / STUDY_PAGE_SIZE));
+    const current = Math.min(page, pages);
+    const visible = !paginate || showAll ? filtered : filtered.slice((current - 1) * STUDY_PAGE_SIZE, current * STUDY_PAGE_SIZE);
+    const start = filtered.length ? (showAll ? 1 : (current - 1) * STUDY_PAGE_SIZE + 1) : 0;
+    const end = showAll ? filtered.length : Math.min(filtered.length, current * STUDY_PAGE_SIZE);
     return (
-        <Disclosure id={`${prefix}-studies-card`} className="disclosure--panel" summary={<>{summary} <span id={`${prefix}-studies-count`} className="note">{countText || `(${count.toLocaleString()})`}</span></>}>
-            <TableScroll label={typeof summary === 'string' ? summary : 'Evidence list'}>
-                <table className="table" id={`${prefix}-studies-table`}>
-                    <thead><tr>{head.map((h, i) => <th key={i} scope="col">{h}</th>)}</tr></thead>
-                    <tbody>{children}</tbody>
-                </table>
-            </TableScroll>
+        <Disclosure id={`${prefix}-studies-card`} className="disclosure--panel" onToggle={e => setOpen(e.currentTarget.open)}
+            summary={<>{summary} <span id={`${prefix}-studies-count`} className="note">{countText || `(${count.toLocaleString()})`}</span></>}>
+            {open && <>
+                {(paginate || filterOptions) && (
+                    <div className="study-list-controls">
+                        <input id={`${prefix}-studies-search`} type="search" className="form-control" aria-label={`Filter ${summary}`}
+                            placeholder="Filter by title, journal, year or DOI" value={query} onChange={e => setQuery(e.target.value)} />
+                        {filterOptions && (
+                            <select id={`${prefix}-studies-filter`} className="form-select" aria-label={`Filter ${summary} by category`}
+                                value={filter} onChange={e => setFilter(e.target.value)}>
+                                <option value="">All categories</option>
+                                {Object.entries(filterOptions).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                            </select>
+                        )}
+                    </div>
+                )}
+                <TableScroll label={typeof summary === 'string' ? summary : 'Evidence list'}>
+                    <table className="table" id={`${prefix}-studies-table`}>
+                        <thead><tr>{head.map((h, i) => <th key={i} scope="col">{h}</th>)}</tr></thead>
+                        <tbody>
+                            {!visible.length && <tr><td colSpan={head.length} className="table-empty">No matching rows</td></tr>}
+                            {visible.map((item, i) => renderRow(item, (showAll ? 0 : (current - 1) * STUDY_PAGE_SIZE) + i))}
+                        </tbody>
+                    </table>
+                </TableScroll>
+                {paginate && filtered.length > 0 && (
+                    <div className="table-footer study-list-footer">
+                        <span className="table-info" role="status">
+                            Showing {start.toLocaleString('en-GB')}–{end.toLocaleString('en-GB')} of {filtered.length.toLocaleString('en-GB')}
+                            {filtered.length !== items.length ? ` (filtered from ${items.length.toLocaleString('en-GB')})` : ''}
+                        </span>
+                        <div className="pagination" role="navigation" aria-label={`${summary} pages`}>
+                            {!showAll && pages > 1 && <>
+                                <button type="button" disabled={current === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</button>
+                                <span className="pagination-gap">Page {current} of {pages}</span>
+                                <button type="button" disabled={current >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Next</button>
+                            </>}
+                            {filtered.length > STUDY_PAGE_SIZE && (
+                                <Button onClick={() => setShowAll(v => !v)}>{showAll ? `Show ${STUDY_PAGE_SIZE} per page` : `Show all (${filtered.length.toLocaleString('en-GB')})`}</Button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </>}
         </Disclosure>
     );
 }
@@ -113,11 +179,13 @@ export default function PublicationType() {
                     <Comparison prefix="pub" state={{...pub, errorLabel: 'Could not load the publication-status data.'}} d={pubD} kind={kind} shortage="with publication-status data" groups={VENUES} chartTitle="Outcomes by publication venue"
                         tiles={ov => [{value: ov.n_total, label: 'Reference pairs', always: true}, ...Object.entries(VENUES).map(([key, label]) => ({value: ov['n_' + key] || 0, label: `${label} (${percent(ov['n_' + key] || 0, ov.n_total)}%)`}))]}
                         caveat="Publication-venue status is derived from the report venue recorded in FLoRA, classified as above. Some studies currently classified as preprints may since have been formally published in a different venue without FLoRA yet reflecting that update. Any outcome differences between these groups should also not be read as caused by publication venue alone: constructive peer review, a tendency for more selective journals to accept more polished work, and publication-pressure effects — for example a bias toward reporting positive or successful results in order to get published, or conversely extra editorial scrutiny catching more issues before publication — could all plausibly produce real differences independent of, or entangled with, venue itself."
-                        studies={<StudyList prefix="pub" summary="Reference pairs with publication-status data" count={pubStudies.length} head={['Study', 'Journal', 'Status', 'Year', 'Outcome', 'DOI']}>
-                            {pubStudies.map((s, i) => (
+                        studies={<StudyList prefix="pub" summary="Reference pairs with publication-status data" items={pubStudies} count={pubStudies.length}
+                            head={['Study', 'Journal', 'Status', 'Year', 'Outcome', 'DOI']}
+                            filterOptions={VENUES} filterKey={pubFilterKey}
+                            searchTextFor={pubSearchText}
+                            renderRow={(s, i) => (
                                 <tr key={i}><td>{s.title_r}</td><td>{s.journal_r}</td><td><span className="badge badge-unknown">{VENUES[s.pub_status] || 'Unknown venue'}</span></td><td>{s.year_r}</td><OutcomeCell study={s} kind={kind} /><td><ReportLink url={s.url_r} doi={s.doi_r} max={40} /></td></tr>
-                            ))}
-                        </StudyList>} />
+                            )} />} />
             </Section>
 
             <Section title="Publication format: Registered Report database matches and non-matches" notes={<>
@@ -136,14 +204,15 @@ export default function PublicationType() {
                         caveat={kind === 'replication'
                             ? 'Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between matched and unmatched reports could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘Not found in RR database’ group likely still contains some unlabelled Registered Reports.'
                             : 'Selection into the Registered Report format is not random. Differences between database-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.'}
-                        studies={<StudyList prefix="rr" summary={`${Word} reports that match the Registered Reports database`} count={rrStudies.length}
-                            countText={`(${nPairs(rrStudies.length)} from ${rrReports.length.toLocaleString('en-GB')} ${rrReports.length === 1 ? 'report' : 'reports'})`} head={[`${Word} report`, 'Journal', 'Year', 'Reference pairs', 'Outcomes', 'DOI']}>
-                            {rrReports.map(({first: s, n, outcomes}, i) => (
+                        studies={<StudyList prefix="rr" summary={`${Word} reports that match the Registered Reports database`} items={rrReports} count={rrStudies.length}
+                            countText={`(${nPairs(rrStudies.length)} from ${rrReports.length.toLocaleString('en-GB')} ${rrReports.length === 1 ? 'report' : 'reports'})`}
+                            head={[`${Word} report`, 'Journal', 'Year', 'Reference pairs', 'Outcomes', 'DOI']}
+                            searchTextFor={rrSearchText}
+                            renderRow={({first: s, n, outcomes}, i) => (
                                 <tr key={i}><td>{s.title_r}</td><td>{s.journal_r}</td><td>{s.year_r}</td><td>{n.toLocaleString('en-GB')}</td>
                                     <td>{outcomes.map((o, k) => <span key={k}>{k > 0 && ' '}<OutcomeBadge row={o.row} />{o.n > 1 && ` ×${o.n}`}</span>)}</td>
                                     <td><ReportLink url={s.url_r} doi={s.doi_r} max={40} /></td></tr>
-                            ))}
-                        </StudyList>} />
+                            )} />} />
             </Section>
 
             <Section title="Reports by number of original targets" notes={<>
@@ -156,13 +225,14 @@ export default function PublicationType() {
                             {value: ov.n_large_scale || 0, label: `Multiple-target report (${percent(ov.n_large_scale, ov.n_total)}%)`},
                         ]}
                         caveat="Outcomes reported within the same multiple-target report are not independent data points — they typically share authors, protocol, and incentives, so pooling many results from one report alongside results from reports with fewer targets can understate how clustered those outcomes really are. Multiple-target reports may also differ systematically in rigour, pre-registration, or topic selection from reports with fewer targets, which could itself explain any outcome difference, independent of target count itself."
-                        studies={<StudyList prefix="ls" summary="Multiple-target reports" count={projects.length} head={['Replication or reproduction report', 'Journal', 'Year', 'Distinct originals', 'Outcome mix', 'DOI']}>
-                            {projects.map((s, i) => (
+                        studies={<StudyList prefix="ls" summary="Multiple-target reports" items={projects} count={projects.length}
+                            head={['Replication or reproduction report', 'Journal', 'Year', 'Distinct originals', 'Outcome mix', 'DOI']}
+                            searchTextFor={lsSearchText}
+                            renderRow={(s, i) => (
                                 <tr key={i}><td>{s.title_r}</td><td>{s.journal_r}</td><td>{s.year_r}</td><td>{s.n_originals}</td>
                                     <td>{Object.entries(s.outcome_mix || {}).map(([k, n]) => `${bucketLabels[k] || k}: ${n}`).join(', ')}</td>
                                     <td><ReportLink url={s.url_r} doi={s.doi_r} max={40} /></td></tr>
-                            ))}
-                        </StudyList>} />
+                            )} />} />
             </Section>
         </Pane>
     );
