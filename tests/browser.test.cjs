@@ -1597,11 +1597,15 @@ test('unmatched timeline DOI shows actionable notice (and exclusion reason when 
   if(excluded){
     await p.goto(base+'?tab=citations&doi='+encodeURIComponent(excluded.doi));
     await p.waitForSelector('#ci-missing-doi');
-    assert.match(await p.locator('#ci-missing-doi').innerText(),/Timeline unavailable/);
+    assert.match(await p.locator('#ci-missing-doi').innerText(),/Timeline unavailable.*because its citation fetch failed|Timeline unavailable.*no publication year|Timeline unavailable.*no citation data/i);
     await p.locator('#ci-missing-doi button',{hasText:'Search in Browse'}).click();
     await p.waitForFunction(()=>document.querySelector('.tab-pane.active')?.id==='browse');
     assert.equal(await p.locator('#browse-mobile-input').inputValue(),excluded.doi);
   }
+  // Legacy aliased tab URLs keep their hash fragment on canonicalization, while tab switches clear it.
+  await p.goto(base+'?tab=registered-reports#pub-studies-card');
+  await p.waitForFunction(()=>document.querySelector('.tab-pane.active')?.id==='publication-type');
+  assert.equal(new URL(p.url()).hash,'#pub-studies-card');
   // Hash fragments on Overview do not leak when switching to another tab.
   await p.click('#overview-tab');
   await p.locator('a[href="#flora-coverage"]').click();
