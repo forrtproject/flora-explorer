@@ -6,143 +6,9 @@
     "id": "https://openalex.org/S4210178519",
     "display_name": "Annual Review of Cognitive Linguistics"
   },
-  "british educational research journal": {
-    "id": "https://openalex.org/S60281869",
-    "display_name": "British Educational Research Journal"
-  },
-  "british journal of clinical psychology": {
-    "id": "https://openalex.org/S36339387",
-    "display_name": "British Journal of Clinical Psychology"
-  },
-  "british journal of developmental psychology": {
-    "id": "https://openalex.org/S98289679",
-    "display_name": "British Journal of Developmental Psychology"
-  },
-  "british journal of educational psychology": {
-    "id": "https://openalex.org/S96095673",
-    "display_name": "British Journal of Educational Psychology"
-  },
-  "british journal of health psychology": {
-    "id": "https://openalex.org/S52059345",
-    "display_name": "British Journal of Health Psychology"
-  },
-  "british journal of political science": {
-    "id": "https://openalex.org/S95691132",
-    "display_name": "British Journal of Political Science"
-  },
-  "british journal of psychiatry": {
-    "id": "https://openalex.org/S127936299",
-    "display_name": "The British Journal of Psychiatry"
-  },
-  "british journal of psychology": {
-    "id": "https://openalex.org/S179213746",
-    "display_name": "British Journal of Psychology"
-  },
-  "british journal of social psychology": {
-    "id": "https://openalex.org/S179906392",
-    "display_name": "British Journal of Social Psychology"
-  },
-  "cbelife sciences education": {
-    "id": "https://openalex.org/S94345546",
-    "display_name": "CBE\u2014Life Sciences Education"
-  },
-  "canadian journal of political science": {
-    "id": "https://openalex.org/S195680251",
-    "display_name": "Canadian Journal of Political Science"
-  },
-  "canadian journal of psychology / revue canadienne de psychologie": {
-    "id": "https://openalex.org/S4210177808",
-    "display_name": "Canadian Journal of Psychology/Revue Canadienne de Psychologie"
-  },
-  "cancer cell": {
-    "id": "https://openalex.org/S25671836",
-    "display_name": "Cancer Cell"
-  },
-  "carcinogenesis": {
-    "id": "https://openalex.org/S184620562",
-    "display_name": "Carcinogenesis"
-  },
-  "cell": {
-    "id": "https://openalex.org/S110447773",
-    "display_name": "Cell"
-  },
-  "chemistry education research and practice": {
-    "id": "https://openalex.org/S165966090",
-    "display_name": "Chemistry Education Research and Practice"
-  },
-  "child abuse & neglect": {
-    "id": "https://openalex.org/S53055215",
-    "display_name": "Child Abuse & Neglect"
-  },
-  "child development": {
-    "id": "https://openalex.org/S109723506",
-    "display_name": "Child Development"
-  },
-  "child maltreatment": {
-    "id": "https://openalex.org/S125441779",
-    "display_name": "Child Maltreatment"
-  },
-  "child and adolescent mental health": {
-    "id": "https://openalex.org/S8329894",
-    "display_name": "Child and Adolescent Mental Health"
-  },
   "chinese medical journal": {
     "id": "https://openalex.org/S22240167",
     "display_name": "Chinese Medical Journal"
-  },
-  "circulation research": {
-    "id": "https://openalex.org/S10652568",
-    "display_name": "Circulation Research"
-  },
-  "civil wars": {
-    "id": "https://openalex.org/S186818105",
-    "display_name": "Civil Wars"
-  },
-  "clinical epigenetics": {
-    "id": "https://openalex.org/S200416800",
-    "display_name": "Clinical Epigenetics"
-  },
-  "clinical oral investigations": {
-    "id": "https://openalex.org/S103663982",
-    "display_name": "Clinical Oral Investigations"
-  },
-  "clinical psychological science": {
-    "id": "https://openalex.org/S2764897075",
-    "display_name": "Clinical Psychological Science"
-  },
-  "cognition": {
-    "id": "https://openalex.org/S88198767",
-    "display_name": "Cognition"
-  },
-  "cognition & emotion": {
-    "id": "https://openalex.org/S150535073",
-    "display_name": "Cognition & Emotion"
-  },
-  "cognition and categorization": {
-    "id": null
-  },
-  "cognition and emotion": {
-    "id": null
-  },
-  "cognitive brain research": {
-    "id": "https://openalex.org/S88795315",
-    "display_name": "Cognitive Brain Research"
-  },
-  "cognitive development": {
-    "id": "https://openalex.org/S130413023",
-    "display_name": "Cognitive Development"
-  },
-  "cognitive psychology": {
-    "id": "https://openalex.org/S36783443",
-    "display_name": "Cognitive Psychology"
-  },
-  "cognitive science": {
-    "id": "https://openalex.org/S78735424",
-    "display_name": "Cognitive Science"
-  },
-  "communication education": {
-    "id": "https://openalex.org/S68257882",
-    "display_name": "Communication Education"
   },
   "communication research": {
     "id": "https://openalex.org/S28604305",
@@ -2352,10 +2218,6 @@
   "translational issues in psychological science": {
     "id": null
   },
-  "clinical cardiology": {
-    "id": "https://openalex.org/S82037729",
-    "display_name": "Clinical Cardiology"
-  },
   "journal for research in mathematics education": {
     "id": "https://openalex.org/S79038290",
     "display_name": "Journal for Research in Mathematics Education"
@@ -2363,10 +2225,6 @@
   "socio-economic review": {
     "id": "https://openalex.org/S147547362",
     "display_name": "Socio-Economic Review"
-  },
-  "cognitive therapy and research": {
-    "id": "https://openalex.org/S47649111",
-    "display_name": "Cognitive Therapy and Research"
   },
   "communications of the association for information systems": {
     "id": "https://openalex.org/S4210239688",
@@ -2407,10 +2265,6 @@
   "applied economics": {
     "id": "https://openalex.org/S201533460",
     "display_name": "Applied Economics"
-  },
-  "cognitive behaviour therapy": {
-    "id": "https://openalex.org/S94622921",
-    "display_name": "Cognitive Behaviour Therapy"
   },
   "economic policy": {
     "id": "https://openalex.org/S99606308",
@@ -2558,10 +2412,6 @@
     "id": "https://openalex.org/S19400212",
     "display_name": "Motivation and Emotion"
   },
-  "business strategy and the environment": {
-    "id": "https://openalex.org/S205793605",
-    "display_name": "Business Strategy and the Environment"
-  },
   "educational technology research and development": {
     "id": "https://openalex.org/S114840262",
     "display_name": "Educational Technology Research and Development"
@@ -2607,10 +2457,6 @@
   "sociological science": {
     "id": "https://openalex.org/S2739021930",
     "display_name": "Sociological Science"
-  },
-  "canadian journal of experimental psychology / revue canadienne de psychologie exp\u00e9rimentale": {
-    "id": "https://openalex.org/S181082468",
-    "display_name": "Canadian Journal of Experimental Psychology/Revue canadienne de psychologie exp\u00e9rimentale"
   },
   "european journal of information systems": {
     "id": "https://openalex.org/S116712389",
@@ -2766,12 +2612,6 @@
   "the journal of pediatrics": {
     "id": "https://openalex.org/S3774022",
     "display_name": "The Journal of Pediatrics"
-  },
-  "canadian journal of education / revue canadienne de l\u00e9ducation": {
-    "id": null
-  },
-  "climate": {
-    "id": null
   },
   "cortex": {
     "id": null
@@ -2942,14 +2782,6 @@
     "id": "https://openalex.org/S119722071",
     "display_name": "Annals of Internal Medicine"
   },
-  "chemical senses": {
-    "id": "https://openalex.org/S8722945",
-    "display_name": "Chemical Senses"
-  },
-  "communication & sport": {
-    "id": "https://openalex.org/S2764771808",
-    "display_name": "Communication & Sport"
-  },
   "early intervention in psychiatry": {
     "id": "https://openalex.org/S130551847",
     "display_name": "Early Intervention in Psychiatry"
@@ -2991,25 +2823,6 @@
   "pediatric exercise science": {
     "id": "https://openalex.org/S83692137",
     "display_name": "Pediatric Exercise Science"
-  },
-  "british food journal": {
-    "id": "https://openalex.org/S99313352",
-    "display_name": "British Food Journal"
-  },
-  "cambridge university press": {
-    "id": null
-  },
-  "cancer": {
-    "id": "https://openalex.org/S126033908",
-    "display_name": "Cancer"
-  },
-  "cancer research": {
-    "id": "https://openalex.org/S168522863",
-    "display_name": "Cancer Research"
-  },
-  "cerebral cortex": {
-    "id": "https://openalex.org/S117898428",
-    "display_name": "Cerebral Cortex"
   },
   "elsevier bv": {
     "id": null
@@ -3102,14 +2915,6 @@
   },
   "linguistic variation: models and methods": {
     "id": null
-  },
-  "cancer epidemiology, biomarkers & prevention": {
-    "id": "https://openalex.org/S8391440",
-    "display_name": "Cancer Epidemiology Biomarkers & Prevention"
-  },
-  "child & family behavior therapy": {
-    "id": "https://openalex.org/S39297025",
-    "display_name": "Child & Family Behavior Therapy"
   },
   "communications in computer and information science": {
     "id": null
@@ -3613,5 +3418,262 @@
     "id": "https://openalex.org/S61781353",
     "display_name": "Brain and Language",
     "checked": "2026-11-13"
+  },
+  "alzheimers & dementia": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "passau: passavia universit\u00e4tsverlag": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "the dynamics of entrepreneurship": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "british educational research journal": {
+    "id": "https://openalex.org/S60281869",
+    "display_name": "British Educational Research Journal",
+    "checked": "2026-11-23"
+  },
+  "british food journal": {
+    "id": "https://openalex.org/S99313352",
+    "display_name": "British Food Journal",
+    "checked": "2026-11-23"
+  },
+  "british journal of clinical psychology": {
+    "id": "https://openalex.org/S36339387",
+    "display_name": "British Journal of Clinical Psychology",
+    "checked": "2026-11-23"
+  },
+  "british journal of developmental psychology": {
+    "id": "https://openalex.org/S98289679",
+    "display_name": "British Journal of Developmental Psychology",
+    "checked": "2026-11-23"
+  },
+  "british journal of educational psychology": {
+    "id": "https://openalex.org/S96095673",
+    "display_name": "British Journal of Educational Psychology",
+    "checked": "2026-11-23"
+  },
+  "british journal of health psychology": {
+    "id": "https://openalex.org/S52059345",
+    "display_name": "British Journal of Health Psychology",
+    "checked": "2026-11-23"
+  },
+  "british journal of political science": {
+    "id": "https://openalex.org/S95691132",
+    "display_name": "British Journal of Political Science",
+    "checked": "2026-11-23"
+  },
+  "british journal of psychiatry": {
+    "id": "https://openalex.org/S127936299",
+    "display_name": "The British Journal of Psychiatry",
+    "checked": "2026-11-23"
+  },
+  "british journal of psychology": {
+    "id": "https://openalex.org/S179213746",
+    "display_name": "British Journal of Psychology",
+    "checked": "2026-11-23"
+  },
+  "british journal of social psychology": {
+    "id": "https://openalex.org/S179906392",
+    "display_name": "British Journal of Social Psychology",
+    "checked": "2026-11-23"
+  },
+  "business strategy and the environment": {
+    "id": "https://openalex.org/S205793605",
+    "display_name": "Business Strategy and the Environment",
+    "checked": "2026-11-23"
+  },
+  "cbelife sciences education": {
+    "id": "https://openalex.org/S94345546",
+    "display_name": "CBE\u2014Life Sciences Education",
+    "checked": "2026-11-23"
+  },
+  "cambridge university press": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "canadian journal of education / revue canadienne de l\u00e9ducation": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "canadian journal of experimental psychology / revue canadienne de psychologie exp\u00e9rimentale": {
+    "id": "https://openalex.org/S181082468",
+    "display_name": "Canadian Journal of Experimental Psychology/Revue canadienne de psychologie exp\u00e9rimentale",
+    "checked": "2026-11-23"
+  },
+  "canadian journal of political science": {
+    "id": "https://openalex.org/S195680251",
+    "display_name": "Canadian Journal of Political Science",
+    "checked": "2026-11-23"
+  },
+  "canadian journal of psychology / revue canadienne de psychologie": {
+    "id": "https://openalex.org/S4210177808",
+    "display_name": "Canadian Journal of Psychology/Revue Canadienne de Psychologie",
+    "checked": "2026-11-23"
+  },
+  "cancer": {
+    "id": "https://openalex.org/S126033908",
+    "display_name": "Cancer",
+    "checked": "2026-11-23"
+  },
+  "cancer cell": {
+    "id": "https://openalex.org/S25671836",
+    "display_name": "Cancer Cell",
+    "checked": "2026-11-23"
+  },
+  "cancer epidemiology, biomarkers & prevention": {
+    "id": "https://openalex.org/S8391440",
+    "display_name": "Cancer Epidemiology Biomarkers & Prevention",
+    "checked": "2026-11-23"
+  },
+  "cancer research": {
+    "id": "https://openalex.org/S168522863",
+    "display_name": "Cancer Research",
+    "checked": "2026-11-23"
+  },
+  "carcinogenesis": {
+    "id": "https://openalex.org/S184620562",
+    "display_name": "Carcinogenesis",
+    "checked": "2026-11-23"
+  },
+  "cell": {
+    "id": "https://openalex.org/S110447773",
+    "display_name": "Cell",
+    "checked": "2026-11-23"
+  },
+  "cerebral cortex": {
+    "id": "https://openalex.org/S117898428",
+    "display_name": "Cerebral Cortex",
+    "checked": "2026-11-23"
+  },
+  "chemical senses": {
+    "id": "https://openalex.org/S8722945",
+    "display_name": "Chemical Senses",
+    "checked": "2026-11-23"
+  },
+  "chemistry education research and practice": {
+    "id": "https://openalex.org/S165966090",
+    "display_name": "Chemistry Education Research and Practice",
+    "checked": "2026-11-23"
+  },
+  "child & family behavior therapy": {
+    "id": "https://openalex.org/S39297025",
+    "display_name": "Child & Family Behavior Therapy",
+    "checked": "2026-11-23"
+  },
+  "child abuse & neglect": {
+    "id": "https://openalex.org/S53055215",
+    "display_name": "Child Abuse & Neglect",
+    "checked": "2026-11-23"
+  },
+  "child development": {
+    "id": "https://openalex.org/S109723506",
+    "display_name": "Child Development",
+    "checked": "2026-11-23"
+  },
+  "child maltreatment": {
+    "id": "https://openalex.org/S125441779",
+    "display_name": "Child Maltreatment",
+    "checked": "2026-11-23"
+  },
+  "child and adolescent mental health": {
+    "id": "https://openalex.org/S8329894",
+    "display_name": "Child and Adolescent Mental Health",
+    "checked": "2026-11-23"
+  },
+  "circulation research": {
+    "id": "https://openalex.org/S10652568",
+    "display_name": "Circulation Research",
+    "checked": "2026-11-23"
+  },
+  "civil wars": {
+    "id": "https://openalex.org/S186818105",
+    "display_name": "Civil Wars",
+    "checked": "2026-11-23"
+  },
+  "climate": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "clinical cardiology": {
+    "id": "https://openalex.org/S82037729",
+    "display_name": "Clinical Cardiology",
+    "checked": "2026-11-23"
+  },
+  "clinical epigenetics": {
+    "id": "https://openalex.org/S200416800",
+    "display_name": "Clinical Epigenetics",
+    "checked": "2026-11-23"
+  },
+  "clinical oral investigations": {
+    "id": "https://openalex.org/S103663982",
+    "display_name": "Clinical Oral Investigations",
+    "checked": "2026-11-23"
+  },
+  "clinical psychological science": {
+    "id": "https://openalex.org/S2764897075",
+    "display_name": "Clinical Psychological Science",
+    "checked": "2026-11-23"
+  },
+  "cognition": {
+    "id": "https://openalex.org/S88198767",
+    "display_name": "Cognition",
+    "checked": "2026-11-23"
+  },
+  "cognition & emotion": {
+    "id": "https://openalex.org/S150535073",
+    "display_name": "Cognition & Emotion",
+    "checked": "2026-11-23"
+  },
+  "cognition and categorization": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "cognition and emotion": {
+    "id": null,
+    "checked": "2026-11-23"
+  },
+  "cognitive behaviour therapy": {
+    "id": "https://openalex.org/S94622921",
+    "display_name": "Cognitive Behaviour Therapy",
+    "checked": "2026-11-23"
+  },
+  "cognitive brain research": {
+    "id": "https://openalex.org/S88795315",
+    "display_name": "Cognitive Brain Research",
+    "checked": "2026-11-23"
+  },
+  "cognitive development": {
+    "id": "https://openalex.org/S130413023",
+    "display_name": "Cognitive Development",
+    "checked": "2026-11-23"
+  },
+  "cognitive psychology": {
+    "id": "https://openalex.org/S36783443",
+    "display_name": "Cognitive Psychology",
+    "checked": "2026-11-23"
+  },
+  "cognitive science": {
+    "id": "https://openalex.org/S78735424",
+    "display_name": "Cognitive Science",
+    "checked": "2026-11-23"
+  },
+  "cognitive therapy and research": {
+    "id": "https://openalex.org/S47649111",
+    "display_name": "Cognitive Therapy and Research",
+    "checked": "2026-11-23"
+  },
+  "communication & sport": {
+    "id": "https://openalex.org/S2764771808",
+    "display_name": "Communication & Sport",
+    "checked": "2026-11-23"
+  },
+  "communication education": {
+    "id": "https://openalex.org/S68257882",
+    "display_name": "Communication Education",
+    "checked": "2026-11-23"
   }
 }
