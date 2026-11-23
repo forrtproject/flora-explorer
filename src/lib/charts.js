@@ -80,10 +80,10 @@ export function horizontalBarHeight(categories, legendNames, width) {
     return Math.round(categories.length * band + legendRows(legendNames, width, scale) * 20 * scale + 6 + 48 * scale);
 }
 
-// A single proportion bar: its legend rows, then the 24px bar, so no blank band sits between them.
+// A single proportion bar: its legend rows, then the 28px bar slot for inline percentage labels, so no blank band sits between them.
 export function proportionBarHeight(legendNames, width) {
     const scale = textScale();
-    return Math.round(legendRows(legendNames, width, scale) * 20 * scale + 6 + 4 + 24 + 8);
+    return Math.round(legendRows(legendNames, width, scale) * 20 * scale + 6 + 4 + 28 * scale + 8);
 }
 
 function legendRows(names, width, scale = 1) {
@@ -160,10 +160,34 @@ export function stackedBarOption({categories, series, horizontal = false, pooled
         data: plotted[si].map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), ...(shares && totals[i] < GROUP_MIN_N ? {opacity: .4} : {})}})),
     }));
     if (proportion) {
-        // A proportion bar: its caption states the counts, so it carries no axis; hovers add each share.
-        return finishOption({series: bars, tooltip: {valueFormatter: v => `${number(v)} (${percent(v, total, 1)}%)`},
+        const scale = textScale();
+        const barWidth = Math.round(24 * scale);
+        const barSlot = Math.round(28 * scale);
+        const propBars = bars.map((b, si) => ({
+            ...b, barWidth,
+            // Segments wide enough to hold a label print their rounded percentage directly on the fill.
+            label: {
+                show: true, position: 'inside', color: labelColor(series[si].color), fontSize: 11, fontWeight: 600, fontFamily: t.fontFamily,
+                formatter: p => {
+                    const share = total > 0 ? 100 * p.value / total : 0;
+                    if (share < 1) return '';
+                    const text = Math.round(share) + '%';
+                    const segPx = (p.value / total) * (width || 600);
+                    return segPx >= (text.length * 7 + 12) * scale ? text : '';
+                },
+            },
+        }));
+        // A proportion bar: inline labels show headline shares; hover and chart data carry exact counts and rare categories.
+        const tooltip = {formatter: ps => {
+            if (!Array.isArray(ps) || !ps.length) return '';
+            return tipLines([
+                `<strong>${escapeHtml(plain(categories[0]))}</strong> · ${number(total)} total`,
+                ...ps.filter(p => Number(p.value) > 0).map(p => tipRow(series[p.seriesIndex].color, `${p.seriesName}: ${number(p.value)} (${percent(p.value, total, 1)}%)`)),
+            ]);
+        }};
+        return finishOption({series: propBars, tooltip,
             xAxis: {type: 'value', show: false, min: 0, max: Math.max(total, 1)}, yAxis: {type: 'category', show: false, data: categories},
-            grid: {left: 0, right: 0, top: 4, height: 24}}, {width});
+            grid: {left: 0, right: 0, top: 4, height: barSlot}}, {width});
     }
     // Long field and journal names break onto further lines within 150px.
     // Year axes label round years plus the pooled first and the latest column, so both ends are always named;

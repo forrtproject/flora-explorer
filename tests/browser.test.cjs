@@ -292,7 +292,9 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   assert.ok(firstRow<830,`first result ends at ${firstRow}px`);
   await p.click('.browse-kind-btn[data-kind="replication"]');
   assert.ok(await p.locator('#browse-outcome-card').isVisible());
-  assert.match(await p.locator('#browse-outcome-caption').innerText(),/^4 replication reference pairs: .*Failed 3 \(75%\).*Mixed 1 \(25%\)/);
+  assert.equal((await p.locator('#browse-outcome-caption').innerText()).trim(),'4 replication reference pairs.');
+  const browseBarLabels=await p.locator('#browse-outcome-chart svg text').allTextContents();
+  assert.ok(browseBarLabels.includes('75%')&&browseBarLabels.includes('25%'),`expected 75% and 25% inline bar labels: ${browseBarLabels}`);
   await p.fill('#browse-mobile-input','unicornzzzz');await p.waitForFunction(()=>getChartData().length===0);
   assert.match(await p.locator('#browse-empty').innerText(),/No replications match “unicornzzzz”/);
   await p.click('[data-browse-action="clear-search"]');
@@ -1029,7 +1031,12 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   await p.context().grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
   const qualified=await p.evaluate(()=>fullRowData.filter(r=>classifyKind(r)==='replication'&&classifyOutcome(r.outcome)==='qualified').length);
   assert.ok(qualified>0&&qualified/pub.n_total<0.01);
-  assert.ok((await p.locator('#overview-outcome-caption').innerText()).includes(`Statistically successful but flawed ${qualified.toLocaleString('en-GB')} (<1%)`));
+  assert.equal((await p.locator('#overview-outcome-caption').innerText()).trim(),`${pub.n_total.toLocaleString('en-GB')} replication reference pairs.`);
+  assert.ok((await p.locator('#overview-outcome-chart-data').textContent()).includes('Statistically successful but flawed'));
+  const ovBarLabels=await p.locator('#overview-outcome-chart svg text').allTextContents();
+  const pctLabels=ovBarLabels.filter(t=>/^\d+%$/.test(t));
+  assert.ok(pctLabels.length>=3,`expected inline percentage labels on overview replication bar: ${ovBarLabels}`);
+  assert.ok(!ovBarLabels.includes('<1%')&&!ovBarLabels.includes('0%'),`tiny segments must not print cluttered labels: ${ovBarLabels}`);
   assert.ok((await p.locator('#overview-outcome-chart-data .chart-summary').textContent()).includes(`Included in the plot: ${pub.n_total.toLocaleString('en-GB')}`));
   assert.deepEqual(await p.evaluate(()=>[FloraCharts.percent(0,1000),FloraCharts.percent(1,1000),FloraCharts.percent(7,2692),FloraCharts.percent(1,4),FloraCharts.number(-0.033,3)]),['0','<1','<1','25','−0.033']);
   await p.click('#trends-tab');await p.waitForFunction(()=>chartOption('trend-journal'));
