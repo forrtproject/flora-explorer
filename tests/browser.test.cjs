@@ -1584,3 +1584,29 @@ test('every chart states N of M in its chart data',async()=>{
   assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+test('unmatched timeline DOI shows actionable notice (and exclusion reason when known) and tab switches clear hash fragments',async()=>{
+  const p=await page('?tab=citations&doi=10.9999%2Fflora-nonexistent',1280);
+  await p.waitForSelector('#ci-missing-doi');
+  assert.match(await p.locator('#ci-missing-doi').innerText(),/No citation timeline found for DOI 10\.9999\/flora-nonexistent/);
+  await p.locator('#ci-missing-doi button',{hasText:'Dismiss'}).click();
+  assert.equal(await p.locator('#ci-missing-doi').count(),0);
+  assert.equal(new URL(p.url()).searchParams.has('doi'),false);
+  // Excluded original DOI reports its exact exclusion reason and links cleanly to Browse.
+  const excluded=JSON.parse(fs.readFileSync('data/meta.json')).excluded_originals?.[0];
+  if(excluded){
+    await p.goto(base+'?tab=citations&doi='+encodeURIComponent(excluded.doi));
+    await p.waitForSelector('#ci-missing-doi');
+    assert.match(await p.locator('#ci-missing-doi').innerText(),/Timeline unavailable/);
+    await p.locator('#ci-missing-doi button',{hasText:'Search in Browse'}).click();
+    await p.waitForFunction(()=>document.querySelector('.tab-pane.active')?.id==='browse');
+    assert.equal(await p.locator('#browse-mobile-input').inputValue(),excluded.doi);
+  }
+  // Hash fragments on Overview do not leak when switching to another tab.
+  await p.click('#overview-tab');
+  await p.locator('a[href="#flora-coverage"]').click();
+  await p.waitForFunction(()=>location.hash==='#flora-coverage');
+  await p.click('#browse-tab');
+  assert.equal(new URL(p.url()).hash,'');
+  assert.deepEqual(p.errors,[]);await p.close();
+});
