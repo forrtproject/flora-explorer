@@ -448,7 +448,7 @@ def compute_reproduction_impact_stats(rows: list[dict]) -> None:
                           "placeholder_record": aside.count("placeholder_record"),
                           "min_works": MIN_WORKS},
             "histogram": histogram,
-            "stats": {"edf": None, "chi_sq": None, "p_val": None, "r2": None, "n_model": 0},
+            "stats": {"edf": None, "chi_sq": None, "p_val": None, "r2": None, "auc": None, "n_model": 0},
             "gam_curve": [],
             "jitter": [],
         }

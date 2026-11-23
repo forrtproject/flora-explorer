@@ -1584,3 +1584,36 @@ test('every chart states N of M in its chart data',async()=>{
   assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
   assert.deepEqual(p.errors,[]);await p.close();
 });
+test('Mean Citedness GAM reports AUC with an interpretive tooltip instead of McFadden R²',async()=>{
+  const model=JSON.parse(fs.readFileSync('data/impact_factor_data.json','utf8'));
+  assert.ok(typeof model.stats.auc==='number'&&model.stats.auc>=0.5&&model.stats.auc<=1);
+  const p=await page('?tab=mean-citedness',1440);
+  await p.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('AUC'));
+  const visible=await p.locator('#mc-gam-stats').evaluate(el=>{
+    const clone=el.cloneNode(true);
+    clone.querySelectorAll('.gloss-tip').forEach(t=>t.remove());
+    return clone.textContent.replace(/\s+/g,' ').trim();
+  });
+  assert.ok(visible.includes(`AUC = ${Number(model.stats.auc).toFixed(2)}`),`expected rounded AUC in note: ${visible}`);
+  assert.ok(!visible.includes('McFadden'),`McFadden R² should be replaced by AUC: ${visible}`);
+  assert.ok(!visible.includes(String(model.stats.auc)),'full-precision AUC stays out of the visible note');
+  const aucGloss=p.locator('#mc-gam-stats .gloss').filter({hasText:'AUC'});
+  await aucGloss.click();
+  await p.waitForFunction(()=>getComputedStyle(document.querySelectorAll('#mc-gam-stats .gloss-tip')[1]).opacity==='1');
+  const tipText=await aucGloss.locator('.gloss-tip').innerText();
+  assert.match(tipText,/0\.50.*0\.60.*0\.70.*0\.80/);
+  const summary=await p.locator('#mc-gam-chart-data .chart-summary').textContent();
+  assert.ok(summary.includes(`AUC = ${model.stats.auc}`),`expected full-precision AUC in chart summary: ${summary}`);
+  assert.ok(!summary.includes('McFadden'),`McFadden R² should not remain in chart summary: ${summary}`);
+  assert.deepEqual(p.errors,[]);await p.close();
+  // Snapshots lacking stats.auc omit the AUC clause cleanly.
+  const p2=await page('?tab=mean-citedness',1280,p=>p.route('**/data/impact_factor_data.json',route=>{
+    const d=JSON.parse(fs.readFileSync('data/impact_factor_data.json','utf8'));
+    delete d.stats.auc;
+    return route.fulfill({json:d});
+  }));
+  await p2.waitForFunction(()=>document.querySelector('#mc-gam-stats').textContent.includes('N'));
+  const fallback=await p2.locator('#mc-gam-stats').innerText();
+  assert.ok(!fallback.includes('AUC')&&!fallback.includes('NaN')&&!fallback.includes('undefined'),`unexpected fallback note: ${fallback}`);
+  assert.deepEqual(p2.errors,[]);await p2.close();
+});
