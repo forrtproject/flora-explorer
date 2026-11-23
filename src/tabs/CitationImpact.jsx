@@ -56,19 +56,20 @@ function trajectorySpec(desc, field, ylabel, outcome, coverage) {
     if (!desc?.event_time?.length) return {message: 'No data for this filter'};
     const x = desc.event_time, y = desc[field], name = 'Mean (raw)';
     const unit = field === 'mean_citations' ? 'Mean citations per original per year' : 'Mean co-citations per original per year';
+    const startsAtZero = Math.min(...x) >= 0;
     return {coverage, table: pointTable([{name, x, y}], unit),
         // One series needs no legend: the axis title names what is plotted.
         option: ({width}) => finishOption({legend: {show: false},
             series: [{name, type: 'line', data: x.map((v, i) => [v, y[i]]), lineStyle: {color, width: 2.25}, itemStyle: {color, borderColor: t.paper, borderWidth: 1.5},
                 symbol: 'circle', symbolSize: 7, areaStyle: {color: t.band, opacity: 1}, emphasis: {disabled: true},
                 markLine: {silent: true, symbol: 'none', lineStyle: {color: t.primary, width: 1.5, type: 'dashed'}, data: [{xAxis: 0}],
-                    label: {position: 'end', formatter: 'Replication published', color: t.primary, fontSize: 11}}}],
+                    label: {position: 'end', formatter: 'Replication published', color: t.primary, fontSize: 11, ...(startsAtZero ? {align: 'left', distance: 8} : {})}}}],
             tooltip: {formatter: p => tipLines([`Years from first replication: ${number(p.value[0])}`, `${escapeHtml(ylabel)}: ${number(p.value[1], 2)}`])},
             // Padded so the first and last points are not cut by the plot edge; ticks stay on whole years.
-            xAxis: valueAxis({name: 'Years relative to first replication', min: Math.min(...x) - .35, max: Math.max(...x) + .35, splitLine: {show: false},
+            xAxis: valueAxis({name: 'Years relative to first replication', nameGap: 26, min: Math.min(...x) - .35, max: Math.max(...x) + .35, splitLine: {show: false},
                 axisLabel: {customValues: x}, axisTick: {customValues: x}}),
             yAxis: valueAxis({name: ylabel, min: 0}),
-        }, {width, top: 18}),
+        }, {width, top: startsAtZero ? 26 : 18}),
     };
 }
 
@@ -157,23 +158,49 @@ const outcomeGroup = s => {
     return outcomes.length === 1 ? outcomes[0] : outcomes.length ? 'multiple' : null;
 };
 
+const CI_MOBILE_SORTS = [
+    ['n_citations:desc', 'Most cited'],
+    ['n_citations:asc', 'Least cited'],
+    ['n_cocitations:desc', 'Most co-cited (count)'],
+    ['n_cocitations:asc', 'Least co-cited (count)'],
+    ['cocit_prop:desc', 'Highest co-citation share'],
+    ['cocit_prop:asc', 'Lowest co-citation share'],
+    ['n_replications:desc', 'Most replications'],
+    ['n_replications:asc', 'Least replications'],
+    ['year:desc', 'Newest original'],
+    ['year:asc', 'Oldest original'],
+];
+
 function OriginalsTable({index, excluded, onOpen, status}) {
     const {view, setView} = useView();
     const [input, setInput] = useState(view.ciQ);
     const [sort, setSort] = useState({col: 'n_citations', dir: 'desc'});
     const [page, setPage] = useState(1);
+    const [mobile, setMobile] = useState(() => matchMedia('(max-width: 767px)').matches);
     const debounce = useRef();
     const inputRef = useRef(null);
     const pagination = useRef(null);
     const refocus = useRef(false);
     useEffect(() => { setInput(view.ciQ); }, [view.ciQ]);
+    useEffect(() => {
+        const mq = matchMedia('(max-width: 767px)');
+        const onChange = () => setMobile(mq.matches);
+        onChange();
+        mq.addEventListener('change', onChange);
+        return () => mq.removeEventListener('change', onChange);
+    }, []);
     const query = view.ciQ, filter = view.filterOutcome;
 
     const matches = useMemo(() => {
         const tokens = searchTokens(query);
         const out = index.filter(s => matchesTokens(s.searchText, tokens) && (!filter || outcomeGroup(s) === filter));
-        const value = s => s[sort.col] != null ? s[sort.col] : -Infinity;
-        return out.sort((a, b) => sort.dir === 'asc' ? value(a) - value(b) : value(b) - value(a));
+        return out.sort((a, b) => {
+            const av = a[sort.col], bv = b[sort.col];
+            const aMissing = av == null || av === '', bMissing = bv == null || bv === '';
+            if (aMissing !== bMissing) return aMissing ? 1 : -1;
+            if (aMissing && bMissing) return 0;
+            return sort.dir === 'asc' ? av - bv : bv - av;
+        });
     }, [index, query, filter, sort]);
     // A search with no results may name an original that this snapshot left out.
     const leftOut = useMemo(() => query.trim() && !matches.length ? excluded.filter(e => matchesTokens(e.searchText, searchTokens(query))) : [], [excluded, query, matches.length]);
@@ -188,16 +215,19 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     const search = text => { clearTimeout(debounce.current); setInput(text); debounce.current = setTimeout(() => { setPage(1); setView({ciQ: text}); }, 200); };
     const sortBy = col => { setSort(prev => ({col, dir: prev.col === col && prev.dir === 'desc' ? 'asc' : 'desc'})); setPage(1); };
     const ariaSort = col => sort.col === col ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined;
-    const goTo = p => { refocus.current = true; setPage(p); };
-    // A Previous/Next button that disappears at the ends hands focus to the current page.
+    const goTo = p => { if (p === current) return; refocus.current = true; setPage(p); };
+    // A Previous/Next button that disappears at the ends hands focus to the current page, and paging returns to the table top.
     useLayoutEffect(() => {
         if (!refocus.current) return;
         refocus.current = false;
         if (!pagination.current?.contains(document.activeElement)) pagination.current?.querySelector('[aria-current]')?.focus({preventScroll: true});
+        document.getElementById('ci-originals-heading')?.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     }, [current]);
 
     const first = Math.max(1, current - 2), lastPage = Math.min(pages, first + 4);
-    const sortButton = (col, label, extra = '') => <th className={'sortable' + (sort.col === col ? ` sort-${sort.dir}` : '') + (extra ? ' ' + extra : '')} data-sort={col} scope="col" aria-sort={ariaSort(col)}><button type="button" className="table-sort" data-sort={col} onClick={() => sortBy(col)}>{label}</button></th>;
+    const sortButton = (col, label, extra = '') => mobile
+        ? <th className={extra || undefined} scope="col">{label}</th>
+        : <th className={'sortable' + (sort.col === col ? ` sort-${sort.dir}` : '') + (extra ? ' ' + extra : '')} data-sort={col} scope="col" aria-sort={ariaSort(col)}><button type="button" className="table-sort" data-sort={col} onClick={() => sortBy(col)}>{label}</button></th>;
     const cocitSort = ['n_cocitations', 'cocit_prop'].includes(sort.col);
     return (
         <>
@@ -219,6 +249,11 @@ function OriginalsTable({index, excluded, onOpen, status}) {
             </Callout>
             {/* A key for the replication bars; each bar also names its counts to screen readers and on hover. */}
             <div className="rep-key" aria-hidden="true"><span>Replications bar:</span>{MIX_ORDER.map(o => <span key={o}><i className={o} />{FloraVocabulary.label(o)}</span>)}</div>
+            <label className="bm-sort ci-mobile-sort" htmlFor="ci-mobile-sort">Sort by <select id="ci-mobile-sort" className="form-select"
+                value={`${sort.col}:${sort.dir}`}
+                onChange={e => { const [col, dir] = e.target.value.split(':'); setSort({col, dir}); setPage(1); }}>
+                {CI_MOBILE_SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select></label>
             <TableScroll label="Originals with citation data">
                 <table id="originals-table" tabIndex={-1} className="table" data-query={status === 'ready' ? query : undefined}>
                     <thead>
@@ -227,16 +262,16 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                             {sortButton('year', 'Year', 'num')}
                             {sortButton('n_replications', 'Replications')}
                             {sortButton('n_citations', 'Citations, all years', 'num')}
-                            <th className="cocit-th num" scope="col" aria-sort={cocitSort ? ariaSort(sort.col) : undefined}>Co-citations since first recorded replication <span className="cocit-sort-toggle" role="group" aria-label="Sort co-citations by">
+                            <th className="cocit-th num" scope="col" aria-sort={!mobile && cocitSort ? ariaSort(sort.col) : undefined}>Co-citations since first recorded replication {!mobile && <span className="cocit-sort-toggle" role="group" aria-label="Sort co-citations by">
                                 <button type="button" className={'cocit-sort-btn' + (sort.col === 'n_cocitations' ? ` sort-${sort.dir}` : '')} data-sort="n_cocitations" title="Sort by co-citation count" aria-label="Sort by co-citation count" aria-pressed={sort.col === 'n_cocitations'} onClick={() => sortBy('n_cocitations')}>Count</button>
                                 <button type="button" className={'cocit-sort-btn' + (sort.col === 'cocit_prop' ? ` sort-${sort.dir}` : '')} data-sort="cocit_prop" title="Sort by co-citation share" aria-label="Sort by co-citation percentage" aria-pressed={sort.col === 'cocit_prop'} onClick={() => sortBy('cocit_prop')}>Share</button>
-                            </span></th>
+                            </span>}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {status !== 'ready' && <tr><td colSpan={5} className="table-empty">{status === 'error' ? 'No data yet.' : 'Loading…'}</td></tr>}
                         {slice.map(s => (
-                            <tr key={s.doi} data-doi={s.doi} onClick={() => onOpen(s.doi)}>
+                            <tr key={s.doi} data-doi={s.doi} onClick={e => onOpen(s.doi, e.currentTarget.querySelector('.timeline-open'))}>
                                 {/* The timeline action sits with the title it opens, so it stays in view on narrow screens. */}
                                 <td className="orig-cell"><div className="title-cell">{s.title || '(untitled)'}</div><div className="author-cell">{citationAuthors(s.author)}{venueText(s.venue)}</div>
                                     <button type="button" className="btn timeline-open" aria-label={`Open citation timeline for ${s.title || s.doi}`}><Icon.chart />Timeline</button></td>
@@ -328,7 +363,7 @@ function timelineSpec(s, meta) {
             // Co-citations are often a sliver of a year's citations; a minimum height keeps every non-zero one visible.
             ...(si ? {barMinHeight: 3} : {}),
             itemStyle: {color: barFill(x.color), borderColor: t.paper, borderWidth: 1},
-            data: x.values.map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
+            data: x.values.map((v, i) => ({value: si && !v ? null : v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
         }));
         // Light dotted rules mark each replication behind the bars; the numbered circle carries the outcome colour.
         bars[0].markLine = {silent: true, symbol: 'none', z: 1, data: marks.map(m => ({xAxis: String(m.year), name: m.label,
@@ -429,7 +464,7 @@ const studyCache = new Map();
 const DIALOG_CONTEXT = {active: true, visited: true, selection: '', kind: ''};
 
 // The timeline dialog: traps focus, closes on Escape or backdrop click, and returns focus to its opener.
-function TimelineDialog({entry, meta, onClose}) {
+function TimelineDialog({entry, meta, openerRef, historyRef, onClose}) {
     const {stamps} = useData();
     const [state, setState] = useState({});
     const modal = useRef(null);
@@ -453,7 +488,9 @@ function TimelineDialog({entry, meta, onClose}) {
         return () => { cancelled = true; };
     }, [entry]);
     useEffect(() => {
-        const opener = document.activeElement;
+        const opener = openerRef?.current || document.activeElement;
+        if (openerRef) openerRef.current = null;
+        const openTick = historyRef.current;
         const background = document.querySelectorAll('.top-bar, main, .footer-bar');
         background.forEach(el => { el.inert = true; });
         closeButton.current.focus();
@@ -469,8 +506,9 @@ function TimelineDialog({entry, meta, onClose}) {
         return () => {
             document.removeEventListener('keydown', onKey);
             background.forEach(el => { el.inert = false; });
-            // After back/forward the destination pane takes focus instead of a control in a hidden pane.
-            if (opener?.isConnected && opener.getClientRects().length) opener.focus();
+            // History-driven dismissal focuses the restored active pane rather than a cached row button.
+            const viaHistory = historyRef.current !== openTick;
+            if (!viaHistory && opener?.isConnected && opener.getClientRects().length) opener.focus();
             else document.querySelector('.tab-pane.active')?.focus({preventScroll: true});
         };
     }, []);
@@ -491,19 +529,22 @@ function TimelineDialog({entry, meta, onClose}) {
 }
 
 export function CitationDialog({data}) {
-    const {view, setView} = useView();
+    const {view, setView, historyTick} = useView();
+    const historyRef = useRef(historyTick);
+    historyRef.current = historyTick;
     const entry = useMemo(() => {
         const target = normalizeDoi(view.doi);
         return target && data.index ? data.index.find(s => normalizeDoi(s.doi) === target) : null;
     }, [view.doi, data.index]);
     // The hidden shell keeps #ci-modal addressable while no timeline is open.
     if (!entry || view.tab !== 'citation-tab') return <div className="modal-backdrop" id="ci-modal" role="dialog" aria-modal="true" aria-label="Citation timeline and replication evidence" hidden />;
-    return <TimelineDialog entry={entry} meta={data.meta} onClose={() => setView({doi: ''})} />;
+    return <TimelineDialog entry={entry} meta={data.meta} openerRef={data.openerRef} historyRef={historyRef} onClose={() => setView({doi: ''})} />;
 }
 
 export function useCitations() {
     const {view} = useView();
     const {rows} = useData();
+    const openerRef = useRef(null);
     const [wanted, setWanted] = useState(false);
     useEffect(() => { if (view.tab === 'citation-tab' || view.doi) setWanted(true); }, [view.tab, view.doi]);
     const data = useCitationData(wanted);
@@ -520,15 +561,15 @@ export function useCitations() {
         const searchText = s => normalizedQuery([s.title, searchAuthorNames(s.author), ...(authors.get(normalizeDoi(s.doi)) || []), s.year, s.venue, s.doi].filter(Boolean).join(' | '));
         return {
             // Share of citations since the first replication: earlier citing works could never have co-cited one.
-            index: data.index.map(s => ({...s, cocit_prop: s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0, searchText: searchText(s)})),
+            index: data.index.map(s => ({...s, cocit_prop: s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : null, searchText: searchText(s)})),
             excluded: (Array.isArray(data.meta?.excluded_originals) ? data.meta.excluded_originals : []).map(e => ({...e, searchText: searchText(e)})),
         };
     }, [data.index, data.meta, rows]);
-    return useMemo(() => ({...data, index: index?.index ?? null, excluded: index?.excluded ?? []}), [data, index]);
+    return useMemo(() => ({...data, openerRef, index: index?.index ?? null, excluded: index?.excluded ?? []}), [data, index]);
 }
 
 export default function CitationImpact({data}) {
-    const {view, setView, pushEntry} = useView();
+    const {view, setView, switchTab, pushEntry} = useView();
     const kind = view.ciKind, outcome = view.ciOutcome;
     const ready = data.status === 'ready';
     const counts = data.meta?.outcome_counts || {};
@@ -536,8 +577,12 @@ export default function CitationImpact({data}) {
     const repro = data.repro?.[kind];
     const buckets = ready && kind !== 'replication' ? outcomeBuckets(kind) : [];
     const reproTotal = buckets.reduce((sum, b) => sum + (repro?.[b.key]?.n_originals || 0), 0);
-    const open = doi => { pushEntry(); setView({doi}); };
+    const open = (doi, openerEl) => { if (data.openerRef) data.openerRef.current = openerEl || null; pushEntry(); setView({doi}); };
     const outcomeLabels = ready ? Object.fromEntries(MIX_ORDER.map(key => [key, FloraVocabulary.label(key)])) : {};
+    const targetDoi = normalizeDoi(view.doi);
+    const matchedDoi = ready && targetDoi && data.index?.some(s => normalizeDoi(s.doi) === targetDoi);
+    const missingDoi = ready && view.tab === 'citation-tab' && Boolean(targetDoi) && !matchedDoi;
+    const excludedMatch = missingDoi ? data.excluded.find(e => normalizeDoi(e.doi) === targetDoi) : null;
 
     return (
         <Pane id="citation-impact" tabId="citation-tab" sources={['citations']} selection={[kindLabel(kind), ...(kind === 'replication' ? [OUTCOME_OPTIONS.find(o => o[0] === outcome)[1]] : [])]} kind={kind}
@@ -549,6 +594,19 @@ export default function CitationImpact({data}) {
                     <div className="cite-ref">Weinerova, J., Wallrich, L., Röseler, L., Feuerriegel, S., &amp; Azevedo, F. (2026, April 30). (When) Do Replications Influence the Impact of Original Claims? A Bibliometric Investigation. <ExternalLink href="https://doi.org/10.17605/OSF.IO/WJGM3">https://doi.org/10.17605/OSF.IO/WJGM3</ExternalLink></div>
                 </CiteBlock>
             </div>
+            {missingDoi && (
+                <Callout tone="caution" id="ci-missing-doi" className="load-error" role="status">
+                    <p>
+                        {excludedMatch
+                            ? <><strong>Timeline unavailable for {excludedOriginalLabel(excludedMatch)}</strong> ({excludedMatch.doi}): it is in FLoRA but left out of this citation snapshot because {exclusionReason(excludedMatch.reason)}.</>
+                            : <><strong>No citation timeline found for DOI <code>{view.doi}</code>.</strong> It may not be in this citation snapshot (which covers eligible replications with complete citation data) or the DOI may contain a typo.</>}
+                    </p>
+                    <div className="callout-actions">
+                        <Button onClick={() => { switchTab('browse-tab'); setView({q: view.doi, kind: 'all', page: 1, mobilePage: 1}); }}>Search in Browse</Button>
+                        <Button onClick={() => setView({doi: ''})}>Dismiss</Button>
+                    </div>
+                </Callout>
+            )}
             <div className="ci-intro">
                 <h2 className="ci-h2">{byKind(kind, ['Citation patterns around the first replication', 'Citation counts for numerical reproductions', 'Citation counts for robustness reproductions'])}</h2>
                 <Chips id="ci-study-type" label="Citation Impact study type" value={kind} onChange={k => setView({ciKind: k})} />
@@ -561,8 +619,8 @@ export default function CitationImpact({data}) {
                 ? <Placeholder id="ci-placeholder">Not enough reproductions with citation data yet (n={reproTotal}; need at least {REPRO_MIN_N}).</Placeholder>
                 : <Section id="ci-repro-content" title="Reproduction citation counts" notes={<><DataStamp source="reproduction_citations" /><p>Per-original summaries by assessed dimension, so groups of different sizes can be compared. Citations are all-time counts; medians limit the pull of a few highly cited originals. The co-citation rate is each original's share of citations that also cite its reproduction, counted from the year of its first reproduction and averaged across originals. A report can appear in several outcome groups.</p></>}>
                     <Figure><TableScroll label="Reproduction citation counts"><table className="table" id="ci-repro-table">
-                                <thead><tr><th scope="col"><span className="visually-hidden">Outcome</span></th><th><i>N</i> originals</th><th>Median citations per original</th><th>Mean citations per reproduction</th><th>Mean co-citation rate</th></tr></thead>
-                                <tbody>{buckets.map(b => { const r = repro[b.key] || {}; return <tr key={b.key}><td>{b.label}</td><td>{number(r.n_originals || 0)}</td><td>{r.median_citations_per_original == null ? '—' : number(r.median_citations_per_original, 1)}</td><td>{r.mean_citations_per_reproduction == null ? '—' : number(r.mean_citations_per_reproduction, 2)}</td><td>{r.mean_cocitation_rate == null ? '—' : percent(r.mean_cocitation_rate, 1, 1) + '%'}</td></tr>; })}</tbody>
+                                <thead><tr><th scope="col"><span className="visually-hidden">Outcome</span></th><th className="num"><i>N</i> originals</th><th className="num">Median citations per original</th><th className="num">Mean citations per reproduction</th><th className="num">Mean co-citation rate</th></tr></thead>
+                                <tbody>{buckets.map(b => { const r = repro[b.key] || {}; return <tr key={b.key}><td>{b.label}</td><td className="num">{number(r.n_originals || 0)}</td><td className="num">{r.median_citations_per_original == null ? '—' : number(r.median_citations_per_original, 1)}</td><td className="num">{r.mean_citations_per_reproduction == null ? '—' : number(r.mean_citations_per_reproduction, 2)}</td><td className="num">{r.mean_cocitation_rate == null ? '—' : percent(r.mean_cocitation_rate, 1, 1) + '%'}</td></tr>; })}</tbody>
                             </table></TableScroll></Figure>
                 </Section>)}
 
@@ -597,7 +655,7 @@ export default function CitationImpact({data}) {
                     </Figure>
                 </Section>
 
-                <Section wide title="Browse all originals" notes={<p>Choose Timeline to see a report’s citation timeline with replication events marked.</p>}>
+                <Section wide title="Browse all originals" titleId="ci-originals-heading" notes={<p>Choose Timeline to see a report’s citation timeline with replication events marked.</p>}>
                     <Figure>
                         <OriginalsTable index={data.index || EMPTY} excluded={data.excluded || EMPTY} onOpen={open} status={data.status} />
                     </Figure>
