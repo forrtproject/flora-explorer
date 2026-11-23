@@ -61,15 +61,15 @@ const valueOf = v => Number(v && typeof v === 'object' && !Array.isArray(v) ? v.
 const hasData = s => s.type !== 'bar' || (s.data || []).some(v => valueOf(v) > 0);
 
 // Rows of legend items at this width, so the plot starts below them instead of under them.
-// Category names down the side of a horizontal bar chart wrap within this width, to at most three lines;
-// longer names end in an ellipsis, with the full name in the hover and the data table.
-const LABEL_LINES = 3, LABEL_LINE_HEIGHT = 14;
+// Category names down the side of a horizontal bar chart wrap within this width, to at most four lines
+// so a trailing "(N=...)" count line stays visible; longer names end in an ellipsis, with the full name in the hover and table.
+const LABEL_LINES = 4, LABEL_LINE_HEIGHT = 14;
 export const categoryLabelWidth = width => (width < 560 ? 110 : 150) * textScale();
-const wrappedLines = (text, chars) => String(text).split(/\s+/).reduce((acc, word) => {
+const wrappedLines = (text, chars) => String(text).split('\n').reduce((total, part) => total + part.split(/\s+/).reduce((acc, word) => {
     const last = acc[acc.length - 1];
     if (last && (last + ' ' + word).length <= chars) acc[acc.length - 1] = last + ' ' + word; else acc.push(word);
     return acc;
-}, []).length;
+}, []).length, 0);
 
 // The height a horizontal bar chart needs at this width. ECharts gives every category the same band, so the
 // longest label sets the band; the legend's rows and the value axis come on top.
@@ -77,20 +77,20 @@ export function horizontalBarHeight(categories, legendNames, width) {
     const scale = textScale(), chars = Math.max(8, Math.floor(categoryLabelWidth(width) / (5.8 * scale)));
     const lines = Math.min(LABEL_LINES, Math.max(1, ...categories.map(c => wrappedLines(c, chars))));
     const band = Math.max(28, lines * LABEL_LINE_HEIGHT * scale + 14);
-    return Math.round(categories.length * band + legendRows(legendNames, width, scale) * 20 * scale + 6 + 48 * scale);
+    return Math.round(categories.length * band + legendRows(legendNames, width, scale) * 24 * scale + 14 + 48 * scale);
 }
 
 // A single proportion bar: its legend rows, then the 24px bar, so no blank band sits between them.
 export function proportionBarHeight(legendNames, width) {
     const scale = textScale();
-    return Math.round(legendRows(legendNames, width, scale) * 20 * scale + 6 + 4 + 24 + 8);
+    return Math.round(legendRows(legendNames, width, scale) * 24 * scale + 14 + 4 + 24 + 8);
 }
 
 function legendRows(names, width, scale = 1) {
     if (!names.length) return 0;
     let rows = 1, used = 0;
     for (const item of names) {
-        const w = ((typeof item === 'string' ? item : item.name).length * 6.4 + 30) * scale;
+        const w = ((typeof item === 'string' ? item : item.name).length * 7.4 + 36) * scale;
         if (used && used + w > width) { rows += 1; used = 0; }
         used += w;
     }
@@ -104,7 +104,7 @@ export function finishOption(option, {width = 600, top = 0} = {}) {
     const series = option.series || [];
     const names = option.legend?.data || series.filter(s => s.name && !s.name.startsWith('_') && hasData(s)).map(s => s.name);
     const showLegend = option.legend?.show !== false && names.length > 0;
-    const legendHeight = showLegend ? legendRows(names, width, scale) * 20 * scale + 6 : 0;
+    const legendHeight = showLegend ? legendRows(names, width, scale) * 24 * scale + 14 : 0;
     top *= scale;
     // Bar charts hover the whole category (every segment of a year, journal or venue at once) under a
     // faint plum shadow; lines, points and histogram bins hover the item under the pointer.
@@ -114,11 +114,11 @@ export function finishOption(option, {width = 600, top = 0} = {}) {
         backgroundColor: t.paper, aria: {enabled: false},
         textStyle: {fontFamily: t.fontFamily, fontSize: 12, color: t.font},
         tooltip: {trigger: bars ? 'axis' : 'item', ...(bars ? {axisPointer: {type: 'shadow', shadowStyle: {color: 'rgba(133,57,83,.07)'}}} : {}),
-            confine: true, className: 'chart-tooltip', backgroundColor: '#2c2c2c', borderWidth: 0, textStyle: {color: '#fff', fontFamily: t.fontFamily, fontSize: 12}},
+            confine: true, className: 'chart-tooltip', backgroundColor: '#2c2c2c', borderWidth: 1, borderColor: 'rgba(255,255,255,.16)', textStyle: {color: '#fff', fontFamily: t.fontFamily, fontSize: 12}},
         // Clicking a legend entry hides or shows that series.
         legend: {show: showLegend, data: names, top: 0, left: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, itemGap: 16,
             textStyle: {color: t.tick, fontSize: 12, fontFamily: t.fontFamily}},
-        grid: {left: 4, right: 12, bottom: 4, top: legendHeight + top + 8, outerBoundsMode: 'same', outerBoundsContain: 'all'},
+        grid: {left: 4, right: 12, bottom: 4, top: legendHeight + top + 10, outerBoundsMode: 'same', outerBoundsContain: 'all'},
     };
     const own = {...option, legend: {...option.legend, data: names, show: showLegend}};
     if (option.grid) own.grid = {...option.grid, top: (option.grid.top ?? 8) + legendHeight + top};
@@ -170,15 +170,16 @@ export function stackedBarOption({categories, series, horizontal = false, pooled
     // a round year too close to the latest one gives way to it.
     const last = categories.length - 1;
     const years = !horizontal && last > 10 && categories.every((c, i) => /^\d{4}$/.test(c) || (i === 0 && pooledFirst));
-    const step = width < 500 ? 20 : width < 900 ? 10 : 5;
-    const yearTick = (i, v) => i === 0 || i === last || (Number(v) % step === 0 && i >= step / 2 && last - i >= step / 2);
+    const step = last <= 35 ? (width < 500 ? 10 : 5) : (width < 500 ? 20 : 10);
+    const guard = Math.min(step / 2, 4);
+    const yearTick = (i, v) => i === 0 || i === last || (Number(v) % step === 0 && i >= guard && last - i >= guard);
     const cats = categoryAxis({data: categories, inverse: horizontal,
         axisLabel: horizontal ? {interval: 0, width: categoryLabelWidth(width), overflow: 'break', lineHeight: LABEL_LINE_HEIGHT, height: LABEL_LINES * LABEL_LINE_HEIGHT, lineOverflow: 'truncate'}
             : years ? {interval: yearTick, hideOverlap: true} : {hideOverlap: true},
         // Category split line i falls at the start of column i; only the one after the pooled column is drawn.
         splitLine: pooledFirst && categories.length > 1 ? {show: true, showMinLine: false, showMaxLine: false, interval: i => i === 1, lineStyle: {color: t.tick, type: [4, 3], width: 1}} : {show: false}});
     const values = valueAxis(shares ? {min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}} : countAxis());
-    // A share hover names the category and its N, then each outcome's share and count.
+    // A hover names the category and its total, then only the non-zero series in that category.
     const tooltip = shares ? {formatter: ps => {
         const i = ps[0].dataIndex;
         return tipLines([`<strong>${escapeHtml(plain(categories[i]))}</strong>`,
@@ -187,7 +188,11 @@ export function stackedBarOption({categories, series, horizontal = false, pooled
                 const n = series[p.seriesIndex].values[i];
                 return tipRow(series[p.seriesIndex].color, `${p.seriesName}: ${percent(n, totals[i], 1)}% (${number(n)})`);
             })]);
-    }} : {valueFormatter: v => number(v)};
+    }} : {formatter: ps => {
+        const i = ps[0].dataIndex;
+        return tipLines([`<strong>${escapeHtml(plain(categories[i]))}</strong> · ${number(totals[i])} total`,
+            ...ps.filter(p => series[p.seriesIndex].values[i] > 0).map(p => tipRow(series[p.seriesIndex].color, `${p.seriesName}: ${number(series[p.seriesIndex].values[i])}`))]);
+    }};
     return finishOption({series: bars, tooltip, xAxis: horizontal ? values : cats, yAxis: horizontal ? cats : values}, {width});
 }
 export function barTable(categories, series, eligible, scope) {
@@ -233,11 +238,12 @@ export function comparisonOption({groups, series: all}, {counts = false, width =
     const shares = series.map(s => s.values.map((v, i) => counts ? v : share(v, i)));
     const corners = stackCorners(shares, narrow, 4);
     const hatch = {symbol: 'rect', symbolSize: 1, dashArrayX: [1, 0], dashArrayY: [2, 3], rotation: Math.PI / 4, color: 'rgba(255,255,255,.5)'};
+    const minLabelPct = narrow && width < 360 ? 18 : 7;
     const bars = series.map((s, si) => ({
         name: s.name, type: 'bar', stack: counts ? undefined : 'share', ...(counts ? {barMaxWidth: 28} : {barWidth: '52%'}),
         itemStyle: {color: s.color, borderColor: t.paper, borderWidth: 1}, emphasis: {focus: 'series'},
         // Shares large enough to hold a label are written on the segment itself, in a colour that reads on its fill.
-        label: {show: !counts, position: 'inside', color: labelColor(s.color), fontSize: 11, fontFamily: t.fontFamily, formatter: p => p.value >= 7 ? Math.round(p.value) + '%' : ''},
+        label: {show: !counts, position: 'inside', color: labelColor(s.color), fontSize: 11, fontFamily: t.fontFamily, formatter: p => p.value >= minLabelPct ? Math.round(p.value) + '%' : ''},
         data: shares[si].map((v, i) => {
             const faded = small[i] && !counts;
             return {value: v, ...(faded ? {label: {show: false}} : {}),
@@ -256,7 +262,8 @@ export function comparisonOption({groups, series: all}, {counts = false, width =
     }};
     const values = valueAxis(counts ? {...countAxis(), name: 'Reference pairs'}
         : {name: narrow ? 'Within-group\npercentage' : 'Within-group percentage', min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}});
-    const cats = categoryAxis({data: labels, inverse: narrow, axisLabel: {interval: 0, width: 80 * textScale(), overflow: 'break'}});
+    const labelWidth = narrow ? 88 * textScale() : Math.max(88, Math.min(180, Math.floor((width - 80) / Math.max(groups.length, 1)) - 14)) * textScale();
+    const cats = categoryAxis({data: labels, inverse: narrow, axisLabel: {interval: 0, width: labelWidth, overflow: 'break', lineHeight: Math.round(15 * textScale())}});
     return finishOption({series: bars, tooltip, xAxis: narrow ? values : cats, yAxis: narrow ? cats : values}, {width});
 }
 export function comparisonTable({groups, series}) {
