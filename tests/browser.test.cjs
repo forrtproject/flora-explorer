@@ -293,6 +293,7 @@ test('Browse explains empty selections, offers recovery and keeps results near t
   await p.click('.browse-kind-btn[data-kind="replication"]');
   assert.ok(await p.locator('#browse-outcome-card').isVisible());
   assert.equal((await p.locator('#browse-outcome-caption').innerText()).trim(),'4 replication reference pairs.');
+  await p.waitForFunction(()=>[...document.querySelectorAll('#browse-outcome-chart svg text')].some(el=>/^\d+%$/.test(el.textContent.trim())));
   const browseBarLabels=await p.locator('#browse-outcome-chart svg text').allTextContents();
   assert.ok(browseBarLabels.includes('75%')&&browseBarLabels.includes('25%'),`expected 75% and 25% inline bar labels: ${browseBarLabels}`);
   await p.fill('#browse-mobile-input','unicornzzzz');await p.waitForFunction(()=>getChartData().length===0);
@@ -1033,6 +1034,7 @@ test('counts, small shares, wrapped labels, rounded exports and citation hovers 
   assert.ok(qualified>0&&qualified/pub.n_total<0.01);
   assert.equal((await p.locator('#overview-outcome-caption').innerText()).trim(),`${pub.n_total.toLocaleString('en-GB')} replication reference pairs.`);
   assert.ok((await p.locator('#overview-outcome-chart-data').textContent()).includes('Statistically successful but flawed'));
+  await p.waitForFunction(()=>[...document.querySelectorAll('#overview-outcome-chart svg text')].some(el=>/^\d+%$/.test(el.textContent.trim())));
   const ovBarLabels=await p.locator('#overview-outcome-chart svg text').allTextContents();
   const pctLabels=ovBarLabels.filter(t=>/^\d+%$/.test(t));
   assert.ok(pctLabels.length>=3,`expected inline percentage labels on overview replication bar: ${ovBarLabels}`);
