@@ -411,6 +411,7 @@ a.ex-link:hover .ex-line-title { color: var(--color-primary); text-decoration: u
 #search-input { flex: 1; min-width: 0; }
 .browse-desktop { display: block; }
 .browse-mobile { display: none; }
+#browse-results-heading, #ci-originals-heading { scroll-margin-top: var(--space-4); }
 #flora-table { table-layout: fixed; }
 /* The titles get most of the width; the link columns only need room for the start of a DOI (the full links are in the expanded row). */
 #flora-table th:nth-child(1) { width: 3%; } #flora-table th:nth-child(2), #flora-table th:nth-child(4) { width: 25%; }

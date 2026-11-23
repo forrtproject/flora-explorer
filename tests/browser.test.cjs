@@ -1584,3 +1584,33 @@ test('every chart states N of M in its chart data',async()=>{
   assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+test('keyboard PageDown scrolls main content, Home/End navigate tabs, and desktop pagination scrolls to table top',async()=>{
+  const p=await page('?tab=overview',1440);
+  // Immediately after load (focus on body), PageDown scrolls .app-main without needing a click first.
+  await p.keyboard.press('PageDown');
+  await p.waitForFunction(()=>document.querySelector('.app-main').scrollTop>200);
+  // Home and End jump to the first and last tab in the tablist.
+  await p.locator('#overview-tab').focus();
+  await p.keyboard.press('End');
+  assert.equal(await p.evaluate(()=>document.activeElement.id),'pub-tab');
+  assert.equal(await p.locator('.tab-pane.active').getAttribute('id'),'publication-type');
+  await p.keyboard.press('Home');
+  assert.equal(await p.evaluate(()=>document.activeElement.id),'overview-tab');
+  assert.equal(await p.locator('.tab-pane.active').getAttribute('id'),'overview');
+  // Clicking Page 2 at the bottom of Browse desktop table scrolls smoothly back to the results heading.
+  await p.click('#browse-tab');
+  await p.waitForSelector('#flora-table_paginate');
+  await p.locator('#flora-table_paginate button[aria-label="Page 2"]').scrollIntoViewIfNeeded();
+  const beforeTop=await p.evaluate(()=>document.querySelector('.app-main').scrollTop);
+  assert.ok(beforeTop>300);
+  await p.locator('#flora-table_paginate button[aria-label="Page 2"]').click();
+  await p.waitForFunction(()=>document.getElementById('browse-results-heading').getBoundingClientRect().top>=52&&document.getElementById('browse-results-heading').getBoundingClientRect().top<180);
+  // Same for Citation Impact originals pagination.
+  await p.click('#citation-tab');
+  await p.waitForSelector('#pagination button[aria-label="Page 2"]');
+  await p.locator('#pagination button[aria-label="Page 2"]').scrollIntoViewIfNeeded();
+  await p.locator('#pagination button[aria-label="Page 2"]').click();
+  await p.waitForFunction(()=>document.getElementById('ci-originals-heading').getBoundingClientRect().top>=52&&document.getElementById('ci-originals-heading').getBoundingClientRect().top<180);
+  assert.deepEqual(p.errors,[]);await p.close();
+});

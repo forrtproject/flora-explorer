@@ -189,11 +189,12 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     const sortBy = col => { setSort(prev => ({col, dir: prev.col === col && prev.dir === 'desc' ? 'asc' : 'desc'})); setPage(1); };
     const ariaSort = col => sort.col === col ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined;
     const goTo = p => { refocus.current = true; setPage(p); };
-    // A Previous/Next button that disappears at the ends hands focus to the current page.
+    // A Previous/Next button that disappears at the ends hands focus to the current page, and paging returns to the table top.
     useLayoutEffect(() => {
         if (!refocus.current) return;
         refocus.current = false;
         if (!pagination.current?.contains(document.activeElement)) pagination.current?.querySelector('[aria-current]')?.focus({preventScroll: true});
+        document.getElementById('ci-originals-heading')?.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     }, [current]);
 
     const first = Math.max(1, current - 2), lastPage = Math.min(pages, first + 4);
@@ -597,7 +598,7 @@ export default function CitationImpact({data}) {
                     </Figure>
                 </Section>
 
-                <Section wide title="Browse all originals" notes={<p>Choose Timeline to see a report’s citation timeline with replication events marked.</p>}>
+                <Section wide title="Browse all originals" titleId="ci-originals-heading" notes={<p>Choose Timeline to see a report’s citation timeline with replication events marked.</p>}>
                     <Figure>
                         <OriginalsTable index={data.index || EMPTY} excluded={data.excluded || EMPTY} onOpen={open} status={data.status} />
                     </Figure>
