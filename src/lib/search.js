@@ -1,7 +1,9 @@
 export function normalizedQuery(query) {
     return String(query || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
         .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
-        .replace(/https?:\/\/(?:dx\.)?doi\.org\//g, '').replace(/\bdoi:\s*/g, '').replace(/\s+/g, ' ').trim();
+        .replace(/(?:https?:\/\/)?(?:dx\.)?doi\.org\//g, '').replace(/\bdoi:\s*/g, '')
+        .replace(/\b(10\.\d{4,9}\/[^\s"']+?)[.,;:)]+(?=\s|$|")/g, '$1')
+        .replace(/\s+/g, ' ').trim();
 }
 
 // Search all names, without indexing Crossref keys, ORCIDs or affiliations.
@@ -40,4 +42,4 @@ export function matchesBrowseQuery(row, query) {
     return !tokens.length || matchesTokens(pairSearchText(row), tokens);
 }
 
-export const normalizeDoi = doi => (doi || '').trim().toLowerCase().replace(/^https?:\/\/(dx\.)?doi\.org\//, '').replace(/^doi:/, '');
+export const normalizeDoi = doi => (doi || '').trim().toLowerCase().replace(/^(?:https?:\/\/)?(?:dx\.)?doi\.org\//, '').replace(/^doi:\s*/, '').replace(/[.,;:)]+$/, '');

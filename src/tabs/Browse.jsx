@@ -18,7 +18,27 @@ const MOBILE_PAGE_SIZE = 20;
 const PAGE_SIZES = [10, 25, 50, 100, -1];
 const collator = new Intl.Collator(undefined, {numeric: true});
 const SORT_FIELDS = {1: 'title_o', 2: 'year_o', 3: 'title_r', 4: 'year_r', 5: 'outcome', 6: 'type', 7: 'doi_o'};
+const TITLE_COLS = new Set([1, 3]);
+const cleanSortText = (column, value) => {
+    const s = String(value ?? '').trim();
+    if (!s || s === '-' || s.toUpperCase() === 'NA') return '';
+    return TITLE_COLS.has(column) ? s.replace(/^["'“”‘’(\[]+\s*/, '') : s;
+};
 const sortKey = column => column === 8 ? r => reportLinkText(r.url_r, r.doi_r) : column === 5 ? sourceOutcome : r => String(r[SORT_FIELDS[column] || 'year_r'] || '');
+function compareBrowse(column, direction) {
+    const key = sortKey(column), sign = direction === 'desc' ? -1 : 1;
+    // Outcome sorting preserves exact reversible grouping across asc/desc; other columns always push missing values last.
+    if (column === 5) return (a, b) => collator.compare(key(a), key(b)) * sign;
+    return (a, b) => {
+        const ka = cleanSortText(column, key(a)), kb = cleanSortText(column, key(b));
+        if (!ka && !kb) return 0;
+        if (!ka) return 1;
+        if (!kb) return -1;
+        return collator.compare(ka, kb) * sign;
+    };
+}
+const filterBrowseRows = (rows, kind, query, column, direction) =>
+    filterByKind(rows, kind).filter(r => matchesBrowseQuery(r, query)).sort(compareBrowse(column, direction));
 const MOBILE_SORTS = [['4:desc', 'Newest repetition first'], ['4:asc', 'Oldest repetition first'], ['2:desc', 'Newest original first'], ['2:asc', 'Oldest original first'], ['1:asc', 'Original title, A–Z']];
 const DIMENSION_FOR_KIND = {replication: 'replicability', 'reproduction-numerical': 'computational', 'reproduction-robustness': 'robustness'};
 
@@ -155,10 +175,7 @@ export default function Browse({citation}) {
 
     const [column, direction] = useMemo(() => { const [c, d] = view.sort.split(':'); return [Number(c), d]; }, [view.sort]);
     const indexOf = useMemo(() => new Map(rows.map((r, i) => [r, i])), [rows]);
-    const filtered = useMemo(() => {
-        const key = sortKey(column), sign = direction === 'desc' ? -1 : 1;
-        return filterByKind(rows, kind).filter(r => matchesBrowseQuery(r, q)).sort((a, b) => collator.compare(key(a), key(b)) * sign);
-    }, [rows, kind, q, column, direction]);
+    const filtered = useMemo(() => filterBrowseRows(rows, kind, q, column, direction), [rows, kind, q, column, direction]);
 
     const total = filtered.length;
     const size = view.pageSize === -1 ? Math.max(total, 1) : view.pageSize;
@@ -196,11 +213,16 @@ export default function Browse({citation}) {
         catch { setFeedback('Copy the current address from your browser.'); }
     };
     const exportCsv = () => {
+        clearTimeout(debounce.current);
+        const activeQ = input;
+        if (activeQ !== q) refilter({q: activeQ});
+        const exportRows = activeQ !== q ? filterBrowseRows(rows, kind, activeQ, column, direction) : filtered;
+        const exportFiltered = Boolean(activeQ.trim()) || kind !== 'all';
         const keys = Object.keys(rows[0] || {}).flatMap(key => key === 'outcome' ? [key, 'outcome_label'] : [key]);
         const stamp = stamps ? stampInfo('flora', stamps.flora).text : '';
-        download(filteredView ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv', keys,
-            filtered.map(row => keys.map(k => k === 'outcome_label' ? outcomeLabel(row) : row[k])),
-            `Unit: reference pair\n${stamp}\nStudy type: ${FloraVocabulary.studyType(kind)}\nQuery: ${q}\nIncluded: ${total.toLocaleString('en-GB')}; excluded by filters: ${(rows.length - total).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
+        download(exportFiltered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv', keys,
+            exportRows.map(row => keys.map(k => k === 'outcome_label' ? outcomeLabel(row) : row[k])),
+            `Unit: reference pair\n${stamp}\nStudy type: ${FloraVocabulary.studyType(kind)}\nQuery: ${activeQ}\nIncluded: ${exportRows.length.toLocaleString('en-GB')}; excluded by filters: ${(rows.length - exportRows.length).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
     };
     const toggle = index => setExpanded(prev => { const next = new Set(prev); next.has(index) ? next.delete(index) : next.add(index); return next; });
     const paged = useRef(false);

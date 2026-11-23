@@ -172,8 +172,13 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     const matches = useMemo(() => {
         const tokens = searchTokens(query);
         const out = index.filter(s => matchesTokens(s.searchText, tokens) && (!filter || outcomeGroup(s) === filter));
-        const value = s => s[sort.col] != null ? s[sort.col] : -Infinity;
-        return out.sort((a, b) => sort.dir === 'asc' ? value(a) - value(b) : value(b) - value(a));
+        return out.sort((a, b) => {
+            const av = a[sort.col], bv = b[sort.col];
+            const aMissing = av == null || av === '', bMissing = bv == null || bv === '';
+            if (aMissing !== bMissing) return aMissing ? 1 : -1;
+            if (aMissing && bMissing) return 0;
+            return sort.dir === 'asc' ? av - bv : bv - av;
+        });
     }, [index, query, filter, sort]);
     // A search with no results may name an original that this snapshot left out.
     const leftOut = useMemo(() => query.trim() && !matches.length ? excluded.filter(e => matchesTokens(e.searchText, searchTokens(query))) : [], [excluded, query, matches.length]);
