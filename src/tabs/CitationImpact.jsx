@@ -568,7 +568,7 @@ export function useCitations() {
 }
 
 export default function CitationImpact({data}) {
-    const {view, setView, pushEntry} = useView();
+    const {view, setView, switchTab, pushEntry} = useView();
     const kind = view.ciKind, outcome = view.ciOutcome;
     const ready = data.status === 'ready';
     const counts = data.meta?.outcome_counts || {};
@@ -578,6 +578,10 @@ export default function CitationImpact({data}) {
     const reproTotal = buckets.reduce((sum, b) => sum + (repro?.[b.key]?.n_originals || 0), 0);
     const open = (doi, openerEl) => { if (data.openerRef) data.openerRef.current = openerEl || null; pushEntry(); setView({doi}); };
     const outcomeLabels = ready ? Object.fromEntries(MIX_ORDER.map(key => [key, FloraVocabulary.label(key)])) : {};
+    const targetDoi = normalizeDoi(view.doi);
+    const matchedDoi = ready && targetDoi && data.index?.some(s => normalizeDoi(s.doi) === targetDoi);
+    const missingDoi = ready && view.tab === 'citation-tab' && Boolean(targetDoi) && !matchedDoi;
+    const excludedMatch = missingDoi ? data.excluded.find(e => normalizeDoi(e.doi) === targetDoi) : null;
 
     return (
         <Pane id="citation-impact" tabId="citation-tab" sources={['citations']} selection={[kindLabel(kind), ...(kind === 'replication' ? [OUTCOME_OPTIONS.find(o => o[0] === outcome)[1]] : [])]} kind={kind}
@@ -589,6 +593,19 @@ export default function CitationImpact({data}) {
                     <div className="cite-ref">Weinerova, J., Wallrich, L., Röseler, L., Feuerriegel, S., &amp; Azevedo, F. (2026, April 30). (When) Do Replications Influence the Impact of Original Claims? A Bibliometric Investigation. <ExternalLink href="https://doi.org/10.17605/OSF.IO/WJGM3">https://doi.org/10.17605/OSF.IO/WJGM3</ExternalLink></div>
                 </CiteBlock>
             </div>
+            {missingDoi && (
+                <Callout tone="caution" id="ci-missing-doi" className="load-error" role="status">
+                    <p>
+                        {excludedMatch
+                            ? <><strong>Timeline unavailable for {excludedOriginalLabel(excludedMatch)}</strong> ({excludedMatch.doi}): it is in FLoRA but left out of this citation snapshot because {exclusionReason(excludedMatch.reason)}.</>
+                            : <><strong>No citation timeline found for DOI <code>{view.doi}</code>.</strong> It may not be in this citation snapshot (which covers eligible replications with complete citation data) or the DOI may contain a typo.</>}
+                    </p>
+                    <div className="callout-actions">
+                        <Button onClick={() => { switchTab('browse-tab'); setView({q: view.doi, kind: 'all', page: 1, mobilePage: 1}); }}>Search in Browse</Button>
+                        <Button onClick={() => setView({doi: ''})}>Dismiss</Button>
+                    </div>
+                </Callout>
+            )}
             <div className="ci-intro">
                 <h2 className="ci-h2">{byKind(kind, ['Citation patterns around the first replication', 'Citation counts for numerical reproductions', 'Citation counts for robustness reproductions'])}</h2>
                 <Chips id="ci-study-type" label="Citation Impact study type" value={kind} onChange={k => setView({ciKind: k})} />

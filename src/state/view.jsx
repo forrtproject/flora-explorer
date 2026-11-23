@@ -73,8 +73,10 @@ function parse(url) {
 
 function serialize(view) {
     const url = new URL(location.href);
+    const currentTab = parse(url).tab;
     for (const key of ['tab', 'doi', 'search-input', ...PARAMS.map(p => p[1])]) url.searchParams.delete(key);
     const tab = TABS.find(t => t.id === view.tab);
+    if (view.tab !== currentTab) url.hash = '';
     if (tab.param !== 'overview') url.searchParams.set('tab', tab.param);
     for (const [key, param, owner] of PARAMS) {
         const val = key === 'outcome' ? normalizeOutcome(view.kind, view.outcome) : view[key];
