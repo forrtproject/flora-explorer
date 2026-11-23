@@ -1608,5 +1608,16 @@ test('Browse outcome filter scopes to study type, syncs URL/CSV, and recovers em
   // Deep-linking ?kind=reproduction displays an active reproduction filter note.
   await p.goto(base+'?tab=browse&kind=reproduction');
   await p.waitForSelector('#browse-reproduction-note');
+  // Invalid or cross-dimension outcome values normalize out of state and URL.
+  await p.goto(base+'?tab=browse&kind=replication&outcome=issues');
+  await p.waitForSelector('#browse-outcome-filter');
+  await p.waitForFunction(()=>!new URL(location.href).searchParams.has('outcome'));
+  assert.equal(await p.locator('#browse-outcome-filter').inputValue(),'');
+  // Navigating from Overview search clears any prior Browse outcome filter.
+  await p.selectOption('#browse-outcome-filter','failed');
+  await p.waitForFunction(()=>new URL(location.href).searchParams.get('outcome')==='failed');
+  await p.click('#overview-tab');
+  await p.locator('.example-chip').first().click();
+  await p.waitForFunction(()=>document.querySelector('.tab-pane.active')?.id==='browse'&&!new URL(location.href).searchParams.has('outcome'));
   assert.deepEqual(p.errors,[]);await p.close();
 });
