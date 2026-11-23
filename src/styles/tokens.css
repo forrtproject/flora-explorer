@@ -117,7 +117,7 @@
     --color-white-rgb: 255 255 255;
 
     /* FLoRA explorer extensions: links, card shadows and callout emphasis. */
-    --color-link: #2563eb;              /* 5.17:1 on white */
+    --color-link: var(--color-primary); /* prose and DOI links share the brand link colour (7.8:1 on white) */
     --color-shadow: rgba(0, 0, 0, .06);
     --color-shadow-hover: rgba(0, 0, 0, .12);
     --color-callout-accent: #9c4221;    /* on --color-warning-bg */
@@ -290,7 +290,7 @@
 
     --color-scrim: rgba(8, 6, 9, .62);
 
-    --color-link: #93b4fd;
+    --color-link: var(--color-primary);
     --color-shadow: rgba(0, 0, 0, .35);
     --color-shadow-hover: rgba(0, 0, 0, .55);
     --color-callout-accent: #f0c070;
@@ -314,7 +314,7 @@
     --color-chart-uninformative: #c2b29c;
     --color-chart-missing: #5a5f69;
     --color-chart-unrecognised: #d5d8de;
-    --color-chart-technical-failure: #d9645a;
+    --color-chart-technical-failure: #a84f46; /* 2.1:1 against Computational issues beside it, 3:1 on the card */
     --color-chart-not-checked: #7f8590;
     --color-chart-not-coded: #5a5f69;
     --color-chart-neutral: #8b919c;

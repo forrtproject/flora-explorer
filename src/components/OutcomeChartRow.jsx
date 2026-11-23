@@ -2,7 +2,7 @@ import {useMemo} from 'react';
 import {dimensionCaption, dimensionChartData} from '../lib/aggregate.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
 import {useEnv} from '../state/env.jsx';
-import {barTable, stackedBarOption} from '../lib/charts.js';
+import {barTable, proportionBarHeight, stackedBarOption} from '../lib/charts.js';
 import {ChartCopy, ChartData, EChart} from './charts.jsx';
 import {InfoTip} from './common.jsx';
 
@@ -22,6 +22,7 @@ export function OutcomeChartRow({prefix, dimension, rows, scope, rowId, hidden})
     // One horizontal stacked bar: the share of each outcome within the dimension.
     const series = useMemo(() => data.datasets.map(s => ({name: s.label, color: s.backgroundColor, values: s.data})), [data]);
     const option = useMemo(() => ({width}) => stackedBarOption({categories: [d.category], series, proportion: true, total: data.total, width}), [series, data.total, d.category]);
+    const heightFor = useMemo(() => width => proportionBarHeight(series.filter(s => s.values.some(v => v > 0)).map(s => s.name), width), [series]);
     const table = useMemo(() => barTable([d.category], series, data.eligible, reproduction ? 'reproduction' : 'replication'), [series, data.eligible, reproduction, d.category]);
     const entries = FloraVocabulary.entries(d.vocabulary);
     return (
@@ -41,7 +42,7 @@ export function OutcomeChartRow({prefix, dimension, rows, scope, rowId, hidden})
                 <ChartCopy id={id} title={title} table={table} />
             </div>
             <p className="note chart-caption" id={`${prefix}-${d.slug}-caption`}>{dimensionCaption(rows, dimension)}</p>
-            <EChart id={id} title={title} option={option} className="chart-box chart-container-stack" />
+            <EChart id={id} title={title} option={option} heightFor={heightFor} className="chart-box chart-container-stack" />
             <ChartData id={id} title={title} table={table} />
         </div>
     );

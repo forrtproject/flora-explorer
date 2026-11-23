@@ -7,27 +7,36 @@ import {setHook} from '../lib/hooks.js';
 import {useData} from '../state/data.jsx';
 import {useEnv, usePane} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
-import {barTable, horizontalBarHeight, stackedBarOption} from '../lib/charts.js';
+import {GROUP_MIN_N, barTable, horizontalBarHeight, stackedBarOption} from '../lib/charts.js';
 import {ChartCopy, ChartData, EChart} from '../components/charts.jsx';
-import {Figure, Note, Section} from '../components/ui.jsx';
+import {Button, Figure, Note, Section} from '../components/ui.jsx';
 import {CiteBlock, DataStamp, KindFilter, Pane, byKind4, kindLabel, repWord} from '../components/common.jsx';
 
-function TrendBlock({id, title, agg, kind, eligible, horizontal, minHeight, coverage, children}) {
+// sharesToggle: the chart can show each category's outcomes as within-category percentages (the default) or counts.
+function TrendBlock({id, title, agg, kind, eligible, horizontal, minHeight, coverage, sharesToggle, children}) {
     const pane = usePane();
+    const {view, setView} = useView();
     // tick re-renders on resize, so the wrapped-label height below follows the window.
     const {theme} = useEnv();
+    const shares = Boolean(sharesToggle) && !view.fieldCounts;
     const buckets = useMemo(() => outcomeBuckets(kind), [kind, theme]);
     const series = useMemo(() => buckets.map(b => ({name: b.label, color: b.color, values: agg.map(r => r.counts[b.key] || 0)})), [agg, buckets]);
+    // Percentages hide group size, so each category's N (the plotted pairs, the percentages' denominator) joins its name.
+    const categories = useMemo(() => agg.map((r, i) => shares ? `${r.key} (N=${series.reduce((n, s) => n + s.values[i], 0).toLocaleString('en-GB')})` : r.key), [agg, series, shares]);
     // Long field and journal names break down the side; a pooled first column gets a dashed rule after it.
-    const option = useMemo(() => ({width}) => stackedBarOption({categories: agg.map(r => r.key),
-        series, horizontal, pooledFirst: Boolean(agg[0]?.pooled), width}), [agg, series, horizontal]);
+    const option = useMemo(() => ({width}) => stackedBarOption({categories,
+        series, horizontal, pooledFirst: Boolean(agg[0]?.pooled), width, shares}), [agg, categories, series, horizontal, shares]);
     const table = useMemo(() => barTable(agg.map(r => r.key), series, eligible, 'counts'), [agg, series, eligible]);
     // Name charts size themselves from the width they get: every row needs room for the longest name.
-    const heightFor = useMemo(() => horizontal ? width => Math.max(minHeight || 0, horizontalBarHeight(agg.map(r => r.key), series.filter(s => s.values.some(v => v > 0)).map(s => s.name), width)) : undefined,
-        [horizontal, agg, series, minHeight]);
+    const heightFor = useMemo(() => horizontal ? width => Math.max(minHeight || 0, horizontalBarHeight(categories, series.filter(s => s.values.some(v => v > 0)).map(s => s.name), width)) : undefined,
+        [horizontal, categories, series, minHeight]);
+    const modeLabel = shares ? 'Show counts' : 'Show percentages';
     return (
         <Section className="trend-block" notesClass="trend-desc" level={3} title={title} notes={children}>
-            <Figure note={<Note id={id + '-n'}>{coverage}</Note>} actions={<ChartCopy id={id} title={title} table={table} />}>
+            <Figure note={<Note id={id + '-n'}>{coverage}</Note>} actions={<>
+                {sharesToggle && <Button id={id + '-mode'} className="chart-mode" aria-label={`${modeLabel} for ${title}`} onClick={() => setView(prev => ({fieldCounts: !prev.fieldCounts}))}>{modeLabel}</Button>}
+                <ChartCopy id={id} title={title} table={table} />
+            </>}>
                 {/* Year charts keep their proportions as they widen; name charts grow with their row count. */}
                 <div className="chart-box" id={id + '-container'} style={{height: 'auto'}}>
                     {pane.visited && (horizontal ? <EChart id={id} title={title} option={option} height={minHeight} heightFor={heightFor} /> : <EChart id={id} title={title} option={option} height={360} aspect={0.38} />)}
@@ -129,8 +138,9 @@ export default function Trends() {
                     <TopN id="rep-journal-top-n" value={view.repJournalTopN} onChange={v => setView({repJournalTopN: v})} noun="venues" />
                 </TrendBlock>
 
-                <TrendBlock id="trend-field" coverage={notes.fields} title={`${subject} by field`} agg={fields} horizontal minHeight={Math.max(360, fields.length * 44)} {...common}>
+                <TrendBlock id="trend-field" coverage={notes.fields} title={`${subject} by field`} agg={fields} horizontal minHeight={Math.max(360, fields.length * 44)} sharesToggle={!all} {...common}>
                     <p>A bird's-eye view grouping reference pairs by research discipline. Each bar shows the {all ? 'study-type breakdown' : 'outcome breakdown'} of {all ? 'replication and reproduction' : attempt} attempts targeting work originally published in journals from that field.</p>
+                    {!all && <p>Bars show percentages within each field, so fields of different sizes can be compared; N is the number of reference pairs in the field. Fields with fewer than {GROUP_MIN_N} pairs are faded, because their shares are unstable. Choose <em>Show counts</em> to see how many pairs each field has.</p>}
                     <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" className="doi-link">journal-to-discipline mapping</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
                     <p className="note">Coverage is still growing. Journals that are not yet classified may leave some fields under-represented.</p>
                 </TrendBlock>

@@ -67,6 +67,8 @@ export function parseFaqMarkdown(md) {
     };
     const flushSection = () => { if (section) { items.push(section); section = null; } };
     for (const line of readerFaqCopy(md).replace(/\r\n/g, '\n').split('\n')) {
+        // The document's own title repeats the section's "FAQs" heading, so it is skipped.
+        if (/^#\s+/.test(line)) continue;
         const heading = /^#{1,2}\s+(.+)$/.exec(line), question = /^#{3,4}\s+(.+)$/.exec(line);
         if (heading) { flushQa(); flushSection(); section = {type: 'section', text: heading[1].trim(), body: []}; }
         else if (question) { flushQa(); flushSection(); qa = {type: 'qa', question: question[1].trim(), body: []}; }

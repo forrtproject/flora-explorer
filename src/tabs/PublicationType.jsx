@@ -96,7 +96,10 @@ export default function PublicationType() {
     return (
         <Pane id="publication-type" tabId="pub-tab" sources={['pub_status', 'rr_status']} selection={[kindLabel(kind)]} kind={kind}
             title={{heading: 'Publication Type', lede: 'Outcomes by where and how the repetition was published: venue, Registered Report status and report size.'}}>
+            {/* Both update stamps sit together at the top, as on the other tabs. */}
             <div className="pane-meta">
+                <DataStamp source="pub_status" />
+                <DataStamp source="rr_status" />
                 <CiteBlock><div className="cite-ref"><WebsiteCitation /></div></CiteBlock>
             </div>
             <div className="filter-bar">
@@ -105,7 +108,6 @@ export default function PublicationType() {
             </div>
 
             <Section title="Recorded publication venue" notes={<>
-                <DataStamp source="pub_status" />
                     <p>Venues are grouped mainly from the recorded venue name: repositories/preprints, conference outputs, and theses where recognisable. Where no venue name is recorded, the report’s DOI or URL is used instead: a pair whose identifier points to a repository (for example OSF, PsyArXiv or bioRxiv) is grouped as repository / preprint, and all other pairs without a venue name remain unknown. A name containing “proceedings” counts as a conference output only when it refers to a specific event (for example a numbered edition or a symposium); journals such as PNAS do not. All other names are labelled “other named venue”; this does not verify a journal article or peer review. Chart percentages use all selected reference pairs within each venue group; summary-card percentages use all selected reference pairs.</p>
             </>}>
                     <Comparison prefix="pub" state={{...pub, errorLabel: 'Could not load the publication-status data.'}} d={pubD} kind={kind} shortage="with publication-status data" groups={VENUES} chartTitle="Outcomes by publication venue"
@@ -118,11 +120,10 @@ export default function PublicationType() {
                         </StudyList>} />
             </Section>
 
-            <Section title={<>Publication Format: Registered Reports vs. Other {kind === 'replication' ? 'Replications' : 'Reproductions'}</>} notes={<>
-                <DataStamp source="rr_status" />
+            <Section title="Publication format: Registered Report database matches and non-matches" notes={<>
                     <p>This analysis checks whether each {word} in FLoRA was itself published as a <strong>Registered Report</strong> (RR): a format in which the study design and analysis plan are peer-reviewed and provisionally accepted <em>before</em> results are known. Matching is done by DOI/title against the <ExternalLink href="https://github.com/LukasRoeseler/RRDB">Registered Reports database</ExternalLink>, a regularly updated export of the FORRT Zotero "Registered Reports" group library. Pairs whose {word} report matches the Registered Reports database form the <strong>Registered Report</strong> group; identifiable non-matches form the <strong>Not found in RR database</strong> group. Pairs without a report DOI or title remain unknown and are excluded from the comparison.</p>
                     <p>Because the Registered Reports database is itself a work in progress, “Not found in RR database” means <em>not (yet) found</em> in the database, rather than confirmed non-RR.</p>
-                    <CiteBlock label="Registered Reports data source"><div className="cite-ref">Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., Morillo, D., … Armstrong, C. (2026, May 14). <em>Database of Published Registered Reports</em>. <ExternalLink href="https://doi.org/10.17605/OSF.IO/VUR72">https://doi.org/10.17605/OSF.IO/VUR72</ExternalLink></div></CiteBlock>
+                    <CiteBlock summary="Registered Reports data source" label="How to cite"><div className="cite-ref">Montoya, A. K., Krenzer, W. L. D., Buchanan, E. M., Pronizius, E., Wang, Y. A., Morillo, D., … Armstrong, C. (2026, May 14). <em>Database of Published Registered Reports</em>. <ExternalLink href="https://doi.org/10.17605/OSF.IO/VUR72">https://doi.org/10.17605/OSF.IO/VUR72</ExternalLink></div></CiteBlock>
                     {snapshotsDiffer && <Note id="rr-snapshot-note">This section uses {nPairs(rrTotal)}, while the venue section above uses {nPairs(pubD.overview.n_total)}. The two sections were refreshed from different FLoRA snapshots; see each section’s update stamp.</Note>}
             </>}>
                     <Comparison prefix="rr" excluded={[['n_unknown', 'without a report DOI or title to check']]} state={{...rr, errorLabel: 'Could not load the Registered Reports data.'}} d={rrD} kind={kind} shortage="checked against the Registered Reports database" groups={RR_GROUPS} chartTitle={rrTitle}
@@ -133,7 +134,7 @@ export default function PublicationType() {
                             {value: ov.n_unknown || 0, label: 'Not checkable'},
                         ]}
                         caveat={kind === 'replication'
-                            ? 'Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between RR and non-RR replications could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘Not found in RR database’ group likely still contains some unlabelled Registered Reports.'
+                            ? 'Which studies get accepted as Registered Reports is not random — journals and reviewers may favour proposals with designs they expect to be highly powered, well-specified, or otherwise likely to replicate cleanly, regardless of format. Any difference in outcomes between matched and unmatched reports could therefore reflect the RR process itself, selection into that process, discipline/topic composition, or some mixture of all three. Coverage of the RR library is also incomplete, so the ‘Not found in RR database’ group likely still contains some unlabelled Registered Reports.'
                             : 'Selection into the Registered Report format is not random. Differences between database-matched and unmatched pairs may reflect selection, discipline or topic as well as the review process. These descriptive comparisons do not establish an effect of the format.'}
                         studies={<StudyList prefix="rr" summary={`${Word} reports that match the Registered Reports database`} count={rrStudies.length}
                             countText={`(${nPairs(rrStudies.length)} from ${rrReports.length.toLocaleString('en-GB')} ${rrReports.length === 1 ? 'report' : 'reports'})`} head={[`${Word} report`, 'Journal', 'Year', 'Reference pairs', 'Outcomes', 'DOI']}>

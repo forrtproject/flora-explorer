@@ -24,7 +24,8 @@ export function dimensionChartData(data, dimension) {
 // States the denominator, exclusions and counts so readers need not open the data table.
 export function dimensionCaption(data, dimension) {
     const {datasets, total, eligible} = dimensionChartData(data, dimension);
-    const counts = datasets.map(d => `${d.label} ${d.data[0].toLocaleString()} (${percent(d.data[0], total)}%)`).join(' · ');
+    // Empty categories add nothing to the sentence; they stay in the chart data table.
+    const counts = datasets.filter(d => d.data[0] > 0).map(d => `${d.label} ${d.data[0].toLocaleString()} (${percent(d.data[0], total)}%)`).join(' · ');
     if (dimension === 'replicability') return `${total.toLocaleString()} replication reference ${total === 1 ? 'pair' : 'pairs'}: ${counts}.`;
     const verdict = dimension === 'computational' ? 'a computational verdict' : 'a robustness verdict';
     const scope = total === eligible

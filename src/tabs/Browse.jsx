@@ -70,9 +70,22 @@ setMarkupHooks({
 
 const Field = ({label, children}) => <div><span className="detail-label">{label}:</span> <span className="detail-value">{children}</span></div>;
 
-export function Evidence({row}) {
+// evidenceFirst: phone cards already show both titles, so the recorded evidence leads and the full bibliography follows.
+export function Evidence({row, evidenceFirst}) {
+    const recorded = (
+        <div className="detail-card">
+            <h6>Recorded evidence</h6>
+            <div className="detail-section">
+                <Field label="Outcome"><OutcomeBadge row={row} /></Field>
+                <OutcomeEvidence row={row} />
+                <Field label="Type">{row.type || '-'}</Field>
+            </div>
+        </div>
+    );
     return (
         <div className="detail-row">
+            {evidenceFirst && recorded}
+            {evidenceFirst && <h6 className="detail-subhead">Full report details</h6>}
             <div className="detail-grid">
                 <div className="detail-card">
                     <h6>Original report</h6>
@@ -95,14 +108,7 @@ export function Evidence({row}) {
                     </div>
                 </div>
             </div>
-            <div className="detail-card">
-                <h6>Recorded evidence</h6>
-                <div className="detail-section">
-                    <Field label="Outcome"><OutcomeBadge row={row} /></Field>
-                    <OutcomeEvidence row={row} />
-                    <Field label="Type">{row.type || '-'}</Field>
-                </div>
-            </div>
+            {!evidenceFirst && recorded}
         </div>
     );
 }
@@ -123,7 +129,7 @@ function MobileCard({row}) {
                 <div className="bm-row-meta">{[authorYear(row.author_r, row.year_r), row.journal_r].filter(Boolean).join(' · ')}</div>
             </div>
             <div className="bm-tags"><OutcomeBadge row={row} />{row.type && <span className="bm-tag-type">{row.type}</span>}</div>
-            <details className="bm-evidence"><summary>Study and outcome evidence</summary><Evidence row={row} /></details>
+            <details className="bm-evidence"><summary>Study and outcome evidence</summary><Evidence row={row} evidenceFirst /></details>
         </div>
     );
 }

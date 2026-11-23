@@ -67,8 +67,12 @@ function modelSpec(d, jitter, coverage) {
     const range = [Math.log1p(minOmc) - 0.05, Math.log1p(maxOmc) + 0.05];
     const shown = jitter.filter(p => p.x <= range[1]);
     const pct = v => number(100 * v, 1) + '%';
+    // A plain-language reading of the curve at two labelled OMC values inside its window, before the statistics.
+    const at = omc => curve.reduce((best, p) => Math.abs(Math.log1p(p.omc) - Math.log1p(omc)) < Math.abs(Math.log1p(best.omc) - Math.log1p(omc)) ? p : best, curve[0]);
+    const [lo, hi] = [at(5), at(100)];
+    const plain = lo !== hi ? `The estimated probability of success is ${Math.round(100 * lo.p)}% for journals with an OMC of about ${Math.round(lo.omc)} and ${Math.round(100 * hi.p)}% at an OMC of about ${Math.round(hi.omc)}. The shaded band is the 95% confidence interval; mixed outcomes are excluded.` : '';
     return {
-        coverage, height: 640,
+        coverage, height: 640, plain,
         option: ({width}) => finishOption({
             series: [
                 // The band is the lower bound plus a stacked (upper - lower) area on top of it.
@@ -178,11 +182,11 @@ export default function MeanCitedness() {
                         {model
                             ? <Plot id="mc-gam-chart" heading="Success probability among successful / failed replications" title="Success probability among successful / failed replications" spec={model} note={
                                 <Note id="mc-gam-stats">{!model.message && <>
+                                    {model.plain && <span className="mc-gam-plain">{model.plain}<br /></span>}
                                     Logistic smooth of log(OMC + 1): <Gloss term="edf">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</Gloss> = {sig2(stats.edf)}, χ² = {sig2(stats.chi_sq)}
                                     {stats.p_val != null && (stats.p_val < 0.001 ? ', p < .001' : ', p = ' + stats.p_val.toFixed(3))}; <Gloss term="McFadden R²">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</Gloss> = {sig2(stats.r2)}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed).
                                 </>}</Note>} />
                             : <><Note id="mc-gam-stats" /><div id="mc-gam-chart" /></>}
-                        <Note>The data underlying the graph include all records from the FLORA database with complete information, particularly a lifetime Mean Citedness for the journal in which the original study was published, and a clearly successful or unsuccessful replication outcome (i.e., replications with mixed outcomes were excluded). The shaded band shows the 95% confidence interval for the estimated probability of success.</Note>
                     </div>
                 </div>
             </Section>

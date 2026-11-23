@@ -80,8 +80,10 @@ function ExcludedOriginals({meta}) {
     const n = meta.excluded_originals.length;
     // A handful of exclusions out of thousands would otherwise be an invisible sliver.
     const pct = Math.min(meta.n_originals / meta.n_originals_eligible * 100, 98);
+    // Under 1% left out is routine refresh noise: it stays listed, but in a quiet panel instead of a warning.
+    const minor = n / meta.n_originals_eligible < 0.01;
     return (
-        <details className="excluded-originals">
+        <details className={'excluded-originals' + (minor ? ' excluded-originals--minor' : '')}>
             <summary>
                 <svg className="excluded-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" /><path d="M10 5.5v5.5M10 13.8v.2" /></svg>
                 <span className="excluded-summary-text">
@@ -143,10 +145,10 @@ export function Pane({id, tabId, title, sources = [], selection = [], kind = '',
     );
 }
 
-export function CiteBlock({label = 'How to cite', children}) {
+export function CiteBlock({label = 'How to cite', summary = 'Citation and reuse guidance', children}) {
     return (
         <details className="disclosure tab-cite-block">
-            <summary>Citation and reuse guidance</summary>
+            <summary>{summary}</summary>
             <div className="tab-cite-block-label">{label}</div>
             {children}
         </details>
@@ -246,10 +248,14 @@ export function Gloss({term, children}) {
 function Badge({dimension, outcomeKey, prefix, raw}) {
     const entry = FloraVocabulary.item(dimension, outcomeKey);
     const title = outcomeKey === 'unrecognised' ? `${entry.definition} Recorded as: ${String(raw ?? '').trim()}` : entry.definition;
+    // A label that already names its dimension ("Computational issues", "Robust") needs no prefix.
+    const named = prefix && entry.label.toLowerCase().startsWith(prefix.toLowerCase().slice(0, 6));
+    const shownPrefix = named ? '' : prefix;
     return (
         <span className={`badge outcome-tag badge-${entry.key === 'technical_failure' ? 'failed' : entry.color}`} title={title}>
-            {/* The hidden colon keeps copied and spoken text readable as "Computational: Computationally reproducible". */}
-            {prefix && <><span className="badge-dim">{prefix}<span className="visually-hidden">:</span></span>{' '}</>}
+            {/* The colon keeps copied and spoken text readable as "Robustness: Not checked". */}
+            {named && <span className="visually-hidden">{prefix}: </span>}
+            {shownPrefix && <><span className="badge-dim">{shownPrefix}:</span>{' '}</>}
             <span className="badge-value">{entry.label}</span>
         </span>
     );
@@ -311,7 +317,8 @@ export function StatTiles({id, tiles, box}) {
 }
 
 export const Placeholder = ({id, children}) => <div id={id} className="callout callout--empty">{children}</div>;
-export const Caveat = ({id, children}) => <div id={id} className="callout callout--note"><strong>Interpretation caveat:</strong> {children}</div>;
+// Caveats share the amber caution style used for every interpretation warning.
+export const Caveat = ({id, children}) => <div id={id} className="callout callout--caution callout--caveat"><strong>Interpretation caveat:</strong> {children}</div>;
 
 // Picks the copy variant for the selected study type: [replication, numerical, robustness].
 export const byKind = (kind, variants) => variants[Math.max(0, KINDS.indexOf(kind))] ?? variants[0];

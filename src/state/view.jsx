@@ -9,6 +9,8 @@ const DEFAULTS = {
     mcKind: 'replication', aoKind: 'replication', pubKind: 'replication',
     // Comparison charts shown as counts instead of within-group percentages.
     aoCounts: false, pubCounts: false, rrCounts: false, lsCounts: false,
+    // Years & Disciplines field chart: counts instead of within-field percentages.
+    fieldCounts: false,
 };
 
 // [state key, URL parameter, owning tab]; a shared URL carries only the active view's choices.
@@ -19,6 +21,7 @@ const PARAMS = [
     ['ciKind', 'ci-kind', 'citation-tab'], ['ciOutcome', 'ci-outcome', 'citation-tab'], ['filterOutcome', 'filter-outcome', 'citation-tab'], ['ciQ', 'ci-q', 'citation-tab'],
     ['mcKind', 'mc-kind', 'mc-tab'], ['aoKind', 'ao-kind', 'overlap-tab'], ['pubKind', 'pub-kind', 'pub-tab'],
     ['aoCounts', 'ao-counts', 'overlap-tab'], ['pubCounts', 'pub-counts', 'pub-tab'], ['rrCounts', 'rr-counts', 'pub-tab'], ['lsCounts', 'ls-counts', 'pub-tab'],
+    ['fieldCounts', 'field-counts', 'trends-tab'],
 ];
 
 const oneOf = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
@@ -50,6 +53,7 @@ function parse(url) {
         aoKind: oneOf(get('ao-kind'), KINDS, 'replication'),
         pubKind: oneOf(get('pub-kind'), KINDS, 'replication'),
         aoCounts: flag(get('ao-counts')), pubCounts: flag(get('pub-counts')), rrCounts: flag(get('rr-counts')), lsCounts: flag(get('ls-counts')),
+        fieldCounts: flag(get('field-counts')),
     };
 }
 

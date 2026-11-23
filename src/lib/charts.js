@@ -80,6 +80,12 @@ export function horizontalBarHeight(categories, legendNames, width) {
     return Math.round(categories.length * band + legendRows(legendNames, width, scale) * 20 * scale + 6 + 48 * scale);
 }
 
+// A single proportion bar: its legend rows, then the 24px bar, so no blank band sits between them.
+export function proportionBarHeight(legendNames, width) {
+    const scale = textScale();
+    return Math.round(legendRows(legendNames, width, scale) * 20 * scale + 6 + 4 + 24 + 8);
+}
+
 function legendRows(names, width, scale = 1) {
     if (!names.length) return 0;
     let rows = 1, used = 0;
@@ -140,14 +146,18 @@ export function stackCorners(values, horizontal, radius) {
 
 // A stacked bar chart of counts per category. `series` is [{name, color, values}].
 // horizontal: categories run down the side; pooledFirst: a dashed rule sets a pooled first column apart.
-export function stackedBarOption({categories, series, horizontal = false, pooledFirst = false, proportion = false, total = 0, width}) {
+// shares: each category's bar shows within-category percentages (counts stay in the hover and table);
+// categories too small for stable shares are drawn faded.
+export function stackedBarOption({categories, series, horizontal = false, pooledFirst = false, proportion = false, total = 0, width, shares = false}) {
     const t = chartTheme();
-    const corners = stackCorners(series.map(s => s.values), horizontal, horizontal ? 5 : 3);
+    const totals = categories.map((_, i) => series.reduce((n, s) => n + (Number(s.values[i]) || 0), 0));
+    const plotted = shares ? series.map(s => s.values.map((v, i) => totals[i] ? 100 * v / totals[i] : 0)) : series.map(s => s.values);
+    const corners = stackCorners(plotted, horizontal, horizontal ? 5 : 3);
     const bars = series.map((s, si) => ({
         name: s.name, type: 'bar', stack: 'total', ...(horizontal || proportion ? {barWidth: proportion ? 18 : 14} : {barMaxWidth: 26}),
         itemStyle: {color: s.color, borderColor: t.paper, borderWidth: 1},
         emphasis: {focus: 'series'},
-        data: s.values.map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i)}})),
+        data: plotted[si].map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), ...(shares && totals[i] < GROUP_MIN_N ? {opacity: .4} : {})}})),
     }));
     if (proportion) {
         // A proportion bar: its caption states the counts, so it carries no axis; hovers add each share.
@@ -156,12 +166,29 @@ export function stackedBarOption({categories, series, horizontal = false, pooled
             grid: {left: 0, right: 0, top: 4, height: 24}}, {width});
     }
     // Long field and journal names break onto further lines within 150px.
+    // Year axes label round years plus the pooled first and the latest column, so both ends are always named;
+    // a round year too close to the latest one gives way to it.
+    const last = categories.length - 1;
+    const years = !horizontal && last > 10 && categories.every((c, i) => /^\d{4}$/.test(c) || (i === 0 && pooledFirst));
+    const step = width < 500 ? 20 : width < 900 ? 10 : 5;
+    const yearTick = (i, v) => i === 0 || i === last || (Number(v) % step === 0 && i >= step / 2 && last - i >= step / 2);
     const cats = categoryAxis({data: categories, inverse: horizontal,
-        axisLabel: horizontal ? {interval: 0, width: categoryLabelWidth(width), overflow: 'break', lineHeight: LABEL_LINE_HEIGHT, height: LABEL_LINES * LABEL_LINE_HEIGHT, lineOverflow: 'truncate'} : {hideOverlap: true},
+        axisLabel: horizontal ? {interval: 0, width: categoryLabelWidth(width), overflow: 'break', lineHeight: LABEL_LINE_HEIGHT, height: LABEL_LINES * LABEL_LINE_HEIGHT, lineOverflow: 'truncate'}
+            : years ? {interval: yearTick, hideOverlap: true} : {hideOverlap: true},
         // Category split line i falls at the start of column i; only the one after the pooled column is drawn.
         splitLine: pooledFirst && categories.length > 1 ? {show: true, showMinLine: false, showMaxLine: false, interval: i => i === 1, lineStyle: {color: t.tick, type: [4, 3], width: 1}} : {show: false}});
-    const values = valueAxis(countAxis());
-    return finishOption({series: bars, tooltip: {valueFormatter: v => number(v)}, xAxis: horizontal ? values : cats, yAxis: horizontal ? cats : values}, {width});
+    const values = valueAxis(shares ? {min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}} : countAxis());
+    // A share hover names the category and its N, then each outcome's share and count.
+    const tooltip = shares ? {formatter: ps => {
+        const i = ps[0].dataIndex;
+        return tipLines([`<strong>${escapeHtml(plain(categories[i]))}</strong>`,
+            totals[i] < GROUP_MIN_N && `Only ${number(totals[i])} pairs: too few for stable percentages.`,
+            ...ps.filter(p => series[p.seriesIndex].values[i] > 0).map(p => {
+                const n = series[p.seriesIndex].values[i];
+                return tipRow(series[p.seriesIndex].color, `${p.seriesName}: ${percent(n, totals[i], 1)}% (${number(n)})`);
+            })]);
+    }} : {valueFormatter: v => number(v)};
+    return finishOption({series: bars, tooltip, xAxis: horizontal ? values : cats, yAxis: horizontal ? cats : values}, {width});
 }
 export function barTable(categories, series, eligible, scope) {
     const total = series.reduce((n, s) => n + s.values.reduce((sum, v) => sum + (Number(v) || 0), 0), 0);
@@ -194,8 +221,10 @@ const COMPARISON_SUMMARY = `Denominator: all reference pairs in each group with 
 // Grouped outcome comparisons (authorship, Registered Reports, venue, report size): each group's
 // outcomes as within-group percentages (stacked) or as counts (grouped). Narrow screens lay the
 // groups down the side so long venue and category names stay readable.
-export function comparisonOption({groups, series}, {counts = false, width = 600} = {}) {
+export function comparisonOption({groups, series: all}, {counts = false, width = 600} = {}) {
     const t = chartTheme(), narrow = width < 600;
+    // Grouped count bars reserve a slot for every series, so empty ones would push each group off its label.
+    const series = counts ? all.filter(s => s.values.some(v => Number(v) > 0)) : all;
     const totals = groups.map((_, i) => series.reduce((sum, s) => sum + (Number(s.values[i]) || 0), 0));
     const share = (v, i) => totals[i] ? 100 * v / totals[i] : 0;
     const small = totals.map(n => n > 0 && n < GROUP_MIN_N);

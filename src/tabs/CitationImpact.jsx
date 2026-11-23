@@ -57,7 +57,8 @@ function trajectorySpec(desc, field, ylabel, outcome, coverage) {
     const x = desc.event_time, y = desc[field], name = 'Mean (raw)';
     const unit = field === 'mean_citations' ? 'Mean citations per original per year' : 'Mean co-citations per original per year';
     return {coverage, table: pointTable([{name, x, y}], unit),
-        option: ({width}) => finishOption({
+        // One series needs no legend: the axis title names what is plotted.
+        option: ({width}) => finishOption({legend: {show: false},
             series: [{name, type: 'line', data: x.map((v, i) => [v, y[i]]), lineStyle: {color, width: 2.25}, itemStyle: {color, borderColor: t.paper, borderWidth: 1.5},
                 symbol: 'circle', symbolSize: 7, areaStyle: {color: t.band, opacity: 1}, emphasis: {disabled: true},
                 markLine: {silent: true, symbol: 'none', lineStyle: {color: t.primary, width: 1.5, type: 'dashed'}, data: [{xAxis: 0}],
@@ -147,7 +148,7 @@ function CocitCell({s}) {
     if (!s.n_cocitations && s.n_cocitations !== 0) return '—';
     const denom = s.n_citations_post_first_rep;
     const title = denom ? `${number(s.n_cocitations)} of ${number(denom)} citations since the first replication (${s.first_replication_year}) also cite a replication` : `${number(s.n_cocitations)} co-citations`;
-    return <span title={title}>{number(s.n_cocitations)}<span className="cocit-pct"> ({denom > 0 ? `${percent(s.cocit_prop, 1, 1)}% of ${number(denom)}` : '—'})</span></span>;
+    return <span title={title}>{number(s.n_cocitations)}<span className="cocit-pct"> ({denom > 0 ? `${percent(s.cocit_prop, 1)}% of ${number(denom)}` : '—'})</span></span>;
 }
 
 // The single outcome shared by all of an original's replications, or 'multiple'.
@@ -196,7 +197,7 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     }, [current]);
 
     const first = Math.max(1, current - 2), lastPage = Math.min(pages, first + 4);
-    const sortButton = (col, label) => <th className={'sortable' + (sort.col === col ? ` sort-${sort.dir}` : '')} data-sort={col} scope="col" aria-sort={ariaSort(col)}><button type="button" className="table-sort" data-sort={col} onClick={() => sortBy(col)}>{label}</button></th>;
+    const sortButton = (col, label, extra = '') => <th className={'sortable' + (sort.col === col ? ` sort-${sort.dir}` : '') + (extra ? ' ' + extra : '')} data-sort={col} scope="col" aria-sort={ariaSort(col)}><button type="button" className="table-sort" data-sort={col} onClick={() => sortBy(col)}>{label}</button></th>;
     const cocitSort = ['n_cocitations', 'cocit_prop'].includes(sort.col);
     return (
         <>
@@ -216,17 +217,19 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                 <ul id="ci-search-excluded" className="excluded-list" hidden={!leftOut.length}><ExcludedRows list={leftOut.slice(0, 5)} /></ul>
                 <Button id="ci-clear-search" hidden={!query.trim()} onClick={() => { clearTimeout(debounce.current); setInput(''); setPage(1); setView({ciQ: ''}); inputRef.current.focus(); }}>Clear search</Button>
             </Callout>
+            {/* A key for the replication bars; each bar also names its counts to screen readers and on hover. */}
+            <div className="rep-key" aria-hidden="true"><span>Replications bar:</span>{MIX_ORDER.map(o => <span key={o}><i className={o} />{FloraVocabulary.label(o)}</span>)}</div>
             <TableScroll label="Originals with citation data">
                 <table id="originals-table" tabIndex={-1} className="table" data-query={status === 'ready' ? query : undefined}>
                     <thead>
                         <tr>
                             <th scope="col">Original</th>
-                            {sortButton('year', 'Year')}
+                            {sortButton('year', 'Year', 'num')}
                             {sortButton('n_replications', 'Replications')}
-                            {sortButton('n_citations', 'Citations, all years')}
-                            <th className="cocit-th" scope="col" aria-sort={cocitSort ? ariaSort(sort.col) : undefined}>Co-citations since first recorded replication <span className="cocit-sort-toggle">
-                                <button type="button" className={'cocit-sort-btn' + (sort.col === 'n_cocitations' ? ` sort-${sort.dir}` : '')} data-sort="n_cocitations" title="Sort by co-citation count" aria-label="Sort by co-citation count" aria-pressed={sort.col === 'n_cocitations'} onClick={() => sortBy('n_cocitations')}>#</button>
-                                <button type="button" className={'cocit-sort-btn' + (sort.col === 'cocit_prop' ? ` sort-${sort.dir}` : '')} data-sort="cocit_prop" title="Sort by co-citation share" aria-label="Sort by co-citation percentage" aria-pressed={sort.col === 'cocit_prop'} onClick={() => sortBy('cocit_prop')}>%</button>
+                            {sortButton('n_citations', 'Citations, all years', 'num')}
+                            <th className="cocit-th num" scope="col" aria-sort={cocitSort ? ariaSort(sort.col) : undefined}>Co-citations since first recorded replication <span className="cocit-sort-toggle" role="group" aria-label="Sort co-citations by">
+                                <button type="button" className={'cocit-sort-btn' + (sort.col === 'n_cocitations' ? ` sort-${sort.dir}` : '')} data-sort="n_cocitations" title="Sort by co-citation count" aria-label="Sort by co-citation count" aria-pressed={sort.col === 'n_cocitations'} onClick={() => sortBy('n_cocitations')}>Count</button>
+                                <button type="button" className={'cocit-sort-btn' + (sort.col === 'cocit_prop' ? ` sort-${sort.dir}` : '')} data-sort="cocit_prop" title="Sort by co-citation share" aria-label="Sort by co-citation percentage" aria-pressed={sort.col === 'cocit_prop'} onClick={() => sortBy('cocit_prop')}>Share</button>
                             </span></th>
                         </tr>
                     </thead>
@@ -235,26 +238,33 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                         {slice.map(s => (
                             <tr key={s.doi} data-doi={s.doi} onClick={() => onOpen(s.doi)}>
                                 {/* The timeline action sits with the title it opens, so it stays in view on narrow screens. */}
-                                <td><div className="title-cell">{s.title || '(untitled)'}</div><div className="author-cell">{citationAuthors(s.author)}{venueText(s.venue)}</div>
+                                <td className="orig-cell"><div className="title-cell">{s.title || '(untitled)'}</div><div className="author-cell">{citationAuthors(s.author)}{venueText(s.venue)}</div>
                                     <button type="button" className="btn timeline-open" aria-label={`Open citation timeline for ${s.title || s.doi}`}><Icon.chart />Timeline</button></td>
-                                <td>{s.year || '—'}</td>
-                                <td><OutcomeMixBar mix={s.outcome_mix} total={s.n_replications} /></td>
-                                <td>{number(s.n_citations || 0)}</td>
-                                <td><CocitCell s={s} /></td>
+                                {/* data-label names each value when phones lay the row out as a card. */}
+                                <td className="num" data-label="Year">{s.year || '—'}</td>
+                                <td data-label="Replications"><OutcomeMixBar mix={s.outcome_mix} total={s.n_replications} /></td>
+                                <td className="num" data-label="Citations">{number(s.n_citations || 0)}</td>
+                                <td className="num" data-label="Co-citations"><CocitCell s={s} /></td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </TableScroll>
-            <nav className="pagination" id="pagination" aria-label="Pagination" ref={pagination}>
-                {matches.length > 0 && <>
-                    {current > 1 && <button type="button" key="previous" data-action="previous" data-p={current - 1} aria-label="Previous page" onClick={() => goTo(current - 1)}><Icon.prev /></button>}
-                    {Array.from({length: lastPage - first + 1}, (_, i) => first + i).map(p => (
-                        <button type="button" key={p} data-p={p} aria-current={p === current ? 'page' : undefined} className={p === current ? 'active' : undefined} aria-label={`Page ${p}`} onClick={() => goTo(p)}>{p}</button>
-                    ))}
-                    {current < pages && <button type="button" key="next" data-action="next" data-p={current + 1} aria-label="Next page" onClick={() => goTo(current + 1)}><Icon.next /></button>}
-                </>}
-            </nav>
+            {/* The same count line and Previous / Next wording as the Browse table. */}
+            <div className="table-footer">
+                <div className="table-info" id="originals-info" role="status">{status === 'ready' && matches.length > 0 && `Showing ${number((current - 1) * PER_PAGE + 1)} to ${number(Math.min(matches.length, current * PER_PAGE))} of ${number(matches.length)} originals`}</div>
+                <nav className="pagination" id="pagination" aria-label="Pagination" ref={pagination}>
+                    {matches.length > 0 && pages > 1 && <>
+                        {current > 1 && <button type="button" key="previous" data-action="previous" data-p={current - 1} aria-label="Previous page" onClick={() => goTo(current - 1)}><Icon.prev /> Previous</button>}
+                        {first > 1 && <><button type="button" key="first" data-p={1} aria-label="Page 1" onClick={() => goTo(1)}>1</button>{first > 2 && <span className="pagination-gap">…</span>}</>}
+                        {Array.from({length: lastPage - first + 1}, (_, i) => first + i).map(p => (
+                            <button type="button" key={p} data-p={p} aria-current={p === current ? 'page' : undefined} className={p === current ? 'active' : undefined} aria-label={`Page ${p}`} onClick={() => goTo(p)}>{p}</button>
+                        ))}
+                        {lastPage < pages && <>{lastPage < pages - 1 && <span className="pagination-gap">…</span>}<button type="button" key="last" data-p={pages} aria-label={`Page ${pages}`} onClick={() => goTo(pages)}>{pages}</button></>}
+                        {current < pages && <button type="button" key="next" data-action="next" data-p={current + 1} aria-label="Next page" onClick={() => goTo(current + 1)}>Next <Icon.next /></button>}
+                    </>}
+                </nav>
+            </div>
         </>
     );
 }
@@ -561,11 +571,11 @@ export default function CitationImpact({data}) {
                     {data.status === 'error' && <LoadError className="kpi-note" id="ci-error" label="Could not load the citation data." reason={data.reason} onRetry={data.retry} />}
                     {!ready && data.status !== 'error' && <Callout tone="empty" className="kpi-note">Loading citation data…</Callout>}
                     {ready && <>
-                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(data.meta?.n_originals)}</div><div className="stat-label kpi-label">Distinct originals with complete citation data</div></div>
+                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(data.meta?.n_originals)}</div><div className="stat-label kpi-label">Originals with complete citation data</div></div>
                     <div className="stat kpi"><div className="stat-value kpi-value">{kpi(data.meta?.n_replications)}</div><div className="stat-label kpi-label">Eligible replication reference pairs</div></div>
-                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(counts.failed)}</div><div className="stat-label kpi-label">Eligible reference pairs: Failed</div></div>
-                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(counts.successful)}</div><div className="stat-label kpi-label">Eligible reference pairs: Successful</div></div>
-                    <Note className="kpi-note">Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</Note>
+                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(counts.successful)}</div><div className="stat-label kpi-label">of which Successful</div></div>
+                    <div className="stat kpi"><div className="stat-value kpi-value">{kpi(counts.failed)}</div><div className="stat-label kpi-label">of which Failed</div></div>
+                    <Note className="kpi-note">{counts.mixed != null && <>The other {number(counts.mixed)} eligible pairs are Mixed. </>}Eligible pair counts are measured before citation lookup, so they include pairs whose originals lack complete citation data.</Note>
                     </>}
                 </div>
 
@@ -596,9 +606,9 @@ export default function CitationImpact({data}) {
                 <Section title="About this analysis">
                     <div className="prose">
                         <p>Data are refreshed weekly. The pipeline filters FLoRA to <strong>conceptual and direct replications</strong> with outcomes labelled <em>successful</em>, <em>failed</em>, or <em>mixed</em> (reproductions are excluded). For each included original and replication, we retrieve all citing works from OpenCitations COCI. A "co-citation" is any work that cites both the original and at least one of its replications.</p>
-                        <p>The outcome filters group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead groups originals by the outcomes of all their replications. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation model.</p>
+                        <p>The outcome filters group originals by the outcome of their earliest recorded replication year; same-year ties follow the stored record order. Later replications can have different outcomes. The table’s outcome filter instead groups originals by the outcomes of all their replications. Qualified success, descriptive-only, uninformative, and missing outcomes are excluded from the citation cohort.</p>
                         <p>Each timeline bar counts distinct citing works. Works that cite replications with more than one outcome appear once in the “multiple outcome categories” segment. The outcome-specific co-citation rate tables are overlapping summaries and should not be added.</p>
-                        <p>The aggregate plots show event-study estimates from an OLS two-way fixed-effects model, a transparent analogue of the <Gloss term="FECT">Fixed Effects Counterfactual estimator: the causal-inference method specified in our preregistered protocol. This chart approximates it with a simpler OLS two-way fixed-effects model.</Gloss> specification used in the preregistered analysis. See the <ExternalLink href="https://github.com/forrtproject/FReD-data" className="">FReD-data repository</ExternalLink> for the underlying FLoRA dataset.</p>
+                        <p>The aggregate plots are descriptive: they show the mean yearly citation count of originals, aligned to the year of their first recorded replication. Each panel is a balanced panel, so the same originals contribute to every year shown: the citation panel uses originals observed from 5 years before to 5 years after the first replication, and the co-citation panel uses originals observed for 5 years after it. No regression model is fitted, and the plots do not estimate a causal effect of replication. The preregistered confirmatory analysis will use a <Gloss term="counterfactual estimator">The Fixed Effects Counterfactual estimator (FECT), the causal-inference method specified in our preregistered protocol. It is not used for the charts on this page.</Gloss>. See the <ExternalLink href="https://github.com/forrtproject/FReD-data" className="">FReD-data repository</ExternalLink> for the underlying FLoRA dataset.</p>
                     </div>
                 </Section>
             </div>
