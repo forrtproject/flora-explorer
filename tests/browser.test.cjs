@@ -1588,12 +1588,15 @@ test('every chart states N of M in its chart data',async()=>{
 test('Browse immediate CSV export uses current input, DOI search handles scheme-less/punctuated DOIs, and missing years sort last',async()=>{
   const fixture=fs.readFileSync('tests/fixtures/browse.csv','utf8').trimEnd()+'\n10.9999/no-year,Undated Study,"[{""given"":""Alex"",""family"":""Taylor"",""sequence"":""first""}]",Test Journal,,10.9999/no-year-rep,Undated Replication,"[{""given"":""Sam"",""family"":""Lee"",""sequence"":""first""}]",Test Journal,2022,NA,successful,Replicated.,replication\n';
   const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({body:fixture,contentType:'text/csv'})));
-  // Type a strict subset and click Download immediately (before the 200ms debounce commits).
+  // Stretch the 200ms debounce for this assertion so the pre-debounce export path is 100% deterministic.
+  await p.evaluate(()=>{window._origTO=window.setTimeout;window.setTimeout=(fn,ms,...a)=>window._origTO(fn,ms===200?2000:ms,...a);});
   await p.fill('#browse-mobile-input','Ranehill');
+  assert.equal(await p.evaluate(()=>browseQuery),'');
   assert.equal(await p.locator('#export-browse').innerText(),'Download filtered CSV');
   const dlPromise=p.waitForEvent('download');
   await p.click('#export-browse');
   const dl=await dlPromise;
+  await p.evaluate(()=>{window.setTimeout=window._origTO;delete window._origTO;});
   assert.equal(dl.suggestedFilename(),'flora-filtered-reference-pairs.csv');
   const csv=fs.readFileSync(await dl.path(),'utf8');
   const exportedRows=await p.evaluate(text=>Papa.parse(text,{header:true}).data,csv);
