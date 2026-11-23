@@ -56,19 +56,20 @@ function trajectorySpec(desc, field, ylabel, outcome, coverage) {
     if (!desc?.event_time?.length) return {message: 'No data for this filter'};
     const x = desc.event_time, y = desc[field], name = 'Mean (raw)';
     const unit = field === 'mean_citations' ? 'Mean citations per original per year' : 'Mean co-citations per original per year';
+    const startsAtZero = Math.min(...x) >= 0;
     return {coverage, table: pointTable([{name, x, y}], unit),
         // One series needs no legend: the axis title names what is plotted.
         option: ({width}) => finishOption({legend: {show: false},
             series: [{name, type: 'line', data: x.map((v, i) => [v, y[i]]), lineStyle: {color, width: 2.25}, itemStyle: {color, borderColor: t.paper, borderWidth: 1.5},
                 symbol: 'circle', symbolSize: 7, areaStyle: {color: t.band, opacity: 1}, emphasis: {disabled: true},
                 markLine: {silent: true, symbol: 'none', lineStyle: {color: t.primary, width: 1.5, type: 'dashed'}, data: [{xAxis: 0}],
-                    label: {position: 'end', formatter: 'Replication published', color: t.primary, fontSize: 11}}}],
+                    label: {position: 'end', formatter: 'Replication published', color: t.primary, fontSize: 11, ...(startsAtZero ? {align: 'left', distance: 8} : {})}}}],
             tooltip: {formatter: p => tipLines([`Years from first replication: ${number(p.value[0])}`, `${escapeHtml(ylabel)}: ${number(p.value[1], 2)}`])},
             // Padded so the first and last points are not cut by the plot edge; ticks stay on whole years.
-            xAxis: valueAxis({name: 'Years relative to first replication', min: Math.min(...x) - .35, max: Math.max(...x) + .35, splitLine: {show: false},
+            xAxis: valueAxis({name: 'Years relative to first replication', nameGap: 26, min: Math.min(...x) - .35, max: Math.max(...x) + .35, splitLine: {show: false},
                 axisLabel: {customValues: x}, axisTick: {customValues: x}}),
             yAxis: valueAxis({name: ylabel, min: 0}),
-        }, {width, top: 18}),
+        }, {width, top: startsAtZero ? 26 : 18}),
     };
 }
 
@@ -328,7 +329,7 @@ function timelineSpec(s, meta) {
             // Co-citations are often a sliver of a year's citations; a minimum height keeps every non-zero one visible.
             ...(si ? {barMinHeight: 3} : {}),
             itemStyle: {color: barFill(x.color), borderColor: t.paper, borderWidth: 1},
-            data: x.values.map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
+            data: x.values.map((v, i) => ({value: si && !v ? null : v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
         }));
         // Light dotted rules mark each replication behind the bars; the numbered circle carries the outcome colour.
         bars[0].markLine = {silent: true, symbol: 'none', z: 1, data: marks.map(m => ({xAxis: String(m.year), name: m.label,
@@ -561,8 +562,8 @@ export default function CitationImpact({data}) {
                 ? <Placeholder id="ci-placeholder">Not enough reproductions with citation data yet (n={reproTotal}; need at least {REPRO_MIN_N}).</Placeholder>
                 : <Section id="ci-repro-content" title="Reproduction citation counts" notes={<><DataStamp source="reproduction_citations" /><p>Per-original summaries by assessed dimension, so groups of different sizes can be compared. Citations are all-time counts; medians limit the pull of a few highly cited originals. The co-citation rate is each original's share of citations that also cite its reproduction, counted from the year of its first reproduction and averaged across originals. A report can appear in several outcome groups.</p></>}>
                     <Figure><TableScroll label="Reproduction citation counts"><table className="table" id="ci-repro-table">
-                                <thead><tr><th scope="col"><span className="visually-hidden">Outcome</span></th><th><i>N</i> originals</th><th>Median citations per original</th><th>Mean citations per reproduction</th><th>Mean co-citation rate</th></tr></thead>
-                                <tbody>{buckets.map(b => { const r = repro[b.key] || {}; return <tr key={b.key}><td>{b.label}</td><td>{number(r.n_originals || 0)}</td><td>{r.median_citations_per_original == null ? '—' : number(r.median_citations_per_original, 1)}</td><td>{r.mean_citations_per_reproduction == null ? '—' : number(r.mean_citations_per_reproduction, 2)}</td><td>{r.mean_cocitation_rate == null ? '—' : percent(r.mean_cocitation_rate, 1, 1) + '%'}</td></tr>; })}</tbody>
+                                <thead><tr><th scope="col"><span className="visually-hidden">Outcome</span></th><th className="num"><i>N</i> originals</th><th className="num">Median citations per original</th><th className="num">Mean citations per reproduction</th><th className="num">Mean co-citation rate</th></tr></thead>
+                                <tbody>{buckets.map(b => { const r = repro[b.key] || {}; return <tr key={b.key}><td>{b.label}</td><td className="num">{number(r.n_originals || 0)}</td><td className="num">{r.median_citations_per_original == null ? '—' : number(r.median_citations_per_original, 1)}</td><td className="num">{r.mean_citations_per_reproduction == null ? '—' : number(r.mean_citations_per_reproduction, 2)}</td><td className="num">{r.mean_cocitation_rate == null ? '—' : percent(r.mean_cocitation_rate, 1, 1) + '%'}</td></tr>; })}</tbody>
                             </table></TableScroll></Figure>
                 </Section>)}
 

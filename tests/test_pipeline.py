@@ -119,6 +119,30 @@ stopifnot(identical(classify_outcome(cases$raw), cases$key))
         result=json.loads((ROOT/'data/impact_factor_data.json').read_text(encoding='utf-8'))
         self.assertEqual(result['overview']['n_total'],len(matched))
         self.assertEqual(result['stats']['n_model'],matched_counts['successful']+matched_counts['failed'])
+        # Reconcile stored tie-exact AUC against the fitted curve and matched pairs (works across refreshes).
+        import math
+        curve=[(math.log1p(pt['omc']),pt['p']) for pt in result['gam_curve']]
+        def curve_p(x):
+            if x<=curve[0][0]: return curve[0][1]
+            if x>=curve[-1][0]: return curve[-1][1]
+            lo,hi=0,len(curve)-1
+            while hi-lo>1:
+                mid=(lo+hi)//2
+                if curve[mid][0]<=x: lo=mid
+                else: hi=mid
+            x0,y0=curve[lo]; x1,y1=curve[hi]
+            return y0+(y1-y0)*(x-x0)/(x1-x0)
+        scored=sorted(((1 if c.replication_outcome(r)=='successful' else 0, curve_p(math.log1p(float(r['impact_factor']))))
+                       for r in matched if c.replication_outcome(r) in ('successful','failed')), key=lambda t: t[1])
+        n1=sum(y for y,_ in scored); n0=len(scored)-n1
+        rank_sum=0.0; idx=0
+        while idx<len(scored):
+            end=idx
+            while end<len(scored) and scored[end][1]==scored[idx][1]: end+=1
+            rank_sum+=((idx+1+end)/2.0)*sum(scored[k][0] for k in range(idx,end))
+            idx=end
+        expected_auc=(rank_sum-n1*(n1+1)/2)/(n1*n0)
+        self.assertAlmostEqual(result['stats']['auc'],expected_auc,places=3)
         for key in c.REPLICATION_OUTCOMES:
             self.assertEqual(sum(bin[key] for bin in result['histogram']),matched_counts[key],key)
         self.assertEqual(result['overview']['n_classified'],sum(matched_counts[key] for key in ['successful','failed','mixed']))
