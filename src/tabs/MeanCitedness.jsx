@@ -17,7 +17,7 @@ import {Chips, CiteBlock, DataStamp, Gloss, Pane, Placeholder, StatTiles, byKind
 function omcAxis(name, min, max, width = 600) {
     const ticks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].map(Math.log1p).filter(v => v >= min && v <= max);
     const label = width < 360 ? 'OMC (log scale)' : name;
-    return valueAxis({name: label, min, max, axisLabel: {customValues: ticks, formatter: v => String(Math.round(Math.expm1(v)))}, axisTick: {customValues: ticks}, splitLine: {show: false}});
+    return valueAxis({name: label, nameGap: 26, min, max, axisLabel: {customValues: ticks, formatter: v => String(Math.round(Math.expm1(v)))}, axisTick: {customValues: ticks}, splitLine: {show: false}});
 }
 
 function distributionSpec(d, buckets, coverage) {

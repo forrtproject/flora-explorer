@@ -66,7 +66,7 @@ function trajectorySpec(desc, field, ylabel, outcome, coverage) {
                     label: {position: 'end', formatter: 'Replication published', color: t.primary, fontSize: 11, ...(startsAtZero ? {align: 'left', distance: 8} : {})}}}],
             tooltip: {formatter: p => tipLines([`Years from first replication: ${number(p.value[0])}`, `${escapeHtml(ylabel)}: ${number(p.value[1], 2)}`])},
             // Padded so the first and last points are not cut by the plot edge; ticks stay on whole years.
-            xAxis: valueAxis({name: 'Years relative to first replication', min: Math.min(...x) - .35, max: Math.max(...x) + .35, splitLine: {show: false},
+            xAxis: valueAxis({name: 'Years relative to first replication', nameGap: 26, min: Math.min(...x) - .35, max: Math.max(...x) + .35, splitLine: {show: false},
                 axisLabel: {customValues: x}, axisTick: {customValues: x}}),
             yAxis: valueAxis({name: ylabel, min: 0}),
         }, {width, top: startsAtZero ? 26 : 18}),
