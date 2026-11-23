@@ -215,8 +215,13 @@ code { font-family: var(--font-mono); font-size: .85em; }
 /* Five cells sit as two wide over three. */
 @media (min-width: 768px) {
     .stat-band[data-count="5"] { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-    .stat-band[data-count="5"] > :nth-child(-n+2) { grid-column: span 3; }
-    .stat-band[data-count="5"] > :nth-child(n+3) { grid-column: span 2; }
+    .stat-band[data-count="5"] > .stat:nth-child(-n+2) { grid-column: span 3; }
+    .stat-band[data-count="5"] > .stat:nth-child(n+3) { grid-column: span 2; }
+}
+/* Six cells sit in a single strip on wide desktop viewports. */
+@media (min-width: 1200px) {
+    .stat-band[data-count="6"] { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .stat-band[data-count="6"] > .stat { padding-inline: var(--space-3); }
 }
 .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .stat-band > .kpi-note { grid-column: 1 / -1; margin: 0; padding: var(--space-2) var(--space-4); box-shadow: 0 -1px 0 var(--primary-soft); text-align: left; }

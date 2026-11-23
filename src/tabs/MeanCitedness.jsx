@@ -104,6 +104,7 @@ function modelSpec(d, jitter, coverage) {
 }
 
 const NO_OMC = 'without an OMC (no original journal recorded, journal not found in OpenAlex, or OMC set aside)';
+const HEADLINE_REPLICATION = new Set(['successful', 'failed', 'mixed']);
 const sig2 = v => Number(v).toLocaleString('en-GB', {maximumSignificantDigits: 2});
 
 function setAsideNote(s) {
@@ -138,6 +139,13 @@ export default function MeanCitedness() {
     const ov = d?.overview, stats = d?.stats || {};
     // The replication summary names its success count n_success; histogram keys use the bucket key.
     const overviewKey = b => kind === 'replication' && b.key === 'successful' ? 'n_success' : 'n_' + b.key;
+    const headlineBuckets = kind === 'replication' ? buckets.filter(b => HEADLINE_REPLICATION.has(b.key)) : buckets;
+    const otherOutcomes = enough && kind === 'replication'
+        ? buckets.filter(b => !HEADLINE_REPLICATION.has(b.key)).map(b => ({label: b.label, count: ov[overviewKey(b)] || 0})).filter(x => x.count > 0)
+        : [];
+    const otherOutcomesNote = otherOutcomes.length
+        ? `Other recorded outcomes: ${otherOutcomes.map(x => `${x.label} ${x.count.toLocaleString('en-GB')} (${percent(x.count, ov.n_total)}%)`).join(' · ')}.`
+        : null;
     const notModelled = buckets.filter(b => !['successful', 'failed'].includes(b.key));
     const distCoverage = enough ? coverageText(ov.n_total, kindPairCount(rows, kind), [[ov.n_excluded || 0, NO_OMC]], kindNoun(kind), kind) : '';
     const modelCoverage = enough && kind === 'replication' ? coverageText(stats.n_model || 0, kindPairCount(rows, 'replication'),
@@ -169,10 +177,10 @@ export default function MeanCitedness() {
                     {enough && <>
                         <StatTiles id="mc-overview" tiles={[
                             {value: ov.n_total, label: 'Reference pairs with OMC', always: true},
-                            ...buckets.map(b => ({value: ov[overviewKey(b)] || 0, label: `${b.label} (${percent(ov[overviewKey(b)] || 0, ov.n_total)}%)`})),
+                            ...headlineBuckets.map(b => ({value: ov[overviewKey(b)] || 0, label: `${b.label} (${percent(ov[overviewKey(b)] || 0, ov.n_total)}%)`})),
                             {value: ov.n_journals, label: 'Journals matched', always: true},
                             {value: ov.n_disciplines, label: 'Disciplines', always: true},
-                        ]} />
+                        ]} note={otherOutcomesNote} />
                         <Plot id="mc-dist-chart" frameId="mc-dist-card" heading="Distribution of reference pairs by journal Mean Citedness" title="Distribution of reference pairs by journal Mean Citedness"
                             spec={distribution} note={<Note id="mc-eligible">{distCoverage}</Note>} />
                         {kind !== 'replication' && <Note id="mc-repro-note">Reproduction summaries are descriptive. No reproduction model has been fitted.</Note>}
