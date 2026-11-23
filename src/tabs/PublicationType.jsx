@@ -40,6 +40,11 @@ function Comparison({prefix, state, d, kind, shortage, tiles, groups, chartTitle
 }
 
 const STUDY_PAGE_SIZE = 50;
+const doiUrl = url => /^https?:\/\/(?:dx\.)?doi\.org\//i.test(url || '') ? url : '';
+const pubFilterKey = s => s.pub_status || 'unknown';
+const pubSearchText = s => [s.title_r, s.journal_r, VENUES[s.pub_status], s.year_r, s.doi_r, doiUrl(s.url_r)].filter(Boolean).join(' ');
+const rrSearchText = ({first: s}) => [s.title_r, s.journal_r, s.year_r, s.doi_r, doiUrl(s.url_r)].filter(Boolean).join(' ');
+const lsSearchText = s => [s.title_r, s.journal_r, s.year_r, s.doi_r, doiUrl(s.url_r)].filter(Boolean).join(' ');
 
 function StudyList({prefix, summary, items, count, countText, head, renderRow, searchTextFor, filterOptions, filterKey}) {
     const [open, setOpen] = useState(false);
@@ -62,7 +67,7 @@ function StudyList({prefix, summary, items, count, countText, head, renderRow, s
     const pages = Math.max(1, Math.ceil(filtered.length / STUDY_PAGE_SIZE));
     const current = Math.min(page, pages);
     const visible = !paginate || showAll ? filtered : filtered.slice((current - 1) * STUDY_PAGE_SIZE, current * STUDY_PAGE_SIZE);
-    const start = filtered.length ? (current - 1) * STUDY_PAGE_SIZE + 1 : 0;
+    const start = filtered.length ? (showAll ? 1 : (current - 1) * STUDY_PAGE_SIZE + 1) : 0;
     const end = showAll ? filtered.length : Math.min(filtered.length, current * STUDY_PAGE_SIZE);
     return (
         <Disclosure id={`${prefix}-studies-card`} className="disclosure--panel" onToggle={e => setOpen(e.currentTarget.open)}
@@ -176,8 +181,8 @@ export default function PublicationType() {
                         caveat="Publication-venue status is derived from the report venue recorded in FLoRA, classified as above. Some studies currently classified as preprints may since have been formally published in a different venue without FLoRA yet reflecting that update. Any outcome differences between these groups should also not be read as caused by publication venue alone: constructive peer review, a tendency for more selective journals to accept more polished work, and publication-pressure effects — for example a bias toward reporting positive or successful results in order to get published, or conversely extra editorial scrutiny catching more issues before publication — could all plausibly produce real differences independent of, or entangled with, venue itself."
                         studies={<StudyList prefix="pub" summary="Reference pairs with publication-status data" items={pubStudies} count={pubStudies.length}
                             head={['Study', 'Journal', 'Status', 'Year', 'Outcome', 'DOI']}
-                            filterOptions={VENUES} filterKey={s => s.pub_status || 'unknown'}
-                            searchTextFor={s => [s.title_r, s.journal_r, VENUES[s.pub_status], s.year_r, s.doi_r, s.url_r].filter(Boolean).join(' ')}
+                            filterOptions={VENUES} filterKey={pubFilterKey}
+                            searchTextFor={pubSearchText}
                             renderRow={(s, i) => (
                                 <tr key={i}><td>{s.title_r}</td><td>{s.journal_r}</td><td><span className="badge badge-unknown">{VENUES[s.pub_status] || 'Unknown venue'}</span></td><td>{s.year_r}</td><OutcomeCell study={s} kind={kind} /><td><ReportLink url={s.url_r} doi={s.doi_r} max={40} /></td></tr>
                             )} />} />
@@ -202,7 +207,7 @@ export default function PublicationType() {
                         studies={<StudyList prefix="rr" summary={`${Word} reports that match the Registered Reports database`} items={rrReports} count={rrStudies.length}
                             countText={`(${nPairs(rrStudies.length)} from ${rrReports.length.toLocaleString('en-GB')} ${rrReports.length === 1 ? 'report' : 'reports'})`}
                             head={[`${Word} report`, 'Journal', 'Year', 'Reference pairs', 'Outcomes', 'DOI']}
-                            searchTextFor={({first: s}) => [s.title_r, s.journal_r, s.year_r, s.doi_r, s.url_r].filter(Boolean).join(' ')}
+                            searchTextFor={rrSearchText}
                             renderRow={({first: s, n, outcomes}, i) => (
                                 <tr key={i}><td>{s.title_r}</td><td>{s.journal_r}</td><td>{s.year_r}</td><td>{n.toLocaleString('en-GB')}</td>
                                     <td>{outcomes.map((o, k) => <span key={k}>{k > 0 && ' '}<OutcomeBadge row={o.row} />{o.n > 1 && ` ×${o.n}`}</span>)}</td>
@@ -222,7 +227,7 @@ export default function PublicationType() {
                         caveat="Outcomes reported within the same multiple-target report are not independent data points — they typically share authors, protocol, and incentives, so pooling many results from one report alongside results from reports with fewer targets can understate how clustered those outcomes really are. Multiple-target reports may also differ systematically in rigour, pre-registration, or topic selection from reports with fewer targets, which could itself explain any outcome difference, independent of target count itself."
                         studies={<StudyList prefix="ls" summary="Multiple-target reports" items={projects} count={projects.length}
                             head={['Replication or reproduction report', 'Journal', 'Year', 'Distinct originals', 'Outcome mix', 'DOI']}
-                            searchTextFor={s => [s.title_r, s.journal_r, s.year_r, s.doi_r, s.url_r].filter(Boolean).join(' ')}
+                            searchTextFor={lsSearchText}
                             renderRow={(s, i) => (
                                 <tr key={i}><td>{s.title_r}</td><td>{s.journal_r}</td><td>{s.year_r}</td><td>{s.n_originals}</td>
                                     <td>{Object.entries(s.outcome_mix || {}).map(([k, n]) => `${bucketLabels[k] || k}: ${n}`).join(', ')}</td>

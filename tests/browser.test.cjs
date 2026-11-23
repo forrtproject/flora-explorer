@@ -1598,14 +1598,20 @@ test('Publication Type study lists mount lazily, paginate, and support search an
   assert.equal(await p.locator('#pub-studies-table tbody tr').count(),50);
   // Category filter and search narrow the list immediately.
   await p.selectOption('#pub-studies-filter','thesis');
-  const thesisCount=await p.locator('#pub-studies-table tbody tr').count();
+  const thesisRows=p.locator('#pub-studies-table tbody tr');
+  const thesisCount=await thesisRows.count();
   assert.ok(thesisCount>0&&thesisCount<50);
+  assert.ok((await thesisRows.allTextContents()).every(text=>text.includes('Thesis / dissertation')));
   await p.selectOption('#pub-studies-filter','');
   await p.fill('#pub-studies-search','Digital Library of Theses');
-  assert.ok(await p.locator('#pub-studies-table tbody tr').filter({hasText:'Digital Library of Theses'}).count()>=1);
-  // Clearing filters restores pagination and Next page advances.
+  const searchRows=p.locator('#pub-studies-table tbody tr');
+  assert.ok((await searchRows.count())>0&&(await searchRows.count())<50);
+  assert.ok((await searchRows.allTextContents()).every(text=>text.includes('Digital Library of Theses')));
+  // Clearing filters restores pagination, Next advances, and Show all resets range start to 1.
   await p.fill('#pub-studies-search','');
   await p.locator('#pub-studies-card .pagination button',{hasText:'Next'}).click();
   assert.match(await p.locator('#pub-studies-card .study-list-footer').innerText(),/Showing 51–100/);
+  await p.locator('#pub-studies-card .study-list-footer button',{hasText:'Show all'}).click();
+  assert.match(await p.locator('#pub-studies-card .study-list-footer').innerText(),/Showing 1–/);
   assert.deepEqual(p.errors,[]);await p.close();
 });
