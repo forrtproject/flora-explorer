@@ -37,7 +37,7 @@ export function OutcomeChartRow({prefix, dimension, rows, scope, rowId, hidden})
                         ))}
                     </ul>
                     <p className="tip-subhead">No verdict</p>
-                    <p className="tip-note">{entries.filter(e => !e.assessed).map(e => e.label).join(' · ')}. See the <em>Outcome key</em> on the Overview tab for each.</p>
+                    <p className="tip-note">{entries.filter(e => !e.assessed).map(e => e.label).join(' · ')}. See the <em>Outcome key</em> {prefix === 'overview' ? 'above' : 'on the Overview tab'} for each.</p>
                 </InfoTip>
                 <ChartCopy id={id} title={title} table={table} />
             </div>

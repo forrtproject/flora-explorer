@@ -2,7 +2,7 @@ import {Fragment, useEffect, useMemo, useRef, useState} from 'react';
 import {BROWSE_KIND_LABELS, BROWSE_KIND_NOUNS, URLS} from '../lib/config.js';
 import {download} from '../lib/charts.js';
 import {cleanDoi, doiHref, fullAuthors, authorYear, pairHref, pairs, reportLinkText, safeHref, shortAuthors, truncate} from '../lib/format.js';
-import {filterByKind, outcomeLabel, reportKindLabel, sourceOutcome} from '../lib/outcomes.js';
+import {bucketKeyForRow, filterByKind, kindDimension, outcomeLabel, reportKindLabel, sourceOutcome} from '../lib/outcomes.js';
 import {codingNoteBasis, isCodingNote, outcomeEvidenceParts, sourcePieces} from '../lib/evidence.js';
 import {matchesBrowseQuery} from '../lib/search.js';
 import {FloraVocabulary} from '../lib/vocabulary.js';
@@ -11,14 +11,36 @@ import {useData} from '../state/data.jsx';
 import {useView} from '../state/view.jsx';
 import {CiteBlock, DataStamp, ExternalLink, Icon, KindFilter, OutcomeBadge, Pane, WebsiteCitation, kindLabel, stampInfo} from '../components/common.jsx';
 import {OutcomeChartRow} from '../components/OutcomeChartRow.jsx';
-import {Button, Callout, Figure, IconButton, Note, Section} from '../components/ui.jsx';
+import {Button, Callout, Figure, IconButton, Note, Section, TableScroll} from '../components/ui.jsx';
 import {DatasetCitation, REUSE_TEXT} from './Overview.jsx';
 
 const MOBILE_PAGE_SIZE = 20;
 const PAGE_SIZES = [10, 25, 50, 100, -1];
 const collator = new Intl.Collator(undefined, {numeric: true});
 const SORT_FIELDS = {1: 'title_o', 2: 'year_o', 3: 'title_r', 4: 'year_r', 5: 'outcome', 6: 'type', 7: 'doi_o'};
+const TITLE_COLS = new Set([1, 3]);
+const cleanSortText = (column, value) => {
+    const s = String(value ?? '').trim();
+    if (!s || s === '-' || s.toUpperCase() === 'NA') return '';
+    return TITLE_COLS.has(column) ? s.replace(/^["'“”‘’(\[]+\s*/, '') : s;
+};
 const sortKey = column => column === 8 ? r => reportLinkText(r.url_r, r.doi_r) : column === 5 ? sourceOutcome : r => String(r[SORT_FIELDS[column] || 'year_r'] || '');
+function compareBrowse(column, direction) {
+    const key = sortKey(column), sign = direction === 'desc' ? -1 : 1;
+    // Outcome sorting preserves exact reversible grouping across asc/desc; other columns always push missing values last.
+    if (column === 5) return (a, b) => collator.compare(key(a), key(b)) * sign;
+    return (a, b) => {
+        const ka = cleanSortText(column, key(a)), kb = cleanSortText(column, key(b));
+        if (!ka && !kb) return 0;
+        if (!ka) return 1;
+        if (!kb) return -1;
+        return collator.compare(ka, kb) * sign;
+    };
+}
+const filterBrowseRows = (rows, kind, query, outcome, column, direction) =>
+    filterByKind(rows, kind)
+        .filter(r => matchesBrowseQuery(r, query) && (!outcome || bucketKeyForRow(r, kind) === outcome))
+        .sort(compareBrowse(column, direction));
 const MOBILE_SORTS = [['4:desc', 'Newest repetition first'], ['4:asc', 'Oldest repetition first'], ['2:desc', 'Newest original first'], ['2:asc', 'Oldest original first'], ['1:asc', 'Original title, A–Z']];
 const DIMENSION_FOR_KIND = {replication: 'replicability', 'reproduction-numerical': 'computational', 'reproduction-robustness': 'robustness'};
 
@@ -74,7 +96,7 @@ const Field = ({label, children}) => <div><span className="detail-label">{label}
 export function Evidence({row, evidenceFirst}) {
     const recorded = (
         <div className="detail-card">
-            <h6>Recorded evidence</h6>
+            <h3>Recorded evidence</h3>
             <div className="detail-section">
                 <Field label="Outcome"><OutcomeBadge row={row} /></Field>
                 <OutcomeEvidence row={row} />
@@ -85,10 +107,10 @@ export function Evidence({row, evidenceFirst}) {
     return (
         <div className="detail-row">
             {evidenceFirst && recorded}
-            {evidenceFirst && <h6 className="detail-subhead">Full report details</h6>}
+            {evidenceFirst && <h3 className="detail-subhead">Full report details</h3>}
             <div className="detail-grid">
                 <div className="detail-card">
-                    <h6>Original report</h6>
+                    <h3>Original report</h3>
                     <div className="detail-section">
                         <Field label="Title">{row.title_o || '-'}</Field>
                         <Field label="Authors">{fullAuthors(row.author_o)}</Field>
@@ -98,7 +120,7 @@ export function Evidence({row, evidenceFirst}) {
                     </div>
                 </div>
                 <div className="detail-card">
-                    <h6>{reportKindLabel(row)} report</h6>
+                    <h3>{reportKindLabel(row)} report</h3>
                     <div className="detail-section">
                         <Field label="Title">{row.title_r || '-'}</Field>
                         <Field label="Authors">{fullAuthors(row.author_r)}</Field>
@@ -150,15 +172,36 @@ export default function Browse({citation}) {
     const [expanded, setExpanded] = useState(() => new Set());
     const [feedback, setFeedback] = useState('');
     const debounce = useRef();
+    const feedbackTimer = useRef();
     const inputRef = useRef(null);
     useEffect(() => { setInput(q); }, [q]);
+    useEffect(() => { clearTimeout(feedbackTimer.current); setFeedback(''); }, [q, kind]);
+    useEffect(() => () => clearTimeout(feedbackTimer.current), []);
 
     const [column, direction] = useMemo(() => { const [c, d] = view.sort.split(':'); return [Number(c), d]; }, [view.sort]);
     const indexOf = useMemo(() => new Map(rows.map((r, i) => [r, i])), [rows]);
+    const dimension = DIMENSION_FOR_KIND[kind];
+    const outcomeOptions = useMemo(() => {
+        if (!dimension) return [];
+        const dim = kindDimension(kind);
+        return FloraVocabulary.entries(dim).filter(e => dim === 'replication' || e.assessed);
+    }, [dimension, kind]);
+    const outcome = outcomeOptions.some(e => e.key === view.outcome) ? view.outcome : '';
+    const outcomeText = outcomeOptions.find(e => e.key === outcome)?.label || '';
+    const kindAndQuery = useMemo(() => filterByKind(rows, kind).filter(r => matchesBrowseQuery(r, q)), [rows, kind, q]);
+    const outcomeCounts = useMemo(() => {
+        if (!outcomeOptions.length) return {};
+        const counts = Object.fromEntries(outcomeOptions.map(e => [e.key, 0]));
+        for (const r of kindAndQuery) {
+            const k = bucketKeyForRow(r, kind);
+            if (counts[k] !== undefined) counts[k]++;
+        }
+        return counts;
+    }, [kindAndQuery, kind, outcomeOptions]);
     const filtered = useMemo(() => {
-        const key = sortKey(column), sign = direction === 'desc' ? -1 : 1;
-        return filterByKind(rows, kind).filter(r => matchesBrowseQuery(r, q)).sort((a, b) => collator.compare(key(a), key(b)) * sign);
-    }, [rows, kind, q, column, direction]);
+        const matched = outcome ? kindAndQuery.filter(r => bucketKeyForRow(r, kind) === outcome) : kindAndQuery;
+        return [...matched].sort(compareBrowse(column, direction));
+    }, [kindAndQuery, kind, outcome, column, direction]);
 
     const total = filtered.length;
     const size = view.pageSize === -1 ? Math.max(total, 1) : view.pageSize;
@@ -183,24 +226,30 @@ export default function Browse({citation}) {
     setHook('floraBrowse', () => ({page: page - 1, pageSize: view.pageSize, order: [column, direction], rendered: shown.length, rows: filtered,
         setOrder: (c, d) => refilter({sort: `${c}:${d}`}), setPage: n => setView({page: n + 1}), setPageSize: n => refilter({pageSize: n})}));
 
-    const dimension = DIMENSION_FOR_KIND[kind];
-    const filteredView = Boolean(q.trim()) || kind !== 'all';
+    const filteredView = Boolean(input.trim()) || kind !== 'all' || Boolean(outcome);
     const noun = BROWSE_KIND_NOUNS[kind] || BROWSE_KIND_NOUNS.all;
     const reportWord = kind === 'all' ? 'Replication or reproduction' : kind === 'replication' ? 'Replication' : 'Reproduction';
-    const countText = kind === 'all' ? `${total.toLocaleString()} ${pairs(total)}` : `${total.toLocaleString()} of ${rows.length.toLocaleString()} ${pairs(rows.length)}`;
+    const countText = kind === 'all' && !outcome ? `${total.toLocaleString()} ${pairs(total)}` : `${total.toLocaleString()} of ${rows.length.toLocaleString()} ${pairs(rows.length)}`;
 
     const share = async () => {
         clearTimeout(debounce.current);
+        clearTimeout(feedbackTimer.current);
         if (input !== q) refilter({q: input});
         try { await navigator.clipboard.writeText(linkFor(input !== q ? {q: input, page: 1, mobilePage: 1} : {})); setFeedback('Link copied'); }
         catch { setFeedback('Copy the current address from your browser.'); }
+        feedbackTimer.current = setTimeout(() => setFeedback(''), 2500);
     };
     const exportCsv = () => {
+        clearTimeout(debounce.current);
+        const activeQ = input;
+        if (activeQ !== q) refilter({q: activeQ});
+        const exportRows = activeQ !== q ? filterBrowseRows(rows, kind, activeQ, outcome, column, direction) : filtered;
+        const exportFiltered = Boolean(activeQ.trim()) || kind !== 'all' || Boolean(outcome);
         const keys = Object.keys(rows[0] || {}).flatMap(key => key === 'outcome' ? [key, 'outcome_label'] : [key]);
         const stamp = stamps ? stampInfo('flora', stamps.flora).text : '';
-        download(filteredView ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv', keys,
-            filtered.map(row => keys.map(k => k === 'outcome_label' ? outcomeLabel(row) : row[k])),
-            `Unit: reference pair\n${stamp}\nStudy type: ${FloraVocabulary.studyType(kind)}\nQuery: ${q}\nIncluded: ${total.toLocaleString('en-GB')}; excluded by filters: ${(rows.length - total).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
+        download(exportFiltered ? 'flora-filtered-reference-pairs.csv' : 'flora-reference-pairs.csv', keys,
+            exportRows.map(row => keys.map(k => k === 'outcome_label' ? outcomeLabel(row) : row[k])),
+            `Unit: reference pair\n${stamp}\nStudy type: ${FloraVocabulary.studyType(kind)}${outcomeText ? `\nOutcome: ${outcomeText}` : ''}\nQuery: ${activeQ}\nIncluded: ${exportRows.length.toLocaleString('en-GB')}; excluded by filters: ${(rows.length - exportRows.length).toLocaleString('en-GB')}\nQualified success is separate from unqualified success; reproduction dimensions overlap.`);
     };
     const toggle = index => setExpanded(prev => { const next = new Set(prev); next.has(index) ? next.delete(index) : next.add(index); return next; });
     const paged = useRef(false);
@@ -225,26 +274,46 @@ export default function Browse({citation}) {
     const first = total ? (page - 1) * size + 1 : 0, last = Math.min(total, page * size);
     const info = `Showing ${total ? `${first.toLocaleString('en-GB')} to ${last.toLocaleString('en-GB')} of ` : ''}${total.toLocaleString('en-GB')} ${pairs(total)}${total !== rows.length ? ` (filtered from ${rows.length.toLocaleString('en-GB')} ${pairs(rows.length)})` : ''}`;
     const mobileSort = MOBILE_SORTS.some(o => o[0] === view.sort) ? view.sort : 'custom';
-    const emptyHeadline = q.trim() ? `No ${noun} match “${q.trim()}”`
+    const emptyHeadline = q.trim()
+        ? `No ${noun}${outcomeText ? ` with outcome “${outcomeText}”` : ''} match “${q.trim()}”`
+        : outcomeText ? `No ${noun} have the recorded outcome “${outcomeText}”`
         : {'reproduction-numerical': 'No reference pairs have a recorded computational verdict', 'reproduction-robustness': 'No reference pairs have a recorded robustness verdict'}[kind] || `No ${noun} are recorded yet`;
 
     return (
-        <Pane id="browse" tabId="browse-tab" sources={['flora']} selection={[kindLabel(kind)]} kind={kind}
+        <Pane id="browse" tabId="browse-tab" sources={['flora']} selection={[kindLabel(kind), ...(outcomeText ? [outcomeText] : [])]} kind={kind}
             title={{heading: 'Browse reference pairs', lede: 'Search every recorded pair of an original report and its replication or reproduction, then open the evidence behind each outcome.'}}>
             <Figure className="filter-bar">
                 <div className="browse-search">
                     <label htmlFor="browse-mobile-input">Find a reference pair</label>
                     <div className="browse-search-row">
                         <div className="search-field"><Icon.search />
-                            <input type="search" id="browse-mobile-input" ref={inputRef} className="form-control" placeholder="Title, author, year, DOI or DOI URL" autoComplete="off" value={input} onChange={e => search(e.target.value)} />
+                            <input type="search" id="browse-mobile-input" ref={inputRef} className="form-control" placeholder="Title, author, year or DOI" autoComplete="off" value={input} onChange={e => search(e.target.value)} />
                         </div>
                         <IconButton id="share-view" label="Copy current view link" onClick={share}><Icon.link /></IconButton>
                         <Button id="export-browse" onClick={exportCsv}><Icon.download /><span>{filteredView ? 'Download filtered CSV' : 'Download full CSV'}</span></Button>
                     </div>
                     <span id="view-feedback" role="status">{feedback}</span>
                 </div>
-                <KindFilter className="browse-kind-filter" buttonClass="browse-kind-btn" value={kind} onChange={k => refilter({kind: k})} count={countText} countId="browse-kind-count" />
-                {!dimension && <Note id="browse-chart-hint">Choose a study type to see its outcome breakdown.</Note>}
+                <KindFilter className="browse-kind-filter" buttonClass="browse-kind-btn" value={kind} onChange={k => refilter({kind: k, outcome: ''})} count={countText} countId="browse-kind-count" />
+                {kind === 'reproduction' && (
+                    <div className="filter-row browse-active-kind-note" id="browse-reproduction-note">
+                        <span className="note">Showing all <strong>reproductions</strong> (both computational and robustness).</span>
+                        <Button onClick={() => refilter({kind: 'all', outcome: ''})}>Show all study types</Button>
+                    </div>
+                )}
+                {outcomeOptions.length > 0 && (
+                    <div className="filter-row browse-outcome-row">
+                        <label htmlFor="browse-outcome-filter" className="filter-label">Outcome:</label>
+                        <select id="browse-outcome-filter" className="form-select" value={outcome} onChange={e => refilter({outcome: e.target.value})}>
+                            <option value="">All outcomes ({kindAndQuery.length.toLocaleString('en-GB')})</option>
+                            {outcomeOptions.map(e => (
+                                <option key={e.key} value={e.key}>{e.label} ({(outcomeCounts[e.key] || 0).toLocaleString('en-GB')})</option>
+                            ))}
+                        </select>
+                        {outcome && <Button id="browse-clear-outcome" onClick={() => refilter({outcome: ''})}>Clear outcome</Button>}
+                    </div>
+                )}
+                {!dimension && <Note id="browse-chart-hint">Choose a study type to see its outcome breakdown and filter by outcome.</Note>}
                 {/* The breakdown summarises the current filter, so it sits with the filter controls; the results follow directly below. */}
                 <div id="browse-outcome-card" className="browse-breakdown" style={dimension && total ? undefined : {display: 'none'}}>
                     <OutcomeChartRow prefix="browse" dimension="computational" rowId="browse-computational-row" hidden={dimension !== 'computational'} rows={filtered} scope="Reflects the reproductions in the table below: were the original results obtained?" />
@@ -257,7 +326,8 @@ export default function Browse({citation}) {
                     <p><strong>{emptyHeadline}.</strong> FLoRA is not comprehensive, so this does not show that a study has never been replicated or reproduced.</p>
                     <div className="callout-actions">
                         {q.trim() && <Button data-browse-action="clear-search" onClick={() => { searchNow(''); inputRef.current.focus(); }}>Clear search</Button>}
-                        {kind !== 'all' && <Button data-browse-action="all-kinds" onClick={() => refilter({kind: 'all'})}>Show all study types</Button>}
+                        {outcome && <Button data-browse-action="clear-outcome" onClick={() => refilter({outcome: ''})}>Clear outcome filter</Button>}
+                        {kind !== 'all' && <Button data-browse-action="all-kinds" onClick={() => refilter({kind: 'all', outcome: ''})}>Show all study types</Button>}
                         <ExternalLink href={URLS.atlas} className="">Look up an original in the Replication Atlas</ExternalLink>
                         <ExternalLink href={URLS.submit} className="">Submit a missing study</ExternalLink>
                     </div>
@@ -281,7 +351,7 @@ export default function Browse({citation}) {
                                 {PAGE_SIZES.map(n => <option key={n} value={n}>{n === -1 ? 'All' : n}</option>)}
                             </select> reference pairs</label>
                         </div>
-                        <div className="table-wrap">
+                        <TableScroll label="Reference pairs">
                             <table id="flora-table" className="table">
                                 <thead>
                                     <tr>
@@ -316,7 +386,7 @@ export default function Browse({citation}) {
                                     })}
                                 </tbody>
                             </table>
-                        </div>
+                        </TableScroll>
                         <div className="table-footer">
                             <div id="flora-table_info" className="table-info" role="status">{info}</div>
                             {pages > 1 && (

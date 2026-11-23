@@ -50,7 +50,7 @@ export const kindDimension = kind => kind === 'reproduction-numerical' ? 'comput
 export function outcomeBuckets(kind) {
     if (kind === 'all') return [
         {key: 'replication', label: 'Replication', color: token('--color-primary')},
-        {key: 'reproduction', label: 'Reproduction', color: token('--color-link')},
+        {key: 'reproduction', label: 'Reproduction', color: token('--color-chart-reproduction', '#2c6a9e')},
         {key: 'unknown', label: 'Study type not recorded', color: token('--color-chart-not-coded')},
     ];
     const dimension = kindDimension(kind);

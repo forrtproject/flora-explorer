@@ -14,9 +14,10 @@ import {Callout, LoadError, Note, Section} from '../components/ui.jsx';
 import {Chips, CiteBlock, DataStamp, Gloss, Pane, Placeholder, StatTiles, byKind, kindLabel} from '../components/common.jsx';
 
 // OMC tick labels for an axis drawn on log(OMC + 1), the model's scale; a true log axis cannot show OMC = 0.
-function omcAxis(name, min, max) {
+function omcAxis(name, min, max, width = 600) {
     const ticks = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000].map(Math.log1p).filter(v => v >= min && v <= max);
-    return valueAxis({name, min, max, axisLabel: {customValues: ticks, formatter: v => String(Math.round(Math.expm1(v)))}, axisTick: {customValues: ticks}, splitLine: {show: false}});
+    const label = width < 360 ? 'OMC (log scale)' : name;
+    return valueAxis({name: label, nameGap: 26, min, max, axisLabel: {customValues: ticks, formatter: v => String(Math.round(Math.expm1(v)))}, axisTick: {customValues: ticks}, splitLine: {show: false}});
 }
 
 function distributionSpec(d, buckets, coverage) {
@@ -42,7 +43,7 @@ function distributionSpec(d, buckets, coverage) {
         coverage, height: 320,
         option: ({width}) => finishOption({series, legend: {data: series.filter(s => s.data.length).map(s => s.name)},
             tooltip: {formatter: p => tipLines([`OMC ${number(p.value[5], 2)} to ${number(p.value[6], 2)}`, tipRow(p.color, `${p.seriesName}: ${number(p.value[4])} reference pairs`)])},
-            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', 0, max),
+            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', 0, max, width),
             yAxis: valueAxis({name: 'Reference pairs', ...countAxis()}),
         }, {width}),
         // The bars sit at log positions, so the table states each bin's OMC range instead.
@@ -86,11 +87,15 @@ function modelSpec(d, jitter, coverage) {
                 {name: 'Reference pairs', type: 'scatter', data: shown.map(p => [p.x, p.y]), symbolSize: 5, itemStyle: {color: t.point}, emphasis: {scale: 1.6},
                     tooltip: {formatter: p => tipLines([`OMC = ${number(shown[p.dataIndex].omc, 2)}`, shown[p.dataIndex].label])},
                     markLine: {silent: true, symbol: 'none', data: [{yAxis: 0.5}], lineStyle: {color: t.rule, width: 1.5, type: 'dashed'},
-                        label: {position: 'insideEndTop', formatter: '50% reference', color: t.ruleLabel, fontSize: 11}}},
+                        label: {position: width < 420 ? 'insideStartTop' : 'insideEndTop', formatter: '50% reference', color: t.ruleLabel, fontSize: 11}}},
             ],
-            // The band's own symbols are invisible hover targets, so its legend swatch names its fill.
-            legend: {data: ['Smooth fit', {name: '95% confidence interval', itemStyle: {color: t.band, opacity: 1}}, 'Reference pairs']},
-            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', range[0], range[1]),
+            // Explicit legend swatches keep every series legible even when point symbols are translucent or hidden.
+            legend: {data: [
+                {name: 'Smooth fit', icon: 'roundRect', itemStyle: {color: t.primary, opacity: 1}},
+                {name: '95% confidence interval', icon: 'roundRect', itemStyle: {color: t.band, borderColor: t.primary, borderWidth: 1, opacity: 1}},
+                {name: 'Reference pairs', icon: 'circle', itemStyle: {color: t.tick, opacity: 0.7}},
+            ]},
+            xAxis: omcAxis('OpenAlex Mean Citedness (OMC, log scale)', range[0], range[1], width),
             yAxis: valueAxis({name: 'P(success | successful or failed)', min: -0.08, max: 1.08,
                 axisLabel: {customValues: [0, .25, .5, .75, 1], formatter: v => Math.round(v * 100) + '%'}, axisTick: {customValues: [0, .25, .5, .75, 1]}}),
         }, {width}),
@@ -98,12 +103,13 @@ function modelSpec(d, jitter, coverage) {
         table: {
             headers: ['Row type', 'OMC', 'Estimated P(success)', '95% CI lower', '95% CI upper', 'Observed outcome (1 = successful, 0 = failed)', 'Original (DOI or title)', 'Report (DOI, URL or title)'],
             rows: [...curve.map(p => ['Fitted curve', p.omc, p.p, p.p_lo, p.p_hi, '', '', '']), ...points.map(p => ['Displayed pair', p.omc, '', '', '', p.outcome, p.original || '', p.report || ''])],
-            summary: `Fitted curve: logistic smooth of log(OMC + 1) with pointwise 95% intervals, estimated from ${Number(stats.n_model).toLocaleString()} successful or failed reference pairs${window ? ` and shown up to OMC ${window.end_omc}` : ''}. Model statistics at full precision: edf = ${stats.edf}, χ² = ${stats.chi_sq}, p = ${stats.p_val}, McFadden R² = ${stats.r2}. Displayed pairs: ${points.length.toLocaleString()} of these pairs (a random sample${window && window.n_beyond ? `, plus all ${window.n_beyond.toLocaleString('en-GB')} beyond the curve` : ''}), with their raw OMC, outcome and identifiers; the chart jitters their positions for legibility.`,
+            summary: `Fitted curve: logistic smooth of log(OMC + 1) with pointwise 95% intervals, estimated from ${Number(stats.n_model).toLocaleString()} successful or failed reference pairs${window ? ` and shown up to OMC ${window.end_omc}` : ''}. Model statistics at full precision: edf = ${stats.edf}, χ² = ${stats.chi_sq}, p = ${stats.p_val}${stats.auc != null ? `, AUC = ${stats.auc}` : ''}. Displayed pairs: ${points.length.toLocaleString()} of these pairs (a random sample${window && window.n_beyond ? `, plus all ${window.n_beyond.toLocaleString('en-GB')} beyond the curve` : ''}), with their raw OMC, outcome and identifiers; the chart jitters their positions for legibility.`,
         },
     };
 }
 
 const NO_OMC = 'without an OMC (no original journal recorded, journal not found in OpenAlex, or OMC set aside)';
+const HEADLINE_REPLICATION = new Set(['successful', 'failed', 'mixed']);
 const sig2 = v => Number(v).toLocaleString('en-GB', {maximumSignificantDigits: 2});
 
 function setAsideNote(s) {
@@ -138,6 +144,13 @@ export default function MeanCitedness() {
     const ov = d?.overview, stats = d?.stats || {};
     // The replication summary names its success count n_success; histogram keys use the bucket key.
     const overviewKey = b => kind === 'replication' && b.key === 'successful' ? 'n_success' : 'n_' + b.key;
+    const headlineBuckets = kind === 'replication' ? buckets.filter(b => HEADLINE_REPLICATION.has(b.key)) : buckets;
+    const otherOutcomes = enough && kind === 'replication'
+        ? buckets.filter(b => !HEADLINE_REPLICATION.has(b.key)).map(b => ({label: b.label, count: ov[overviewKey(b)] || 0})).filter(x => x.count > 0)
+        : [];
+    const otherOutcomesNote = otherOutcomes.length
+        ? `Other recorded outcomes: ${otherOutcomes.map(x => `${x.label} ${x.count.toLocaleString('en-GB')} (${percent(x.count, ov.n_total)}%)`).join(' · ')}.`
+        : null;
     const notModelled = buckets.filter(b => !['successful', 'failed'].includes(b.key));
     const distCoverage = enough ? coverageText(ov.n_total, kindPairCount(rows, kind), [[ov.n_excluded || 0, NO_OMC]], kindNoun(kind), kind) : '';
     const modelCoverage = enough && kind === 'replication' ? coverageText(stats.n_model || 0, kindPairCount(rows, 'replication'),
@@ -169,10 +182,10 @@ export default function MeanCitedness() {
                     {enough && <>
                         <StatTiles id="mc-overview" tiles={[
                             {value: ov.n_total, label: 'Reference pairs with OMC', always: true},
-                            ...buckets.map(b => ({value: ov[overviewKey(b)] || 0, label: `${b.label} (${percent(ov[overviewKey(b)] || 0, ov.n_total)}%)`})),
+                            ...headlineBuckets.map(b => ({value: ov[overviewKey(b)] || 0, label: `${b.label} (${percent(ov[overviewKey(b)] || 0, ov.n_total)}%)`})),
                             {value: ov.n_journals, label: 'Journals matched', always: true},
                             {value: ov.n_disciplines, label: 'Disciplines', always: true},
-                        ]} />
+                        ]} note={otherOutcomesNote} />
                         <Plot id="mc-dist-chart" frameId="mc-dist-card" heading="Distribution of reference pairs by journal Mean Citedness" title="Distribution of reference pairs by journal Mean Citedness"
                             spec={distribution} note={<Note id="mc-eligible">{distCoverage}</Note>} />
                         {kind !== 'replication' && <Note id="mc-repro-note">Reproduction summaries are descriptive. No reproduction model has been fitted.</Note>}
@@ -184,7 +197,8 @@ export default function MeanCitedness() {
                                 <Note id="mc-gam-stats">{!model.message && <>
                                     {model.plain && <span className="mc-gam-plain">{model.plain}<br /></span>}
                                     Logistic smooth of log(OMC + 1): <Gloss term="edf">Effective degrees of freedom: how flexible the fitted curve is. edf ≈ 1 is close to a straight line; higher values mean a more flexible, wigglier fit.</Gloss> = {sig2(stats.edf)}, χ² = {sig2(stats.chi_sq)}
-                                    {stats.p_val != null && (stats.p_val < 0.001 ? ', p < .001' : ', p = ' + stats.p_val.toFixed(3))}; <Gloss term="McFadden R²">McFadden’s pseudo-R²: a goodness-of-fit measure for logistic models. It compares the fitted logistic model with an intercept-only model; it is not the fraction of variance explained.</Gloss> = {sig2(stats.r2)}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed).
+                                    {stats.p_val != null && (stats.p_val < 0.001 ? ', p < .001' : ', p = ' + stats.p_val.toFixed(3))}
+                                    {stats.auc != null && <>; <Gloss term="AUC">Area under the ROC curve: probability that the model gives a randomly chosen successful replication a higher predicted success rate than a failed one (counting ties as half). 0.50 is chance, ~0.60 modest, 0.70 moderate, and 0.80+ strong.</Gloss> = {Number(stats.auc).toFixed(2)}</>}; N = {stats.n_model.toLocaleString('en-GB')} of {nPairs(ov.n_total)} with OMC (successful vs. failed).
                                 </>}</Note>} />
                             : <><Note id="mc-gam-stats" /><div id="mc-gam-chart" /></>}
                     </div>
