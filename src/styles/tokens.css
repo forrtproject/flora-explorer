@@ -112,6 +112,7 @@
     --color-chart-not-checked: #8a8f9c;
     --color-chart-not-coded: #c3c7ce;   /* deliberately faint: unassessed */
     --color-chart-neutral: #9ca3af;     /* cites original only */
+    --color-chart-reproduction: #2c6a9e; /* distinct study-type series paired with --color-primary */
 
     /* Channel triplet, for rgb(… / α) tinting on dark chrome */
     --color-white-rgb: 255 255 255;
@@ -318,6 +319,7 @@
     --color-chart-not-checked: #7f8590;
     --color-chart-not-coded: #5a5f69;
     --color-chart-neutral: #8b919c;
+    --color-chart-reproduction: #80b7e6;
 
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, .35);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, .45);

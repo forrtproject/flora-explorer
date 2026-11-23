@@ -1,5 +1,4 @@
 import {bucketKeyForRow, classifyKind, outcomeBuckets, parseReproductionOutcome, replicationOutcome} from './outcomes.js';
-import {percent} from './format.js';
 import {nPairs} from './coverage.js';
 
 const KIND_FOR_DIMENSION = {replicability: 'replication', computational: 'reproduction-numerical', robustness: 'reproduction-robustness'};
@@ -21,17 +20,15 @@ export function dimensionChartData(data, dimension) {
     };
 }
 
-// States the denominator, exclusions and counts so readers need not open the data table.
+// States the denominator and exclusions; inline bar labels show shares and exact counts stay in hover and chart data.
 export function dimensionCaption(data, dimension) {
-    const {datasets, total, eligible} = dimensionChartData(data, dimension);
-    // Empty categories add nothing to the sentence; they stay in the chart data table.
-    const counts = datasets.filter(d => d.data[0] > 0).map(d => `${d.label} ${d.data[0].toLocaleString()} (${percent(d.data[0], total)}%)`).join(' · ');
-    if (dimension === 'replicability') return `${total.toLocaleString()} replication reference ${total === 1 ? 'pair' : 'pairs'}: ${counts}.`;
+    const {total, eligible} = dimensionChartData(data, dimension);
+    if (dimension === 'replicability') return `${total.toLocaleString('en-GB')} replication reference ${total === 1 ? 'pair' : 'pairs'}.`;
     const verdict = dimension === 'computational' ? 'a computational verdict' : 'a robustness verdict';
     const scope = total === eligible
-        ? `${total.toLocaleString()} reproduction reference ${total === 1 ? 'pair has' : 'pairs have'} ${verdict}`
-        : `${total.toLocaleString()} of ${eligible.toLocaleString()} reproduction reference pairs have ${verdict}; ${(eligible - total).toLocaleString()} not checked or not coded`;
-    return `${scope}. ${total ? counts + '. ' : ''}A reference pair can contribute to both dimensions.`;
+        ? `${total.toLocaleString('en-GB')} reproduction reference ${total === 1 ? 'pair has' : 'pairs have'} ${verdict}`
+        : `${total.toLocaleString('en-GB')} of ${eligible.toLocaleString('en-GB')} reproduction reference pairs have ${verdict}; ${(eligible - total).toLocaleString('en-GB')} not checked or not coded`;
+    return `${scope}. A reference pair can contribute to both dimensions.`;
 }
 
 function stackedCounts(data, keyFn, kind) {

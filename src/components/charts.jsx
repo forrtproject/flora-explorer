@@ -125,8 +125,10 @@ export function Plot({id, title, spec, className = '', height, heading, note, fr
         return own && {...own, summary: [spec.coverage, own.summary].filter(Boolean).join(' ')};
     }, [drawable, comparison, spec]);
 
-    // Comparisons lay their groups down the side on narrow screens, one band per group.
-    const comparisonHeight = comparison && (window.innerWidth < 600 ? Math.max(440, comparison.groups.length * 65 + 200) : 420);
+    // Comparisons lay their groups down the side on narrow containers, matching comparisonOption's 600px threshold.
+    const comparisonHeightFor = useMemo(() => comparison
+        ? width => (width < 600 ? Math.max(440, comparison.groups.length * 65 + 200) : Math.round(Math.max(420, Math.min(width * 0.42, window.innerHeight * 0.7))))
+        : undefined, [comparison]);
     const modeLabel = counts ? 'Show percentages' : 'Show counts';
     // Chart-specific actions (such as sharing) stay available when the chart shows a message instead.
     return (
@@ -136,8 +138,8 @@ export function Plot({id, title, spec, className = '', height, heading, note, fr
             {drawable && <ChartCopy id={id} title={title} table={table} />}
         </>}>
             {drawable
-                ? <EChart key="plot" id={id} title={title} option={option} height={height || comparisonHeight || spec.height || 380} className={className}
-                    aspect={comparison && window.innerWidth < 600 ? undefined : spec.aspect ?? 0.42} />
+                ? <EChart key="plot" id={id} title={title} option={option} height={height || spec.height || 380} heightFor={comparisonHeightFor} className={className}
+                    aspect={comparison ? undefined : spec.aspect ?? 0.42} />
                 : <div id={id} key="message" className={className + ' plot-message'}>{spec?.message}</div>}
             {drawable && <ChartData id={id} title={title} table={table} />}
         </Figure>
