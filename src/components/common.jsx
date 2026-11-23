@@ -78,8 +78,7 @@ export function ExcludedRows({list}) {
 function ExcludedOriginals({meta}) {
     const fmt = v => v.toLocaleString('en-GB');
     const n = meta.excluded_originals.length;
-    // A handful of exclusions out of thousands would otherwise be an invisible sliver.
-    const pct = Math.min(meta.n_originals / meta.n_originals_eligible * 100, 98);
+    const pct = meta.n_originals / meta.n_originals_eligible * 100;
     // Under 1% left out is routine refresh noise: it stays listed, but in a quiet panel instead of a warning.
     const minor = n / meta.n_originals_eligible < 0.01;
     return (
@@ -88,19 +87,22 @@ function ExcludedOriginals({meta}) {
                 <svg className="excluded-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" /><path d="M10 5.5v5.5M10 13.8v.2" /></svg>
                 <span className="excluded-summary-text">
                     <span className="excluded-headline">{fmt(n)} original{n === 1 ? '' : 's'} left out of this snapshot</span>
-                    <span className="excluded-sub">{meta.n_pairs_excluded ? `${fmt(meta.n_pairs_excluded)} reference ${meta.n_pairs_excluded === 1 ? 'pair' : 'pairs'} · ` : ''}omitted from the figures below, not counted as zero · retried next refresh</span>
+                    <span className="excluded-sub">{meta.n_pairs_excluded ? `${fmt(meta.n_pairs_excluded)} reference ${meta.n_pairs_excluded === 1 ? 'pair' : 'pairs'} · ` : ''}omitted from citation analyses below, not counted as zero · retried next refresh</span>
                 </span>
                 <span className="excluded-toggle" aria-hidden="true" />
             </summary>
             <div className="excluded-coverage">
-                <div className="excluded-bar" role="img" aria-label={`${fmt(meta.n_originals)} included, ${fmt(n)} left out, of ${fmt(meta.n_originals_eligible)} eligible originals`}><span style={{width: pct + '%'}} /></div>
+                <div className="excluded-bar" role="img" aria-label={`${fmt(meta.n_originals)} included, ${fmt(n)} left out, of ${fmt(meta.n_originals_eligible)} eligible originals`}>
+                    <span className="excluded-bar-included" style={{width: pct + '%'}} />
+                    <span className="excluded-bar-excluded" style={{width: (100 - pct) + '%'}} />
+                </div>
                 <div className="excluded-legend">
                     <span><i className="dot-included" />{fmt(meta.n_originals)} included</span>
                     <span><i className="dot-excluded" />{fmt(n)} left out</span>
                     <span>{fmt(meta.n_originals_eligible)} eligible</span>
                 </div>
             </div>
-            <p className="excluded-note">These originals are in FLoRA, but their citation data could not be completed in this refresh. They are <strong>left out</strong> of every figure on this tab rather than counted as having no citations.</p>
+            <p className="excluded-note">These originals are in FLoRA, but their citation data could not be completed in this refresh. They are <strong>left out</strong> of every citation analysis on this tab rather than counted as having no citations.</p>
             <ul className="excluded-list"><ExcludedRows list={meta.excluded_originals} /></ul>
         </details>
     );
@@ -252,7 +254,7 @@ function Badge({dimension, outcomeKey, prefix, raw}) {
     const named = prefix && entry.label.toLowerCase().startsWith(prefix.toLowerCase().slice(0, 6));
     const shownPrefix = named ? '' : prefix;
     return (
-        <span className={`badge outcome-tag badge-${entry.key === 'technical_failure' ? 'failed' : entry.color}`} title={title}>
+        <span className={`badge outcome-tag badge-${entry.color}`} title={title}>
             {/* The colon keeps copied and spoken text readable as "Robustness: Not checked". */}
             {named && <span className="visually-hidden">{prefix}: </span>}
             {shownPrefix && <><span className="badge-dim">{shownPrefix}:</span>{' '}</>}
@@ -329,11 +331,24 @@ export function ExternalLink({href, children, className = 'doi-link', ...rest}) 
 }
 
 export function CopyButton({getText, className = 'btn copy-btn', label, children = 'Copy', id}) {
-    const [copied, setCopied] = useState(false);
+    const [status, setStatus] = useState('idle');
+    const copy = () => {
+        const fail = () => { setStatus('failed'); setTimeout(() => setStatus(s => s === 'failed' ? 'idle' : s), 2500); };
+        try {
+            navigator.clipboard.writeText(getText()).then(
+                () => { setStatus('copied'); setTimeout(() => setStatus(s => s === 'copied' ? 'idle' : s), 1800); },
+                fail,
+            );
+        } catch {
+            fail();
+        }
+    };
     return (
-        <button type="button" id={id} className={className} aria-label={label}
-            onClick={() => navigator.clipboard.writeText(getText()).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })}>
-            {copied ? 'Copied!' : children}
-        </button>
+        <>
+            <button type="button" id={id} className={className} aria-label={label} onClick={copy}>
+                {status === 'copied' ? 'Copied!' : status === 'failed' ? 'Copy failed' : children}
+            </button>
+            <span className="visually-hidden" role="status">{status === 'copied' ? `${label || 'Text'} copied.` : status === 'failed' ? 'Could not copy to clipboard.' : ''}</span>
+        </>
     );
 }
