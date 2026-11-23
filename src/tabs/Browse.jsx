@@ -201,7 +201,7 @@ export default function Browse({citation}) {
         setOrder: (c, d) => refilter({sort: `${c}:${d}`}), setPage: n => setView({page: n + 1}), setPageSize: n => refilter({pageSize: n})}));
 
     const dimension = DIMENSION_FOR_KIND[kind];
-    const filteredView = Boolean(q.trim()) || kind !== 'all';
+    const filteredView = Boolean(input.trim()) || kind !== 'all';
     const noun = BROWSE_KIND_NOUNS[kind] || BROWSE_KIND_NOUNS.all;
     const reportWord = kind === 'all' ? 'Replication or reproduction' : kind === 'replication' ? 'Replication' : 'Reproduction';
     const countText = kind === 'all' ? `${total.toLocaleString()} ${pairs(total)}` : `${total.toLocaleString()} of ${rows.length.toLocaleString()} ${pairs(rows.length)}`;

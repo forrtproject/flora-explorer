@@ -42,4 +42,4 @@ export function matchesBrowseQuery(row, query) {
     return !tokens.length || matchesTokens(pairSearchText(row), tokens);
 }
 
-export const normalizeDoi = doi => (doi || '').trim().toLowerCase().replace(/^(?:https?:\/\/)?(?:dx\.)?doi\.org\//, '').replace(/^doi:\s*/, '').replace(/[.,;:)]+$/, '');
+export const normalizeDoi = doi => (doi || '').trim().toLowerCase().replace(/^(?:https?:\/\/)?(?:dx\.)?doi\.org\//, '').replace(/^doi:\s*/, '');

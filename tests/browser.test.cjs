@@ -1586,26 +1586,35 @@ test('every chart states N of M in its chart data',async()=>{
 });
 
 test('Browse immediate CSV export uses current input, DOI search handles scheme-less/punctuated DOIs, and missing years sort last',async()=>{
-  const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
-  // Type and click Download immediately (before the 200ms debounce commits).
-  await p.fill('#browse-mobile-input','power posing');
+  const fixture=fs.readFileSync('tests/fixtures/browse.csv','utf8').trimEnd()+'\n10.9999/no-year,Undated Study,"[{""given"":""Alex"",""family"":""Taylor"",""sequence"":""first""}]",Test Journal,,10.9999/no-year-rep,Undated Replication,"[{""given"":""Sam"",""family"":""Lee"",""sequence"":""first""}]",Test Journal,2022,NA,successful,Replicated.,replication\n';
+  const p=await page('?tab=browse',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({body:fixture,contentType:'text/csv'})));
+  // Type a strict subset and click Download immediately (before the 200ms debounce commits).
+  await p.fill('#browse-mobile-input','Ranehill');
+  assert.equal(await p.locator('#export-browse').innerText(),'Download filtered CSV');
   const dlPromise=p.waitForEvent('download');
   await p.click('#export-browse');
   const dl=await dlPromise;
   assert.equal(dl.suggestedFilename(),'flora-filtered-reference-pairs.csv');
   const csv=fs.readFileSync(await dl.path(),'utf8');
-  assert.match(csv,/Query: power posing/);
-  assert.match(csv,/Included: 4;/);
+  const exportedRows=await p.evaluate(text=>Papa.parse(text,{header:true}).data,csv);
+  assert.equal(exportedRows.length,1);
+  assert.equal(exportedRows[0].title_r,'Assessing the Robustness of Power Posing');
+  assert.match(exportedRows[0]['Export context'],/Query: Ranehill/);
+  assert.match(exportedRows[0]['Export context'],/Included: 1; excluded by filters: 4/);
   // Scheme-less doi.org/ URLs and trailing sentence punctuation match the DOI.
   for(const q of ['doi.org/10.1177/0956797610383437','10.1177/0956797610383437.','doi.org/10.1177/0956797610383437.']){
     await p.fill('#browse-mobile-input',q);
     await p.waitForFunction(expected=>browseQuery===expected,q);
     assert.equal(await p.evaluate(()=>getChartData().length),3,q);
   }
-  // Missing original years sort last even when ascending.
+  // Missing original years sort last in both ascending and descending directions.
   await p.goto(base+'?tab=browse&sort=2:asc');
   await p.waitForSelector('#flora-table tbody tr');
-  const firstYear=await p.locator('#flora-table tbody tr').first().locator('td').nth(2).textContent();
-  assert.match(firstYear,/^\d{4}$/);
+  const ascYears=await p.locator('#flora-table tbody tr td:nth-child(3)').allTextContents();
+  assert.deepEqual(ascYears.map(s=>s.trim()),['2010','2010','2010','2015','-']);
+  await p.goto(base+'?tab=browse&sort=2:desc');
+  await p.waitForSelector('#flora-table tbody tr');
+  const descYears=await p.locator('#flora-table tbody tr td:nth-child(3)').allTextContents();
+  assert.deepEqual(descYears.map(s=>s.trim()),['2015','2010','2010','2010','-']);
   assert.deepEqual(p.errors,[]);await p.close();
 });
