@@ -494,6 +494,7 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
 .cocit-sort-btn[aria-pressed="true"] { border-color: var(--color-primary); color: var(--color-primary); }
 #originals-table tbody tr { cursor: pointer; }
 .rep-key { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .9rem; margin-block: var(--space-3) 0; font-size: var(--fs-3); color: var(--color-text-secondary); }
+.ci-mobile-sort { display: none; margin-top: var(--space-3); }
 .rep-key > span { display: inline-flex; align-items: center; gap: .35rem; }
 .rep-key i { width: 10px; height: 8px; border-radius: var(--r-full); }
 .rep-key .successful { background: var(--color-chart-successful); } .rep-key .failed { background: var(--color-chart-failed); } .rep-key .mixed { background: var(--color-chart-mixed); }
@@ -643,6 +644,8 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
     .search-row { flex-wrap: wrap; }
     #search-input, #filter-outcome { flex: 1 1 100%; min-height: 44px; }
     /* Originals become cards: title and byline, then the counts as labelled pairs, then a full-width Timeline button. */
+    .ci-mobile-sort { display: flex; }
+    .ci-mobile-sort select { flex: 1; min-height: 44px; }
     #originals-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
     #originals-table, #originals-table tbody { display: block; }
     #originals-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--color-border-light); }
