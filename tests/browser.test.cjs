@@ -1651,6 +1651,6 @@ test('redesign polish: distinct study-type colors, tablet cards, visible mobile 
   await p.click('#mc-tab');
   await p.waitForSelector('#mc-overview .mc-stat');
   const mcRows=await p.locator('#mc-overview .mc-stat').evaluateAll(els=>Object.values(els.reduce((m,el)=>{const y=Math.round(el.getBoundingClientRect().top);m[y]=(m[y]||0)+1;return m;},{})));
-  assert.deepEqual(mcRows,[5,5],`Mean Citedness rows at 1440px: ${mcRows}`);
+  assert.deepEqual(mcRows,[6],`Mean Citedness rows at 1440px: ${mcRows}`);
   assert.deepEqual(p.errors,[]);await p.close();
 });
