@@ -253,7 +253,9 @@ export default function Browse({citation}) {
     };
     const toggle = index => setExpanded(prev => { const next = new Set(prev); next.has(index) ? next.delete(index) : next.add(index); return next; });
     const paged = useRef(false);
+    const desktopPaged = useRef(false);
     const showMobilePage = delta => { paged.current = true; setView({mobilePage: mobilePage + delta}); };
+    const showDesktopPage = next => { if (next === page) return; desktopPaged.current = true; setView({page: next}); };
     // Runs after the new cards are in place, so the list changing height cannot cancel the scroll.
     useEffect(() => {
         if (!paged.current) return;
@@ -262,6 +264,13 @@ export default function Browse({citation}) {
         heading.focus({preventScroll: true});
         heading.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
     }, [mobilePage]);
+    useEffect(() => {
+        if (!desktopPaged.current) return;
+        desktopPaged.current = false;
+        const heading = document.getElementById('browse-results-heading');
+        heading?.focus({preventScroll: true});
+        heading?.scrollIntoView({block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+    }, [page]);
     const first = total ? (page - 1) * size + 1 : 0, last = Math.min(total, page * size);
     const info = `Showing ${total ? `${first.toLocaleString('en-GB')} to ${last.toLocaleString('en-GB')} of ` : ''}${total.toLocaleString('en-GB')} ${pairs(total)}${total !== rows.length ? ` (filtered from ${rows.length.toLocaleString('en-GB')} ${pairs(rows.length)})` : ''}`;
     const mobileSort = MOBILE_SORTS.some(o => o[0] === view.sort) ? view.sort : 'custom';
@@ -382,11 +391,11 @@ export default function Browse({citation}) {
                             <div id="flora-table_info" className="table-info" role="status">{info}</div>
                             {pages > 1 && (
                                 <nav className="pagination" id="flora-table_paginate" aria-label="Reference pair pages">
-                                    <button type="button" disabled={page === 1} onClick={() => setView({page: page - 1})}>Previous</button>
+                                    <button type="button" disabled={page === 1} onClick={() => showDesktopPage(page - 1)}>Previous</button>
                                     {pageWindow(page, pages).map(p => typeof p === 'string'
                                         ? <span key={p} className="pagination-gap">…</span>
-                                        : <button type="button" key={p} className={p === page ? 'active' : undefined} aria-current={p === page ? 'page' : undefined} aria-label={`Page ${p}`} onClick={() => setView({page: p})}>{p}</button>)}
-                                    <button type="button" disabled={page === pages} onClick={() => setView({page: page + 1})}>Next</button>
+                                        : <button type="button" key={p} className={p === page ? 'active' : undefined} aria-current={p === page ? 'page' : undefined} aria-label={`Page ${p}`} onClick={() => showDesktopPage(p)}>{p}</button>)}
+                                    <button type="button" disabled={page === pages} onClick={() => showDesktopPage(page + 1)}>Next</button>
                                 </nav>
                             )}
                         </div>

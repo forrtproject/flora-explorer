@@ -36,9 +36,14 @@ function TopBar() {
     }, [view.tab]);
 
     const onKeyDown = e => {
-        const step = {ArrowRight: 1, ArrowLeft: -1}[e.key];
-        if (!step) return;
-        const next = TABS[(TABS.findIndex(t => t.id === view.tab) + step + TABS.length) % TABS.length];
+        let next;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+            const step = e.key === 'ArrowRight' ? 1 : -1;
+            next = TABS[(TABS.findIndex(t => t.id === view.tab) + step + TABS.length) % TABS.length];
+        } else if (e.key === 'Home') next = TABS[0];
+        else if (e.key === 'End') next = TABS[TABS.length - 1];
+        if (!next) return;
+        e.preventDefault();
         switchTab(next.id);
         document.getElementById(next.id)?.focus();
     };
@@ -81,6 +86,31 @@ export default function App() {
     const ready = status === 'ready';
 
     useEffect(() => { if (main.current) main.current.scrollTop = 0; }, [view.tab]);
+    // Forward keyboard scrolling into .app-main when focus sits outside it (e.g. on load or after clicking a top-bar tab).
+    useEffect(() => {
+        const onKeyDown = e => {
+            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+            const scroller = main.current;
+            if (!scroller || document.querySelector('#ci-modal:not([hidden])')) return;
+            const el = document.activeElement;
+            if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+            if (e.key === ' ' && el && el.closest('button, summary, [role="tab"], [role="button"]')) return;
+            if (el && scroller.contains(el) && el !== scroller && el.closest('.table-wrap, .table-scroll, .excluded-list')) return;
+            const pageStep = Math.round(scroller.clientHeight * 0.85);
+            const delta = e.key === 'PageDown' ? pageStep
+                : e.key === 'PageUp' ? -pageStep
+                : e.key === ' ' ? (e.shiftKey ? -pageStep : pageStep)
+                : e.key === 'ArrowDown' ? 72
+                : e.key === 'ArrowUp' ? -72
+                : 0;
+            if (!delta) return;
+            e.preventDefault();
+            const behavior = e.key.startsWith('Arrow') || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+            scroller.scrollBy({top: delta, behavior});
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
     // Charts measured while their pane was hidden re-fit once it is shown.
     useEffect(() => { const frame = requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))); return () => cancelAnimationFrame(frame); }, [view.tab, ready]);
 
