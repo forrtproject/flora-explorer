@@ -1714,3 +1714,41 @@ test('citation timeline does not draw phantom bars for zero-valued co-citation s
   assert.deepEqual(p.errors,[]);await p.close();
 });
 
+
+test('Browse outcome filter scopes to study type, syncs URL/CSV, and recovers empty selections',async()=>{
+  const p=await page('?tab=browse&kind=replication',1280,p=>p.route('**/data/flora.csv',route=>route.fulfill({path:'tests/fixtures/browse.csv',contentType:'text/csv'})));
+  await p.waitForSelector('#browse-outcome-filter');
+  await p.selectOption('#browse-outcome-filter','failed');
+  await p.waitForFunction(()=>new URL(location.href).searchParams.get('outcome')==='failed');
+  assert.equal(await p.evaluate(()=>getChartData().length),3);
+  const downloadEvent=p.waitForEvent('download');await p.click('#export-browse');const download=await downloadEvent;
+  const csv=fs.readFileSync(await download.path(),'utf8');
+  assert.match(csv,/Outcome: Failed/);
+  // Selecting an outcome with 0 matching pairs offers a direct Clear outcome filter recovery button.
+  await p.selectOption('#browse-outcome-filter','successful');
+  await p.waitForFunction(()=>getChartData().length===0);
+  assert.ok(await p.locator('#browse-empty').isVisible());
+  await p.click('[data-browse-action="clear-outcome"]');
+  await p.waitForFunction(()=>getChartData().length===4&&!new URL(location.href).searchParams.has('outcome'));
+  // Switching study type clears the previous study type's outcome filter.
+  await p.selectOption('#browse-outcome-filter','mixed');
+  await p.click('.browse-kind-btn[data-kind="all"]');
+  assert.equal(await p.locator('#browse-outcome-filter').count(),0);
+  assert.ok(!new URL(p.url()).searchParams.has('outcome'));
+  // Deep-linking ?kind=reproduction displays an active reproduction filter note.
+  await p.goto(base+'?tab=browse&kind=reproduction');
+  await p.waitForSelector('#browse-reproduction-note');
+  // Invalid or cross-dimension outcome values normalize out of state and URL.
+  await p.goto(base+'?tab=browse&kind=replication&outcome=issues');
+  await p.waitForSelector('#browse-outcome-filter');
+  await p.waitForFunction(()=>!new URL(location.href).searchParams.has('outcome'));
+  assert.equal(await p.locator('#browse-outcome-filter').inputValue(),'');
+  // Navigating from Overview search clears any prior Browse outcome filter.
+  await p.selectOption('#browse-outcome-filter','failed');
+  await p.waitForFunction(()=>new URL(location.href).searchParams.get('outcome')==='failed');
+  await p.click('#overview-tab');
+  await p.locator('.example-chip').first().click();
+  await p.waitForFunction(()=>document.querySelector('.tab-pane.active')?.id==='browse'&&!new URL(location.href).searchParams.has('outcome'));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
+

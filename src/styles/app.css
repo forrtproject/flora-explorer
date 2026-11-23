@@ -421,6 +421,10 @@ a.ex-link:hover .ex-line-title { color: var(--color-primary); text-decoration: u
 .search-field input { width: 100%; padding-left: 2.2rem; min-height: 40px; font-size: var(--fs-6); }
 .browse-search-row .icon-btn, .browse-search-row .btn { min-height: 40px; height: 40px; }
 .browse-search-row .icon-btn { width: 40px; }
+.browse-outcome-row { gap: var(--space-2); }
+.browse-outcome-row select { min-width: min(100%, 260px); }
+.browse-active-kind-note { justify-content: space-between; padding: var(--space-2) var(--space-3); border-radius: var(--r); background: var(--color-primary-faint); }
+.browse-active-kind-note .note { margin: 0; }
 #view-feedback { font-size: var(--fs-3); color: var(--color-text-secondary); }
 #search-input { flex: 1; min-width: 0; }
 .browse-desktop { display: block; }

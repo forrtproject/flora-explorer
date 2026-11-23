@@ -1,9 +1,21 @@
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {BROWSE_KIND_LABELS, KINDS, TABS, TAB_ALIASES} from '../lib/config.js';
+import {kindDimension} from '../lib/outcomes.js';
+import {FloraVocabulary} from '../lib/vocabulary.js';
+
+const OUTCOME_KINDS = new Set(KINDS);
+function normalizeOutcome(kind, raw) {
+    if (!OUTCOME_KINDS.has(kind)) return '';
+    const value = String(raw || '').trim().toLowerCase();
+    if (!value) return '';
+    if (!FloraVocabulary.loaded()) return value;
+    const dim = kindDimension(kind);
+    return FloraVocabulary.entries(dim).some(e => (dim === 'replication' || e.assessed) && e.key === value) ? value : '';
+}
 
 const DEFAULTS = {
     tab: 'overview-tab', doi: '',
-    q: '', kind: 'all', sort: '4:desc', page: 1, pageSize: 25, mobilePage: 1,
+    q: '', kind: 'all', outcome: '', sort: '4:desc', page: 1, pageSize: 25, mobilePage: 1,
     trendsKind: 'replication', journalTopN: '15', repJournalTopN: '15',
     ciKind: 'replication', ciOutcome: 'all', filterOutcome: '', ciQ: '',
     mcKind: 'replication', aoKind: 'replication', pubKind: 'replication',
@@ -15,7 +27,7 @@ const DEFAULTS = {
 
 // [state key, URL parameter, owning tab]; a shared URL carries only the active view's choices.
 const PARAMS = [
-    ['q', 'q', 'browse-tab'], ['kind', 'kind', 'browse-tab'], ['sort', 'sort', 'browse-tab'], ['page', 'page', 'browse-tab'],
+    ['q', 'q', 'browse-tab'], ['kind', 'kind', 'browse-tab'], ['outcome', 'outcome', 'browse-tab'], ['sort', 'sort', 'browse-tab'], ['page', 'page', 'browse-tab'],
     ['pageSize', 'page-size', 'browse-tab'], ['mobilePage', 'mobile-page', 'browse-tab'],
     ['trendsKind', 'trends-kind', 'trends-tab'], ['journalTopN', 'journal-top-n', 'trends-tab'], ['repJournalTopN', 'rep-journal-top-n', 'trends-tab'],
     ['ciKind', 'ci-kind', 'citation-tab'], ['ciOutcome', 'ci-outcome', 'citation-tab'], ['filterOutcome', 'filter-outcome', 'citation-tab'], ['ciQ', 'ci-q', 'citation-tab'],
@@ -32,12 +44,14 @@ function parse(url) {
     const get = key => url.searchParams.get(key);
     const tabParam = (get('tab') || '').toLowerCase();
     const sort = get('sort')?.split(':');
+    const kind = oneOf(get('kind'), Object.keys(BROWSE_KIND_LABELS), 'all');
     return {
         // A DOI-only share link targets Citation Impact.
         tab: TABS.find(t => t.param === tabParam)?.id || TAB_ALIASES[tabParam] || (get('doi') && !get('tab') ? 'citation-tab' : 'overview-tab'),
         doi: get('doi') || '',
         q: get('q') || '',
-        kind: oneOf(get('kind'), Object.keys(BROWSE_KIND_LABELS), 'all'),
+        kind,
+        outcome: normalizeOutcome(kind, get('outcome')),
         sort: sort && /^[1-8]$/.test(sort[0]) && ['asc', 'desc'].includes(sort[1]) ? sort.join(':') : '4:desc',
         page: positive(get('page'), 1),
         pageSize: oneOf(Number(get('page-size') || 25), [10, 25, 50, 100, -1], 25),
@@ -63,7 +77,8 @@ function serialize(view) {
     const tab = TABS.find(t => t.id === view.tab);
     if (tab.param !== 'overview') url.searchParams.set('tab', tab.param);
     for (const [key, param, owner] of PARAMS) {
-        if (owner === view.tab && String(view[key]) !== String(DEFAULTS[key])) url.searchParams.set(param, view[key]);
+        const val = key === 'outcome' ? normalizeOutcome(view.kind, view.outcome) : view[key];
+        if (owner === view.tab && String(val) !== String(DEFAULTS[key])) url.searchParams.set(param, val);
     }
     if (view.tab === 'citation-tab' && view.doi) url.searchParams.set('doi', view.doi);
     return url;
@@ -81,8 +96,25 @@ export function ViewProvider({children}) {
     current.current = view;
 
     useEffect(() => { history.replaceState(null, '', serialize(view)); }, [view]);
+    useEffect(() => {
+        let cancelled = false;
+        FloraVocabulary.ready.then(() => {
+            if (cancelled) return;
+            setState(prev => {
+                const clean = normalizeOutcome(prev.kind, prev.outcome);
+                return clean === prev.outcome ? prev : {...prev, outcome: clean};
+            });
+        }, () => {});
+        return () => { cancelled = true; };
+    }, []);
 
-    const setView = useCallback(patch => setState(prev => ({...prev, ...(typeof patch === 'function' ? patch(prev) : patch)})), []);
+    const setView = useCallback(patch => setState(prev => {
+        const delta = typeof patch === 'function' ? patch(prev) : patch;
+        const next = {...prev, ...delta};
+        const kindChanged = 'kind' in delta && next.kind !== prev.kind;
+        next.outcome = normalizeOutcome(next.kind, kindChanged && !('outcome' in delta) ? '' : next.outcome);
+        return next;
+    }), []);
     const pushEntry = useCallback(() => history.pushState(null, '', location.href), []);
     const switchTab = useCallback(tab => {
         if (current.current.tab === tab) return;
