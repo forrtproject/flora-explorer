@@ -333,10 +333,15 @@ export function ExternalLink({href, children, className = 'doi-link', ...rest}) 
 export function CopyButton({getText, className = 'btn copy-btn', label, children = 'Copy', id}) {
     const [status, setStatus] = useState('idle');
     const copy = () => {
-        navigator.clipboard.writeText(getText()).then(
-            () => { setStatus('copied'); setTimeout(() => setStatus(s => s === 'copied' ? 'idle' : s), 1800); },
-            () => { setStatus('failed'); setTimeout(() => setStatus(s => s === 'failed' ? 'idle' : s), 2500); },
-        );
+        const fail = () => { setStatus('failed'); setTimeout(() => setStatus(s => s === 'failed' ? 'idle' : s), 2500); };
+        try {
+            navigator.clipboard.writeText(getText()).then(
+                () => { setStatus('copied'); setTimeout(() => setStatus(s => s === 'copied' ? 'idle' : s), 1800); },
+                fail,
+            );
+        } catch {
+            fail();
+        }
     };
     return (
         <>

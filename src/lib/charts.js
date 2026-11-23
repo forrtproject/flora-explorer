@@ -261,8 +261,8 @@ export function comparisonOption({groups, series: all}, {counts = false, width =
                 return tipRow(series[p.seriesIndex].color, counts ? `${p.seriesName}: ${number(n)}` : `${p.seriesName}: ${percent(n, totals[i], 1)}% (${number(n)})`);
             })]);
     }};
-    const values = valueAxis(counts ? {...countAxis(), name: 'Reference pairs'}
-        : {name: narrow ? 'Within-group\npercentage' : 'Within-group percentage', min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}});
+    const values = valueAxis(counts ? {...countAxis(), name: 'Reference pairs', nameGap: narrow ? 26 : 14}
+        : {name: narrow ? 'Within-group\npercentage' : 'Within-group percentage', nameGap: narrow ? 28 : 14, min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}});
     const labelWidth = narrow ? 88 * textScale() : Math.max(88, Math.min(180, Math.floor((width - 80) / Math.max(groups.length, 1)) - 14)) * textScale();
     const cats = categoryAxis({data: labels, inverse: narrow, axisLabel: {interval: 0, width: labelWidth, overflow: 'break', lineHeight: Math.round(15 * textScale())}});
     return finishOption({series: bars, tooltip, xAxis: narrow ? values : cats, yAxis: narrow ? cats : values}, {width});

@@ -1620,7 +1620,7 @@ test('redesign polish: distinct study-type colors, tablet cards, visible mobile 
   await tip.click();
   await p.waitForFunction(()=>getComputedStyle(document.querySelector('#overview .info-tip')).opacity==='1');
   const tipBox=await p.locator('#overview .info-tip').first().boundingBox();
-  assert.ok(tipBox.y>=0&&tipBox.y+tipBox.height<=700,`mobile InfoTip off-screen: ${JSON.stringify(tipBox)}`);
+  assert.ok(tipBox.x>=0&&tipBox.x+tipBox.width<=320&&tipBox.y>=0&&tipBox.y+tipBox.height<=700,`mobile InfoTip off-screen: ${JSON.stringify(tipBox)}`);
   const det=p.locator('#overview .outcome-definitions');
   await det.locator('summary').click();
   const keyFits=await det.evaluate(el=>{const r=el.getBoundingClientRect();return [...el.querySelectorAll('.key-tabs button')].every(b=>b.getBoundingClientRect().right<=r.right+1);});
@@ -1630,6 +1630,6 @@ test('redesign polish: distinct study-type colors, tablet cards, visible mobile 
   await p.click('#mc-tab');
   await p.waitForSelector('#mc-overview .mc-stat');
   const mcRows=await p.locator('#mc-overview .mc-stat').evaluateAll(els=>Object.values(els.reduce((m,el)=>{const y=Math.round(el.getBoundingClientRect().top);m[y]=(m[y]||0)+1;return m;},{})));
-  assert.ok(mcRows.every(c=>c===mcRows[0]),`unbalanced Mean Citedness rows: ${mcRows}`);
+  assert.deepEqual(mcRows,[5,5],`Mean Citedness rows at 1440px: ${mcRows}`);
   assert.deepEqual(p.errors,[]);await p.close();
 });
