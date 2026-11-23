@@ -1599,6 +1599,9 @@ test('Citation Impact mobile provides visible Sort by control, removes hidden th
   const numericYears=years.map(Number).filter(Boolean);
   assert.deepEqual(numericYears,[...numericYears].sort((a,b)=>a-b));
   await p.selectOption('#ci-mobile-sort','n_replications:asc');
+  await p.selectOption('#ci-mobile-sort','cocit_prop:asc');
+  const firstCocit=await p.locator('#originals-table tbody tr td[data-label="Co-citations"]').first().innerText();
+  assert.match(firstCocit,/0% of /);
   // Clicking a row title (not the Timeline button) returns focus to that row's Timeline button on Escape.
   await p.setViewportSize({width:1280,height:900});
   await p.waitForFunction(()=>document.querySelectorAll('#originals-table thead button').length===5);

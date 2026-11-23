@@ -193,8 +193,13 @@ function OriginalsTable({index, excluded, onOpen, status}) {
     const matches = useMemo(() => {
         const tokens = searchTokens(query);
         const out = index.filter(s => matchesTokens(s.searchText, tokens) && (!filter || outcomeGroup(s) === filter));
-        const value = s => s[sort.col] != null ? s[sort.col] : -Infinity;
-        return out.sort((a, b) => sort.dir === 'asc' ? value(a) - value(b) : value(b) - value(a));
+        return out.sort((a, b) => {
+            const av = a[sort.col], bv = b[sort.col];
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return sort.dir === 'asc' ? av - bv : bv - av;
+        });
     }, [index, query, filter, sort]);
     // A search with no results may name an original that this snapshot left out.
     const leftOut = useMemo(() => query.trim() && !matches.length ? excluded.filter(e => matchesTokens(e.searchText, searchTokens(query))) : [], [excluded, query, matches.length]);
@@ -554,7 +559,7 @@ export function useCitations() {
         const searchText = s => normalizedQuery([s.title, searchAuthorNames(s.author), ...(authors.get(normalizeDoi(s.doi)) || []), s.year, s.venue, s.doi].filter(Boolean).join(' | '));
         return {
             // Share of citations since the first replication: earlier citing works could never have co-cited one.
-            index: data.index.map(s => ({...s, cocit_prop: s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : 0, searchText: searchText(s)})),
+            index: data.index.map(s => ({...s, cocit_prop: s.n_citations_post_first_rep > 0 ? s.n_cocitations / s.n_citations_post_first_rep : null, searchText: searchText(s)})),
             excluded: (Array.isArray(data.meta?.excluded_originals) ? data.meta.excluded_originals : []).map(e => ({...e, searchText: searchText(e)})),
         };
     }, [data.index, data.meta, rows]);
