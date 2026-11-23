@@ -157,6 +157,16 @@ const outcomeGroup = s => {
     return outcomes.length === 1 ? outcomes[0] : outcomes.length ? 'multiple' : null;
 };
 
+const CI_MOBILE_SORTS = [
+    ['n_citations:desc', 'Most cited'],
+    ['n_citations:asc', 'Least cited'],
+    ['n_cocitations:desc', 'Most co-cited (count)'],
+    ['cocit_prop:desc', 'Highest co-citation share'],
+    ['n_replications:desc', 'Most replications'],
+    ['year:desc', 'Newest original'],
+    ['year:asc', 'Oldest original'],
+];
+
 function OriginalsTable({index, excluded, onOpen, status}) {
     const {view, setView} = useView();
     const [input, setInput] = useState(view.ciQ);
@@ -219,6 +229,12 @@ function OriginalsTable({index, excluded, onOpen, status}) {
             </Callout>
             {/* A key for the replication bars; each bar also names its counts to screen readers and on hover. */}
             <div className="rep-key" aria-hidden="true"><span>Replications bar:</span>{MIX_ORDER.map(o => <span key={o}><i className={o} />{FloraVocabulary.label(o)}</span>)}</div>
+            <label className="bm-sort ci-mobile-sort" htmlFor="ci-mobile-sort">Sort by <select id="ci-mobile-sort" className="form-select"
+                value={CI_MOBILE_SORTS.some(([v]) => v === `${sort.col}:${sort.dir}`) ? `${sort.col}:${sort.dir}` : 'custom'}
+                onChange={e => { const [col, dir] = e.target.value.split(':'); setSort({col, dir}); setPage(1); }}>
+                {CI_MOBILE_SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                <option value="custom" disabled hidden>Order set in desktop table</option>
+            </select></label>
             <TableScroll label="Originals with citation data">
                 <table id="originals-table" tabIndex={-1} className="table" data-query={status === 'ready' ? query : undefined}>
                     <thead>
@@ -236,7 +252,7 @@ function OriginalsTable({index, excluded, onOpen, status}) {
                     <tbody>
                         {status !== 'ready' && <tr><td colSpan={5} className="table-empty">{status === 'error' ? 'No data yet.' : 'Loading…'}</td></tr>}
                         {slice.map(s => (
-                            <tr key={s.doi} data-doi={s.doi} onClick={() => onOpen(s.doi)}>
+                            <tr key={s.doi} data-doi={s.doi} onClick={e => onOpen(s.doi, e.currentTarget.querySelector('.timeline-open'))}>
                                 {/* The timeline action sits with the title it opens, so it stays in view on narrow screens. */}
                                 <td className="orig-cell"><div className="title-cell">{s.title || '(untitled)'}</div><div className="author-cell">{citationAuthors(s.author)}{venueText(s.venue)}</div>
                                     <button type="button" className="btn timeline-open" aria-label={`Open citation timeline for ${s.title || s.doi}`}><Icon.chart />Timeline</button></td>
@@ -429,7 +445,7 @@ const studyCache = new Map();
 const DIALOG_CONTEXT = {active: true, visited: true, selection: '', kind: ''};
 
 // The timeline dialog: traps focus, closes on Escape or backdrop click, and returns focus to its opener.
-function TimelineDialog({entry, meta, onClose}) {
+function TimelineDialog({entry, meta, openerRef, onClose}) {
     const {stamps} = useData();
     const [state, setState] = useState({});
     const modal = useRef(null);
@@ -453,7 +469,8 @@ function TimelineDialog({entry, meta, onClose}) {
         return () => { cancelled = true; };
     }, [entry]);
     useEffect(() => {
-        const opener = document.activeElement;
+        const opener = openerRef?.current || document.activeElement;
+        if (openerRef) openerRef.current = null;
         const background = document.querySelectorAll('.top-bar, main, .footer-bar');
         background.forEach(el => { el.inert = true; });
         closeButton.current.focus();
@@ -498,12 +515,13 @@ export function CitationDialog({data}) {
     }, [view.doi, data.index]);
     // The hidden shell keeps #ci-modal addressable while no timeline is open.
     if (!entry || view.tab !== 'citation-tab') return <div className="modal-backdrop" id="ci-modal" role="dialog" aria-modal="true" aria-label="Citation timeline and replication evidence" hidden />;
-    return <TimelineDialog entry={entry} meta={data.meta} onClose={() => setView({doi: ''})} />;
+    return <TimelineDialog entry={entry} meta={data.meta} openerRef={data.openerRef} onClose={() => setView({doi: ''})} />;
 }
 
 export function useCitations() {
     const {view} = useView();
     const {rows} = useData();
+    const openerRef = useRef(null);
     const [wanted, setWanted] = useState(false);
     useEffect(() => { if (view.tab === 'citation-tab' || view.doi) setWanted(true); }, [view.tab, view.doi]);
     const data = useCitationData(wanted);
@@ -524,7 +542,7 @@ export function useCitations() {
             excluded: (Array.isArray(data.meta?.excluded_originals) ? data.meta.excluded_originals : []).map(e => ({...e, searchText: searchText(e)})),
         };
     }, [data.index, data.meta, rows]);
-    return useMemo(() => ({...data, index: index?.index ?? null, excluded: index?.excluded ?? []}), [data, index]);
+    return useMemo(() => ({...data, openerRef, index: index?.index ?? null, excluded: index?.excluded ?? []}), [data, index]);
 }
 
 export default function CitationImpact({data}) {
@@ -536,7 +554,7 @@ export default function CitationImpact({data}) {
     const repro = data.repro?.[kind];
     const buckets = ready && kind !== 'replication' ? outcomeBuckets(kind) : [];
     const reproTotal = buckets.reduce((sum, b) => sum + (repro?.[b.key]?.n_originals || 0), 0);
-    const open = doi => { pushEntry(); setView({doi}); };
+    const open = (doi, openerEl) => { if (data.openerRef) data.openerRef.current = openerEl || null; pushEntry(); setView({doi}); };
     const outcomeLabels = ready ? Object.fromEntries(MIX_ORDER.map(key => [key, FloraVocabulary.label(key)])) : {};
 
     return (

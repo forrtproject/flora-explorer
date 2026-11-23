@@ -1584,3 +1584,28 @@ test('every chart states N of M in its chart data',async()=>{
   assert.ok((await p.locator('#browse-computational-chart-data .chart-summary').textContent()).startsWith(`Included in the plot: ${plotted.toLocaleString('en-GB')} of ${reproductions.toLocaleString('en-GB')} reference pairs; excluded from this selection: ${(reproductions-plotted).toLocaleString('en-GB')} reference ${reproductions-plotted===1?'pair':'pairs'}.`));
   assert.deepEqual(p.errors,[]);await p.close();
 });
+
+test('Citation Impact mobile provides visible Sort by control, removes hidden thead focus stops, and restores row focus',async()=>{
+  const p=await page('?tab=citations',390);
+  await p.waitForSelector('.timeline-open');
+  assert.ok(await p.locator('#ci-mobile-sort').isVisible());
+  // Hidden desktop table headers must not remain keyboard-focusable on phones.
+  const theadVisible=await p.locator('#originals-table thead').evaluate(el=>getComputedStyle(el).display);
+  assert.equal(theadVisible,'none');
+  await p.selectOption('#ci-mobile-sort','year:asc');
+  const years=await p.locator('#originals-table tbody tr td[data-label="Year"]').allTextContents();
+  const numericYears=years.map(Number).filter(Boolean);
+  assert.deepEqual(numericYears,[...numericYears].sort((a,b)=>a-b));
+  // Clicking a row title (not the Timeline button) still returns focus to that row's Timeline button on Escape.
+  await p.setViewportSize({width:1280,height:900});
+  const secondRow=p.locator('#originals-table tbody tr[data-doi]').nth(1);
+  const expectedDoi=await secondRow.getAttribute('data-doi');
+  await secondRow.locator('.title-cell').click();
+  await p.waitForSelector('#ci-modal:not([hidden])');
+  await p.keyboard.press('Escape');
+  await p.waitForFunction(()=>document.getElementById('ci-modal').hidden);
+  const focusedDoi=await p.evaluate(()=>document.activeElement?.closest('tr')?.dataset?.doi||null);
+  assert.equal(focusedDoi,expectedDoi);
+  assert.ok(await p.evaluate(()=>document.activeElement.classList.contains('timeline-open')));
+  assert.deepEqual(p.errors,[]);await p.close();
+});
