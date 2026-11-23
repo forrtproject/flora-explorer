@@ -152,10 +152,11 @@ export function stackedBarOption({categories, series, horizontal = false, pooled
     const t = chartTheme();
     const totals = categories.map((_, i) => series.reduce((n, s) => n + (Number(s.values[i]) || 0), 0));
     const plotted = shares ? series.map(s => s.values.map((v, i) => totals[i] ? 100 * v / totals[i] : 0)) : series.map(s => s.values);
-    const corners = stackCorners(plotted, horizontal, horizontal ? 5 : 3);
+    const isHorizontal = horizontal || proportion;
+    const corners = stackCorners(plotted, isHorizontal, isHorizontal ? 5 : 0);
     const bars = series.map((s, si) => ({
-        name: s.name, type: 'bar', stack: 'total', ...(horizontal || proportion ? {barWidth: proportion ? 18 : 14} : {barMaxWidth: 26}),
-        itemStyle: {color: s.color, borderColor: t.paper, borderWidth: 1},
+        name: s.name, type: 'bar', stack: 'total', ...(isHorizontal ? {barWidth: proportion ? 18 : 14} : {barMaxWidth: 26}),
+        itemStyle: {color: s.color, ...(isHorizontal ? {borderColor: t.paper, borderWidth: 1} : {borderWidth: 0})},
         emphasis: {focus: 'series'},
         data: plotted[si].map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), ...(shares && totals[i] < GROUP_MIN_N ? {opacity: .4} : {})}})),
     }));
