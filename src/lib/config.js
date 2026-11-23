@@ -34,7 +34,7 @@ export const STAMPS = {
 
 export const TABS = [
     {id: 'overview-tab', pane: 'overview', param: 'overview', label: 'Overview'},
-    {id: 'browse-tab', pane: 'browse', param: 'browse', label: 'Browse reference pairs'},
+    {id: 'browse-tab', pane: 'browse', param: 'browse', label: 'Browse reference pairs', shortLabel: 'Browse pairs'},
     {id: 'trends-tab', pane: 'trends', param: 'trends', label: 'Years & Disciplines'},
     {id: 'citation-tab', pane: 'citation-impact', param: 'citations', label: 'Citation Impact'},
     {id: 'mc-tab', pane: 'mean-citedness', param: 'mean-citedness', label: 'Mean Citedness'},
