@@ -46,6 +46,16 @@ export function Note({as: Tag = 'p', className, children, ...rest}) {
 export function Button({variant, className, children, ...rest}) {
     return <button type="button" className={cx('btn', variant && `btn--${variant}`, className)} {...rest}>{children}</button>;
 }
+// A two-way view switch drawn as a segmented control: both choices are visible and the current one is filled,
+// so it shows what is active rather than what a click would switch to. It is one switch (on = second choice).
+export function ModeToggle({id, on, onToggle, label, offLabel = 'Percentages', onLabel = 'Counts'}) {
+    return (
+        <button type="button" id={id} role="switch" aria-checked={on} aria-label={label} className="chart-mode mode-toggle" onClick={onToggle}>
+            <span className={on ? undefined : 'is-active'} aria-hidden="true">{offLabel}</span>
+            <span className={on ? 'is-active' : undefined} aria-hidden="true">{onLabel}</span>
+        </button>
+    );
+}
 // A failed load: what failed, why in plain words, and a way to try again. Announced as an alert.
 export function LoadError({id, label, reason, onRetry, className}) {
     return (

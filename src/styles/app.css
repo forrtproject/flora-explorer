@@ -51,42 +51,48 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .skip-link { position: fixed; top: .5rem; left: .5rem; z-index: 1300; padding: .5rem 1rem; background: var(--color-surface-raised); color: var(--color-text); border-radius: var(--r); transform: translateY(-200%); }
 .skip-link:focus { transform: none; }
 
-/* ── Chrome ── */
+/* ── Chrome ──
+   Header and footer match the Replication Atlas exactly (forrt.org/flora-replication-atlas): same #2c2c2c bar,
+   52px height, 1.25rem gutters, shadow, brand lock-up, 13px link text at 60% white and 12px footer text. */
 .top-bar { flex-shrink: 0; background: var(--color-neutral); color: #fff; box-shadow: var(--shadow-chrome); z-index: var(--z-sticky); }
 .top-bar-inner { display: flex; align-items: center; gap: var(--space-4); height: 52px; padding: 0 1.25rem; }
-.brand-mark { display: flex; align-items: center; gap: .5rem; color: #fff; text-decoration: none; flex-shrink: 0; }
+.brand-mark { display: flex; align-items: center; gap: .5rem; color: #fff; text-decoration: none; flex-shrink: 0; min-width: 0; }
 .brand-mark:hover { color: #fff; }
-.brand-icon { width: 30px; height: 30px; display: grid; place-items: center; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .12); border-radius: var(--r); }
+.brand-icon { flex-shrink: 0; width: 30px; height: 30px; display: grid; place-items: center; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .12); border-radius: var(--r); }
 .brand-icon img { width: 20px; height: 20px; }
-.brand-name { display: flex; flex-direction: column; line-height: 1.1; }
-.brand-name strong { font-family: var(--font-display); font-size: var(--fs-5); letter-spacing: .2px; }
-.brand-name span { font-size: var(--fs-1); letter-spacing: .6px; text-transform: uppercase; color: rgba(255, 255, 255, .72); }
+.brand-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.brand-name strong { font-family: var(--font-display); font-size: var(--fs-5); font-weight: 700; letter-spacing: .2px; }
+/* The subtitle stays on one line. Tabs take priority: when they no longer fit beside it, the subtitle is hidden
+   (the full name is also in the brand link's label and the Overview introduction), and only then the tab menu replaces them. */
+.brand-name span { font-size: var(--fs-1); letter-spacing: .6px; text-transform: uppercase; white-space: nowrap; opacity: .5; }
+.brand-compact .brand-name span { display: none; }
 /* The strip sits on the right, beside the actions; it still shrinks so overflow can be measured. */
-.nav-tabs { display: flex; flex: 0 1 auto; min-width: 0; gap: .15rem; margin: 0 0 0 auto; padding: 0; list-style: none; height: 100%; overflow: hidden; }
+.nav-tabs { display: flex; flex: 0 1 auto; align-items: center; min-width: 0; gap: .15rem; margin: 0 0 0 auto; padding: 0; list-style: none; height: 100%; overflow: hidden; }
 .nav-item { display: flex; }
-.nav-link { position: relative; padding: 0 .7rem; border: 0; background: none; color: rgba(255, 255, 255, .78); font-size: var(--fs-4); font-weight: 500; white-space: nowrap; transition: color var(--fast); }
-.nav-link::after { content: ""; position: absolute; left: .7rem; right: .7rem; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--color-primary-on-chrome); transform: scaleX(0); transition: transform var(--slow); }
-.nav-link:hover, .nav-link.active { color: #fff; }
-.nav-link:focus-visible { outline-offset: -4px; }
-.nav-link.active { font-weight: 600; }
-.nav-link.active::after { transform: scaleX(1); }
+/* Tabs use the Atlas link style; the current tab is white on a faint fill, so it reads as selected, not hovered. */
+.nav-link { padding: .35rem .7rem; border: 0; border-radius: var(--r); background: none; color: rgba(255, 255, 255, .6); font-size: var(--fs-4); font-weight: 400; white-space: nowrap; transition: color var(--fast), background var(--fast); }
+.nav-link:hover { color: rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .08); }
+.nav-link.active { color: #fff; background: rgba(255, 255, 255, .12); }
+.nav-link:focus-visible { outline-offset: -2px; }
 .top-bar-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 .navigation-collapsed .top-bar-actions { margin-left: 0; }
-.top-bar-cta { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .85rem; border-radius: var(--r); background: #853953; color: #fff; font-size: var(--fs-3); font-weight: 600; text-decoration: none; white-space: nowrap; transition: background var(--fast); }
-.top-bar-cta:hover { background: #612d53; color: #fff; }
-.theme-toggle { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, .14); border-radius: var(--r); background: rgba(255, 255, 255, .08); color: #fff; transition: background var(--fast); }
-.theme-toggle:hover { background: rgba(255, 255, 255, .16); }
+.top-bar-cta { display: inline-flex; align-items: center; gap: .35rem; margin-left: .25rem; padding: .35rem .75rem; border-radius: var(--r); background: #853953; color: rgba(255, 255, 255, .95); font-size: var(--fs-3); font-weight: 600; text-decoration: none; white-space: nowrap; transition: background var(--fast); }
+.top-bar-cta:hover { background: #a04d6b; color: #fff; }
+.theme-toggle { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, .12); border-radius: var(--r); background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .9); transition: background var(--fast); }
+.theme-toggle:hover { background: rgba(255, 255, 255, .16); color: #fff; }
 .theme-toggle svg { width: 16px; height: 16px; }
 .icon-sun, [data-theme="dark"] .icon-moon { display: none; }
 [data-theme="dark"] .icon-sun { display: block; }
 .mobile-navigation { display: none; }
-.navigation-collapsed .mobile-navigation { display: flex; align-items: center; gap: .5rem; flex: 1; min-width: 0; font-size: var(--fs-3); color: rgba(255, 255, 255, .78); }
+.navigation-collapsed .mobile-navigation { display: flex; align-items: center; gap: .5rem; flex: 1; min-width: 0; font-size: var(--fs-4); color: rgba(255, 255, 255, .6); }
 .mobile-navigation select { width: 100%; min-width: 0; padding: .4rem .5rem; background: #3a3a3a; color: #fff; border: 1px solid rgba(255, 255, 255, .35); border-radius: var(--r); }
 .navigation-collapsed .nav-tabs { display: none; }
-.footer-bar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; padding: .45rem 1.25rem; background: var(--color-neutral); color: rgba(255, 255, 255, .78); font-size: var(--fs-3); }
-.footer-bar div { display: flex; gap: var(--space-4); flex-wrap: wrap; }
-.footer-bar a { display: inline-flex; align-items: center; min-height: 24px; color: #fff; text-decoration: none; }
-.footer-bar a:hover { text-decoration: underline; }
+/* Atlas footer: 12px text at 45% white, links at 40% that brighten on hover. Links keep a 24px target inside the
+   same 37px bar by trading block padding for link height. */
+.footer-bar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .4rem 1.25rem; background: var(--color-neutral); color: rgba(255, 255, 255, .45); font-size: var(--fs-3); }
+.footer-bar div { display: flex; flex-wrap: wrap; }
+.footer-bar a { display: inline-flex; align-items: center; min-height: 24px; margin-left: 1rem; color: rgba(255, 255, 255, .4); text-decoration: none; transition: color var(--fast); }
+.footer-bar a:hover { color: rgba(255, 255, 255, .75); }
 
 /* ── Page frame ── */
 /* Positioned so visually hidden labels inside wide tables are clipped here, not at the document. */
@@ -102,7 +108,11 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .pane-head h1 { font-size: var(--fs-8); letter-spacing: -.01em; color: var(--color-primary); }
 .pane-head p { margin: var(--space-2) 0 0; font-size: var(--fs-6); color: var(--color-text-secondary); }
 .pane-meta { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2); }
-.pane-meta > details[open] { flex-basis: 100%; }
+/* The citation disclosure always has its own row, so opening it never moves its button: the panel unfolds below. */
+.pane-meta > .tab-cite-block.disclosure { flex-basis: 100%; padding: 0; border: 0; border-radius: 0; background: none; }
+.pane-meta > .tab-cite-block > summary { width: fit-content; border: 1px solid var(--color-border-light); border-radius: 16px; background: var(--color-surface-raised); }
+.pane-meta > .tab-cite-block > .cite-panel { margin: var(--space-2) 0 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border-light); border-radius: var(--r-lg); background: var(--color-surface-raised); }
+.cite-panel > :first-child { margin-top: 0; }
 .loading-spinner { display: grid; gap: var(--space-4); padding-block: var(--space-6); }
 .skeleton { border-radius: var(--r); background: linear-gradient(90deg, var(--color-surface-alt) 25%, var(--color-border-light) 50%, var(--color-surface-alt) 75%) 0 0 / 200% 100%; animation: sweep 1.4s linear infinite; }
 @keyframes sweep { to { background-position: -200% 0; } }
@@ -158,6 +168,13 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .copy-feedback--failed { background: var(--color-warning-bg); }
 @keyframes copyIn { from { opacity: 0; transform: translateX(4px); } }
 @media (prefers-reduced-motion: reduce) { .copy-feedback { animation: none; } }
+.chart-tip-subhead { display: block; margin-top: .35rem; font-size: var(--fs-2); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+.chart-footnote { margin: var(--space-3) 0 0; }
+/* Percentages | Counts: a segmented switch whose filled half is the view on screen. */
+.mode-toggle { display: inline-flex; align-items: stretch; gap: 2px; min-height: 32px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--r); background: var(--color-surface-alt); font-size: var(--fs-4); font-weight: 600; }
+.mode-toggle > span { display: inline-flex; align-items: center; padding: 0 .65rem; border-radius: calc(var(--r) - 3px); color: var(--color-text-secondary); transition: background var(--fast), color var(--fast); }
+.mode-toggle > span.is-active { background: var(--color-surface-raised); color: var(--color-primary); box-shadow: var(--lift-sm); }
+.mode-toggle:hover > span:not(.is-active) { color: var(--color-text); }
 .chart-tip-swatch { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 .plot-message { display: grid; place-items: center; min-height: 160px; padding: var(--space-5); color: var(--color-text-secondary); text-align: center; }
 
@@ -326,7 +343,7 @@ code { font-family: var(--font-mono); font-size: .85em; }
 .data-stamp.stale::before, .data-stamp.partial::before { background: var(--color-warning); }
 .data-stamp.missing::before { background: var(--color-muted-fg); }
 .data-stamp a { text-decoration: underline; }
-.tab-cite-block, .pane-meta > .disclosure { border-radius: 16px; }
+.tab-cite-block { border-radius: 16px; }
 .tab-cite-block-label { margin-top: var(--space-2); font-size: var(--fs-2); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--color-text-secondary); }
 .cite-ref, .citation-box { font-family: var(--font-display); font-size: var(--fs-4); line-height: 1.55; overflow-wrap: anywhere; }
 .cite-ref { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--r); background: var(--color-surface-subtle); }
@@ -500,13 +517,13 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
 .rep-key { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .9rem; margin-block: var(--space-3) 0; font-size: var(--fs-3); color: var(--color-text-secondary); }
 .ci-mobile-sort { display: none; margin-top: var(--space-3); }
 .rep-key > span { display: inline-flex; align-items: center; gap: .35rem; }
-.rep-key i { width: 10px; height: 8px; border-radius: var(--r-full); }
+.rep-key i { width: 10px; height: 8px; }
 .rep-key .successful { background: var(--color-chart-successful); } .rep-key .failed { background: var(--color-chart-failed); } .rep-key .mixed { background: var(--color-chart-mixed); }
 .title-cell { font-family: var(--font-display); font-weight: 600; line-height: 1.4; }
 .author-cell { font-size: var(--fs-4); color: var(--color-text-secondary); }
 .cocit-pct { color: var(--color-text-secondary); font-size: var(--fs-4); }
 .rep-bar-wrap { display: flex; align-items: center; gap: .5rem; min-width: 90px; }
-.rep-bar { display: flex; flex: 1; height: 8px; border-radius: var(--r-full); overflow: hidden; background: var(--color-surface-alt); }
+.rep-bar { display: flex; flex: 1; height: 8px; overflow: hidden; background: var(--color-surface-alt); }
 .rep-seg { height: 100%; min-width: 3px; }
 .rep-seg.failed { background: var(--color-chart-failed); }
 .rep-seg.mixed { background: var(--color-chart-mixed); }
@@ -538,7 +555,7 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
    theme toggle). Wide mouse layouts keep their compact sizes, which already meet the 24px WCAG 2.2 AA minimum. */
 @media (pointer: coarse), (max-width: 767px) {
     .rep-chip, .btn, .theme-toggle, .icon-btn, .table-sort, .cocit-sort-btn, .chip, .trend-filter-btn, .example-chip,
-    .disclosure > summary, .bm-evidence > summary, .pagination button, .key-tabs button, .mobile-navigation select { min-height: 44px; }
+    .disclosure > summary, .bm-evidence > summary, .pagination button, .key-tabs button, .mobile-navigation select, .mode-toggle { min-height: 44px; }
     .theme-toggle, .icon-btn, .cocit-sort-btn, .pagination button { min-width: 44px; }
     .browse-search-row .icon-btn, .browse-search-row .btn { height: 44px; min-height: 44px; }
     .browse-search-row .icon-btn { width: 44px; }
@@ -573,7 +590,7 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
 .excluded-originals[open] .excluded-toggle::after { transform: rotate(-90deg); }
 .excluded-coverage, .excluded-note { margin: 0 var(--space-4); }
 .excluded-coverage { padding-top: var(--space-3); border-top: 1px solid var(--color-warning-border); }
-.excluded-bar { display: flex; height: 8px; border-radius: var(--r-full); background: var(--color-surface-alt); overflow: hidden; }
+.excluded-bar { display: flex; height: 8px; background: var(--color-surface-alt); overflow: hidden; }
 .excluded-bar-included { display: block; height: 100%; background: var(--color-primary); }
 .excluded-bar-excluded { display: block; height: 100%; min-width: 2px; flex-shrink: 0; background: var(--color-warning); }
 .excluded-legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-top: .4rem; font-size: var(--fs-3); color: var(--color-text-secondary); }
@@ -621,6 +638,8 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
     .tab-pane > .section, .tab-pane > div > .section { margin-top: var(--space-5); }
     .top-bar-inner { gap: .65rem; padding-inline: .75rem; }
     .top-bar-cta, .mobile-navigation > span { display: none; }
+    /* Phones keep the title only; the subtitle would leave the tab menu too narrow to read. */
+    .brand-name span { display: none; }
     /* Phones give the reading area the full height: the footer's links are also under "More replication tools". */
     .footer-bar { display: none; }
     .hero { padding-block: var(--space-5) var(--space-5); }
@@ -686,6 +705,7 @@ tr.shown > td { background: var(--color-primary-faint); border-bottom-color: tra
 @media (forced-colors: active) {
     .nav-link.active { border-bottom: 5px double Highlight; }
     :is(.trend-filter-btn, .chip).active { outline: 2px solid Highlight; outline-offset: 1px; }
+    .mode-toggle > span.is-active { outline: 2px solid Highlight; outline-offset: -2px; }
     .rep-seg { forced-color-adjust: none; background: Canvas !important; border-right: 1px solid CanvasText; }
     .rep-seg.failed { background: CanvasText !important; }
     .rep-seg.successful { background: repeating-linear-gradient(90deg, Canvas 0 2px, CanvasText 2px 3px) !important; }

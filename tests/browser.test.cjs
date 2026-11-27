@@ -1622,7 +1622,8 @@ test('redesign polish: distinct study-type colors, tablet cards, visible mobile 
   await p.click('#theme-toggle');
   await p.click('#trends .trend-filter-btn[data-kind="replication"]');
   await p.click('#trend-field-mode');
-  assert.match(await p.locator('#trends-charts .trend-block').last().innerText(),/reference-pair counts[\s\S]*Show percentages/i);
+  assert.match(await p.locator('#trends-charts .trend-block').last().innerText(),/reference-pair counts[\s\S]*Switch to Percentages/i);
+  assert.equal(await p.locator('#trend-field-mode').getAttribute('aria-checked'),'true');
   await p.click('#browse-tab');
   await p.setViewportSize({width:768,height:1024});
   assert.ok(await p.locator('.browse-mobile').isVisible());

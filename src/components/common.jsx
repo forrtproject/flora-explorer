@@ -147,12 +147,17 @@ export function Pane({id, tabId, title, sources = [], selection = [], kind = '',
     );
 }
 
-export function CiteBlock({label = 'How to cite', summary = 'Citation and reuse guidance', children}) {
+// "How to cite" by default. reuse: the re-use guidance paragraph, which turns the block into
+// "Citation and reuse guidance" (Overview and Browse, where the dataset itself is offered for re-use).
+export function CiteBlock({summary, reuse, children}) {
     return (
         <details className="disclosure tab-cite-block">
-            <summary>{summary}</summary>
-            <div className="tab-cite-block-label">{label}</div>
-            {children}
+            <summary>{summary || (reuse ? 'Citation and reuse guidance' : 'How to cite')}</summary>
+            <div className="cite-panel">
+                {reuse && <><div className="tab-cite-block-label">Re-use guidance</div><p className="reuse-text">{reuse}</p></>}
+                {reuse && <div className="tab-cite-block-label">How to cite</div>}
+                {children}
+            </div>
         </details>
     );
 }

@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {URLS} from '../lib/config.js';
-import {categoryAxis, countAxis, escapeHtml, finishOption, labelColor, pointTable, stackCorners, tipLines, tipRow, valueAxis} from '../lib/charts.js';
+import {categoryAxis, countAxis, escapeHtml, finishOption, labelColor, pointTable, tipLines, tipRow, valueAxis} from '../lib/charts.js';
 import {citationAuthors, number, percent} from '../lib/format.js';
 import {coverageText} from '../lib/coverage.js';
 import {outcomeBuckets} from '../lib/outcomes.js';
@@ -349,7 +349,6 @@ function timelineSpec(s, meta) {
     const plotted = series.reduce((n, x) => n + x.values.reduce((a, v) => a + v, 0), 0);
     const coverage = coverageText(plotted, s.n_citations || 0, [[(s.n_citations || 0) - plotted, 'without a recorded citing year']], 'citing works of this original');
     const table = pointTable(kinds.map(([key, name]) => ({name, x: recorded, y: tl.map(p => p[key] || 0)})), 'Citing works');
-    const corners = stackCorners(series.map(x => x.values), false, 4);
     // A wide, flat ratio suits a year-by-year timeline and keeps the replication list close below it.
     return {coverage, table, aspect: .3, option: ({width}) => {
         const scale = textScale();
@@ -363,7 +362,7 @@ function timelineSpec(s, meta) {
             // Co-citations are often a sliver of a year's citations; a minimum height keeps every non-zero one visible.
             ...(si ? {barMinHeight: 3} : {}),
             itemStyle: {color: barFill(x.color), borderColor: t.paper, borderWidth: 1},
-            data: x.values.map((v, i) => ({value: si && !v ? null : v, itemStyle: {borderRadius: corners(si, i), opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
+            data: x.values.map((v, i) => ({value: si && !v ? null : v, itemStyle: {opacity: years[i] === partialYear ? 0.45 : 1, ...(years[i] === partialYear ? {decal: hatch} : {})}})),
         }));
         // Light dotted rules mark each replication behind the bars; the numbered circle carries the outcome colour.
         bars[0].markLine = {silent: true, symbol: 'none', z: 1, data: marks.map(m => ({xAxis: String(m.year), name: m.label,

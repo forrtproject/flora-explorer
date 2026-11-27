@@ -7,7 +7,7 @@ import {useView} from '../state/view.jsx';
 // View keys holding each comparison chart's counts/percentages choice.
 const COUNTS_KEYS = {'ao-chart': 'aoCounts', 'pub-chart': 'pubCounts', 'rr-chart': 'rrCounts', 'ls-chart': 'lsCounts'};
 import {Icon} from './common.jsx';
-import {Button, Figure, IconButton} from './ui.jsx';
+import {Figure, IconButton, ModeToggle, Note} from './ui.jsx';
 
 function useChartContext() {
     const pane = usePane();
@@ -108,7 +108,8 @@ export function EChart({id, title, option, height: minHeight, aspect, heightFor,
 // grouped outcome comparison with a percentages/counts switch; {message} shows text instead.
 // heading and note fill the figure's head; frameId names the figure for callers that show or hide it.
 // actions adds chart-specific controls before the shared ones (counts switch, CSV copy).
-export function Plot({id, title, spec, className = '', height, heading, note, frameId, actions}) {
+// footnote sits under the chart, for what the chart leaves out.
+export function Plot({id, title, spec, className = '', height, heading, note, footnote, frameId, actions}) {
     const {theme} = useEnv();
     const {view, setView} = useView();
     // A comparison's counts/percentages choice is part of the view, so a shared link reopens it the same way.
@@ -129,24 +130,27 @@ export function Plot({id, title, spec, className = '', height, heading, note, fr
     const comparisonHeightFor = useMemo(() => comparison
         ? width => (width < 600 ? Math.max(440, comparison.groups.length * 65 + 200) : Math.round(Math.max(420, Math.min(width * 0.42, window.innerHeight * 0.7))))
         : undefined, [comparison]);
-    const modeLabel = counts ? 'Show percentages' : 'Show counts';
     // Chart-specific actions (such as sharing) stay available when the chart shows a message instead.
     return (
         <Figure id={frameId} title={heading} note={note} actions={(actions || drawable) && <>
             {actions}
-            {drawable && comparison && <Button id={id + '-mode'} className="chart-mode" aria-label={`${modeLabel} for ${title}`} onClick={() => setCounts(c => !c)}>{modeLabel}</Button>}
+            {drawable && comparison && <ModeToggle id={id + '-mode'} on={counts} label={`Show counts instead of percentages for ${title}`} onToggle={() => setCounts(c => !c)} />}
             {drawable && <ChartCopy id={id} title={title} table={table} />}
         </>}>
             {drawable
                 ? <EChart key="plot" id={id} title={title} option={option} height={height || spec.height || 380} heightFor={comparisonHeightFor} className={className}
                     aspect={comparison ? undefined : spec.aspect ?? 0.42} />
                 : <div id={id} key="message" className={className + ' plot-message'}>{spec?.message}</div>}
+            {drawable && footnote && <Note className="chart-footnote">{footnote}</Note>}
             {drawable && <ChartData id={id} title={title} table={table} />}
         </Figure>
     );
 }
 
 // Shared data for the grouped outcome comparisons (authorship, Registered Reports, venue, report size).
-export function comparisonSpec(buckets, groups, labels, by) {
-    return {comparison: {groups: groups.map(g => labels[g]), series: buckets.map(b => ({name: b.label, color: b.color, values: groups.map(g => by?.[g]?.[b.key] || 0)}))}};
+// plot: the bucket keys to draw, in drawing order; the other buckets stay in the hover and the table summary.
+export function comparisonSpec(buckets, groups, labels, by, plot) {
+    const ordered = plot ? [...plot.map(key => buckets.find(b => b.key === key)).filter(Boolean), ...buckets.filter(b => !plot.includes(b.key))] : buckets;
+    return {comparison: {groups: groups.map(g => labels[g]), series: ordered.map(b => ({name: b.label, color: b.color, ...(plot && !plot.includes(b.key) ? {plotted: false} : {}),
+        values: groups.map(g => by?.[g]?.[b.key] || 0)}))}};
 }

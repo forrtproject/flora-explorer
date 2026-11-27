@@ -16,22 +16,29 @@ import logo from '/assets/logo.svg';
 function TopBar() {
     const {view, switchTab, linkFor} = useView();
     const {theme, toggleTheme} = useEnv();
-    const bar = useRef(null), tabs = useRef(null), select = useRef(null);
-    const [collapsed, setCollapsed] = useState(false);
+    const bar = useRef(null), tabs = useRef(null), select = useRef(null), subtitle = useRef(null);
+    // full: subtitle and tab strip; compact: the subtitle gives way so every tab stays visible; collapsed: the tab menu.
+    const [fit, setFit] = useState('full');
+    const collapsed = fit === 'collapsed';
 
-    // The full strip is measured with the select hidden, so no viewport breakpoint is needed.
+    // The full strip is measured with the select hidden, first beside the subtitle and then without it,
+    // so the tabs take priority over the subtitle and no viewport breakpoint is needed.
     useLayoutEffect(() => {
-        const fit = () => {
-            const strip = tabs.current, menu = select.current.parentElement;
+        const measure = () => {
+            const strip = tabs.current, menu = select.current.parentElement, sub = subtitle.current;
             strip.style.display = 'flex'; menu.style.display = 'none';
-            const overflowing = strip.scrollWidth > strip.clientWidth + 1;
-            strip.style.display = ''; menu.style.display = '';
-            setCollapsed(overflowing);
+            const overflows = () => strip.scrollWidth > strip.clientWidth + 1;
+            // Inline display overrides the hiding class while measuring.
+            sub.style.display = 'block';
+            let next = 'full';
+            if (overflows()) { sub.style.display = 'none'; next = overflows() ? 'collapsed' : 'compact'; }
+            strip.style.display = ''; menu.style.display = ''; sub.style.display = '';
+            setFit(next);
         };
-        const observer = new ResizeObserver(fit);
+        const observer = new ResizeObserver(measure);
         observer.observe(bar.current);
-        document.fonts?.ready.then(fit);
-        fit();
+        document.fonts?.ready.then(measure);
+        measure();
         return () => observer.disconnect();
     }, [view.tab]);
 
@@ -48,12 +55,12 @@ function TopBar() {
         document.getElementById(next.id)?.focus();
     };
     return (
-        <header className={'top-bar' + (collapsed ? ' navigation-collapsed' : '')}>
+        <header className={'top-bar' + (collapsed ? ' navigation-collapsed' : '') + (fit !== 'full' ? ' brand-compact' : '')}>
             <nav className="top-bar-inner" aria-label="Explorer views" ref={bar}>
-                <a className="brand-mark" href={linkFor({tab: 'overview-tab'})} aria-label="FLoRA Replication Explorer overview"
+                <a className="brand-mark" href={linkFor({tab: 'overview-tab'})} aria-label="FLoRA Explorer: FORRT Library of Reproduction and Replication Attempts. Go to overview"
                     onClick={e => { if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); switchTab('overview-tab'); } }}>
                     <span className="brand-icon"><img src={logo} alt="" /></span>
-                    <span className="brand-name"><strong>FLoRA</strong><span>Explorer</span></span>
+                    <span className="brand-name"><strong>FLoRA Explorer</strong><span ref={subtitle}>FORRT Library of Reproduction and Replication Attempts</span></span>
                 </a>
                 <label className="mobile-navigation"><span>Explore</span>{' '}
                     <select id="mobile-navigation" ref={select} aria-label="Choose explorer tab" value={view.tab} onChange={e => switchTab(e.target.value)}>

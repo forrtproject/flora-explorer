@@ -9,7 +9,7 @@ import {useEnv, usePane} from '../state/env.jsx';
 import {useView} from '../state/view.jsx';
 import {GROUP_MIN_N, barTable, horizontalBarHeight, stackedBarOption} from '../lib/charts.js';
 import {ChartCopy, ChartData, EChart} from '../components/charts.jsx';
-import {Button, Figure, Note, Section} from '../components/ui.jsx';
+import {Figure, ModeToggle, Note, Section} from '../components/ui.jsx';
 import {CiteBlock, DataStamp, KindFilter, Pane, byKind4, kindLabel, repWord} from '../components/common.jsx';
 
 // sharesToggle: the chart can show each category's outcomes as within-category percentages (the default) or counts.
@@ -30,11 +30,10 @@ function TrendBlock({id, title, agg, kind, eligible, horizontal, minHeight, cove
     // Name charts size themselves from the width they get: every row needs room for the longest name.
     const heightFor = useMemo(() => horizontal ? width => Math.max(minHeight || 0, horizontalBarHeight(categories, series.filter(s => s.values.some(v => v > 0)).map(s => s.name), width)) : undefined,
         [horizontal, categories, series, minHeight]);
-    const modeLabel = shares ? 'Show counts' : 'Show percentages';
     return (
         <Section className="trend-block" notesClass="trend-desc" level={3} title={title} notes={children}>
             <Figure note={<Note id={id + '-n'}>{coverage}</Note>} actions={<>
-                {sharesToggle && <Button id={id + '-mode'} className="chart-mode" aria-label={`${modeLabel} for ${title}`} onClick={() => setView(prev => ({fieldCounts: !prev.fieldCounts}))}>{modeLabel}</Button>}
+                {sharesToggle && <ModeToggle id={id + '-mode'} on={!shares} label={`Show counts instead of percentages for ${title}`} onToggle={() => setView(prev => ({fieldCounts: !prev.fieldCounts}))} />}
                 <ChartCopy id={id} title={title} table={table} />
             </>}>
                 {/* Year charts keep their proportions as they widen; name charts grow with their row count. */}
@@ -141,8 +140,8 @@ export default function Trends() {
                 <TrendBlock id="trend-field" coverage={notes.fields} title={`${subject} by field`} agg={fields} horizontal minHeight={Math.max(360, fields.length * 44)} sharesToggle={!all} {...common}>
                     <p>A bird's-eye view grouping reference pairs by research discipline. Each bar shows the {all ? 'study-type breakdown' : 'outcome breakdown'} of {all ? 'replication and reproduction' : attempt} attempts targeting work originally published in journals from that field.</p>
                     {!all && (view.fieldCounts
-                        ? <p>Bars show reference-pair counts within each field, so fields with more recorded pairs appear longer. Choose <em>Show percentages</em> to compare within-field outcome shares across fields of different sizes.</p>
-                        : <p>Bars show percentages within each field, so fields of different sizes can be compared; N is the number of reference pairs in the field. Fields with fewer than {GROUP_MIN_N} pairs are faded, because their shares are unstable. Choose <em>Show counts</em> to see how many pairs each field has.</p>)}
+                        ? <p>Bars show reference-pair counts within each field, so fields with more recorded pairs appear longer. Switch to <em>Percentages</em> to compare within-field outcome shares across fields of different sizes.</p>
+                        : <p>Bars show percentages within each field, so fields of different sizes can be compared; N is the number of reference pairs in the field. Fields with fewer than {GROUP_MIN_N} pairs are faded, because their shares are unstable. Switch to <em>Counts</em> to see how many pairs each field has.</p>)}
                     <p>Disciplines are inferred from the original study's journal name using a hand-curated dictionary (<a href="data/disciplines.json" target="_blank" rel="noopener noreferrer" className="doi-link">journal-to-discipline mapping</a>). Journals that have not been mapped yet are collected under <em>Uncategorized</em>.</p>
                     <p className="note">Coverage is still growing. Journals that are not yet classified may leave some fields under-represented.</p>
                 </TrendBlock>

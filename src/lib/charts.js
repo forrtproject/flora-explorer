@@ -134,16 +134,6 @@ function scaleText(node, scale) {
     return out;
 }
 
-// Only the outer ends of a stack are rounded, so a stacked bar reads as one shape.
-export function stackCorners(values, horizontal, radius) {
-    const filled = i => values.map((col, s) => Number(col[i]) > 0 ? s : -1).filter(s => s >= 0);
-    return (s, i) => {
-        const on = filled(i), first = s === on[0], last = s === on[on.length - 1];
-        if (horizontal) return [first ? radius : 0, last ? radius : 0, last ? radius : 0, first ? radius : 0];
-        return [last ? radius : 0, last ? radius : 0, 0, 0];
-    };
-}
-
 // A stacked bar chart of counts per category. `series` is [{name, color, values}].
 // horizontal: categories run down the side; pooledFirst: a dashed rule sets a pooled first column apart.
 // shares: each category's bar shows within-category percentages (counts stay in the hover and table);
@@ -153,12 +143,11 @@ export function stackedBarOption({categories, series, horizontal = false, pooled
     const totals = categories.map((_, i) => series.reduce((n, s) => n + (Number(s.values[i]) || 0), 0));
     const plotted = shares ? series.map(s => s.values.map((v, i) => totals[i] ? 100 * v / totals[i] : 0)) : series.map(s => s.values);
     const isHorizontal = horizontal || proportion;
-    const corners = stackCorners(plotted, isHorizontal, isHorizontal ? 5 : 0);
     const bars = series.map((s, si) => ({
         name: s.name, type: 'bar', stack: 'total', ...(isHorizontal ? {barWidth: proportion ? 18 : 14} : {barMaxWidth: 26}),
         itemStyle: {color: s.color, ...(isHorizontal ? {borderColor: t.paper, borderWidth: 1} : {borderWidth: 0})},
         emphasis: {focus: 'series'},
-        data: plotted[si].map((v, i) => ({value: v, itemStyle: {borderRadius: corners(si, i), ...(shares && totals[i] < GROUP_MIN_N ? {opacity: .4} : {})}})),
+        data: plotted[si].map((v, i) => ({value: v, ...(shares && totals[i] < GROUP_MIN_N ? {itemStyle: {opacity: .4}} : {})})),
     }));
     if (proportion) {
         const scale = textScale();
@@ -251,17 +240,22 @@ const COMPARISON_SUMMARY = `Denominator: all reference pairs in each group with 
 // Grouped outcome comparisons (authorship, Registered Reports, venue, report size): each group's
 // outcomes as within-group percentages (stacked) or as counts (grouped). Narrow screens lay the
 // groups down the side so long venue and category names stay readable.
+// A series marked plotted: false (an outcome kept out of the chart) still appears in the hover, listed apart.
+const splitPlotted = all => [all.filter(s => s.plotted !== false), all.filter(s => s.plotted === false)];
+const groupSums = (groups, series) => groups.map((_, i) => series.reduce((sum, s) => sum + (Number(s.values[i]) || 0), 0));
+
 export function comparisonOption({groups, series: all}, {counts = false, width = 600} = {}) {
     const t = chartTheme(), narrow = width < 600;
+    const [visible, hidden] = splitPlotted(all);
     // Grouped count bars reserve a slot for every series, so empty ones would push each group off its label.
-    const series = counts ? all.filter(s => s.values.some(v => Number(v) > 0)) : all;
-    const totals = groups.map((_, i) => series.reduce((sum, s) => sum + (Number(s.values[i]) || 0), 0));
+    const series = counts ? visible.filter(s => s.values.some(v => Number(v) > 0)) : visible;
+    // Percentages and N use the plotted outcomes only, so each bar still runs to 100%.
+    const totals = groupSums(groups, visible), allTotals = groupSums(groups, all);
     const share = (v, i) => totals[i] ? 100 * v / totals[i] : 0;
     const small = totals.map(n => n > 0 && n < GROUP_MIN_N);
     // Group names break onto further lines within 80px; the group's N sits on its own line, then any small-group note.
     const labels = groups.map((g, i) => `${plain(g)}\nN=${number(totals[i])}${small[i] && !counts ? '\n(too few to compare)' : ''}`);
     const shares = series.map(s => s.values.map((v, i) => counts ? v : share(v, i)));
-    const corners = stackCorners(shares, narrow, 4);
     const hatch = {symbol: 'rect', symbolSize: 1, dashArrayX: [1, 0], dashArrayY: [2, 3], rotation: Math.PI / 4, color: 'rgba(255,255,255,.5)'};
     const minLabelPct = narrow && width < 360 ? 18 : 7;
     const bars = series.map((s, si) => ({
@@ -272,18 +266,22 @@ export function comparisonOption({groups, series: all}, {counts = false, width =
         data: shares[si].map((v, i) => {
             const faded = small[i] && !counts;
             return {value: v, ...(faded ? {label: {show: false}} : {}),
-                itemStyle: {borderRadius: counts ? (narrow ? [0, 3, 3, 0] : [3, 3, 0, 0]) : corners(si, i), ...(faded ? {opacity: .4, decal: hatch} : {})}};
+                ...(faded ? {itemStyle: {opacity: .4, decal: hatch}} : {})};
         }),
     }));
-    // The hover names the group and its size, warns when it is too small, then each outcome's share and count.
+    // The hover names the group and its size, warns when it is too small, then each plotted outcome's share and
+    // count, then every outcome kept out of the chart, so nothing recorded is hidden from the reader.
     const tooltip = {formatter: ps => {
         const i = ps[0].dataIndex;
-        return tipLines([`<strong>${escapeHtml(plain(groups[i]))}</strong> · N=${number(totals[i])}`,
+        const unplotted = hidden.filter(s => s.values[i] > 0);
+        return tipLines([`<strong>${escapeHtml(plain(groups[i]))}</strong> · N=${number(totals[i])}${hidden.length ? ` of ${number(allTotals[i])} pairs` : ''}`,
             small[i] && `Only ${number(totals[i])} pairs: too few for stable percentages.`,
             ...ps.filter(p => series[p.seriesIndex].values[i] > 0).map(p => {
                 const n = series[p.seriesIndex].values[i];
                 return tipRow(series[p.seriesIndex].color, counts ? `${p.seriesName}: ${number(n)}` : `${p.seriesName}: ${percent(n, totals[i], 1)}% (${number(n)})`);
-            })]);
+            }),
+            unplotted.length > 0 && '<span class="chart-tip-subhead">Not in the chart</span>',
+            ...unplotted.map(s => tipRow(s.color, `${s.name}: ${number(s.values[i])}`))]);
     }};
     const values = valueAxis(counts ? {...countAxis(), name: 'Reference pairs', nameGap: narrow ? 26 : 14}
         : {name: narrow ? 'Within-group\npercentage' : 'Within-group percentage', nameGap: narrow ? 28 : 14, min: 0, max: 100, interval: 25, axisLabel: {formatter: '{value}%'}});
@@ -291,14 +289,21 @@ export function comparisonOption({groups, series: all}, {counts = false, width =
     const cats = categoryAxis({data: labels, inverse: narrow, axisLabel: {interval: 0, width: labelWidth, overflow: 'break', lineHeight: Math.round(15 * textScale())}});
     return finishOption({series: bars, tooltip, xAxis: narrow ? values : cats, yAxis: narrow ? cats : values}, {width});
 }
-export function comparisonTable({groups, series}) {
-    const totals = groups.map((_, i) => series.reduce((sum, s) => sum + (Number(s.values[i]) || 0), 0));
+// The table holds the plotted values, like every chart's table; outcomes kept out of the chart are summed in its summary.
+export function comparisonTable({groups, series: all}) {
+    const [series, hidden] = splitPlotted(all);
+    const totals = groupSums(groups, series);
     const rows = [];
     series.forEach(s => groups.forEach((group, i) => {
         const count = Number(s.values[i]) || 0;
         rows.push([plain(group), plain(s.name), count, totals[i], totals[i] ? count > 0 && 100 * count / totals[i] < 1 ? '<1' : Number((100 * count / totals[i]).toFixed(1)) : 'Not available']);
     }));
-    return {headers: ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], rows, summary: COMPARISON_SUMMARY};
+    const left = hidden.map(s => [s.name, s.values.reduce((n, v) => n + (Number(v) || 0), 0)]).filter(([, n]) => n > 0);
+    const summary = hidden.length
+        ? COMPARISON_SUMMARY.replace('All recorded outcome categories and missing outcomes are retained.',
+            `The chart shows ${series.map(s => s.name).join(', ')} only, and percentages use those pairs as the denominator.${left.length ? ` Not plotted: ${left.map(([name, n]) => `${number(n)} ${name}`).join(', ')}.` : ''}`)
+        : COMPARISON_SUMMARY;
+    return {headers: ['Group', 'Outcome', 'Reference pairs', 'Group denominator', 'Percentage (%)'], rows, summary};
 }
 
 // Rows for a chart whose table is simply each plotted point: series, x, value and unit.

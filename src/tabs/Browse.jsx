@@ -335,8 +335,7 @@ export default function Browse({citation}) {
             </Callout>
             <div className="pane-meta">
                 <DataStamp source="flora" />
-                <CiteBlock label="How to cite &amp; re-use guidelines">
-                    <p className="reuse-text">{REUSE_TEXT}</p>
+                <CiteBlock reuse={REUSE_TEXT}>
                     <div className="cite-ref" id="citation-text-browse"><DatasetCitation state={citation} /></div>
                     <div className="cite-ref"><WebsiteCitation /></div>
                 </CiteBlock>
